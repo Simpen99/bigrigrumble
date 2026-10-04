@@ -75,12 +75,16 @@ document.addEventListener("click", e => { const b = e.target.closest("button"); 
 
 /* ---------- board: coin/battery bursts, landing dust, fork path preview ---------- */
 /* battery purchase: zoom on the buyer, a glowing 3D battery pops out of the truck and flies into their card, then the camera follows the factory to its new spot */
-function batteryMesh() {
-  const g = new THREE.Group();
-  g.add(mesh(chamferBox(1.5, .95, .85, .16), "#1FA35C", { emissive: "#0E6B3A", emissiveIntensity: .55 }));
-  const cap = mesh(chamferBox(.24, .46, .52, .06), "#157A44"); cap.position.x = .86; g.add(cap);
+/* Volcano Quarry batteries are purple obsidian */
+const BAT_LOOK = { g: ["#1FA35C", "#0E6B3A", "#157A44", "#FFE27A", "#FFC83D"], v: ["#5B2BB5", "#7A3CFF", "#3B2466", "#F3E6FF", "#C9A2FF"] };
+const BAT_FX = { g: ["#7CF0A8", "#FFE27A", "#FFFFFF", "#1FA35C"], v: ["#B78CFF", "#F3E6FF", "#FFFFFF", "#7A3CFF"] };
+const batKey = () => MAP && MAP.shards ? "v" : "g";
+function batteryMesh(purple) {
+  const g = new THREE.Group(), L = BAT_LOOK[purple === undefined ? batKey() : purple ? "v" : "g"];
+  g.add(mesh(chamferBox(1.5, .95, .85, .16), L[0], { emissive: L[1], emissiveIntensity: .55 }));
+  const cap = mesh(chamferBox(.24, .46, .52, .06), L[2]); cap.position.x = .86; g.add(cap);
   const bs = new THREE.Shape(); [[.08, .36], [-.2, -.03], [-.01, -.03], [-.09, -.36], [.22, .07], [.03, .07]].forEach(([x, y], i) => i ? bs.lineTo(x, y) : bs.moveTo(x, y)); bs.closePath();
-  const bg = new THREE.ExtrudeGeometry(bs, { depth: .05, bevelEnabled: false }), bm = new THREE.MeshStandardMaterial({ color: "#FFE27A", emissive: "#FFC83D", emissiveIntensity: .9, flatShading: true });
+  const bg = new THREE.ExtrudeGeometry(bs, { depth: .05, bevelEnabled: false }), bm = new THREE.MeshStandardMaterial({ color: L[3], emissive: L[4], emissiveIntensity: .9, flatShading: true });
   [1, -1].forEach(sd => { const b = new THREE.Mesh(bg, bm); b.position.z = sd * .43; if (sd < 0) b.rotation.y = Math.PI; g.add(b); });
   return g;
 }
@@ -94,8 +98,8 @@ function stepBattery(bd, dt) {
     const m = s.m, rise = Math.min(1, t / 1.1), e = 1 - Math.pow(1 - rise, 3), pop = t < .3 ? t / .3 * 1.3 : t < .5 ? 1.3 - (t - .3) / .2 * .3 : 1;
     const dn = Math.max(0, Math.min(1, (t - 1.55) / .5)), de = dn * dn;
     m.position.set(tp.x, tp.y + .9 + e * 2.4 * (1 - de) - de * .5 + Math.sin(t * 4) * .08 * rise * (1 - dn), tp.z); m.rotation.y = t * (6 - rise * 3.5 + dn * 10) + .4; m.rotation.z = Math.sin(t * 3) * .12 * (1 - dn); m.scale.setScalar(.8 * pop * (1 - de * .97));
-    if (!s.sp && t > 1) { s.sp = 1; burst(bd.scene, m.position.x, m.position.y, m.position.z, { n: 26, shape: "ico", cols: ["#7CF0A8", "#FFE27A", "#FFFFFF"], spd: 6, up: 3, grav: 4, life: .9 }); }
-    if (dn >= 1) { bd.scene.remove(m); s.m = null; tok.sq = .28; burst(bd.scene, tp.x, tp.y + .9, tp.z, { n: 16, shape: "ico", cols: ["#1FA35C", "#7CF0A8", "#FFFFFF"], spd: 3, up: 2, grav: 3, life: .6 }); sfx("coin");
+    if (!s.sp && t > 1) { s.sp = 1; burst(bd.scene, m.position.x, m.position.y, m.position.z, { n: 26, shape: "ico", cols: BAT_FX[batKey()].slice(0, 3), spd: 6, up: 3, grav: 4, life: .9 }); }
+    if (dn >= 1) { bd.scene.remove(m); s.m = null; tok.sq = .28; burst(bd.scene, tp.x, tp.y + .9, tp.z, { n: 16, shape: "ico", cols: [BAT_FX[batKey()][3], BAT_FX[batKey()][0], "#FFFFFF"], spd: 3, up: 2, grav: 3, life: .6 }); sfx("coin");
       const card = [...document.querySelectorAll(".pc[data-k]")].find(c => c.dataset.k === s.pid); if (card) { card.classList.remove("batbump"); void card.offsetWidth; card.classList.add("batbump"); } }
   }
   if (t < 2.9) { const tgt = tp.clone(); tgt.y = tp.y + 2.3 - Math.max(0, Math.min(1, (t - 1.55) / .6)) * 1.3; return [tgt, tgt.clone().add(new THREE.Vector3(0, 5.5, 9))]; }
@@ -114,8 +118,8 @@ function stNext() { const el = document.getElementById("fxs"), h = stQ.shift(); 
 const EV_LOOK = [
   [/^conveyor/i, t => /backward/.test(t) ? "⏪" : "⏩", "belt"], [/^tailwind/i, "💨", "good"], [/^crusher/i, "🔨", "bad"],
   [/^scrap pile/i, t => /nothing/.test(t) ? "🔩" : "🪙", t => /nothing/.test(t) ? "meh" : "good"], [/spike strip/i, "📌", "bad"], [/^scrap shop/i, "🛒", "meh"],
-  [/^road swap/i, "🔀", "spec"], [/^lost cargo/i, "📦", "good"], [/^factory relocates/i, "🏭", "spec"], [/^toll booth/i, "🚧", "good"], [/^fuel tax/i, "⛽", "spec"], [/^duel/i, "⚔️", "spec"],
-  [/^lava/i, "🌋", "bad"], [/^eruption/i, "🌋", "bad"], [/^geyser/i, "💨", "good"], [/^obsidian/i, "💎", "good"], [/^scorched/i, "🔥", "bad"], [/^rock conveyor/i, "🪨", "belt"], [/^quarry toll/i, "💰", t => /takes/.test(t) ? "good" : "meh"],
+  [/^road swap/i, "🔀", "spec"], [/^lost cargo/i, "📦", "good"], [/^factory relocates/i, "🏭", "spec"], [/^toll booth/i, "🚧", "good"], [/^refinery/i, "⚡", "good"], [/^truck bed full/i, "📦", "meh"], [/^battery factory/i, "🔋", "spec"], [/^fuel tax/i, "⛽", "spec"], [/^duel/i, "⚔️", "spec"],
+  [/^lava/i, "🌋", "bad"], [/^eruption/i, "🌋", "bad"], [/^geyser/i, "💨", "good"], [/^obsidian/i, "💎", "good"], [/^scorched/i, "🔥", "bad"], [/^rock conveyor/i, "🪨", "belt"],
   [/^ore cart/i, t => /nothing/.test(t) ? "🪨" : "🪙", t => /nothing/.test(t) ? "meh" : "good"]];
 function showSticker(ev) {
   let title = String(ev.title || ""), text = String(ev.text || ""), icon = "❗", tone = "spec";
@@ -136,7 +140,13 @@ function boardFx(bd, dt) {
     if (p.coins !== t.lc) { const d = p.coins - t.lc; t.lc = p.coins;
       if (d > 0) { burst(bd.scene, pos.x, pos.y + 1.2, pos.z, { n: Math.min(3 + d, 16), shape: "coin", cols: ["#FFC83D", "#FFE27A"], spd: 2.2, up: 7, grav: 14, life: 1.1 }); sfx("coin"); }
       else { burst(bd.scene, pos.x, pos.y + 1, pos.z, { n: Math.min(3 - d, 12), shape: "coin", cols: ["#E5484D", "#B5313A"], spd: 2.5, up: 3, grav: 10, life: .9 }); sfx("loss"); } }
-    if (p.bat !== t.lb) { if (p.bat > t.lb) { burst(bd.scene, pos.x, pos.y + 1.5, pos.z, { n: 30, shape: "ico", cols: ["#1FA35C", "#7CF0A8", "#FFE27A", "#FFFFFF"], spd: 5, up: 8, grav: 9, life: 1.5 }); sfx("battery"); } t.lb = p.bat; }
+    if (p.bat !== t.lb) { if (p.bat > t.lb) { burst(bd.scene, pos.x, pos.y + 1.5, pos.z, { n: 30, shape: "ico", cols: BAT_FX[batKey()], spd: 5, up: 8, grav: 9, life: 1.5 }); sfx("battery"); } t.lb = p.bat; }
+    /* Volcano Quarry cargo: purple shards pop up when dug, scatter dark when lost; a refined power cell flashes orange */
+    const sh = p.shards | 0, ce = p.cells | 0; if (t.lsh === undefined) { t.lsh = sh; t.lce = ce; }
+    if (ce > t.lce) { burst(bd.scene, pos.x, pos.y + 1.4, pos.z, { n: 22, shape: "ico", cols: ["#FF9A3D", "#FFD24A", "#FFFFFF"], spd: 3.5, up: 6, grav: 9, life: 1.1 }); sfx("battery"); }
+    else if (sh > t.lsh) { burst(bd.scene, pos.x, pos.y + 1.2, pos.z, { n: 6 + 5 * (sh - t.lsh), shape: "ico", cols: ["#7A3CFF", "#B78CFF", "#3B2466"], spd: 2.4, up: 7, grav: 13, life: 1.1 }); sfx("coin"); }
+    else if (sh < t.lsh) { burst(bd.scene, pos.x, pos.y + 1, pos.z, { n: 10, shape: "ico", cols: ["#3B2466", "#2A1D19", "#FF6A1F"], spd: 2.6, up: 3, grav: 10, life: .9 }); sfx("loss"); }
+    t.lsh = sh; t.lce = ce;
     if (t.anim && !t.wasAnim) sfx("step");
     if (!t.anim && t.wasAnim) { t.sq = .28; burst(bd.scene, pos.x, .55, pos.z, { n: 6, shape: "ico", cols: DUST, spd: 1.6, up: 1.2, grav: 4, life: .6 }); }
     t.wasAnim = !!t.anim;
