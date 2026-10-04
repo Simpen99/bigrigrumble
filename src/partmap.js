@@ -37,12 +37,12 @@ const VOLCANO = (() => {
   /* a winding ledge: radius and height change smoothly from the first space to the last */
   const arc = (r0, r1, y0, y1, degs, types, o) => degs.map((d, k) => { const f = degs.length > 1 ? k / (degs.length - 1) : 0; return add(r0 + (r1 - r0) * f, d, y0 + (y1 - y0) * f, types[k], o); });
   const JIT = [0, 1.5, -1, 2, 0, -2, 1, 0, -1.5, 2, 0, -1, 1.5, 0, -2, 0, 1, -1, 0, 1.5, 0, -1.5, 1, 0, 0, 2, -1, 1, 0, -1, 0, 1.5, -1, 0, 1, -1];
-  const RIM = ["S", "B", "E", "B", "B", "R", "B", "SH", "B", "E", "B", "R", "B", "B", "D", "B", "E", "R", "B", "B", "E", "SH", "B", "R", "B", "TG", "B", "E", "R", "B", "B", "D", "B", "R", "E", "B"];
+  const RIM = ["S", "B", "E", "B", "B", "R", "B", "SH", "B", "E", "B", "R", "B", "B", "D", "B", "E", "R", "B", "B", "E", "SH", "B", "R", "B", "RF", "B", "E", "R", "B", "B", "D", "B", "R", "E", "B"];
   const rim = RIM.map((t, k) => add(29 + (k % 3 === 1 ? .25 : k % 3 === 2 ? -.2 : 0), 90 + 10 * k + JIT[k], 8, t, { rim: 1 }));
-  const U1 = arc(23.5, 22.5, 7, 5.2, [143, 158, 173, 188, 203], ["B", "E", "B", "SC", "B"], { sl: 1 });
+  const U1 = arc(23.5, 22.5, 7, 5.2, [143, 158, 173, 188, 203], ["B", "E", "RF", "SC", "B"], { sl: 1 });
   const L1 = arc(16, 16, 4.1, 2.9, [218, 236, 254, 271], ["B", "GY", "B", "R"], { lv: 2 });
   const C = Array.from({ length: 10 }, (_, i) => add(9.5, 286 + i * 28.9, 1 + .35 * Math.abs(i - 4.5) / 4.5, ["B", "OB", "B", "E", "B", "GY", "B", "OB", "R", "B"][i], { lv: 1 }));
-  const L2 = arc(16, 16, 2.9, 3.8, [166, 146, 126, 106], ["SC", "B", "E", "B"], { lv: 2 });
+  const L2 = arc(16, 16, 2.9, 3.8, [166, 146, 126, 106], ["SC", "RF", "E", "B"], { lv: 2 });
   const U2 = arc(22.5, 23.2, 5, 7.2, [94, 76, 58, 40], ["B", "B", "SC", "E"], { sl: 1 });
   const U3 = arc(23, 22.5, 7, 5.2, [282, 296, 310, 324], ["B", "R", "E", "B"], { sl: 1 });
   const L3 = arc(16, 16, 4, 3.2, [337, 352], ["B", "SC"], { lv: 2 });
@@ -51,11 +51,12 @@ const VOLCANO = (() => {
   chain([...rim, rim[0]]); chain([rim[4], ...U1]); chain([U1[3], ...BR, U2[2]]); chain([U1[4], rim[12]]); chain([U1[4], ...L1, ...C, ...L2, ...U2, rim[30]]); chain([rim[18], ...U3, ...L3, C[3]]);
   nodes[rim[4]].labels = { [rim[5]]: "Rim road (safe)", [U1[0]]: "Down into the crater" };
   nodes[rim[18]].labels = { [rim[19]]: "Rim road (safe)", [U3[0]]: "Mine track to the crater floor" };
-  nodes[U1[3]].labels = { [U1[4]]: "Keep to the ledge", [BR[0]]: "Rock conveyor bridge (3-coin toll)" };
-  nodes[U1[4]].labels = { [rim[12]]: "Back up to the rim", [L1[0]]: "Deeper: crater floor (double coins)" };
-  nodes[L1[1]].gy = rim[15]; nodes[C[5]].gy = U2[1]; nodes[BR[0]].toll = 3;
+  nodes[U1[3]].labels = { [U1[4]]: "Keep to the ledge", [BR[0]]: "Rock conveyor bridge" };
+  nodes[U1[4]].labels = { [rim[12]]: "Back up to the rim", [L1[0]]: "Deeper: crater floor (shards)" };
+  nodes[L1[1]].gy = rim[15]; nodes[C[5]].gy = U2[1];
   BT.forEach((t, k) => { if (t === "CV") nodes[BR[k]].conv = { dir: 1, n: 2 }; });
-  return Object.assign(mkGraph(nodes), { id: "volcano", name: "Volcano Quarry", blurb: "Dig into the crater for double coins, but watch the lava.", ground: "#3E322D", dice: 1.5, lava: true, size: 2, camY: 3, follow: 1.2 });
+  return Object.assign(mkGraph(nodes), { id: "volcano", name: "Volcano Quarry", blurb: "Mine obsidian shards in the crater, refine them into power cells, but watch the lava.", ground: "#3E322D", dice: 1.5, lava: true, shards: true,
+    rules: ["Land on crater-floor blue spaces for +1 obsidian shard (no coins), or on obsidian for +2.", "Drive onto or past a refinery to turn 3 shards into a power cell. Your truck carries up to 5 shards and 2 cells.", "Battery factory: 1 power cell + 10 coins, or 50 coins without a cell.", "Landing on lava, or getting pushed uphill by rising lava, costs a shard."], size: 2, camY: 3, follow: 1.2 });
 })();
 /* layout and shape tuned in the map editor (2026-10-04) */
 VOLCANO.bake = {
@@ -129,8 +130,8 @@ function applyMapEdits(map) {
   if (map.lava) [0, 1, 2].forEach(i => { LAVA_Y[i] = ep("lava" + i); });
 }
 function edReg(o, id) { o.userData.edId = id; EDC.reg[id] = o; const e = EDC.o[id]; if (e) { if (e.p) o.position.fromArray(e.p); if (e.r) o.rotation.set(e.r[0], e.r[1], e.r[2]); if (e.s) o.scale.fromArray(e.s); } return o; }
-const SPACE_COL = { B: "#2F7DE1", R: "#E5484D", E: "#8E5BE0", S: "#F4F6F9", SC: "#B0703C", CR: "#4B515E", CV: "#2A2F3A", D: "#FF8A1F", SH: "#1FB5A8", OB: "#3B2466", GY: "#5FC3E8", TG: "#E0A800" };
-const SPACE_INFO = { B: "+3 coins", R: "−3 coins", E: "Surprise", SC: "Scrap pile: 0–15 coins", CR: "Crusher: −5 coins, free item", CV: "Conveyor belt", D: "Duel", SH: "Shop", OB: "Obsidian: +8 coins", GY: "Geyser: blasts you up the slope", TG: "Quarry toll: pay 1 passing, land to take the pot" };
+const SPACE_COL = { B: "#2F7DE1", R: "#E5484D", E: "#8E5BE0", S: "#F4F6F9", SC: "#B0703C", CR: "#4B515E", CV: "#2A2F3A", D: "#FF8A1F", SH: "#1FB5A8", OB: "#3B2466", GY: "#5FC3E8", RF: "#E04FA8" };
+const SPACE_INFO = { B: "+3 coins", R: "−3 coins", E: "Surprise", SC: "Scrap pile: 0–15 coins", CR: "Crusher: −5 coins, free item", CV: "Conveyor belt", D: "Duel", SH: "Shop", OB: "Obsidian: +2 shards", GY: "Geyser: blasts you up the slope", RF: "Refinery: 3 shards make a power cell (land or pass)" };
 function tileIcon(type) {
   return canvasTex(128, 128, (x, w, h) => {
     x.textAlign = "center"; x.textBaseline = "middle";
@@ -141,9 +142,13 @@ function tileIcon(type) {
       x.fillStyle = "#fff"; x.beginPath(); x.moveTo(54, 90); x.quadraticCurveTo(58, 62, 52, 44); x.lineTo(76, 44); x.quadraticCurveTo(70, 62, 74, 90); x.closePath(); x.fill();
       [[64, 34, 17], [45, 40, 12], [83, 40, 12], [54, 24, 11], [75, 24, 11]].forEach(([a, b, r]) => { x.beginPath(); x.arc(a, b, r, 0, 7); x.fill(); });
       [[36, 62, 4], [92, 58, 4], [30, 78, 3], [98, 74, 3]].forEach(([a, b, r]) => { x.beginPath(); x.arc(a, b, r, 0, 7); x.fill(); }); return; }
-    if (type === "OB") { x.fillStyle = "#B78CFF"; x.beginPath(); [[64, 10], [96, 46], [64, 118], [32, 46]].forEach(([a, b], i) => i ? x.lineTo(a, b) : x.moveTo(a, b)); x.fill(); x.fillStyle = "#fff"; x.font = "900 40px Rubik, Arial"; x.fillText("+8", 64, 62); return; }
+    if (type === "OB") { x.fillStyle = "#B78CFF"; x.beginPath(); [[64, 10], [96, 46], [64, 118], [32, 46]].forEach(([a, b], i) => i ? x.lineTo(a, b) : x.moveTo(a, b)); x.fill(); x.fillStyle = "#fff"; x.font = "900 40px Rubik, Arial"; x.fillText("+2", 64, 62); return; }
+    if (type === "RF") { /* refinery: shard → power cell */
+      x.fillStyle = "#3B2466"; x.beginPath(); [[30, 34], [48, 62], [30, 96], [12, 62]].forEach(([a, b], i) => i ? x.lineTo(a, b) : x.moveTo(a, b)); x.fill();
+      x.fillStyle = "#fff"; x.beginPath(); [[52, 54], [66, 54], [66, 46], [80, 64], [66, 82], [66, 74], [52, 74]].forEach(([a, b], i) => i ? x.lineTo(a, b) : x.moveTo(a, b)); x.fill();
+      x.fillStyle = "#151B24"; rr(x, 86, 38, 30, 52, 8); x.fill(); x.fillRect(95, 32, 12, 8); x.fillStyle = "#FF9A3D"; rr(x, 91, 44, 20, 40, 5); x.fill(); return; }
     if (type === "SCO") { x.fillStyle = "#FF8A3D"; x.font = "900 54px Rubik, Arial"; x.fillText("−5", 64, 68); return; }
-    x.fillStyle = "#fff"; const T = { E: ["?", 92], SC: ["$?", 58], D: ["VS", 58], SH: ["$", 88], TG: ["POT", 46] }[type]; if (!T) return;
+    x.fillStyle = "#fff"; const T = { E: ["?", 92], SC: ["$?", 58], D: ["VS", 58], SH: ["$", 88] }[type]; if (!T) return;
     x.font = `900 ${T[1]}px Rubik, Arial`; x.fillText(T[0], 64, 70);
   });
 }
@@ -238,6 +243,51 @@ function obsidianMesh(k = 1) {
   const g = new THREE.Group();
   [[0, 0, 0, 1], [.32, -.08, .18, .65], [-.28, -.12, .1, .55], [.05, -.15, -.3, .5]].forEach(([x, y, z, s]) => { const c = mesh(new THREE.OctahedronGeometry(.32 * s * k, 0), "#5B2BB5", { emissive: "#7A3CFF", emissiveIntensity: .45, roughness: .25 }); c.scale.y = 1.7; c.position.set(x * k, (y + .3 * s) * k, z * k); c.rotation.set(.2 * x, x * 3, .25 * z); g.add(c); });
   return g;
+}
+/* Volcano Quarry buildings (same 2.2 × 1.6 footprint as the battery factory). A glowing pipe runs from the building down the outside of its rock pillar into the lava (r 2.05 clears the pillar);
+   each returns a group with userData { sign (swings), puff: steam origin, puffs } */
+const GEO_PIPE = { emissive: "#FF3A00", emissiveIntensity: .55 };
+function geoPipe(g, x, z, top, len) {
+  g.add(Cy(.11, .11, len, 8, "#D9480F", x, top - len / 2, z, GEO_PIPE));
+  for (let y = top - 1.2; y > top - len + .5; y -= 2.4) g.add(Cy(.16, .16, .14, 8, "#3A302B", x, y, z));
+}
+function geoPuffs(g, n) { const ps = []; for (let k = 0; k < n; k++) { const p = new THREE.Mesh(new THREE.IcosahedronGeometry(.25, 0), new THREE.MeshStandardMaterial({ color: "#F1F3F6", transparent: true, opacity: .85, flatShading: true, depthWrite: false })); p.userData.t = k / n; g.add(p); ps.push(p); } return ps; }
+/* small geothermal refinery: stone hall, heat-exchanger tank with a hot band, steam stack, pipe into the lava, swinging shard → cell sign */
+function geoRefinery() {
+  const g = new THREE.Group();
+  g.add(B(2.3, .2, 1.7, "#2E2622", 0, .1, 0), B(1.3, .95, 1.3, "#6B5A50", -.42, .67, 0), B(1.42, .12, 1.42, "#3A302B", -.42, 1.2, 0), B(.5, .6, .05, "#2A211E", -.42, .5, .66));
+  g.add(B(.32, .2, .05, "#E8620F", -.42, .95, .66, { emissive: "#FF4500", emissiveIntensity: .5 }));
+  g.add(Cy(.46, .5, 1.15, 10, "#8C7A6A", .62, .78, .1), Cy(.48, .48, .12, 10, "#D9480F", .62, .9, .1, GEO_PIPE), Cy(.3, .46, .22, 10, "#6B5A50", .62, 1.46, .1));
+  g.add(Cy(.15, .19, 1.3, 8, "#4A3C36", .62, 2.15, -.32), Cy(.21, .21, .1, 8, "#2A211E", .62, 2.8, -.32));
+  const hp = Cy(.11, .11, .95, 8, "#D9480F", 0, 0, 0, GEO_PIPE); hp.rotation.z = Math.PI / 2; hp.position.set(1.5, .55, .55); g.add(hp);
+  geoPipe(g, 1.95, .55, .62, 13);
+  const sg = new THREE.Group(); sg.add(B(1.1, .62, .12, "#151B24", 0, 0, 0), B(.08, .9, .08, "#3A302B", 0, -.6, -.06));
+  const sh = obsidianMesh(.55); sh.position.set(-.26, -.2, .1); sg.add(sh);
+  sg.add(B(.2, .06, .04, "#FFFFFF", .05, 0, .08), B(.16, .3, .1, "#FF9A3D", .34, 0, .08, { emissive: "#FF6A1F", emissiveIntensity: .7 }), B(.08, .05, .1, "#FF9A3D", .34, .17, .08));
+  sg.position.set(-.42, 2.05, .2); g.add(sg);
+  g.userData = { sign: sg, puff: [.62, 2.9, -.32], puffs: geoPuffs(g, 5) };
+  return g;
+}
+/* the battery factory, volcano style: basalt hall with forge-lit windows, dark steel sawtooth roof, chimney, pipe into the lava, swinging purple battery sign */
+function geoFactory() {
+  const g = new THREE.Group();
+  g.add(B(2.2, 1.3, 1.6, "#5E4C42", 0, .65, 0), B(2.24, .18, 1.64, "#2E2622", 0, .1, 0), B(.7, .8, .05, "#2A211E", .5, .45, .81));
+  [-.62, -.12].forEach(x => g.add(B(.32, .3, .05, "#E8620F", x - .05, .85, .81, { emissive: "#FF4500", emissiveIntensity: .5 })));
+  for (let k = 0; k < 3; k++) { const w = mesh(new THREE.CylinderGeometry(.42, .42, 1.6, 3), "#3E434B"); w.rotation.x = Math.PI / 2; w.position.set(-.73 + k * .73, 1.45, 0); g.add(w); }
+  g.add(Cy(.18, .22, 1.3, 8, "#4A3C36", .75, 2.1, -.4), Cy(.24, .24, .12, 8, "#2A211E", .75, 2.75, -.4), Cy(.2, .2, .1, 8, "#D9480F", .75, 1.6, -.4, GEO_PIPE));
+  const hp = Cy(.11, .11, 1, 8, "#D9480F", 0, 0, 0, GEO_PIPE); hp.rotation.z = Math.PI / 2; hp.position.set(1.5, .5, .4); g.add(hp);
+  geoPipe(g, 1.98, .4, .56, 14);
+  const sg = new THREE.Group(), bat = batteryMesh(true); bat.scale.setScalar(.62); sg.add(B(1.25, .78, .1, "#151B24", 0, 0, -.12), bat);
+  sg.position.set(-.2, 2.4, .2); g.add(sg);
+  g.userData = { sign: sg, puff: [.75, 2.9, -.4], puffs: geoPuffs(g, 5) };
+  return g;
+}
+/* where a refinery stands next to its space: beside the road on the crater side (so its pipe reaches the lava), on its own rock pillar, raised clear of the highest lava */
+function refSpot(nd, i) {
+  const n = nd[i], a = nd[n.next[0]], b = nd[n.prev[0]] || n; let dx = a.x - b.x, dz = a.z - b.z; const l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l;
+  const c = [[-dz, dx], [dz, -dx]].map(([ox, oz]) => { const cx = n.x + ox * 3.1, cz = n.z + oz * 3.1; return { cx, cz, near: Math.min(...nd.filter(t => t !== n).map(t => Math.hypot(t.x - cx, t.z - cz))), r: Math.hypot(cx, cz) }; });
+  const best = c.slice().sort((p, q) => (q.near >= 2.2) - (p.near >= 2.2) || p.r - q.r)[0];
+  return { x: best.cx, z: best.cz, y: Math.max(n.y || 0, LAVA_Y[2] + .35) };
 }
 let SCORCH_TEX = null;
 function scorchTex() {
@@ -471,7 +521,7 @@ function buildBoardFor(map) {
     const top = Cy(1.08, 1.14, .2, sides, SPACE_COL[t], 0, .38, 0); top.rotation.y = Math.PI / sides; tl.add(top);
     if (t === "B") tl.add(B(.9, .08, .22, "#FFFFFF", 0, .52, 0), B(.22, .08, .9, "#FFFFFF", 0, .52, 0));
     if (t === "R") tl.add(B(.9, .08, .22, "#FFFFFF", 0, .52, 0));
-    if (["E", "S", "SC", "D", "SH", "CR", "OB", "GY", "TG"].includes(t)) { const p = new THREE.Mesh(new THREE.PlaneGeometry(1.55, 1.55), new THREE.MeshBasicMaterial({ map: tileIcon(t), transparent: true, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 })); p.rotation.x = -Math.PI / 2; p.position.set(0, .525, 0);  tl.add(p); }
+    if (["E", "S", "SC", "D", "SH", "CR", "OB", "GY", "RF"].includes(t)) { const p = new THREE.Mesh(new THREE.PlaneGeometry(1.55, 1.55), new THREE.MeshBasicMaterial({ map: tileIcon(t), transparent: true, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 })); p.rotation.x = -Math.PI / 2; p.position.set(0, .525, 0);  tl.add(p); }
     if (t === "CV" && n.conv) { const tgt = nd[n.conv.dir > 0 ? n.next[0] : n.prev[0]], ddx = tgt.x - x, ddz = tgt.z - z, tex = beltTex();
       const g = new THREE.Group(); g.position.set(0, .49, 0); g.rotation.y = tileAim(tl, n, tgt); const p = new THREE.Mesh(new THREE.PlaneGeometry(1.25, 1.6), new THREE.MeshBasicMaterial({ map: tex })); p.rotation.x = -Math.PI / 2; g.add(p);
       g.add(B(.12, .18, 1.7, "#FFC83D", -.68, .05, 0), B(.12, .18, 1.7, "#FFC83D", .68, .05, 0)); tl.add(g); belts.push(tex); }
@@ -488,9 +538,6 @@ function buildBoardFor(map) {
       gyArcs.push({ curve, dots, ring }); }
     if (t === "GY") { const r = Math.hypot(x, z) || 1, vx = x + x / r * 1.25, vz = z + z / r * 1.25; ng.add(Cy(.42, .55, .5, 8, "#6B5A50", vx, .25, vz), Cy(.3, .3, .06, 8, "#FF8A3D", vx, .52, vz, { emissive: "#FF5A1F", emissiveIntensity: .8 }));
       const ps = []; for (let k = 0; k < 6; k++) { const p = new THREE.Mesh(new THREE.IcosahedronGeometry(.3, 0), new THREE.MeshStandardMaterial({ color: "#F4F6F9", transparent: true, opacity: .8, flatShading: true, depthWrite: false })); p.userData.t = k / 6; ng.add(p); ps.push(p); } vents.push({ x: vx, z: vz, ps }); }
-    if (t === "TG") { const r = Math.hypot(x, z) || 1, tx = -z / r, tz = x / r, g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = Math.atan2(tx, tz) + Math.PI / 2;
-      g.add(B(.25, 3, .25, "#5E3A20", 0, 1.5, -1.35), B(.25, 3, .25, "#5E3A20", 0, 1.5, 1.35), B(.3, .3, 3, "#E0A800", 0, 3, 0)); for (let k = -2; k <= 2; k++) g.add(B(.32, .32, .3, k % 2 ? "#151B24" : "#E0A800", 0, 3, k * .55)); ng.add(g);
-      const sp = textSprite("TOLL", "#E0A800", "#151B24", 1.5); sp.position.set(x, 3.75, z); ng.add(sp); }
     if (n.br && !nd.some(m => !m.br && Math.hypot(m.x - x, m.z - z) < 2.6)) { const pl = B(.6, Y(n) + 1.4, .6, "#5A3A22", x, -(Y(n) + 1.4) / 2, z); ng.add(pl); }
     if (vol && n.lv) { const m = new THREE.Mesh(new THREE.CircleGeometry(1.36, sides), new THREE.MeshBasicMaterial({ map: scorchTex(), polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -6 })); m.rotation.set(-Math.PI / 2, 0, Math.PI / sides - Math.PI / 2); m.position.set(0, .6, 0); m.visible = false; tl.add(m); scorch[i] = m; }
   });
@@ -499,22 +546,29 @@ function buildBoardFor(map) {
   const vx = vol ? volcanoScenery(s, map) : null;
   if (map.id === "junk") junkScenery(s); else if (!vol) classicScenery(s);
   const fac = new THREE.Group(), ring = new THREE.Mesh(new THREE.TorusGeometry(1.35, .09, 6, 24), new THREE.MeshStandardMaterial({ color: "#FFC83D", emissive: "#FFB000", emissiveIntensity: .9 })); ring.rotation.x = Math.PI / 2; ring.position.y = .56;
-  const bld = new THREE.Group();
-  bld.add(B(2.2, 1.3, 1.6, "#C9CED8", 0, .65, 0), B(2.24, .18, 1.64, "#8E96A3", 0, .1, 0), B(.7, .8, .05, "#5A6272", .5, .45, .81), B(.5, .35, .05, "#9FD6F7", -.5, .85, .81, { roughness: .2 }));
-  for (let k = 0; k < 3; k++) { const w = mesh(new THREE.CylinderGeometry(.42, .42, 1.6, 3), "#AEB5C1"); w.rotation.x = Math.PI / 2; w.position.set(-.73 + k * .73, 1.45, 0); bld.add(w); }
-  bld.add(Cy(.18, .22, 1.3, 8, "#E5484D", .75, 2.1, -.4), Cy(.24, .24, .12, 8, "#C9CED8", .75, 2.75, -.4));
-  const sg = new THREE.Group(); sg.add(B(1.2, .72, .16, "#1FA35C", 0, 0, 0), B(.14, .32, .18, "#1FA35C", .66, 0, 0));
-  const bolt = new THREE.Shape(); [[.05, .3], [-.18, -.02], [-.02, -.02], [-.08, -.3], [.18, .06], [.02, .06]].forEach(([x, y], i) => i ? bolt.lineTo(x, y) : bolt.moveTo(x, y));
-  const bm = mesh(new THREE.ExtrudeGeometry(bolt, { depth: .06, bevelEnabled: false }), "#FFE27A", { emissive: "#FFC83D", emissiveIntensity: .6 }); bm.position.z = .08; sg.add(bm);
-  sg.position.set(-.2, 2.35, .2); bld.add(sg); bld.userData.sign = sg;
-  const puffs = []; for (let k = 0; k < 5; k++) { const p = new THREE.Mesh(new THREE.IcosahedronGeometry(.25, 0), new THREE.MeshStandardMaterial({ color: "#F1F3F6", transparent: true, opacity: .85, flatShading: true })); p.userData.t = k / 5; bld.add(p); puffs.push(p); }
+  let bld, puffs = [];
+  if (vol) { bld = geoFactory(); puffs = bld.userData.puffs; }
+  else {
+    bld = new THREE.Group(); bld.userData.puff = [.75, 2.9, -.4];
+    bld.add(B(2.2, 1.3, 1.6, "#C9CED8", 0, .65, 0), B(2.24, .18, 1.64, "#8E96A3", 0, .1, 0), B(.7, .8, .05, "#5A6272", .5, .45, .81), B(.5, .35, .05, "#9FD6F7", -.5, .85, .81, { roughness: .2 }));
+    for (let k = 0; k < 3; k++) { const w = mesh(new THREE.CylinderGeometry(.42, .42, 1.6, 3), "#AEB5C1"); w.rotation.x = Math.PI / 2; w.position.set(-.73 + k * .73, 1.45, 0); bld.add(w); }
+    bld.add(Cy(.18, .22, 1.3, 8, "#E5484D", .75, 2.1, -.4), Cy(.24, .24, .12, 8, "#C9CED8", .75, 2.75, -.4));
+    const sg = new THREE.Group(); sg.add(B(1.2, .72, .16, "#1FA35C", 0, 0, 0), B(.14, .32, .18, "#1FA35C", .66, 0, 0));
+    const bolt = new THREE.Shape(); [[.05, .3], [-.18, -.02], [-.02, -.02], [-.08, -.3], [.18, .06], [.02, .06]].forEach(([x, y], i) => i ? bolt.lineTo(x, y) : bolt.moveTo(x, y));
+    const bm = mesh(new THREE.ExtrudeGeometry(bolt, { depth: .06, bevelEnabled: false }), "#FFE27A", { emissive: "#FFC83D", emissiveIntensity: .6 }); bm.position.z = .08; sg.add(bm);
+    sg.position.set(-.2, 2.35, .2); bld.add(sg); bld.userData.sign = sg;
+    for (let k = 0; k < 5; k++) { const p = new THREE.Mesh(new THREE.IcosahedronGeometry(.25, 0), new THREE.MeshStandardMaterial({ color: "#F1F3F6", transparent: true, opacity: .85, flatShading: true })); p.userData.t = k / 5; bld.add(p); puffs.push(p); }
+  }
   fac.add(ring, bld); s.add(fac);
+  /* Volcano Quarry refineries: fixed, one per RF space, each on its own rock pillar beside the road (movable in the map editor as "ref<space>") */
+  const refs = []; if (vol) nd.forEach((n, i) => { if (n.t !== "RF") return; const sp = refSpot(nd, i), g = new THREE.Group(), r = geoRefinery(); g.position.set(sp.x, sp.y, sp.z);
+    g.add(r, Cy(1.55, 1.85, 16, 7, "#4A3C36", 0, -8.02, 0)); s.add(edReg(g, "ref" + i)); refs.push(r); });
   const clouds = []; for (let i = 0; i < 8; i++) { const c = cloud(); c.scale.setScalar(.5 + Math.random() * .2); c.position.set(-60 + i * 16, (vol ? 26 : 7) + Math.random() * 3, (i % 2 ? 28 + Math.random() * 10 : -29 - Math.random() * 14) * (vol ? 1.7 : 1)); s.add(c); clouds.push(c); }
   const hl = new THREE.Mesh(new THREE.RingGeometry(1.25, 1.55, 24), new THREE.MeshBasicMaterial({ color: "#FFFFFF", transparent: true, opacity: .8 })); hl.rotation.x = -Math.PI / 2; hl.position.y = .53; s.add(hl);
   const arrows = [0, 1, 2].map(k => { const g = new THREE.Group(); const c = mesh(new THREE.ConeGeometry(.45, .9, 8), "#FFC83D", { emissive: "#FFB000", emissiveIntensity: .8 }); c.rotation.x = Math.PI; c.position.y = .45; g.add(c); const sp = textSprite(String(k + 1), "#151B24", "#FFC83D", 1.1); sp.position.y = 1.5; g.add(sp); g.visible = false; s.add(g); return g; });
   let rival = null; if (map.rival) { rival = buildRival(); const h = nd[map.rivalHome]; rival.position.set(h.x + 1.3, 0, h.z + 1.3); s.add(rival); }
   applySky(s, map.id === "junk" ? "junk" : vol ? "volc" : "def");
-  return { scene: s, map, fac, ring, bld, puffs, clouds, hl, belts, crushers, arrows, rival, traps: {}, obs: {}, facIdx: -1, facTarget: null, vents, scorch, obCr, vx, nodeG, gyArcs, reg: EDC.reg, edp: EDC.p };
+  return { scene: s, map, fac, ring, bld, puffs, clouds, hl, belts, crushers, arrows, rival, refs, traps: {}, obs: {}, facIdx: -1, facTarget: null, vents, scorch, obCr, vx, nodeG, gyArcs, reg: EDC.reg, edp: EDC.p };
 }
 function setBoardMap(id) {
   const map = MAPS[id] || CLASSIC; if (GFX.board && GFX.board.map === map) return;
@@ -633,7 +687,8 @@ function stepBoard(dt, time) {
   stepFactory(bd, dt);
   bd.ring.rotation.z += dt * .8; bd.ring.position.y = .56 + Math.sin(time * 3) * .05;
   bd.bld.userData.sign.rotation.y = Math.sin(time * 1.5) * .25;
-  bd.puffs.forEach(p => { p.userData.t = (p.userData.t + dt * .35) % 1; const u = p.userData.t; p.position.set(.75 + u * .6, 2.9 + u * 2.2, -.4); p.scale.setScalar(.6 + u * 1.4); p.material.opacity = .85 * (1 - u); });
+  const steam = (ps, o) => ps.forEach(p => { p.userData.t = (p.userData.t + dt * .35) % 1; const u = p.userData.t; p.position.set(o[0] + u * .6, o[1] + u * 2.2, o[2]); p.scale.setScalar(.6 + u * 1.4); p.material.opacity = .85 * (1 - u); });
+  steam(bd.puffs, bd.bld.userData.puff); bd.refs.forEach((r, k) => { steam(r.userData.puffs, r.userData.puff); r.userData.sign.rotation.y = Math.sin(time * 1.3 + k * 2) * .3; });
   swayStep(bd.scene); boardFx(bd, dt);
   bd.clouds.forEach((c, i) => { c.position.x += dt * (.4 + i * .05); if (c.position.x > 64) c.position.x = -64; });
   const cam = GFX.cam, aspect = GFX.w / GFX.h;

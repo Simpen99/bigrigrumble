@@ -33,6 +33,9 @@ const faceHTML = f => `<span class="f">${f.m}${f.c ? `<sub class="${f.c > 0 ? "u
 const facesHTML = faces => `<span class="faces">${faces.map(faceHTML).join("")}</span>`;
 const coinIco = `<svg class="ico" viewBox="0 0 20 20"><circle cx="10" cy="10" r="8.5" fill="#FFC83D"/><circle cx="10" cy="10" r="5.5" fill="none" stroke="#E0A800" stroke-width="2"/></svg>`;
 const batIco = `<svg class="ico" viewBox="0 0 20 20"><rect x="1.5" y="5" width="15" height="11" rx="2.5" fill="#1FA35C"/><rect x="16.5" y="8" width="2.5" height="5" rx="1" fill="#1FA35C"/><path d="M10 6.5 L6.5 11 H9.5 L8 14.5 L12 9.5 H9.5z" fill="#FFE27A"/></svg>`;
+const batIcoV = `<svg class="ico" viewBox="0 0 20 20"><rect x="1.5" y="5" width="15" height="11" rx="2.5" fill="#6A35D0"/><rect x="16.5" y="8" width="2.5" height="5" rx="1" fill="#6A35D0"/><path d="M10 6.5 L6.5 11 H9.5 L8 14.5 L12 9.5 H9.5z" fill="#F3E6FF"/></svg>`;
+const shardIco = `<svg class="ico" viewBox="0 0 20 20"><path d="M10 1.5 L16 8 L10 18.5 L4 8z" fill="#7A3CFF"/><path d="M10 1.5 L13 8 L10 18.5 L7 8z" fill="#B78CFF"/></svg>`;
+const cellIco = `<svg class="ico" viewBox="0 0 20 20"><rect x="7.5" y="1.5" width="5" height="3" rx="1" fill="#3A302B"/><rect x="5" y="4" width="10" height="14.5" rx="3" fill="#3A302B"/><rect x="7" y="6.5" width="6" height="9.5" rx="2" fill="#FF9A3D"/></svg>`;
 const bigBattery = `<svg viewBox="0 0 90 56"><rect x="3" y="6" width="74" height="46" rx="10" fill="#1FA35C"/><rect x="77" y="18" width="10" height="20" rx="3" fill="#157A44"/><path d="M44 10 L28 31 H42 L36 48 L56 24 H43z" fill="#FFE27A"/></svg>`;
 
 /* ---------- 2D board layout ---------- */

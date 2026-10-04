@@ -183,6 +183,7 @@ function homeHTML() {
     <li>On your turn, pick the standard die or your truck's special die and roll.</li>
     <li>Blue tiles pay 3 coins, red tiles cost 3, and purple tiles trigger a surprise.</li>
     <li>Drive onto or past the battery factory with ${PRICE} coins to buy a battery. The factory then moves somewhere new.</li>
+    <li>Volcano Quarry works differently: mine obsidian shards in the crater, refine them into power cells, and trade a cell plus 10 coins for a battery (or pay 50 coins).</li>
     <li>After everyone moves, all drivers play a minigame at the same time. First place earns 10 coins.</li>
     <li>After the last round, the most batteries wins. Coins break ties.</li>
     <li>No second phone? The host can add players on the same phone and pass it around.</li>
@@ -226,7 +227,7 @@ function lobbyHTML() {
   const plist = `<section class="sheet"><h2>Drivers (${G.players.length}/8)</h2><ul class="plist">${G.players.map(p => playerRow(p, host)).join("")}</ul>
     ${host ? `<div class="row" style="margin-top:10px"><button class="btn ghost small" data-a="addcpu" ${G.players.length >= 8 ? "disabled" : ""}>+ CPU truck</button><button class="btn ghost small" data-a="addlocal" ${G.players.length >= 8 ? "disabled" : ""}>+ Player on this phone</button></div>
     ${localForm ? `<div class="localform"><label class="field">Name<input id="lname" maxlength="12" placeholder="Player name" autocomplete="off"></label><label class="field" style="margin-top:8px">Truck<select class="inp" id="ltruck">${TRUCKS.map((t, i) => `<option value="${i}">${esc(t.name)}</option>`).join("")}</select></label><button class="btn go small" data-a="addlocalok" style="width:100%;margin-top:10px">Add player</button></div>` : ""}` : ""}</section>`;
-  const settings = host ? `<section class="sheet"><h2>Map</h2><div class="mapgrid">${Object.values(MAPS).map(m => `<button class="mapb ${G.map === m.id ? "on" : ""}" data-map="${m.id}"><b>${esc(m.name)}</b><small>${esc(m.blurb)}</small>${m.dice ? `<em class="mapdice">🎲 ${m.dice}x dice multiplier</em>` : ""}</button>`).join("")}</div></section>
+  const settings = host ? `<section class="sheet"><h2>Map</h2><div class="mapgrid">${Object.values(MAPS).map(m => `<button class="mapb ${G.map === m.id ? "on" : ""}" data-map="${m.id}"><b>${esc(m.name)}</b><small>${esc(m.blurb)}</small>${m.dice ? `<em class="mapdice">🎲 ${m.dice}x dice multiplier</em>` : ""}</button>`).join("")}</div>${mapRulesHTML()}</section>
     <section class="sheet"><h2>Mode</h2><div class="seg"><button data-mode="ffa" class="${!G.teams ? "on" : ""}">Free-for-all</button><button data-mode="teams" class="${G.teams ? "on" : ""}">Teams</button></div>${G.teams ? `<p class="note">Teammates add their batteries together and can't duel or rob each other. Tap a team badge to switch a driver's team.</p>` : ""}</section>
     <section class="sheet"><h2>Rounds</h2><div class="seg">${[4, 6, 8, 10, 12, 16].map(r => `<button data-rounds="${r}" class="${G.rounds === r ? "on" : ""}">${r}</button>`).join("")}</div></section>
     <section class="sheet stack"><button class="btn go" data-a="start" ${G.players.length < 2 ? "disabled" : ""}>${G.players.length < 2 ? "Waiting for another driver" : "Start the race"}</button><button class="btn ghost" data-a="quit">Close game</button></section>`
@@ -258,7 +259,7 @@ function tvLobbyHTML() {
   <section class="sheet tvdrivers"><h2>Drivers (${n}/8)</h2>${n ? `<ul class="plist">${G.players.map(p => playerRow(p, true)).join("")}</ul>` : `<div class="empty">Waiting for phones to join…</div>`}
     <div class="row" style="margin-top:10px"><button class="btn ghost small" data-a="addcpu" ${n >= 8 ? "disabled" : ""}>+ CPU truck</button></div>
     <h2 style="margin-top:16px">Practice a minigame</h2><p class="note" style="margin:-4px 0 8px">One minigame with everyone here. No coins, back to the lobby after.</p>${pracHTML()}</section>
-  <section class="sheet tvset"><h2>Map</h2><div class="mapgrid">${Object.values(MAPS).map(m => `<button class="mapb ${G.map === m.id ? "on" : ""}" data-map="${m.id}"><b>${esc(m.name)}</b><small>${esc(m.blurb)}</small>${m.dice ? `<em class="mapdice">🎲 ${m.dice}x dice multiplier</em>` : ""}</button>`).join("")}</div>
+  <section class="sheet tvset"><h2>Map</h2><div class="mapgrid">${Object.values(MAPS).map(m => `<button class="mapb ${G.map === m.id ? "on" : ""}" data-map="${m.id}"><b>${esc(m.name)}</b><small>${esc(m.blurb)}</small>${m.dice ? `<em class="mapdice">🎲 ${m.dice}x dice multiplier</em>` : ""}</button>`).join("")}</div>${mapRulesHTML()}
     <h2 style="margin-top:14px">Rounds</h2><div class="seg">${[4, 6, 8, 10, 12, 16].map(r => `<button data-rounds="${r}" class="${G.rounds === r ? "on" : ""}">${r}</button>`).join("")}</div>
     <h2 style="margin-top:14px">Mode</h2><div class="seg"><button data-mode="ffa" class="${!G.teams ? "on" : ""}">Free-for-all</button><button data-mode="teams" class="${G.teams ? "on" : ""}">Teams</button></div>
     <div class="stack" style="margin-top:14px"><button class="btn go" data-a="start" ${n < 2 ? "disabled" : ""}>${n < 2 ? "Waiting for drivers" : "Start the race"}</button>${lead ? `<p class="note" style="margin:0">${esc(lead.name)} can also start from their phone.</p>` : ""}<button class="btn ghost" data-a="quit">Close game</button></div></section></div>`;
@@ -275,7 +276,7 @@ function ctlMeHTML() {
   const p = G.players.find(x => x.key === me.key); if (!p) return "";
   const col = G.teams ? TEAMS[p.team || 0].col : pcol(p), rank = standings(G.players).indexOf(p) + 1, c = G.players[G.turn];
   const mine = (G.phase === "turn" && c === p) || (G.phase === "fork" && G.fork && G.fork.pid === p.key) || (G.phase === "shop" && G.shop && G.shop.pid === p.key) || (G.phase === "buy" && G.buy && G.buy.pid === p.key) || (G.phase === "duelpick" && G.duelPick && G.duelPick.pid === p.key);
-  return `<div class="ctlcard ${mine ? "now" : ""}" style="--c:${col}"><img alt="" src="${thumb(p.truck)}"><div class="who"><b>${esc(p.name)}</b><small>${G.teams ? esc(TEAMS[p.team || 0].name) : ordinal(rank) + " place"}</small></div><div class="stats"><span>${p.bat}${batIco}</span><span>${p.coins}${coinIco}</span></div></div>${mine ? "" : `<div class="ctlidle">📺 Watch the TV</div>`}`;
+  return `<div class="ctlcard ${mine ? "now" : ""}" style="--c:${col}"><img alt="" src="${thumb(p.truck)}"><div class="who"><b>${esc(p.name)}</b><small>${G.teams ? esc(TEAMS[p.team || 0].name) : ordinal(rank) + " place"}</small></div><div class="stats"><span>${p.bat}${bIco()}</span><span>${p.coins}${coinIco}</span>${cargoHTML(p)}</div></div>${mine ? "" : `<div class="ctlidle">📺 Watch the TV</div>`}`;
 }
 const ordinal = n => n + (n % 10 === 1 && n % 100 !== 11 ? "st" : n % 10 === 2 && n % 100 !== 12 ? "nd" : n % 10 === 3 && n % 100 !== 13 ? "rd" : "th");
 function updateGame() {

@@ -19,7 +19,7 @@ document.addEventListener("click", e => {
   if (b.dataset.kick && role === "host") { HG.players = HG.players.filter(p => p.key !== b.dataset.kick); if (!HG.kick.includes(b.dataset.kick)) HG.kick.push(b.dataset.kick); push(); return; }
   if (b.dataset.rounds && role === "host") { HG.rounds = +b.dataset.rounds; push(); return; }
   if (b.dataset.roll) { if (!G) return; b.disabled = true; act({ t: "roll", die: b.dataset.roll, seq: G.seq }, b.dataset.for || me.key); unstick(); return; }
-  if (b.dataset.buy) { if (!G) return; b.disabled = true; act({ t: "buy", yes: b.dataset.buy === "1", seq: G.seq }, b.dataset.for || me.key); unstick(); return; }
+  if (b.dataset.buy) { if (!G) return; b.disabled = true; act({ t: "buy", yes: b.dataset.buy === "1", how: b.dataset.how, seq: G.seq }, b.dataset.for || me.key); unstick(); return; }
   const a = b.dataset.a;
   if (a === "host") { notice = ""; LS.del("trp_host"); if (!me.name) { me.name = "Driver"; saveMe(); } hostCreate(); }
   else if (a === "resume") { notice = ""; hostResume(LS.get("trp_host", null)); }
