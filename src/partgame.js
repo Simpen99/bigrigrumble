@@ -75,7 +75,7 @@ function addCpu() {
   HG.players.push(newPlayer(rid(), "CPU " + TRUCKS[tr].name.split(" ")[0], tr, true, false)); push();
 }
 function pickFactory(old) {
-  let c = MAP.nodes.map((n, i) => i).filter(i => MAP.nodes[i].t === "B" && i !== 0 && (old < 0 || MAP.D[i][old] >= 5));
+  let c = MAP.nodes.map((n, i) => i).filter(i => MAP.nodes[i].t === "B" && !MAP.nodes[i].ref && i !== 0 && (old < 0 || MAP.D[i][old] >= 5));
   /* Volcano Quarry: never on lava (now or next round); while the lava is low it often hides down in the crater */
   if (MAP.lava && HG) { const r = HG.round || 1, safe = c.filter(i => !flooded(i, r) && !flooded(i, r + 1)); if (safe.length) c = safe; const low = c.filter(i => MAP.nodes[i].lv); if (low.length && lavaLv(r) === 0 && Math.random() < .5) c = low; }
   return c[rnd(c.length)];
@@ -151,7 +151,7 @@ function move(p, steps, done) {
 function afterStep(p, cont) {
   const n = MAP.nodes[p.pos], go = () => { if (p.pos === HG.factory) offerBuy(p, cont); else if (n.t === "SH" && HG.left > 0) offerShop(p, cont); else cont(); };
   /* Volcano Quarry refinery: landing on or driving past turns shards into power cells */
-  if (n.t === "RF" && shardMap()) { const k = refine(p);
+  if (n.ref && shardMap()) { const k = refine(p);
     if (k) { HG.ev = { title: "Refinery!", text: `${p.name} refines ${k * CELL_SHARDS} shards into ${k > 1 ? k + " power cells" : "a power cell"}. Cells: ${p.cells}/${CELL_MAX}.`, n: rid() }; HG.msg = HG.ev.text; push(); later(go, 1500); return; }
     if ((p.shards | 0) >= CELL_SHARDS) { HG.msg = `${p.name} passes the refinery, but their cell rack is full (${CELL_MAX}/${CELL_MAX}).`; push(); later(go, 700); return; } }
   go();
@@ -163,7 +163,7 @@ function botDist(p, o) {
   const F = MAP.F[o], near = l => l.length ? Math.min(...l.map(i => F[i])) : 99;
   if (!shardMap() || canCell(p) || p.coins >= RAW_PRICE + BOT_RICH) return F[HG.factory];
   const ids = MAP.nodes.map((n, i) => i);
-  if ((p.shards | 0) >= CELL_SHARDS && (p.cells | 0) < CELL_MAX) return near(ids.filter(i => MAP.nodes[i].t === "RF"));
+  if ((p.shards | 0) >= CELL_SHARDS && (p.cells | 0) < CELL_MAX) return near(ids.filter(i => MAP.nodes[i].ref));
   const dig = ids.filter(i => { const n = MAP.nodes[i]; return ((n.lv === 1 && n.t === "B") || n.t === "OB" || (HG.obs && HG.obs[i])) && !flooded(i, HG.round) && !flooded(i, HG.round + 1); });
   return dig.length ? near(dig) : F[HG.factory];
 }
@@ -224,7 +224,6 @@ function spaceEffect(p, allowEvent, done) {
     if (shardMap()) { const r = addShards(p, 2); HG.ev = r.lost ? { title: "Truck bed full!", text: `${p.name} chips off obsidian${r.got ? ` and keeps ${plural(r.got, "shard")}` : ""}, but ${plural(r.lost, "shard")} ${r.lost === 1 ? "falls" : "fall"} off the back (max ${SHARD_MAX}).`, n: rid() } : { title: "Obsidian!", text: `${p.name} chips off a chunk of obsidian: +2 shards.`, n: rid() }; }
     else { p.coins += 8; HG.ev = { title: "Obsidian!", text: `${p.name} chips off a chunk of obsidian: +8 coins.`, n: rid() }; }
     HG.msg = HG.ev.text; push(); done(); return; }
-  if (t === "RF") { push(); done(); return; }
   if (t === "B" && shardMap() && n.lv === 1) { const r = addShards(p, 1);
     if (r.lost) { HG.ev = { title: "Truck bed full!", text: `${p.name} digs up a shard, but the truck bed is full (max ${SHARD_MAX}). It falls off the back.`, n: rid() }; HG.msg = HG.ev.text; }
     else HG.msg = `${p.name} digs in the crater: +1 obsidian shard (${p.shards}/${SHARD_MAX}).`; push(); done(); return; }
@@ -320,7 +319,7 @@ function lavaRound() {
 }
 /* end of every 7th round: lava bombs turn 4 ledge spaces into obsidian, trucks in the crater get launched to the rim */
 function eruption(done) {
-  const pool = MAP.nodes.map((n, i) => i).filter(i => { const n = MAP.nodes[i]; return (n.sl || n.lv === 2) && ["B", "R", "E", "SC"].includes(n.t) && i !== HG.factory; }), hits = [];
+  const pool = MAP.nodes.map((n, i) => i).filter(i => { const n = MAP.nodes[i]; return (n.sl || n.lv === 2) && ["B", "R", "E", "SC"].includes(n.t) && !n.ref && i !== HG.factory; }), hits = [];
   while (hits.length < 4 && pool.length) hits.push(pool.splice(rnd(pool.length), 1)[0]);
   HG.phase = "erupt"; HG.seq++; HG.erupt = { n: rid(), hits }; HG.ev = { title: "🌋 Eruption!", text: "The volcano blows! Lava bombs rain down on the ledges.", n: rid() }; HG.msg = HG.ev.text; push();
   later(() => { if (!HG) return; const out = [], rim = MAP.nodes.map((n, i) => i).filter(i => MAP.nodes[i].rim && i !== HG.factory);
@@ -413,7 +412,7 @@ function showDice(r) {
   setTimeout(() => { const d = $("#dl"); if (d) d.textContent = label; sfx("diceland"); }, 1150);
 }
 const P_ = k => G.players.find(p => p.key === k);
-const refDist = o => { const F = MAP.F[o]; if (!F) return 99; const r = MAP.nodes.map((n, i) => i).filter(i => MAP.nodes[i].t === "RF"); return r.length ? Math.min(...r.map(i => F[i])) : 99; };
+const refDist = o => { const F = MAP.F[o]; if (!F) return 99; const r = MAP.nodes.map((n, i) => i).filter(i => MAP.nodes[i].ref); return r.length ? Math.min(...r.map(i => F[i])) : 99; };
 function factoryHint(p) { const d = MAP.F[p.pos] ? MAP.F[p.pos][G.factory] : 99, r = shardMap() ? refDist(p.pos) : 99;
   return (d < 99 ? `<p class="panhint">Battery factory: ${d} space${d === 1 ? "" : "s"} ahead on the quickest road.${r < 99 && r > 0 ? ` Nearest refinery: ${r}.` : ""}</p>` : "") + lavaHint(); }
 const lavaHint = () => MAP.lava ? `<p class="panhint">${lavaChip(G.round)} ${esc(lavaText(G.round))}</p>` : "";

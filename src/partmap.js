@@ -37,12 +37,14 @@ const VOLCANO = (() => {
   /* a winding ledge: radius and height change smoothly from the first space to the last */
   const arc = (r0, r1, y0, y1, degs, types, o) => degs.map((d, k) => { const f = degs.length > 1 ? k / (degs.length - 1) : 0; return add(r0 + (r1 - r0) * f, d, y0 + (y1 - y0) * f, types[k], o); });
   const JIT = [0, 1.5, -1, 2, 0, -2, 1, 0, -1.5, 2, 0, -1, 1.5, 0, -2, 0, 1, -1, 0, 1.5, 0, -1.5, 1, 0, 0, 2, -1, 1, 0, -1, 0, 1.5, -1, 0, 1, -1];
-  const RIM = ["S", "B", "E", "B", "B", "R", "B", "SH", "B", "E", "B", "R", "B", "B", "D", "B", "E", "R", "B", "B", "E", "SH", "B", "R", "B", "RF", "B", "E", "R", "B", "B", "D", "B", "R", "E", "B"];
+  const RIM = ["S", "B", "E", "B", "B", "R", "B", "SH", "B", "E", "B", "R", "B", "B", "D", "B", "E", "R", "B", "B", "E", "SH", "B", "R", "B", "B", "B", "E", "R", "B", "B", "D", "B", "R", "E", "B"];
   const rim = RIM.map((t, k) => add(29 + (k % 3 === 1 ? .25 : k % 3 === 2 ? -.2 : 0), 90 + 10 * k + JIT[k], 8, t, { rim: 1 }));
-  const U1 = arc(23.5, 22.5, 7, 5.2, [143, 158, 173, 188, 203], ["B", "E", "RF", "SC", "B"], { sl: 1 });
+  const U1 = arc(23.5, 22.5, 7, 5.2, [143, 158, 173, 188, 203], ["B", "E", "B", "SC", "B"], { sl: 1 });
   const L1 = arc(16, 16, 4.1, 2.9, [218, 236, 254, 271], ["B", "GY", "B", "R"], { lv: 2 });
   const C = Array.from({ length: 10 }, (_, i) => add(9.5, 286 + i * 28.9, 1 + .35 * Math.abs(i - 4.5) / 4.5, ["B", "OB", "B", "E", "B", "GY", "B", "OB", "R", "B"][i], { lv: 1 }));
-  const L2 = arc(16, 16, 2.9, 3.8, [166, 146, 126, 106], ["SC", "RF", "E", "B"], { lv: 2 });
+  const L2 = arc(16, 16, 2.9, 3.8, [166, 146, 126, 106], ["SC", "B", "E", "B"], { lv: 2 });
+  /* refineries: a gate over a normal space (like the factory, it has no tile of its own) */
+  [rim[25], U1[2], L2[3]].forEach(i => { nodes[i].ref = 1; });
   const U2 = arc(22.5, 23.2, 5, 7.2, [94, 76, 58, 40], ["B", "B", "SC", "E"], { sl: 1 });
   const U3 = arc(23, 22.5, 7, 5.2, [282, 296, 310, 324], ["B", "R", "E", "B"], { sl: 1 });
   const L3 = arc(16, 16, 4, 3.2, [337, 352], ["B", "SC"], { lv: 2 });
@@ -130,27 +132,63 @@ function applyMapEdits(map) {
   if (map.lava) [0, 1, 2].forEach(i => { LAVA_Y[i] = ep("lava" + i); });
 }
 function edReg(o, id) { o.userData.edId = id; EDC.reg[id] = o; const e = EDC.o[id]; if (e) { if (e.p) o.position.fromArray(e.p); if (e.r) o.rotation.set(e.r[0], e.r[1], e.r[2]); if (e.s) o.scale.fromArray(e.s); } return o; }
-const SPACE_COL = { B: "#2F7DE1", R: "#E5484D", E: "#8E5BE0", S: "#F4F6F9", SC: "#B0703C", CR: "#4B515E", CV: "#2A2F3A", D: "#FF8A1F", SH: "#1FB5A8", OB: "#3B2466", GY: "#5FC3E8", RF: "#E04FA8" };
-const SPACE_INFO = { B: "+3 coins", R: "−3 coins", E: "Surprise", SC: "Scrap pile: 0–15 coins", CR: "Crusher: −5 coins, free item", CV: "Conveyor belt", D: "Duel", SH: "Shop", OB: "Obsidian: +2 shards", GY: "Geyser: blasts you up the slope", RF: "Refinery: 3 shards make a power cell (land or pass)" };
+const SPACE_COL = { B: "#2F7DE1", R: "#E5484D", E: "#8E5BE0", S: "#F4F6F9", SC: "#B0703C", CR: "#4B515E", CV: "#2A2F3A", D: "#FF8A1F", SH: "#1FB5A8", OB: "#3B2466", GY: "#4A525C" };
+const SPACE_INFO = { B: "+3 coins", R: "−3 coins", E: "Surprise", SC: "Scrap pile: 0–15 coins", CR: "Crusher: −5 coins, free item", CV: "Conveyor belt", D: "Duel", SH: "Shop", OB: "Obsidian: +2 shards", GY: "Geyser: blasts you up the slope" };
 function tileIcon(type) {
   return canvasTex(128, 128, (x, w, h) => {
     x.textAlign = "center"; x.textBaseline = "middle";
     if (type === "S") { for (let i = 0; i < 6; i++) for (let j = 0; j < 6; j++) { x.fillStyle = (i + j) % 2 ? "#151B24" : "#FFFFFF"; x.fillRect(16 + i * 16, 16 + j * 16, 16, 16); } return; }
-    if (type === "CR") { x.save(); x.beginPath(); x.arc(64, 64, 50, 0, 7); x.clip(); for (let i = -8; i < 12; i++) { x.fillStyle = i % 2 ? "#151B24" : "#FFC83D"; x.beginPath(); x.moveTo(i * 16, 0); x.lineTo(i * 16 + 16, 0); x.lineTo(i * 16 + 144, 128); x.lineTo(i * 16 + 128, 128); x.fill(); } x.restore(); x.fillStyle = "#151B24"; x.beginPath(); x.arc(64, 64, 28, 0, 7); x.fill(); x.fillStyle = "#fff"; x.font = "900 30px Rubik, Arial"; x.fillText("−5", 64, 66); return; }
+    if (type === "CR") { x.save(); x.beginPath(); x.arc(64, 64, 50, 0, 7); x.clip(); for (let i = -8; i < 12; i++) { x.fillStyle = i % 2 ? "#151B24" : "#FFC83D"; x.beginPath(); x.moveTo(i * 16, 0); x.lineTo(i * 16 + 16, 0); x.lineTo(i * 16 + 144, 128); x.lineTo(i * 16 + 128, 128); x.fill(); } x.restore(); x.fillStyle = "#151B24"; x.beginPath(); x.arc(64, 64, 36, 0, 7); x.fill(); return; }
     if (type === "GY") { /* geyser: rock vent with a steam column and a cloud on top */
       x.fillStyle = "#1E2530"; x.beginPath(); x.moveTo(30, 108); x.lineTo(46, 88); x.lineTo(82, 88); x.lineTo(98, 108); x.closePath(); x.fill();
       x.fillStyle = "#fff"; x.beginPath(); x.moveTo(54, 90); x.quadraticCurveTo(58, 62, 52, 44); x.lineTo(76, 44); x.quadraticCurveTo(70, 62, 74, 90); x.closePath(); x.fill();
       [[64, 34, 17], [45, 40, 12], [83, 40, 12], [54, 24, 11], [75, 24, 11]].forEach(([a, b, r]) => { x.beginPath(); x.arc(a, b, r, 0, 7); x.fill(); });
       [[36, 62, 4], [92, 58, 4], [30, 78, 3], [98, 74, 3]].forEach(([a, b, r]) => { x.beginPath(); x.arc(a, b, r, 0, 7); x.fill(); }); return; }
     if (type === "OB") { x.fillStyle = "#B78CFF"; x.beginPath(); [[64, 10], [96, 46], [64, 118], [32, 46]].forEach(([a, b], i) => i ? x.lineTo(a, b) : x.moveTo(a, b)); x.fill(); x.fillStyle = "#fff"; x.font = "900 40px Rubik, Arial"; x.fillText("+2", 64, 62); return; }
-    if (type === "RF") { /* refinery: shard → power cell */
-      x.fillStyle = "#3B2466"; x.beginPath(); [[30, 34], [48, 62], [30, 96], [12, 62]].forEach(([a, b], i) => i ? x.lineTo(a, b) : x.moveTo(a, b)); x.fill();
-      x.fillStyle = "#fff"; x.beginPath(); [[52, 54], [66, 54], [66, 46], [80, 64], [66, 82], [66, 74], [52, 74]].forEach(([a, b], i) => i ? x.lineTo(a, b) : x.moveTo(a, b)); x.fill();
-      x.fillStyle = "#151B24"; rr(x, 86, 38, 30, 52, 8); x.fill(); x.fillRect(95, 32, 12, 8); x.fillStyle = "#FF9A3D"; rr(x, 91, 44, 20, 40, 5); x.fill(); return; }
     if (type === "SCO") { x.fillStyle = "#FF8A3D"; x.font = "900 54px Rubik, Arial"; x.fillText("−5", 64, 68); return; }
     x.fillStyle = "#fff"; const T = { E: ["?", 92], SC: ["$?", 58], D: ["VS", 58], SH: ["$", 88] }[type]; if (!T) return;
     x.font = `900 ${T[1]}px Rubik, Arial`; x.fillText(T[0], 64, 70);
   });
+}
+/* ---------- raised tile symbols (like the + / − bars): strokes and shapes extruded up from the tile top (y .48), glyph "up" = away from the camera (−z) ----------
+   layers that cross get different heights (≥ .02 apart) so their tops never z-fight */
+const arcPts = (cx, cy, r, a0, a1, n = 12) => Array.from({ length: n + 1 }, (_, k) => { const a = (a0 + (a1 - a0) * k / n) * Math.PI / 180; return [cx + Math.cos(a) * r, cy + Math.sin(a) * r]; });
+/* one outline shape for a stroke along a polyline: mitred joints, flat ends */
+function strokeShape(pts, w) {
+  const L = [], R = [], n = pts.length, h = w / 2, nrm = (a, b) => { const dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy) || 1; return [-dy / l, dx / l]; };
+  for (let k = 0; k < n; k++) {
+    const n0 = k > 0 ? nrm(pts[k - 1], pts[k]) : null, n1 = k < n - 1 ? nrm(pts[k], pts[k + 1]) : null; let nx, ny, m = 1;
+    if (n0 && n1) { nx = n0[0] + n1[0]; ny = n0[1] + n1[1]; const l = Math.hypot(nx, ny) || 1; nx /= l; ny /= l; m = 1 / Math.max(.35, nx * n1[0] + ny * n1[1]); } else [nx, ny] = n0 || n1;
+    L.push([pts[k][0] + nx * h * m, pts[k][1] + ny * h * m]); R.push([pts[k][0] - nx * h * m, pts[k][1] - ny * h * m]);
+  }
+  return polyShape(L.concat(R.reverse()));
+}
+function polyShape(pts) { const sh = new THREE.Shape(); pts.forEach(([x, y], i) => i ? sh.lineTo(x, y) : sh.moveTo(x, y)); sh.closePath(); return sh; }
+function discShape(x, y, r) { const sh = new THREE.Shape(); sh.absarc(x, y, r, 0, Math.PI * 2, false); return sh; }
+const rotPts = (pts, deg, ox, oy) => { const a = deg * Math.PI / 180, c = Math.cos(a), s_ = Math.sin(a); return pts.map(([x, y]) => [ox + x * c - y * s_, oy + x * s_ + y * c]); };
+const SYM_W = "#FFFFFF";
+/* per tile type: layers [shapes, height, colour] */
+function symLayers(t) {
+  const st = (pts, w) => strokeShape(pts, w);
+  if (t === "E") return [[[st(arcPts(0, .16, .21, 165, -62).concat([[0, -.1]]), .15), discShape(0, -.34, .09)], .08, SYM_W]];
+  if (t === "SH") { const S = arcPts(0, .13, .17, 25, 270).concat(arcPts(0, -.21, .17, 90, -155).slice(1)); return [[[st(S, .12)], .07, SYM_W], [[st([[0, -.46], [0, .46]], .07)], .1, SYM_W]]; }
+  if (t === "D") { const S = arcPts(.25, .1, .1, 30, 270, 10).concat(arcPts(.25, -.1, .1, 90, -150, 10).slice(1)); return [[[st([[-.42, .2], [-.27, -.2], [-.12, .2]], .1), st(S, .09)], .08, SYM_W]]; }
+  if (t === "SC") { /* shovel */ const blade = rotPts([[-.16, .12], [.16, .12], [.16, -.08], [0, -.26], [-.16, -.08]], 45, .18, -.18);
+    return [[[st([[-.33, .33], [.1, -.1]], .1)], .07, SYM_W], [[st([[-.43, .23], [-.23, .43]], .1), polyShape(blade)], .095, SYM_W]]; }
+  if (t === "CR") { const five = [[.3, .2], [.08, .2], [.06, .02]].concat(arcPts(.16, -.08, .13, 130, -150, 12).slice(1)); return [[[st([[-.34, 0], [-.12, 0]], .09), st(five, .09)], .08, SYM_W]]; }
+  if (t === "OB") { const plus = [st([[-.3, 0], [-.08, 0]], .075), st([[-.19, -.11], [-.19, .11]], .075)], two = st(arcPts(.13, .07, .1, 165, -35, 10).concat([[.03, -.14], [.25, -.14]]), .075);
+    return [[[polyShape([[0, .5], [.36, .14], [0, -.5], [-.36, .14]])], .05, "#B78CFF"], [plus.concat([two]), .1, SYM_W]]; }
+  if (t === "GY") { const wave = x => Array.from({ length: 9 }, (_, k) => [x + Math.sin(k * .9) * .05, -.42 + k * .055]);
+    return [[[st(wave(-.08), .07), st(wave(.08), .07)], .06, SYM_W], [[discShape(-.2, .17, .13), discShape(.2, .17, .13)], .085, SYM_W], [[discShape(0, .25, .18)], .11, SYM_W]]; }
+  if (t === "S") { const sq = []; for (let i = 0; i < 6; i++) for (let j = 0; j < 6; j++) if ((i + j) % 2) { const x = -.58 + i * .194, y = -.58 + j * .194; sq.push(polyShape([[x, y], [x + .194, y], [x + .194, y + .194], [x, y + .194]])); } return [[sq, .04, "#151B24"]]; }
+  return null;
+}
+const SYM_GEO = {};
+function tileSymbol(t) {
+  const L = SYM_GEO[t] || (SYM_GEO[t] = (symLayers(t) || []).map(([shapes, h, col]) => { const g = new THREE.ExtrudeGeometry(shapes, { depth: h, bevelEnabled: false, curveSegments: 14 }); g.rotateX(-Math.PI / 2); return [varyColors(g), col]; }));
+  if (!L.length) return null; const g = new THREE.Group(), k = { SC: 1.35, GY: 1.35, OB: 1.1 }[t] || 1; g.position.y = .48; g.scale.set(k, 1, k);
+  L.forEach(([geo, col]) => { const m = new THREE.Mesh(geo, M(col, { vertexColors: true })); m.castShadow = true; m.receiveShadow = true; g.add(m); });
+  return g;
 }
 let CHEV_TEX = null;
 function chevTex() { return CHEV_TEX || (CHEV_TEX = canvasTex(64, 64, (x) => { x.lineCap = x.lineJoin = "round"; x.beginPath(); x.moveTo(14, 46); x.lineTo(32, 20); x.lineTo(50, 46); x.strokeStyle = "#151B24"; x.lineWidth = 16; x.stroke(); x.strokeStyle = "#FFFFFF"; x.lineWidth = 8; x.stroke(); })); }
@@ -251,43 +289,146 @@ function geoPipe(g, x, z, top, len) {
   g.add(Cy(.11, .11, len, 8, "#D9480F", x, top - len / 2, z, GEO_PIPE));
   for (let y = top - 1.2; y > top - len + .5; y -= 2.4) g.add(Cy(.16, .16, .14, 8, "#3A302B", x, y, z));
 }
-function geoPuffs(g, n) { const ps = []; for (let k = 0; k < n; k++) { const p = new THREE.Mesh(new THREE.IcosahedronGeometry(.25, 0), new THREE.MeshStandardMaterial({ color: "#F1F3F6", transparent: true, opacity: .85, flatShading: true, depthWrite: false })); p.userData.t = k / n; g.add(p); ps.push(p); } return ps; }
-/* small geothermal refinery: stone hall, heat-exchanger tank with a hot band, steam stack, pipe into the lava, swinging shard → cell sign */
-function geoRefinery() {
-  const g = new THREE.Group();
-  g.add(B(2.3, .2, 1.7, "#2E2622", 0, .1, 0), B(1.3, .95, 1.3, "#6B5A50", -.42, .67, 0), B(1.42, .12, 1.42, "#3A302B", -.42, 1.2, 0), B(.5, .6, .05, "#2A211E", -.42, .5, .66));
-  g.add(B(.32, .2, .05, "#E8620F", -.42, .95, .66, { emissive: "#FF4500", emissiveIntensity: .5 }));
-  g.add(Cy(.46, .5, 1.15, 10, "#8C7A6A", .62, .78, .1), Cy(.48, .48, .12, 10, "#D9480F", .62, .9, .1, GEO_PIPE), Cy(.3, .46, .22, 10, "#6B5A50", .62, 1.46, .1));
-  g.add(Cy(.15, .19, 1.3, 8, "#4A3C36", .62, 2.15, -.32), Cy(.21, .21, .1, 8, "#2A211E", .62, 2.8, -.32));
-  const hp = Cy(.11, .11, .95, 8, "#D9480F", 0, 0, 0, GEO_PIPE); hp.rotation.z = Math.PI / 2; hp.position.set(1.5, .55, .55); g.add(hp);
-  geoPipe(g, 1.95, .55, .62, 13);
-  const sg = new THREE.Group(); sg.add(B(1.1, .62, .12, "#151B24", 0, 0, 0), B(.08, .9, .08, "#3A302B", 0, -.6, -.06));
-  const sh = obsidianMesh(.55); sh.position.set(-.26, -.2, .1); sg.add(sh);
-  sg.add(B(.2, .06, .04, "#FFFFFF", .05, 0, .08), B(.16, .3, .1, "#FF9A3D", .34, 0, .08, { emissive: "#FF6A1F", emissiveIntensity: .7 }), B(.08, .05, .1, "#FF9A3D", .34, .17, .08));
-  sg.position.set(-.42, 2.05, .2); g.add(sg);
-  g.userData = { sign: sg, puff: [.62, 2.9, -.32], puffs: geoPuffs(g, 5) };
+function geoPuffs(g, n, col = "#F1F3F6") { const ps = []; for (let k = 0; k < n; k++) { const p = new THREE.Mesh(new THREE.IcosahedronGeometry(.25, 0), new THREE.MeshStandardMaterial({ color: col, transparent: true, opacity: .85, flatShading: true, depthWrite: false })); p.userData.t = k / n; g.add(p); ps.push(p); } return ps; }
+/* refinery gate over the road (trucks drive through it): a heat-exchanger tank on the lava side, a stone tower with a steam stack on the other, a girder and a glowing pipe across,
+   a double-sided shard → cell sign on top and the hot pipe running from the tank down over the ledge edge into the lava. Local x runs along the road; sd = which side (±z) faces the lava */
+function geoRefinery(w, sd) {
+  const g = new THREE.Group(), zc = w + .45, zt = sd * zc, zs = -sd * zc;
+  [zt, zs].forEach(z => g.add(B(1.05, 1.7, .95, "#4A3C36", 0, -.83, z)));
+  g.add(Cy(.42, .46, 3, 10, "#8C7A6A", 0, 1.5, zt), Cy(.44, .44, .14, 10, "#D9480F", 0, 1.1, zt, GEO_PIPE), Cy(.44, .44, .14, 10, "#D9480F", 0, 2.3, zt, GEO_PIPE), Cy(.18, .42, .3, 10, "#6B5A50", 0, 3.15, zt));
+  g.add(B(.9, 3.1, .8, "#6B5A50", 0, 1.55, zs), B(1, .14, .9, "#3A302B", 0, 3.15, zs), B(.05, .4, .3, "#E8620F", .46, 1.9, zs, { emissive: "#FF4500", emissiveIntensity: .5 }), B(.05, .4, .3, "#E8620F", -.46, 1.9, zs, { emissive: "#FF4500", emissiveIntensity: .5 }));
+  g.add(Cy(.14, .18, .9, 8, "#4A3C36", .18, 3.65, zs), Cy(.2, .2, .1, 8, "#2A211E", .18, 4.1, zs));
+  g.add(B(.32, .32, 2 * zc + .5, "#3A302B", 0, 3.3, 0));
+  const xp = Cy(.12, .12, 2 * zc, 8, "#D9480F", 0, 0, 0, GEO_PIPE); xp.rotation.x = Math.PI / 2; xp.position.set(.3, 3.02, 0); g.add(xp);
+  const op = Cy(.11, .11, .75, 8, "#D9480F", 0, 0, 0, GEO_PIPE); op.rotation.x = Math.PI / 2; op.position.set(0, .6, sd * (zc + .45)); g.add(op);
+  geoPipe(g, 0, sd * (zc + .8), .71, 13);
+  const sg = new THREE.Group(); sg.add(B(1.5, .75, .1, "#151B24", 0, 0, 0), B(.1, .3, .1, "#3A302B", -.5, -.5, 0), B(.1, .3, .1, "#3A302B", .5, -.5, 0));
+  const sh = obsidianMesh(.6); sh.position.set(-.38, -.22, 0); sg.add(sh);
+  [1, -1].forEach(f => sg.add(B(.22, .07, .04, "#FFFFFF", .07 * f, 0, .07 * f), B(.18, .34, .06, "#FF9A3D", .4 * f, 0, .07 * f, { emissive: "#FF6A1F", emissiveIntensity: .7 }), B(.09, .06, .06, "#FF9A3D", .4 * f, .2, .07 * f)));
+  sg.rotation.y = Math.PI / 2; sg.position.set(0, 3.98, 0); g.add(sg);
+  /* intake: a funnel under the girder sucks shards up in a purple whirl from a swirling patch on the road */
+  g.add(Cy(.16, .55, .45, 10, "#3A302B", 0, 2.95, 0), Cy(.57, .57, .06, 10, "#B78CFF", 0, 2.72, 0, { emissive: "#7A3CFF", emissiveIntensity: .8 }));
+  const sw = new THREE.Mesh(new THREE.RingGeometry(1.2, 1.75, 40), new THREE.MeshBasicMaterial({ map: swirlTex(), transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -8 }));
+  sw.rotation.x = -Math.PI / 2; sw.position.y = .14; g.add(sw);
+  const sg2 = new THREE.OctahedronGeometry(.11, 0), sm = new THREE.MeshStandardMaterial({ color: "#7A3CFF", emissive: "#7A3CFF", emissiveIntensity: .6, flatShading: true, roughness: .3 }), bits = [];
+  for (let k = 0; k < 14; k++) { const m = new THREE.Mesh(sg2, sm); g.add(m); bits.push(m); }
+  const tick = time => { sw.rotation.z = -time * 1.4;
+    bits.forEach((m, k) => { const u = (time * .3 + k / bits.length) % 1, a = u * Math.PI * 5 + k * .45, r = 1.15 * (1 - u) + .12, sc = u < .1 ? u / .1 : u > .85 ? (1 - u) / .15 : 1;
+      m.position.set(Math.cos(a) * r, .62 + u * 2.05, Math.sin(a) * r); m.rotation.y = a * 2; m.scale.set(sc, sc * 1.6, sc); }); };
+  g.userData = { puff: [.18, 4.2, zs], puffs: geoPuffs(g, 5), tick };
   return g;
 }
-/* the battery factory, volcano style: basalt hall with forge-lit windows, dark steel sawtooth roof, chimney, pipe into the lava, swinging purple battery sign */
-function geoFactory() {
-  const g = new THREE.Group();
-  g.add(B(2.2, 1.3, 1.6, "#5E4C42", 0, .65, 0), B(2.24, .18, 1.64, "#2E2622", 0, .1, 0), B(.7, .8, .05, "#2A211E", .5, .45, .81));
-  [-.62, -.12].forEach(x => g.add(B(.32, .3, .05, "#E8620F", x - .05, .85, .81, { emissive: "#FF4500", emissiveIntensity: .5 })));
-  for (let k = 0; k < 3; k++) { const w = mesh(new THREE.CylinderGeometry(.42, .42, 1.6, 3), "#3E434B"); w.rotation.x = Math.PI / 2; w.position.set(-.73 + k * .73, 1.45, 0); g.add(w); }
-  g.add(Cy(.18, .22, 1.3, 8, "#4A3C36", .75, 2.1, -.4), Cy(.24, .24, .12, 8, "#2A211E", .75, 2.75, -.4), Cy(.2, .2, .1, 8, "#D9480F", .75, 1.6, -.4, GEO_PIPE));
-  const hp = Cy(.11, .11, 1, 8, "#D9480F", 0, 0, 0, GEO_PIPE); hp.rotation.z = Math.PI / 2; hp.position.set(1.5, .5, .4); g.add(hp);
-  geoPipe(g, 1.98, .4, .56, 14);
-  const sg = new THREE.Group(), bat = batteryMesh(true); bat.scale.setScalar(.62); sg.add(B(1.25, .78, .1, "#151B24", 0, 0, -.12), bat);
-  sg.position.set(-.2, 2.4, .2); g.add(sg);
-  g.userData = { sign: sg, puff: [.75, 2.9, -.4], puffs: geoPuffs(g, 5) };
+let SWIRL_TEX = null;
+function swirlTex() { return SWIRL_TEX || (SWIRL_TEX = canvasTex(256, 256, (x, w, h) => { x.translate(128, 128); x.lineCap = "round";
+  for (let k = 0; k < 4; k++) { x.rotate(Math.PI / 2); x.beginPath(); for (let t = 0; t <= 1; t += .02) { const a = t * 2.4, r = 70 + t * 56; x.lineTo(Math.cos(a) * r, Math.sin(a) * r); } x.strokeStyle = "rgba(183,140,255,.75)"; x.lineWidth = 14; x.stroke(); } })); }
+/* ---------- battery factory models: two looks per style, FAC_LOOK picks the one in use ----------
+   all face +z (the camera side), ~2.7 × 2 footprint; each returns a group with userData { sign (swings, optional), puff: steam origin, puffs, tick(time) } */
+const FAC_LOOK = { def: "works", volc: "forge" };
+const FAC_MODELS = { works: () => facWorks(), plant: () => facPlant(), forge: () => facForge(), reactor: () => facReactor() };
+const glowMat = (c, e, k) => new THREE.MeshStandardMaterial({ color: c, emissive: e, emissiveIntensity: k, flatShading: true });
+/* one sawtooth roof tooth running along x: glazed vertical face toward +z, slope falling back to −z */
+function sawTooth(len, d, h, col, gcol, gopt) {
+  const geo = new THREE.ExtrudeGeometry(polyShape([[0, 0], [-d, 0], [0, h]]), { depth: len, bevelEnabled: false }); geo.rotateY(-Math.PI / 2); geo.translate(len / 2, 0, 0);
+  const g = new THREE.Group(); g.add(mesh(geo, col), B(len * .9, h * .72, .03, gcol, 0, h * .42, .025, gopt)); return g;
+}
+function sawRoof(g, n, len, d, h, x, y, zFront, col, gcol, gopt) { for (let k = 0; k < n; k++) { const t = sawTooth(len, d, h, col, gcol, gopt); t.position.set(x, y, zFront - k * d); g.add(t); } }
+/* a little battery riding a conveyor */
+function miniBat(col, cap) { const b = new THREE.Group(); b.add(B(.2, .13, .13, col, 0, 0, 0), B(.05, .07, .07, cap, .125, 0, 0)); return b; }
+/* conveyor belt along z from z0 to z1 with rails, carrying n batteries; returns a tick */
+function facBelt(g, x, z0, z1, y, col, cap, n = 3) {
+  const L = z1 - z0, zc = (z0 + z1) / 2; g.add(B(.38, .08, L, "#2A2F3A", x, y, zc), B(.04, .12, L, "#FFC83D", x - .21, y + .03, zc), B(.04, .12, L, "#FFC83D", x + .21, y + .03, zc));
+  [z0 + .08, z1 - .08].forEach(z => g.add(B(.3, y, .08, "#5A6272", x, y / 2, z)));
+  const bats = Array.from({ length: n }, () => { const b = miniBat(col, cap); b.rotation.y = Math.PI / 2; g.add(b); return b; });
+  return time => bats.forEach((b, k) => { const u = (time * .18 + k / n) % 1; b.position.set(x, y + .11, z0 + .1 + u * (L - .2)); b.scale.setScalar(u < .08 ? u / .08 : u > .92 ? (1 - u) / .08 : 1); });
+}
+function batSign(purple) {
+  const sg = new THREE.Group();
+  if (purple) { const bat = batteryMesh(true); bat.scale.setScalar(.62); sg.add(B(1.25, .78, .1, "#151B24", 0, 0, -.12), bat); return sg; }
+  sg.add(B(1.2, .72, .16, "#1FA35C", 0, 0, 0), B(.14, .32, .18, "#1FA35C", .66, 0, 0), B(1.3, .82, .08, "#151B24", 0, 0, -.1));
+  const bolt = new THREE.Shape(); [[.05, .3], [-.18, -.02], [-.02, -.02], [-.08, -.3], [.18, .06], [.02, .06]].forEach(([x, y], i) => i ? bolt.lineTo(x, y) : bolt.moveTo(x, y));
+  const bm = mesh(new THREE.ExtrudeGeometry(bolt, { depth: .06, bevelEnabled: false }), "#FFE27A", { emissive: "#FFC83D", emissiveIntensity: .6 }); bm.position.z = .08; sg.add(bm); return sg;
+}
+/* Battery Works: brick-based hall with ribbed walls and a glazed sawtooth roof, blue office annex, acid tanks, banded chimney, roll-up door and a battery conveyor */
+function facWorks() {
+  const g = new THREE.Group(), glass = { roughness: .15, metalness: .1 };
+  g.add(B(2.7, .14, 2, "#8E96A3", 0, .07, 0));
+  g.add(B(1.66, 1.1, 1.4, "#D8DDE5", -.42, .69, -.1), B(1.72, .32, 1.46, "#B5523B", -.42, .3, -.1), B(1.74, .06, 1.48, "#8E3E2C", -.42, .48, -.1));
+  for (let x = -1.18; x < .38; x += .13) if (x < -.5 || x > .27) g.add(B(.035, .72, .04, "#BCC3CE", x, .88, .625));
+  sawRoof(g, 3, 1.66, .46, .38, -.42, 1.245, .6, "#8E96A3", "#9FD6F7", glass);
+  g.add(B(.66, .66, .04, "#3E4450", -.12, .47, .64), B(.6, .6, .04, "#6A717E", -.12, .45, .66));
+  for (let k = 0; k < 4; k++) g.add(B(.58, .025, .02, "#4B515E", -.12, .25 + k * .13, .69));
+  [-.5, .26].forEach(x => { g.add(Cy(.05, .05, .7, 8, "#FFC83D", x, .49, .74)); [.3, .56].forEach(y => g.add(Cy(.065, .065, .09, 8, "#151B24", x, y, .74))); });
+  g.add(B(.8, .9, 1, "#2F7DE1", .85, .59, .25), B(.86, .08, 1.06, "#1E2530", .85, 1.08, .25), B(.24, .4, .03, "#1E2530", .98, .34, .76));
+  [[.68, .52], [.68, .82], [.98, .82]].forEach(([x, y]) => g.add(B(.22, .17, .03, "#9FD6F7", x, y, .765, glass)));
+  g.add(B(.3, .16, .3, "#AEB5C1", .78, 1.2, .12), Cy(.1, .1, .02, 10, "#5A6272", .78, 1.29, .12));
+  [[.62, -.6], [1.06, -.52]].forEach(([x, z]) => { g.add(Cy(.22, .22, 1, 12, "#1FA35C", x, .64, z), Cy(.14, .22, .14, 12, "#157A44", x, 1.21, z), Cy(.24, .24, .05, 12, "#C9CED8", x, .42, z), Cy(.24, .24, .05, 12, "#C9CED8", x, .9, z));
+    g.add(B(.03, .9, .03, "#5A6272", x - .07, .6, z + .23), B(.03, .9, .03, "#5A6272", x + .07, .6, z + .23)); for (let y = .25; y < 1.05; y += .14) g.add(B(.14, .02, .02, "#5A6272", x, y, z + .23)); });
+  const tp = Cy(.05, .05, .78, 8, "#AEB5C1", 0, 0, 0); tp.rotation.z = Math.PI / 2; tp.position.set(.48, 1.38, -.56); g.add(tp, Cy(.05, .05, .2, 8, "#AEB5C1", .62, 1.3, -.6), Cy(.05, .05, .2, 8, "#AEB5C1", 1.06, 1.3, -.52), Cy(.05, .05, .14, 8, "#AEB5C1", .1, 1.33, -.56));
+  for (let k = 0; k < 5; k++) g.add(Cy(.15 - k * .008, .16 - k * .008, .3, 10, k % 2 ? "#FFFFFF" : "#E5484D", -1.02, 1.4 + k * .3, -.58));
+  const bc = new THREE.Mesh(new THREE.CylinderGeometry(.06, .06, .1, 8), glowMat("#FFB000", "#FFB000", .9)); bc.position.set(1.18, 1.17, .62); g.add(bc, Cy(.035, .035, .05, 6, "#1E2530", 1.18, 1.1, .62));
+  const sg = batSign(false); sg.position.set(-.42, 2.05, -.1); g.add(sg, B(.06, .45, .06, "#5A6272", -.82, 1.62, -.15), B(.06, .45, .06, "#5A6272", -.02, 1.62, -.15));
+  const belt = facBelt(g, -.12, .7, 1.3, .2, "#1FA35C", "#C9CED8");
+  g.userData = { sign: sg, puff: [-1.02, 2.95, -.58], puffs: geoPuffs(g, 5), tick: time => { belt(time); bc.material.emissiveIntensity = (time * 1.5 % 1) < .5 ? 1.2 : .15; } };
   return g;
 }
-/* where a refinery stands next to its space: beside the road on the crater side (so its pipe reaches the lava), on its own rock pillar, raised clear of the highest lava */
-function refSpot(nd, i) {
-  const n = nd[i], a = nd[n.next[0]], b = nd[n.prev[0]] || n; let dx = a.x - b.x, dz = a.z - b.z; const l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l;
-  const c = [[-dz, dx], [dz, -dx]].map(([ox, oz]) => { const cx = n.x + ox * 3.1, cz = n.z + oz * 3.1; return { cx, cz, near: Math.min(...nd.filter(t => t !== n).map(t => Math.hypot(t.x - cx, t.z - cz))), r: Math.hypot(cx, cz) }; });
-  const best = c.slice().sort((p, q) => (q.near >= 2.2) - (p.near >= 2.2) || p.r - q.r)[0];
-  return { x: best.cx, z: best.cz, y: Math.max(n.y || 0, LAVA_Y[2] + .35) };
+/* Power Plant: a cooling tower, the hall is a giant battery on cradles, transformer yard with insulators, a lattice pylon with cables */
+function facPlant() {
+  const g = new THREE.Group();
+  g.add(B(2.7, .14, 2, "#8E96A3", 0, .07, 0));
+  const prof = [[.66, 0], [.56, .4], [.46, .9], [.45, 1.15], [.5, 1.5], [.54, 1.62]].map(([r, y]) => new THREE.Vector2(r, y)), tw = mesh(new THREE.LatheGeometry(prof, 18), "#E9EDF2", { side: THREE.DoubleSide });
+  tw.position.set(-.78, .14, -.32); g.add(tw, Cy(.5, .48, .13, 18, "#E5484D", -.78, 1.44, -.32), Cy(.67, .69, .12, 18, "#8E96A3", -.78, .2, -.32), Cy(.44, .44, .02, 18, "#5A6272", -.78, 1.5, -.32));
+  const bat = new THREE.Group(); bat.position.set(.42, .66, .22); g.add(bat);
+  const body = Cy(.46, .46, 1.4, 18, "#1FA35C", 0, 0, 0); body.rotation.z = Math.PI / 2; const neg = Cy(.48, .48, .34, 18, "#151B24", 0, 0, 0); neg.rotation.z = Math.PI / 2; neg.position.x = -.56;
+  const cap = Cy(.2, .2, .18, 14, "#C9CED8", 0, 0, 0); cap.rotation.z = Math.PI / 2; cap.position.x = .78; bat.add(body, neg, cap);
+  const bolt = new THREE.Shape(); [[.05, .3], [-.18, -.02], [-.02, -.02], [-.08, -.3], [.18, .06], [.02, .06]].forEach(([x, y], i) => i ? bolt.lineTo(x, y) : bolt.moveTo(x, y));
+  const bm = mesh(new THREE.ExtrudeGeometry(bolt, { depth: .06, bevelEnabled: false }), "#FFE27A", { emissive: "#FFC83D", emissiveIntensity: .7 }); bm.scale.setScalar(1.2); bm.position.set(.1, 0, .44); bat.add(bm);
+  [-.3, .4].forEach(x => g.add(B(.16, .3, .7, "#8E96A3", .42 + x, .25, .22), B(.22, .06, .76, "#5A6272", .42 + x, .41, .22)));
+  [.18, .62].forEach(x => { g.add(B(.34, .38, .28, "#5A6272", x, .33, -.62)); for (let k = -1; k <= 1; k++) g.add(B(.02, .3, .3, "#4B515E", x + k * .1, .33, -.62)); [-.09, .09].forEach(o => { for (let k = 0; k < 3; k++) g.add(Cy(.05, .05, .04, 8, "#B5523B", x + o, .56 + k * .06, -.62)); }); });
+  const px = 1.08, pz = -.55, py = .14, H = 2.1; [[-1, -1], [1, -1], [1, 1], [-1, 1]].forEach(([a, b]) => { const leg = B(.035, H, .035, "#6A717E", px + a * .12, py + H / 2, pz + b * .12); leg.rotation.set(b * .045, 0, -a * .045); g.add(leg); });
+  [.6, 1.2].forEach(y => g.add(B(.24, .03, .03, "#6A717E", px, py + y, pz + .1), B(.24, .03, .03, "#6A717E", px, py + y, pz - .1)));
+  g.add(B(.9, .05, .05, "#6A717E", px, py + 1.75, pz), B(.6, .05, .05, "#6A717E", px, py + 2.0, pz));
+  const lm = new THREE.LineBasicMaterial({ color: "#2A2F3A" }); [[-.42, 1.75], [.42, 1.75]].forEach(([o, y]) => { const pts = []; for (let k = 0; k <= 8; k++) { const u = k / 8; pts.push(new THREE.Vector3(px + o + (1.2 - px - o) * u, py + y - (py + y - .9) * u - Math.sin(u * Math.PI) * .12, pz + (.22 - pz) * u)); } g.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), lm)); });
+  const bc = new THREE.Mesh(new THREE.SphereGeometry(.05, 8, 6), glowMat("#FF3030", "#FF2020", .9)); bc.position.set(-.78, 1.68, .2); g.add(bc);
+  g.userData = { sign: null, puff: [-.78, 1.7, -.32], puffs: geoPuffs(g, 7), tick: time => { bc.material.emissiveIntensity = (time * .8 % 1) < .3 ? 1.4 : .1; } };
+  return g;
+}
+/* Forge (volcano): basalt hall with buttresses and a sawtooth roof glowing orange, a furnace mouth spilling lava into a crucible, ember-topped chimney, purple batteries on a conveyor */
+function facForge() {
+  const g = new THREE.Group();
+  g.add(B(2.7, .18, 2, "#2E2622", 0, .09, 0), B(1.9, 1.2, 1.4, "#5E4C42", -.22, .78, -.18));
+  [-1.1, -.62, .26, .66].forEach(x => g.add(B(.18, 1.05, .2, "#4A3C36", x, .7, .6), B(.24, .12, .26, "#3A302B", x, .14 + .12, .6)));
+  sawRoof(g, 3, 1.9, .46, .4, -.22, 1.38, .52, "#3E434B", "#E8620F", { emissive: "#FF4500", emissiveIntensity: .6 });
+  const fm = glowMat("#FF7A2A", "#FF4500", .9), ash = new THREE.Shape(); ash.moveTo(-.24, 0); ash.lineTo(.24, 0); ash.lineTo(.24, .26); ash.absarc(0, .26, .24, 0, Math.PI, false); ash.lineTo(-.24, 0);
+  const mouth = new THREE.Mesh(new THREE.ExtrudeGeometry(ash, { depth: .04, bevelEnabled: false, curveSegments: 12 }), fm); mouth.position.set(-.18, .3, .53);
+  g.add(B(.72, .92, .06, "#2A211E", -.18, .66, .53), mouth, B(.8, .1, .1, "#3A302B", -.18, 1.12, .56));
+  g.add(B(.26, .08, .56, "#2A211E", -.18, .22, .86)); const ch = new THREE.Mesh(new THREE.BoxGeometry(.14, .02, .56), fm); ch.position.set(-.18, .27, .86); g.add(ch);
+  g.add(Cy(.24, .18, .3, 10, "#2A211E", -.18, .33, 1.24)); const cr = new THREE.Mesh(new THREE.CylinderGeometry(.2, .2, .02, 10), fm); cr.position.set(-.18, .48, 1.24); g.add(cr);
+  g.add(Cy(.17, .24, 2.8, 8, "#4A3C36", .5, 1.6, -.66), Cy(.2, .2, .1, 8, "#2A211E", .5, 3.02, -.66)); const em = new THREE.Mesh(new THREE.CylinderGeometry(.15, .15, .04, 8), glowMat("#FFB15A", "#FF5A1F", 1)); em.position.set(.5, 3.08, -.66); g.add(em);
+  [-.95, -.75].forEach((x, k) => { g.add(Cy(.06, .06, 1.05, 8, "#6B4A36", x, .75, -.95)); for (let y = .35; y < 1.3; y += .3) g.add(Cy(.085, .085, .05, 8, "#3A302B", x, y, -.95)); });
+  const ob = obsidianMesh(.75); ob.position.set(-1.15, .2, .78); g.add(ob);
+  const hp = Cy(.11, .11, 1, 8, "#D9480F", 0, 0, 0, GEO_PIPE); hp.rotation.z = Math.PI / 2; hp.position.set(1.5, .5, .4); g.add(hp); geoPipe(g, 1.98, .4, .56, 14);
+  const belt = facBelt(g, .62, .66, 1.3, .24, "#6A35D0", "#3B2466");
+  const sg = batSign(true); sg.position.set(-.3, 2.35, -.2); g.add(sg, B(.06, .5, .06, "#3A302B", -.75, 1.95, -.3), B(.06, .5, .06, "#3A302B", .15, 1.95, -.3));
+  g.userData = { sign: sg, puff: [.5, 3.15, -.66], puffs: geoPuffs(g, 6, "#5A4E4A"), tick: time => { belt(time); fm.emissiveIntensity = .75 + Math.sin(time * 7) * .12 + Math.sin(time * 13) * .08; em.material.emissiveIntensity = .8 + Math.sin(time * 5) * .2; } };
+  return g;
+}
+/* Obsidian Reactor (volcano): hex basalt base, steel dome with glowing purple bands and cooling fins, a floating obsidian crystal in a spinning ring, airlock, pipes into the lava */
+function facReactor() {
+  const g = new THREE.Group(), pm = glowMat("#B78CFF", "#7A3CFF", .9);
+  g.add(Cy(1.22, 1.32, .34, 6, "#2E2622", 0, .17, -.05), Cy(1.0, 1.08, .08, 6, "#3A302B", 0, .38, -.05));
+  const dome = mesh(new THREE.SphereGeometry(.85, 18, 9, 0, Math.PI * 2, 0, Math.PI / 2), "#3E434B"); dome.position.set(0, .42, -.05); g.add(dome);
+  [[.62, .832], [.92, .69]].forEach(([y, r]) => { const t = new THREE.Mesh(new THREE.TorusGeometry(r, .045, 6, 28), pm); t.rotation.x = Math.PI / 2; t.position.set(0, y, -.05); g.add(t); });
+  for (let k = 0; k < 6; k++) { const a = k / 6 * Math.PI * 2 + .3, f = B(.07, .72, .46, "#5E4C42", Math.cos(a) * .82, .74, -.05 + Math.sin(a) * .82); f.rotation.y = -a; if (Math.sin(a) < .6) g.add(f); }
+  g.add(Cy(.24, .32, .3, 8, "#2A211E", 0, 1.38, -.05));
+  const cg = new THREE.Group(), cry = obsidianMesh(.8); cg.add(cry); cg.position.set(0, 1.62, -.05); g.add(cg);
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(.42, .03, 6, 28), pm); ring.position.set(0, 1.85, -.05); g.add(ring);
+  g.add(B(.5, .55, .5, "#5E4C42", 0, .66, .82), B(.56, .08, .56, "#3A302B", 0, .96, .82), B(.2, .36, .03, "#151B24", 0, .6, 1.08)); const sl = new THREE.Mesh(new THREE.BoxGeometry(.04, .3, .02), pm); sl.position.set(0, .6, 1.1); g.add(sl);
+  g.add(Cy(.12, .15, .9, 8, "#4A3C36", -.85, 1.05, -.7), Cy(.15, .15, .08, 8, "#2A211E", -.85, 1.52, -.7));
+  const hp = Cy(.11, .11, 1.1, 8, "#D9480F", 0, 0, 0, GEO_PIPE); hp.rotation.z = Math.PI / 2; hp.position.set(1.45, .52, .4); g.add(hp); geoPipe(g, 1.98, .4, .58, 14);
+  const hp2 = Cy(.09, .09, 1, 8, "#D9480F", 0, 0, 0, GEO_PIPE); hp2.rotation.x = Math.PI / 2; hp2.position.set(-.5, .5, -1.3); g.add(hp2); geoPipe(g, -.5, -1.78, .55, 14);
+  const sg = batSign(true); sg.scale.setScalar(.7); sg.position.set(1.0, 1.75, -.45); g.add(sg, B(.06, 1.3, .06, "#3A302B", 1.0, .82, -.5));
+  g.userData = { sign: sg, puff: [-.85, 1.6, -.7], puffs: geoPuffs(g, 5), tick: time => { cg.rotation.y = time * .8; cg.position.y = 1.62 + Math.sin(time * 1.6) * .08; ring.rotation.x = Math.PI / 2 + Math.sin(time * .9) * .4; ring.rotation.z = time * 1.2; pm.emissiveIntensity = .7 + Math.sin(time * 2.4) * .3; } };
+  return g;
 }
 let SCORCH_TEX = null;
 function scorchTex() {
@@ -521,7 +662,8 @@ function buildBoardFor(map) {
     const top = Cy(1.08, 1.14, .2, sides, SPACE_COL[t], 0, .38, 0); top.rotation.y = Math.PI / sides; tl.add(top);
     if (t === "B") tl.add(B(.9, .08, .22, "#FFFFFF", 0, .52, 0), B(.22, .08, .9, "#FFFFFF", 0, .52, 0));
     if (t === "R") tl.add(B(.9, .08, .22, "#FFFFFF", 0, .52, 0));
-    if (["E", "S", "SC", "D", "SH", "CR", "OB", "GY", "RF"].includes(t)) { const p = new THREE.Mesh(new THREE.PlaneGeometry(1.55, 1.55), new THREE.MeshBasicMaterial({ map: tileIcon(t), transparent: true, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 })); p.rotation.x = -Math.PI / 2; p.position.set(0, .525, 0);  tl.add(p); }
+    { const sy = tileSymbol(t); if (sy) tl.add(sy); }
+    if (t === "CR") { const p = new THREE.Mesh(new THREE.PlaneGeometry(1.55, 1.55), new THREE.MeshBasicMaterial({ map: tileIcon(t), transparent: true, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 })); p.rotation.x = -Math.PI / 2; p.position.set(0, .525, 0);  tl.add(p); }
     if (t === "CV" && n.conv) { const tgt = nd[n.conv.dir > 0 ? n.next[0] : n.prev[0]], ddx = tgt.x - x, ddz = tgt.z - z, tex = beltTex();
       const g = new THREE.Group(); g.position.set(0, .49, 0); g.rotation.y = tileAim(tl, n, tgt); const p = new THREE.Mesh(new THREE.PlaneGeometry(1.25, 1.6), new THREE.MeshBasicMaterial({ map: tex })); p.rotation.x = -Math.PI / 2; g.add(p);
       g.add(B(.12, .18, 1.7, "#FFC83D", -.68, .05, 0), B(.12, .18, 1.7, "#FFC83D", .68, .05, 0)); tl.add(g); belts.push(tex); }
@@ -546,23 +688,11 @@ function buildBoardFor(map) {
   const vx = vol ? volcanoScenery(s, map) : null;
   if (map.id === "junk") junkScenery(s); else if (!vol) classicScenery(s);
   const fac = new THREE.Group(), ring = new THREE.Mesh(new THREE.TorusGeometry(1.35, .09, 6, 24), new THREE.MeshStandardMaterial({ color: "#FFC83D", emissive: "#FFB000", emissiveIntensity: .9 })); ring.rotation.x = Math.PI / 2; ring.position.y = .56;
-  let bld, puffs = [];
-  if (vol) { bld = geoFactory(); puffs = bld.userData.puffs; }
-  else {
-    bld = new THREE.Group(); bld.userData.puff = [.75, 2.9, -.4];
-    bld.add(B(2.2, 1.3, 1.6, "#C9CED8", 0, .65, 0), B(2.24, .18, 1.64, "#8E96A3", 0, .1, 0), B(.7, .8, .05, "#5A6272", .5, .45, .81), B(.5, .35, .05, "#9FD6F7", -.5, .85, .81, { roughness: .2 }));
-    for (let k = 0; k < 3; k++) { const w = mesh(new THREE.CylinderGeometry(.42, .42, 1.6, 3), "#AEB5C1"); w.rotation.x = Math.PI / 2; w.position.set(-.73 + k * .73, 1.45, 0); bld.add(w); }
-    bld.add(Cy(.18, .22, 1.3, 8, "#E5484D", .75, 2.1, -.4), Cy(.24, .24, .12, 8, "#C9CED8", .75, 2.75, -.4));
-    const sg = new THREE.Group(); sg.add(B(1.2, .72, .16, "#1FA35C", 0, 0, 0), B(.14, .32, .18, "#1FA35C", .66, 0, 0));
-    const bolt = new THREE.Shape(); [[.05, .3], [-.18, -.02], [-.02, -.02], [-.08, -.3], [.18, .06], [.02, .06]].forEach(([x, y], i) => i ? bolt.lineTo(x, y) : bolt.moveTo(x, y));
-    const bm = mesh(new THREE.ExtrudeGeometry(bolt, { depth: .06, bevelEnabled: false }), "#FFE27A", { emissive: "#FFC83D", emissiveIntensity: .6 }); bm.position.z = .08; sg.add(bm);
-    sg.position.set(-.2, 2.35, .2); bld.add(sg); bld.userData.sign = sg;
-    for (let k = 0; k < 5; k++) { const p = new THREE.Mesh(new THREE.IcosahedronGeometry(.25, 0), new THREE.MeshStandardMaterial({ color: "#F1F3F6", transparent: true, opacity: .85, flatShading: true })); p.userData.t = k / 5; bld.add(p); puffs.push(p); }
-  }
+  const bld = FAC_MODELS[vol ? FAC_LOOK.volc : FAC_LOOK.def](), puffs = bld.userData.puffs;
   fac.add(ring, bld); s.add(fac);
-  /* Volcano Quarry refineries: fixed, one per RF space, each on its own rock pillar beside the road (movable in the map editor as "ref<space>") */
-  const refs = []; if (vol) nd.forEach((n, i) => { if (n.t !== "RF") return; const sp = refSpot(nd, i), g = new THREE.Group(), r = geoRefinery(); g.position.set(sp.x, sp.y, sp.z);
-    g.add(r, Cy(1.55, 1.85, 16, 7, "#4A3C36", 0, -8.02, 0)); s.add(edReg(g, "ref" + i)); refs.push(r); });
+  /* Volcano Quarry refineries: a gate across the road at each RF space, turned with the road, pipe on the side nearer the crater centre (movable in the map editor as "ref<space>") */
+  const refs = []; if (vol) nd.forEach((n, i) => { if (!n.ref) return; const a = nd[n.next[0]], b = nd[n.prev[0]] || n, yaw = -Math.atan2(a.z - b.z, a.x - b.x), px = Math.sin(yaw), pz = Math.cos(yaw);
+    const sd = Math.hypot(n.x + px * 2, n.z + pz * 2) < Math.hypot(n.x - px * 2, n.z - pz * 2) ? 1 : -1, g = geoRefinery(rw / 2, sd); g.position.set(n.x, Y(n), n.z); g.rotation.y = yaw; s.add(edReg(g, "ref" + i)); refs.push(g); });
   const clouds = []; for (let i = 0; i < 8; i++) { const c = cloud(); c.scale.setScalar(.5 + Math.random() * .2); c.position.set(-60 + i * 16, (vol ? 26 : 7) + Math.random() * 3, (i % 2 ? 28 + Math.random() * 10 : -29 - Math.random() * 14) * (vol ? 1.7 : 1)); s.add(c); clouds.push(c); }
   const hl = new THREE.Mesh(new THREE.RingGeometry(1.25, 1.55, 24), new THREE.MeshBasicMaterial({ color: "#FFFFFF", transparent: true, opacity: .8 })); hl.rotation.x = -Math.PI / 2; hl.position.y = .53; s.add(hl);
   const arrows = [0, 1, 2].map(k => { const g = new THREE.Group(); const c = mesh(new THREE.ConeGeometry(.45, .9, 8), "#FFC83D", { emissive: "#FFB000", emissiveIntensity: .8 }); c.rotation.x = Math.PI; c.position.y = .45; g.add(c); const sp = textSprite(String(k + 1), "#151B24", "#FFC83D", 1.1); sp.position.y = 1.5; g.add(sp); g.visible = false; s.add(g); return g; });
@@ -686,9 +816,9 @@ function stepBoard(dt, time) {
   bd.crushers.forEach(c => { const u = (time * .45 + c.ph) % 1, y = u < .08 ? 3 - (u / .08) * 2.1 : u < .25 ? .9 : .9 + Math.min(1, (u - .25) / .3) * 2.1; c.blk.position.y = y; c.st.position.y = y - .28; });
   stepFactory(bd, dt);
   bd.ring.rotation.z += dt * .8; bd.ring.position.y = .56 + Math.sin(time * 3) * .05;
-  bd.bld.userData.sign.rotation.y = Math.sin(time * 1.5) * .25;
+  { const u = bd.bld.userData; if (u.sign) u.sign.rotation.y = Math.sin(time * 1.5) * .25; if (u.tick) u.tick(time); }
   const steam = (ps, o) => ps.forEach(p => { p.userData.t = (p.userData.t + dt * .35) % 1; const u = p.userData.t; p.position.set(o[0] + u * .6, o[1] + u * 2.2, o[2]); p.scale.setScalar(.6 + u * 1.4); p.material.opacity = .85 * (1 - u); });
-  steam(bd.puffs, bd.bld.userData.puff); bd.refs.forEach((r, k) => { steam(r.userData.puffs, r.userData.puff); r.userData.sign.rotation.y = Math.sin(time * 1.3 + k * 2) * .3; });
+  steam(bd.puffs, bd.bld.userData.puff); bd.refs.forEach((r, k) => { steam(r.userData.puffs, r.userData.puff); r.userData.tick(time); });
   swayStep(bd.scene); boardFx(bd, dt);
   bd.clouds.forEach((c, i) => { c.position.x += dt * (.4 + i * .05); if (c.position.x > 64) c.position.x = -64; });
   const cam = GFX.cam, aspect = GFX.w / GFX.h;
