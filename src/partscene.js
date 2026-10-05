@@ -151,33 +151,10 @@ function texBox(w, h, d, tex, tile, x, y, z, o) {
 	m.receiveShadow = true;
 	return m;
 }
-/* decal sprites drawn on one canvas sheet: manhole, oil stain, drain grate (top-right quadrant unused) */
+/* decal sprites drawn on one canvas sheet: oil stain (bottom-left), drain grate (bottom-right); the top row is unused */
 const wearSheet = () =>
 	SCN_TEX.wear ||
 	(SCN_TEX.wear = canvasTex(256, 256, (x) => {
-		{
-			// manhole (0,0)
-			const c = 64;
-			x.fillStyle = "#3A3E46";
-			x.beginPath();
-			x.arc(c, c, 60, 0, 6.283);
-			x.fill();
-			x.fillStyle = "#575C66";
-			x.beginPath();
-			x.arc(c, c, 52, 0, 6.283);
-			x.fill();
-			x.strokeStyle = "#3E434C";
-			x.lineWidth = 4;
-			for (let k = -40; k <= 40; k += 13) {
-				const hw = Math.sqrt(52 * 52 - k * k);
-				x.beginPath();
-				x.moveTo(c - hw, c + k);
-				x.lineTo(c + hw, c + k);
-				x.stroke();
-			}
-			x.fillStyle = "#6A707A";
-			x.fillRect(c - 16, c - 6, 32, 12);
-		}
 		{
 			// oil stain (0,1): a few soft irregular layers, a darker core, scattered drips and a faint rainbow sheen
 			const cx = 64,
@@ -330,13 +307,12 @@ function roadLines(s, xs, z0, z1, y, o = {}) {
 	im.renderOrder = 1;
 	s.add(im);
 }
-/* scatter road wear over a strip: manholes, oil stains, cracks, drains along the edges (one instanced mesh per kind) */
+/* scatter road wear over a strip: oil stains, cracks, drains along the edges (one instanced mesh per kind) */
 function roadWear(s, x0, x1, z0, z1, y, density = 1) {
 	const sheet = wearSheet(),
 		L = Math.abs(z1 - z0),
 		zs = Math.min(z0, z1),
 		kinds = [
-			{ u: 0, v: 1, n: L / 28, sz: [0.95, 0.95], edge: false },
 			{ u: 0, v: 0, n: L / 30, sz: [1.6, 1.6], edge: false, rnd: true },
 			{ u: 1, v: 0, n: L / 10, sz: [0.7, 0.5], edge: true },
 			...[0, 1, 2, 3].map((q) => ({ u: q % 2, v: 1 - (q >> 1), n: L / 30, sz: [3, 3], crack: true })),
