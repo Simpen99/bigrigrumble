@@ -24253,7 +24253,21 @@ const asphaltTex = () =>
 				i % 2 ? "rgba(34,37,44,.09)" : "rgba(120,124,132,.07)",
 				"rgba(0,0,0,0)",
 			);
-		specks(x, w, h, 5200, ["rgba(20,22,28,.2)", "rgba(150,152,158,.16)", "rgba(95,98,106,.22)"], 0.6, 1.6);
+		for (let i = 0; i < 5200; i++) {
+			// grit: mostly tiny, now and then a bigger stone; faint so it reads as texture, not dots
+			const r = scnR(),
+				z = 0.4 + 2.8 * r * r * r;
+			x.fillStyle =
+				["rgba(20,22,28,", "rgba(150,152,158,", "rgba(95,98,106,"][i % 3] +
+				(0.06 + scnR() * 0.06 - r * 0.035).toFixed(3) +
+				")";
+			if (z < 1.2) x.fillRect(scnR() * w, scnR() * h, z, z);
+			else {
+				x.beginPath();
+				x.ellipse(scnR() * w, scnR() * h, z / 2, (z / 2) * (0.6 + scnR() * 0.4), scnR() * 3, 0, 6.283);
+				x.fill();
+			}
+		}
 	});
 /* 10 x 10 m of lawn: mowing stripes, blade specks, a few tiny flowers */
 const grassTex = () =>
