@@ -179,13 +179,14 @@ function symHoles(t) {
   if (t === "SC") { const sh = [[-.15, .52], [.15, .52], [.15, .41], [.05, .41], [.05, -.04], [.19, -.04], [.19, -.3], [0, -.52], [-.19, -.3], [-.19, -.04], [-.05, -.04], [-.05, .41], [-.15, .41]];
     return { holes: [polyShape(rotPts(sh.map(([x, y]) => [x * 1.15, y * 1.15]), 45, 0, 0))] }; }
   if (t === "CR") { const five = [[.36, .26], [.08, .26], [.06, .04]].concat(arcPts(.18, -.1, .16, 130, -150, 12).slice(1)); return { holes: [st([[-.44, 0], [-.18, 0]], .13), st(five, .13)] }; }
-  if (t === "OB") { const plus = [st([[-.26, 0], [-.06, 0]], .08), st([[-.16, -.1], [-.16, .1]], .08)], two = st(arcPts(.13, .07, .09, 165, -35, 10).concat([[.04, -.13], [.24, -.13]]), .08);
-    return { holes: [polyShape([[0, .58], [.42, .16], [0, -.58], [-.42, .16]])], raised: [[plus, .04, SYM_W], [[two], .065, SYM_W]] }; }
-  if (t === "S") { const sq = [], z = .19, g = .012; for (let i = 0; i < 6; i++) for (let j = 0; j < 6; j++) if ((i + j) % 2) { const x = -.57 + i * z, y = -.57 + j * z; sq.push(polyShape([[x + g, y + g], [x + z - g, y + g], [x + z - g, y + z - g], [x + g, y + z - g]])); } return { holes: sq }; }
+  if (t === "OB") { const xtal = [[0, .5], [.19, .28], [.19, -.28], [0, -.5], [-.19, -.28], [-.19, .28]], put = (k, deg, x, y) => polyShape(rotPts(xtal.map(([a, b]) => [a * k, b * k]), deg, x, y));
+    return { holes: [put(1.08, -14, -.17, .03), put(.68, 22, .34, -.12)] }; }
+  if (t === "S") { const top = Array.from({ length: 9 }, (_, q) => { const x = -.275 + q / 8 * .7; return [x, .5 + Math.sin(q / 8 * Math.PI * 2) * .05]; }), bot = top.map(([x, y]) => [x, y - .42]).reverse();
+    return { holes: [polyShape([[-.37, -.52], [-.37, .52]].concat(top, [[.425, .08 + Math.sin(Math.PI * 2) * .05]], bot.slice(1), [[-.275, -.52]]))] }; }
   if (t === "GY") return { holes: [discShape(0, 0, .74)] };
   return null;
 }
-const SYM_FLOOR = { OB: "#B78CFF", S: "#151B24", GY: "#10151C" }, FACE_GEO = {};
+const SYM_FLOOR = { OB: "#B78CFF", S: "#E5484D", GY: "#10151C" }, FACE_GEO = {};
 function tileFace(t, sides) {
   const col = SPACE_COL[t], key = t + sides;
   const c = FACE_GEO[key] || (FACE_GEO[key] = (() => { const sym = symHoles(t) || { holes: [] }, R = 1.08;
@@ -672,7 +673,6 @@ function buildBoardFor(map) {
     tl.userData.auto = tl.rotation.y; tl.rotation.y += ne.r || 0; tl.scale.setScalar(ep("tileR") * (ne.s || 1));
     const base = Cy(1.22, 1.3, .22, sides, "#1E2530", 0, .2, 0); base.rotation.y = Math.PI / sides; tl.add(base);
     tl.add(tileFace(t, sides));
-    if (t === "CR") { const p = new THREE.Mesh(new THREE.PlaneGeometry(2.1, 2.1), new THREE.MeshBasicMaterial({ map: tileIcon(t), transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 })); p.rotation.x = -Math.PI / 2; p.position.set(0, .505, 0); tl.add(p); }
     if (t === "CV" && n.conv) { const tgt = nd[n.conv.dir > 0 ? n.next[0] : n.prev[0]], ddx = tgt.x - x, ddz = tgt.z - z, tex = beltTex();
       const g = new THREE.Group(); g.position.set(0, .515, 0); g.rotation.y = tileAim(tl, n, tgt); const p = new THREE.Mesh(new THREE.PlaneGeometry(1.25, 1.6), new THREE.MeshBasicMaterial({ map: tex })); p.rotation.x = -Math.PI / 2; g.add(p);
       g.add(B(.12, .18, 1.7, "#FFC83D", -.68, .05, 0), B(.12, .18, 1.7, "#FFC83D", .68, .05, 0)); tl.add(g); belts.push(tex); }
