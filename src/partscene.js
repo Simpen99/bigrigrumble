@@ -269,18 +269,32 @@ const crackSheet = () =>
 		}
 	}));
 /* painted road lines lying flush on the road (flat decals with worn paint, not raised boxes); no gap = solid line */
-const paintTex = () =>
-	scnTex("paint", 64, (x, w, h) => {
-		x.fillStyle = "#FFFFFF";
-		x.fillRect(0, 0, w, h);
-		x.globalCompositeOperation = "destination-out";
-		for (let i = 0; i < 220; i++) {
-			x.fillStyle = `rgba(0,0,0,${0.2 + scnR() * 0.6})`;
-			const z = 0.8 + scnR() * 2.6;
-			x.fillRect(scnR() * w, scnR() * h, z, z);
-		}
-		x.globalCompositeOperation = "source-over";
-	});
+/* drawn tall and thin like the lines themselves (0.15 x 1.5 m per repeat) so the worn spots stay round; premultiplied alpha
+   so the worn spots show clean asphalt instead of grey fringes */
+const paintTex = () => {
+	if (!SCN_TEX.paint) {
+		const t = canvasTex(32, 256, (x, w, h) => {
+			x.fillStyle = "#FFFFFF";
+			x.fillRect(0, 0, w, h);
+			x.globalCompositeOperation = "destination-out";
+			for (let i = 0; i < 26; i++) {
+				const cx = scnR() * w,
+					cy = scnR() * h;
+				for (let k = 0; k < 2 + Math.floor(scnR() * 4); k++) {
+					x.fillStyle = `rgba(0,0,0,${0.55 + scnR() * 0.45})`;
+					x.beginPath();
+					x.arc(cx + (scnR() - 0.5) * 6, cy + (scnR() - 0.5) * 6, 0.6 + scnR() * 1.4, 0, 6.283);
+					x.fill();
+				}
+			}
+			x.globalCompositeOperation = "source-over";
+		});
+		t.wrapS = t.wrapT = THREE.RepeatWrapping;
+		t.premultiplyAlpha = true;
+		SCN_TEX.paint = t;
+	}
+	return SCN_TEX.paint;
+};
 function roadLines(s, xs, z0, z1, y, o = {}) {
 	const w = o.w || 0.14,
 		dash = o.dash || 0,
@@ -292,6 +306,7 @@ function roadLines(s, xs, z0, z1, y, o = {}) {
 				color: o.col || "#F2F4F7",
 				map: texRep(paintTex(), 1, len / 1.5),
 				transparent: true,
+				premultipliedAlpha: true,
 				depthWrite: false,
 				roughness: 0.75,
 				polygonOffset: true,
