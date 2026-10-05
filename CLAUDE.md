@@ -8,6 +8,7 @@ three.js r128 (UMD from cdnjs) + ConvexHull/ConvexGeometry (jsdelivr), no build 
 - All parts go into ONE `<script>`: `part1.html` opens it, the `.js` parts continue it, `partend.html` closes it.
 - Always edit `src/`, then rebuild. Syntax-check the built script after every build (e.g. `new Function(<script contents>)` in node).
 - JS parts are formatted with Prettier (`.prettierrc`: tabs, width 120). Run `prettier --write "src/*.js"` after editing JS. CSS in part1 stays one rule per line.
+- PR descriptions start with a test link for the branch build (the user tests on an iPhone): `https://raw.githack.com/Simpen99/bigrigrumble/<branch>/dist/index.html`. Commit the rebuilt `dist/` so the link works.
 - `.ignore` keeps Grep out of `dist/` and `src/partart.js` (huge one-line files).
 
 ## Source map (src/)
