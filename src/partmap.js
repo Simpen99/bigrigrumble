@@ -699,7 +699,7 @@ function buildBoardFor(map) {
       const blk = B(1.5, .6, 1.5, "#3A4150", 0, 3, 0); g.add(blk); const st = B(1.52, .14, 1.52, "#FFC83D", 0, 2.72, 0); g.add(st); blk.userData.dyn = st.userData.dyn = 1; ng.add(g); crushers.push({ blk, st, ph: i * .7 }); }
     if (t === "SH") { const sp = textSprite("SHOP", "#1FB5A8", "#fff", 1.7); sp.position.set(x, 2.3, z); ng.add(sp); }
     if (t === "SD") { const gl = shardGlow(2.4, .28); gl.position.set(x, .9, z); ng.add(gl); }
-    if (t === "OB") { const c = obsidianMesh(.7); c.position.set(x + .85, .45, z - .55); ng.add(c); obCr[i] = c; c.userData.dyn = 1; }
+    if (t === "OB") { const c = obsidianMesh(.7); c.position.set(x + .85, .45, z - .55); ng.add(c); obCr[i] = c; c.userData.dyn = 1; const gl = shardGlow(2.6, .3); gl.position.set(x, .9, z); ng.add(gl); }
     /* geyser: chevron on the tile edge pointing at the landing space (turns with the tile), a dotted steam arc to it and a pulsing ring round it; re-aimed when the target changes each round */
     if (t === "GY" && n.gy !== undefined) {
       const ch = new THREE.Mesh(new THREE.PlaneGeometry(.62, .62), new THREE.MeshBasicMaterial({ map: chevTex(), transparent: true, opacity: .5, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -8 })); tl.add(ch);
@@ -792,7 +792,7 @@ function syncBoard() {
   Object.keys(traps).forEach(k => { if (bd.traps[k] || !MAP.nodes[k]) return; const g = new THREE.Group(), n = MAP.nodes[k]; g.add(B(1.4, .06, .5, "#3A4150", 0, .03, 0)); for (let i = -3; i <= 3; i++) { const c = mesh(new THREE.ConeGeometry(.08, .28, 5), "#D8DDE5"); c.position.set(i * .19, .18, 0); g.add(c); } g.position.set(n.x, (n.y || 0) + .5, n.z); g.rotation.y = .6; bd.scene.add(g); bd.traps[k] = g; });
   const obs = G.obs || {};
   Object.keys(bd.obs).forEach(k => { if (!obs[k]) { bd.scene.remove(bd.obs[k]); delete bd.obs[k]; } });
-  Object.keys(obs).forEach(k => { const n = MAP.nodes[k]; if (bd.obs[k] || !n) return; const c = obsidianMesh(.75); c.position.set(n.x - .8, (n.y || 0) + .5, n.z + .6); bd.scene.add(c); bd.obs[k] = c; });
+  Object.keys(obs).forEach(k => { const n = MAP.nodes[k]; if (bd.obs[k] || !n) return; const c = obsidianMesh(.75), gl = shardGlow(2, .3); gl.position.y = .45; c.add(gl); c.position.set(n.x - .8, (n.y || 0) + .5, n.z + .6); bd.scene.add(c); bd.obs[k] = c; });
   /* loose shards from rising lava: a glowing crystal hovering over the space, popping in and out */
   const loose = G.loose || {}, LC = ["#7A3CFF", "#B78CFF", "#FFFFFF"];
   Object.keys(bd.loose).forEach(k => { if (loose[k]) return; const m = bd.loose[k]; burst(bd.scene, m.position.x, m.position.y, m.position.z, { n: 10, shape: "ico", cols: LC, spd: 2.5, up: 3, grav: 8, life: .7 }); bd.scene.remove(m); delete bd.loose[k]; });
@@ -847,7 +847,7 @@ function stepBoard(dt, time) {
     if (t.anim) { const a = t.anim; a.t += dt / a.dur; const k = Math.min(1, a.t), e = k < .5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
       t.g.position.lerpVectors(a.from, tilePos(a.toIdx, off), e);
       if (MAP.lava && !a.jump) { const to = tilePos(a.toIdx, off), rd = (MAP.rampD || {})[a.fromIdx + "-" + a.toIdx] || (r => r && [r[1], r[0], r[2]])((MAP.rampD || {})[a.toIdx + "-" + a.fromIdx]), Lh = rd ? rd[2] : Math.hypot(to.x - a.from.x, to.z - a.from.z); t.g.position.y = a.from.y + (to.y - a.from.y) * (rd ? rampF(e, Lh, rd[0], rd[1]) : rampF(e, Lh)); }
-      t.g.position.y += Math.sin(k * Math.PI) * (a.jump ? 2.4 + Math.abs(a.from.y - t.g.position.y) * .5 : .7); if (k >= 1) { t.anim = null; t.shown = a.toIdx; } }
+      t.g.position.y += Math.sin(k * Math.PI) * (a.jump ? 2.4 + Math.abs(a.from.y - t.g.position.y) * .5 : G.ride && G.ride.pid === p.key ? .08 : .7); if (k >= 1) { t.anim = null; t.shown = a.toIdx; } }
     else { t.g.position.lerp(tilePos(t.shown, off), Math.min(1, dt * 8)); const c = nd[t.shown], nx = c && nd[c.next[0]]; if (t.yawT === undefined && c && nx) t.yawT = Math.atan2(-(nx.z - c.z), nx.x - c.x); }
     t.yaw = lerpA(t.yaw, t.yawT || 0, Math.min(1, dt * 10)); t.tr.rotation.y = t.yaw;
     { const pp = t.g.position, sp = t.lp && dt > 0 ? Math.hypot(pp.x - t.lp.x, pp.z - t.lp.z) / dt : 0; t.lp = pp.clone(); animTruck(t.tr, dt, Math.min(sp, 14)); }
@@ -918,16 +918,21 @@ function cartCurve(map) {
   const P = [new THREE.Vector3(T.x, y0, T.z), at(a0, R + 1.2, y0 + .15)];
   for (let k = 0; k <= 12; k++) { const f = k / 12; P.push(at(a0 + .35 + f * Math.PI * 2.1, R, y0 + .4 + f * (top - .3 - y0 - .4))); }
   P.push(at(a0 + .35 + Math.PI * 2.1 + .5, R * .5, top + .1), new THREE.Vector3(C.x, top + .25, C.z));
-  return { mc, curve: new THREE.CatmullRomCurve3(P, false, "centripetal") };
+  /* home = where the empty cart waits, on the spur just off the space */
+  const curve = new THREE.CatmullRomCurve3(P, false, "centripetal"); return { mc, curve, home: Math.min(.3, 2.3 / curve.getLength()) };
 }
 function buildCartRails(s, map) {
   const cc = cartCurve(map); if (!cc) return null; const { curve } = cc, N = 160, up = new THREE.Vector3(0, 1, 0), L = [], Rr = [], g = new THREE.Group(); s.add(g);
-  for (let k = 0; k <= N; k++) { const u = k / N, p = curve.getPointAt(u), t = curve.getTangentAt(u), side = new THREE.Vector3().crossVectors(t, up).normalize().multiplyScalar(.36); L.push(p.clone().add(side)); Rr.push(p.clone().sub(side));
-    if (k % 4 === 0) { const tie = B(.16, .06, .95, "#6B4A36", 0, 0, 0); tie.position.copy(p).y -= .05; tie.lookAt(p.clone().add(side)); g.add(tie); }
+  for (let k = 0; k <= N; k++) { const u = k / N, p = curve.getPointAt(u), t = curve.getTangentAt(u), side = new THREE.Vector3().crossVectors(t, up).normalize().multiplyScalar(.5); L.push(p.clone().add(side)); Rr.push(p.clone().sub(side));
+    if (k % 4 === 0) { const tie = B(.16, .06, 1.25, "#6B4A36", 0, 0, 0); tie.position.copy(p).y -= .05; tie.lookAt(p.clone().add(side)); g.add(tie); }
     if (k % 22 === 11 && u > .12 && u < .85) { const h = p.y + 1.5, post = B(.16, h, .16, "#4A3C36", p.x, p.y - .1 - h / 2, p.z); g.add(post); } }
   [L, Rr].forEach(pts => g.add(mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts, false), N, .075, 6, false), "#3A3A40", { metalness: .4, roughness: .5 })));
-  const cart = cartMesh(); g.add(cart); const home = curve.getPointAt(0); cart.position.set(home.x, home.y - .5, home.z);
-  return { ...cc, cart, g };
+  const cart = cartMesh(); g.add(cart); const r = { ...cc, cart, g }; cartAt(r, cc.home, false); return r;
+}
+/* puts the pillar cart on the rails at u (wheels on the rail tops, pitched with the track); returns the floor point and heading */
+function cartAt(c, u, back) {
+  const p = c.curve.getPointAt(u), t = c.curve.getTangentAt(u); if (back) t.negate(); const yaw = Math.atan2(-t.z, t.x), pitch = Math.asin(Math.max(-1, Math.min(1, t.y)));
+  c.cart.position.set(p.x, p.y + .075, p.z); c.cart.rotation.set(0, yaw, pitch); return { p: new THREE.Vector3(p.x, p.y + .075 + CART_FLOOR, p.z), yaw, pitch };
 }
 function stepCart(bd, dt, time) {
   const c = bd.cart, cr = G.cart; if (!c) return;
@@ -941,16 +946,47 @@ function stepCart(bd, dt, time) {
     if (!bd.crysTag) { bd.crysTag = crysTagSprite(); bd.scene.add(bd.crysTag); }
     const tg = bd.crysTag, w = cy.getWorldPosition(new THREE.Vector3()), show = e >= 1; tg.material.opacity += ((show ? 1 : 0) - tg.material.opacity) * Math.min(1, dt * 6); tg.visible = tg.material.opacity > .02;
     tg.position.set(w.x, w.y + 4.3 + Math.sin(time * 2) * .15, w.z); }
-  const a = bd.ca, tok = a && GFX.tok[a.pid]; let u = 0;
-  if (a && tok) { const k = time - a.t0, ride = k - .6, D = 5.6;
-    if (ride > 0 && ride < D) { const f = ride / D, h = f < .5 ? f * 2 : (1 - f) * 2; u = h * h * (3 - 2 * h); a.down = f > .5; }
-    const p = c.curve.getPointAt(u), t = c.curve.getTangentAt(u); if (a.down) t.negate(); c.cart.position.set(p.x, p.y - .5, p.z); c.cart.rotation.set(0, Math.atan2(-t.z, t.x), Math.asin(Math.max(-1, Math.min(1, t.y))));
-    if (k < D + 1.1) { tok.g.position.set(p.x, p.y - .05 + (k < .6 ? Math.sin(k / .6 * Math.PI) * 1 : 0), p.z); tok.tr.rotation.y = Math.atan2(-t.z, t.x); if (k < .62 && k + dt >= .6) tok.sq = .3; }
+  /* pillar minecart (MC): the truck hops from its space into the waiting cart, rides up round the pillar (smashing the crystal) and back, then hops out onto the space */
+  const a = bd.ca, tok = a && GFX.tok[a.pid];
+  if (a && tok) { const k = time - a.t0, HOP = .6, D = 5.6, ride = k - HOP, h0 = c.home; let u = h0, back = false;
+    if (!a.from) a.from = tok.g.position.clone();
+    if (ride > 0 && ride < D) { const f = ride / D, h = f < .5 ? f * 2 : (1 - f) * 2; u = h0 + (1 - h0) * h * h * (3 - 2 * h); back = f > .5; }
+    const o = cartAt(c, u, back), hop = (A, Bv, f, ht) => tok.g.position.lerpVectors(A, Bv, f).y += Math.sin(f * Math.PI) * ht;
+    if (k < HOP) { hop(a.from, o.p, k / HOP, 1.2); tok.tr.rotation.y = o.yaw; }
+    else if (k < HOP + D) { tok.g.position.copy(o.p); tok.tr.rotation.y = o.yaw; tok.tr.rotation.z = o.pitch; if (!a.inT) { a.inT = 1; tok.sq = .3; sfx("step"); } }
+    else { tok.tr.rotation.z = 0; const f = Math.min(1, (k - HOP - D) / .5); hop(o.p, a.from, f, 1.1); if (f >= 1 && !a.outT) { a.outT = 1; tok.sq = .3; } }
+    const p = o.p;
     if (a.boom && !a.boomed && cy && p.distanceTo(cy.getWorldPosition(new THREE.Vector3())) < 1.6) { a.boomed = true; sfx("crush"); sfx("battery"); bd.crysK = 0;
       for (let q = 0; q < 3; q++) burst(bd.scene, p.x, p.y + .5 + q * .6, p.z, { n: 30, shape: "ico", cols: ["#5B2BB5", "#7A3CFF", "#B78CFF", "#FFFFFF"], spd: 6 + q * 2, up: 6, grav: 9, life: 1.6, size: 1.6 }); }
-    if (k > D + 1.4) { bd.ca = null; const h = c.curve.getPointAt(0); c.cart.position.set(h.x, h.y - .5, h.z); c.cart.rotation.set(0, 0, 0); } }
-  /* rail cart (MR spaces): a cart rides under the truck for the whole trip */
-  const rc = bd.rideCart, rd = G.ride, rt = rd && GFX.tok[rd.pid]; if (rc) { rc.visible = !!rt; if (rt) { rc.position.set(rt.g.position.x, rt.g.position.y - .42, rt.g.position.z); rc.rotation.y = rt.tr.rotation.y; } }
+    if (k > HOP + D + .55) { bd.ca = null; tok.tr.rotation.z = 0; cartAt(c, h0, false); } }
+  stepRideCart(bd, time);
+}
+/* rail cart (MR spaces): the cart pops in beside the truck (on the camera side), the truck hops in, the cart rolls onto the road and rides under it
+   for the whole trip; at the end the truck hops out and the cart rolls off and poofs. The truck sits on the cart floor via tr.position (g follows the board path) */
+function stepRideCart(bd, time) {
+  const rc = bd.rideCart, rd = G.ride; if (!rc) return;
+  if (bd.rideN === undefined) { bd.rideN = rd ? rd.n : null; if (rd) bd.rIn = { t0: time - 9, pid: rd.pid }; }
+  else if (rd && rd.n !== bd.rideN) { bd.rideN = rd.n; bd.rIn = { t0: time, pid: rd.pid }; bd.rOut = null; }
+  if (!rd && bd.rIn) { bd.rOut = { t0: time, pid: bd.rIn.pid }; bd.rIn = null; bd.rideN = null; }
+  const st = bd.rIn || bd.rOut, tk = st && GFX.tok[st.pid];
+  if (!tk) { rc.visible = false; if (st) { bd.rIn = bd.rOut = null; } return; }
+  const g = tk.g.position, tr = tk.tr, k = time - st.t0, cl = v => Math.max(0, Math.min(1, v)), ez = f => f * f * (3 - 2 * f);
+  if (!st.side) { const y = tr.rotation.y, s = new THREE.Vector3(Math.sin(y), 0, Math.cos(y)); if (GFX.camPos && s.dot(GFX.camPos.clone().sub(g)) < 0) s.negate(); st.side = s.multiplyScalar(1.7); }
+  rc.visible = true; rc.rotation.y = tr.rotation.y; const S = st.side;
+  if (bd.rIn) {
+    const pop = cl(k / .35), hf = cl((k - .35) / .5), gl = ez(cl((k - .85) / .3)), off = S.clone().multiplyScalar(1 - gl);
+    if (!st.puff && k < 1) { st.puff = 1; burst(bd.scene, g.x + S.x, g.y + .3, g.z + S.z, { n: 12, shape: "ico", cols: DUST, spd: 2, up: 2, grav: 6, life: .6 }); sfx("step"); }
+    const sc = pop >= 1 ? 1 : Math.max(.001, 1 + 2.7 * Math.pow(pop - 1, 3) + 1.7 * Math.pow(pop - 1, 2)); rc.scale.setScalar(sc);
+    rc.position.set(g.x + off.x, g.y, g.z + off.z);
+    if (hf <= 0) tr.position.set(0, 0, 0);
+    else if (hf < 1) { const e = ez(hf); tr.position.set(S.x * e, CART_FLOOR * hf + Math.sin(hf * Math.PI) * 1.1, S.z * e); }
+    else { if (!st.land) { st.land = 1; tk.sq = .28; } tr.position.set(off.x, CART_FLOOR, off.z); }
+  } else {
+    const f = cl(k / .5), e = ez(f), sh = cl((k - .5) / .3); tr.position.set(0, CART_FLOOR * (1 - f) + Math.sin(f * Math.PI) * 1, 0);
+    rc.position.set(g.x + S.x * e, g.y, g.z + S.z * e); rc.scale.setScalar(Math.max(.001, 1 - sh));
+    if (f >= 1 && !st.land) { st.land = 1; tk.sq = .28; }
+    if (sh >= 1) { burst(bd.scene, rc.position.x, g.y + .3, rc.position.z, { n: 12, shape: "ico", cols: DUST, spd: 2, up: 2, grav: 6, life: .6 }); tr.position.set(0, 0, 0); rc.visible = false; bd.rOut = null; }
+  }
 }
 function crysTagSprite() {
   const tex = canvasTex(200, 84, (x, W_, H) => { x.fillStyle = "rgba(21,27,36,.88)"; rr(x, 4, 4, W_ - 8, H - 8, 38); x.fill(); x.strokeStyle = "#B78CFF"; x.lineWidth = 4; rr(x, 4, 4, W_ - 8, H - 8, 38); x.stroke();
@@ -958,8 +994,17 @@ function crysTagSprite() {
     x.fillStyle = "#FFFFFF"; x.font = "900 44px Bungee, Rubik, Arial"; x.textAlign = "center"; x.textBaseline = "middle"; x.fillText("+" + BIG_SHARD, 124, 45); });
   const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, opacity: 0, depthWrite: false })); sp.scale.set(3.2, 3.2 * 84 / 200, 1); return sp;
 }
-function cartMesh() { const cart = new THREE.Group(); cart.add(B(.95, .42, .62, "#6B4A36", 0, .3, 0), B(.99, .06, .66, "#3A3A40", 0, .47, 0), B(.99, .06, .66, "#3A3A40", 0, .16, 0));
-  [[-.3, -.3], [.3, -.3], [-.3, .3], [.3, .3]].forEach(([x, z]) => { const w = Cy(.1, .1, .06, 10, "#2A2A30", x, .08, z); w.rotation.x = Math.PI / 2; cart.add(w); }); return cart; }
+/* mine cart big enough for a board truck (scale .62, up to ~1.5 long) to sit inside: plank walls with metal bands and rims, four wheels on a .5 gauge.
+   Origin = wheel bottoms; the truck stands on the floor at CART_FLOOR */
+const CART_FLOOR = .34;
+function cartMesh() { const cart = new THREE.Group(), WD = "#7A5236", MT = "#3A3A40", RM = "#4A4A52";
+  cart.add(B(1.92, .08, 1.12, "#5E4030", 0, .3, 0), B(1.92, .6, .08, WD, 0, .56, .6), B(1.92, .6, .08, WD, 0, .56, -.6), B(.08, .6, 1.12, WD, .96, .56, 0), B(.08, .6, 1.12, WD, -.96, .56, 0));
+  [.6, -.6].forEach(z => { cart.add(B(2.04, .08, .12, RM, 0, .86, z), B(1.96, .04, .13, "#5E4030", 0, .56, z)); [-.55, .55].forEach(x => cart.add(B(.07, .6, .13, MT, x, .56, z))); });
+  [.96, -.96].forEach(x => cart.add(B(.13, .08, 1.3, RM, x, .86, 0)));
+  [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([x, z]) => cart.add(B(.17, .62, .17, MT, x * .96, .56, z * .6)));
+  [-.6, .6].forEach(x => { const ax = Cy(.04, .04, 1.1, 6, MT, x, .2, 0); ax.rotation.x = Math.PI / 2; cart.add(ax);
+    [-.5, .5].forEach(z => { const w = Cy(.2, .2, .1, 12, "#2A2A30", x, .2, z), h = Cy(.09, .09, .12, 8, "#9AA3AE", x, .2, z); w.rotation.x = h.rotation.x = Math.PI / 2; cart.add(w, h); }); });
+  return cart; }
 /* ---------- steps-left badge: a chunky gold coin with the number, floating over the moving truck and facing the camera ---------- */
 function stepBadge() {
   const cv = document.createElement("canvas"); cv.width = cv.height = 128; const tex = new THREE.CanvasTexture(cv), geo = new THREE.CylinderGeometry(.6, .6, .18, 28); geo.rotateX(Math.PI / 2);
