@@ -1,5 +1,6 @@
 /* ---------- events ---------- */
 document.addEventListener("input", (e) => {
+	if (e.target.id === "jcode") pendingCode = e.target.value.toUpperCase().replace(/[^A-Z]/g, "");
 	if (e.target.id === "nm") {
 		me.name = e.target.value.slice(0, 12);
 		saveMe();
@@ -37,6 +38,11 @@ document.addEventListener("click", (e) => {
 	}
 	if (b.dataset.step) {
 		pickTruck(me.truck + +b.dataset.step);
+		return;
+	}
+	if (b.dataset.tvprac) {
+		if (role === "host" && HG && HG.tv) tvPractice(b.dataset.tvprac);
+		else if (role === "client") act({ t: "prac", g: b.dataset.tvprac });
 		return;
 	}
 	if (b.dataset.join) {
@@ -88,16 +94,38 @@ document.addEventListener("click", (e) => {
 		notice = "";
 		homeSub = "join";
 		render();
+	} else if (a === "connect") {
+		const c = (($("#jcode") || {}).value || "").toUpperCase().replace(/[^A-Z]/g, "");
+		if (c) {
+			pendingCode = c;
+			const g = NET.status === "connected" && NET.code === c && gamesAvailable()[0];
+			if (g) {
+				if (!me.name) {
+					me.name = "Driver";
+					saveMe();
+				}
+				clientJoin(g.id);
+			} else {
+				NET.join(c);
+				render.last = null;
+				render();
+			}
+		}
 	} else if (a === "home") {
 		homeSub = "main";
 		render();
-	} else if (a === "addcpu" && role === "host" && HG.players.length < 8) {
-		const used = HG.players.map((p) => p.truck),
-			free = TRUCKS.map((t, i) => i).filter((i) => !used.includes(i)),
-			tr = free.length ? free[rnd(free.length)] : rnd(TRUCKS.length);
-		HG.players.push(newPlayer(rid(), "CPU " + TRUCKS[tr].name.split(" ")[0], tr, true, false));
-		push();
-	} else if (a === "addlocal") {
+	} else if (a === "addcpu" && role === "host") addCpu();
+	else if (a === "tbtip") {
+		LS.set("trp_tbtip", true);
+		render.last = null;
+		render();
+	} else if (a === "hosttv") {
+		notice = "";
+		LS.del("trp_host");
+		hostCreate(true);
+	} else if (a === "tvstart" && role === "client") act({ t: "start" });
+	else if (a === "tvcpu" && role === "client") act({ t: "addcpu" });
+	else if (a === "addlocal") {
 		localForm = !localForm;
 		render.last = null;
 		render();
@@ -122,6 +150,7 @@ document.addEventListener("click", (e) => {
 		render.last = null;
 		render();
 	} else if (a === "replaypod") replayPodium();
+	else if (a === "peek") togglePeek();
 	else if (a === "cam") {
 		GFX.follow = !GFX.follow;
 		GFX.ov = null;
@@ -160,16 +189,17 @@ setInterval(() => {
 	if (view === "join") render();
 }, 2000);
 (async () => {
-	try {
-		room = window.claude && typeof window.claude.use === "function" ? await window.claude.use("room") : null;
-	} catch (e) {
-		room = null;
-	}
-	if (!room) {
+	if (!NET.ok) {
 		roomState = "none";
+		render.last = null;
 		render();
 		return;
 	}
+	room = NET.lobby();
+	NET.onchange = () => {
+		render.last = null;
+		render();
+	};
 	roomState = "ok";
 	room.onConnection(
 		(c) => {
@@ -198,6 +228,15 @@ setInterval(() => {
 		},
 	);
 	setPresence({ here: { name: me.name || "Driver" } });
+	const jc = (new URLSearchParams(location.search).get("join") || "")
+		.toUpperCase()
+		.replace(/[^A-Z]/g, "")
+		.slice(0, 6);
+	if (jc) {
+		pendingCode = jc;
+		notice = `You're joining game ${jc}. Pick your name and truck, then tap Join Game.`;
+		NET.join(jc);
+	}
 	render.last = null;
 	render();
 })();

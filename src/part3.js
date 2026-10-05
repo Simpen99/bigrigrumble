@@ -102,10 +102,25 @@ function newPlayer(key, name, truck, bot, local) {
 function makeCode() {
 	const A = "ABCDEFGHJKLMNPQRSTUVWXYZ";
 	let s = "";
-	for (let i = 0; i < 4; i++) s += A[rnd(A.length)];
+	for (let i = 0; i < 5; i++) s += A[rnd(A.length)];
 	return s;
 }
-function hostCreate() {
+let pendingCode = "";
+function startHub(tries = 0) {
+	if (!NET.ok || !HG) return;
+	NET.host(HG.code)
+		.then(() => {
+			if (HG) push();
+		})
+		.catch(() => {
+			if (HG && tries < 6) {
+				HG.code = makeCode();
+				push();
+				startHub(tries + 1);
+			}
+		});
+}
+function hostCreate(tv) {
 	role = "host";
 	HG = {
 		id: "g" + rid().slice(1),
@@ -130,18 +145,21 @@ function hostCreate() {
 		mg: null,
 		lastMg: null,
 		kick: [],
-		hostName: me.name || "Driver",
+		hostName: tv ? "The TV" : me.name || "Driver",
 		left: 0,
+		tv: !!tv,
 	};
-	HG.players.push(newPlayer(me.key, me.name, me.truck, false, false));
+	if (!tv) HG.players.push(newPlayer(me.key, me.name, me.truck, false, false));
 	startHostLoops();
 	push();
+	startHub();
 }
 function startHostLoops() {
 	clearInterval(tickIv);
 	tickIv = setInterval(hostTick, 1000);
 }
 function hostQuit() {
+	NET.close();
 	const wasPractice = !!(HG && HG.practice);
 	clearTimers();
 	clearInterval(tickIv);
@@ -158,8 +176,9 @@ function hostResume(saved) {
 	HG = saved;
 	HG.intro = false;
 	HG.hold = false;
-	if (!HG.code) HG.code = makeCode();
+	if (!HG.code || HG.code.length < 5) HG.code = makeCode();
 	startHostLoops();
+	startHub();
 	const p = HG.phase;
 	if (p === "lobby" || p === "over") push();
 	else if (p === "minigame") startMinigame();
@@ -262,10 +281,18 @@ function computeView() {
 	return "game";
 }
 function statusHTML() {
-	if (!room) return `<span class="status bad"><b></b>Multiplayer unavailable here</span>`;
-	if (!roomConnected) return `<span class="status wait"><b></b>Connecting…</span>`;
+	if (!room) return `<span class="status bad"><b></b>Couldn't load multiplayer. Check your internet and reload.</span>`;
 	const n = othersHere().length;
-	return `<span class="status ok"><b></b>Online, ${n} other ${n === 1 ? "person" : "people"} on this page</span>`;
+	if (NET.hub)
+		return NET.status === "hosting"
+			? `<span class="status ok"><b></b>Hosting game ${esc(NET.code)}, ${n} other ${n === 1 ? "phone" : "phones"} connected</span>`
+			: `<span class="status wait"><b></b>Opening game ${esc(NET.code || "")}…</span>`;
+	if (NET.status === "connected" && roomConnected)
+		return `<span class="status ok"><b></b>Connected to game ${esc(NET.code)}</span>`;
+	if (NET.status === "connecting" || NET.status === "reconnecting")
+		return `<span class="status wait"><b></b>Connecting to game ${esc(NET.code || "")}…</span>`;
+	if (NET.status === "failed") return `<span class="status bad"><b></b>${esc(NET.err || "Couldn't connect")}</span>`;
+	return `<span class="status"><b></b>Not connected yet</span>`;
 }
 function render() {
 	syncMap();
@@ -276,6 +303,22 @@ function render() {
 		if (v === "game") initSeen();
 	}
 	document.body.dataset.view = v;
+	{
+		const tvp = role === "client" && !!G && !!G.tv;
+		document.body.classList.toggle("tvphone", tvp);
+		if (tvp && !document.getElementById("rotov")) {
+			const o = document.createElement("div");
+			o.id = "rotov";
+			o.innerHTML = rotHTML();
+			document.body.appendChild(o);
+		}
+	}
+	const tvHost = !!(role === "host" && G && G.tv),
+		ctlr = !!(role === "client" && G && G.tv && v === "game");
+	document.body.classList.toggle("tv", tvHost);
+	document.body.classList.toggle("ctl", ctlr);
+	GFX.ctl = ctlr;
+	if (!ctlr && GFX.peek) togglePeek(false);
 	if (GFX.ok) {
 		setMode(GFX.mode === "edit" ? "edit" : W ? "mg" : v === "game" ? "board" : v === "over" ? "podium" : "show");
 		if (v === "home" || v === "join" || v === "waiting" || v === "practice") setShowroom([me.truck]);
@@ -288,7 +331,20 @@ function render() {
 		handleFx();
 		return;
 	}
-	let key = v + "|" + notice + "|" + presenceErr + "|" + roomConnected + "|" + (room ? 1 : 0);
+	let key =
+		v +
+		"|" +
+		notice +
+		"|" +
+		presenceErr +
+		"|" +
+		roomConnected +
+		"|" +
+		(room ? 1 : 0) +
+		"|" +
+		NET.status +
+		NET.err +
+		NET.code;
 	if (v === "join") key += JSON.stringify([othersHere().length, gamesAvailable().map((g) => g.id + ":" + g.v)]);
 	else if (v === "home") key += othersHere().length;
 	else
@@ -309,7 +365,7 @@ function render() {
 	else if (v === "waiting")
 		app.innerHTML = `<div class="stage"></div><div class="sheet"><h2>Connecting to the host…</h2><p class="note">Hang tight. If this takes more than a few seconds, the host may have closed the game.</p><div style="margin-top:12px">${statusHTML()}</div><button class="btn ghost" data-a="leave" style="margin-top:12px">Back</button></div>`;
 	else if (v === "lobby") {
-		app.innerHTML = lobbyHTML();
+		app.innerHTML = role === "host" && G.tv ? tvLobbyHTML() : lobbyHTML();
 		drawQR();
 	} else if (v === "over") app.innerHTML = overHTML();
 	if (keep) {
@@ -343,6 +399,7 @@ function homeHTML() {
     ${canResume ? `<button class="btn go" data-a="resume">Resume your hosted game</button>` : ""}
     <button class="btn ${canResume ? "ghost" : "go"}" data-a="host">Host Game</button>
     <button class="btn sign" data-a="joinlist">Join Game</button>
+    <button class="btn ghost" data-a="hosttv">📺 Host on a TV / big screen</button>
     <button class="btn ghost" data-a="practice">🎮 Minigame practice</button>
     ${FINE && GFX.ok ? `<button class="btn ghost" data-a="editor">🛠 Map editor</button>` : ""}
     <div>${statusHTML()}</div>
@@ -359,8 +416,9 @@ function homeHTML() {
 }
 function diagHTML() {
 	if (!room)
-		return `<div class="empty">This view can't connect to other players. Open the game at the link below while signed in to Claude. Links opened signed-out, or through a public share link, can't join multiplayer.</div>`;
-	if (!roomConnected) return `<div class="empty">Connecting to the game server…</div>`;
+		return `<div class="empty">Multiplayer couldn't load. Check your internet connection and reload the page.</div>`;
+	if (!roomConnected)
+		return `<div class="empty">${NET.status === "connecting" || NET.status === "reconnecting" ? "Connecting…" : NET.status === "failed" ? esc(NET.err) : "Enter the code shown on the host's screen, or scan the host's QR code."}</div>`;
 	return "";
 }
 function joinHTML() {
@@ -368,8 +426,7 @@ function joinHTML() {
 		n = othersHere().length;
 	let body = diagHTML();
 	if (!body) {
-		if (!list.length)
-			body = `<div class="empty">${n ? `${n} other ${n === 1 ? "person is" : "people are"} on this page, but nobody is hosting yet.` : "Nobody else has this page open right now."} Ask the host to tap <b>Host Game</b>. This list updates by itself.</div>`;
+		if (!list.length) body = `<div class="empty">Connected, waiting for the host's lobby…</div>`;
 		else
 			body = list
 				.map((g) => {
@@ -379,7 +436,8 @@ function joinHTML() {
 				})
 				.join("");
 	}
-	return `<div class="stage short"><div class="brand"><i></i>Big Rig Rumble</div></div><section class="sheet"><h2>Join Game</h2>${body}
+	return `<div class="stage short"><div class="brand"><i></i>Big Rig Rumble</div></div><section class="sheet"><h2>Join Game</h2>
+  <div class="row" style="align-items:flex-end;margin-bottom:12px"><label class="field" style="flex:2">Game code<input id="jcode" maxlength="6" autocapitalize="characters" autocomplete="off" value="${esc(pendingCode)}" placeholder="ABCDE" style="text-transform:uppercase;letter-spacing:3px;font-weight:800"></label><button class="btn sign" data-a="connect" style="flex:1">${NET.status === "connected" && NET.code && NET.code === pendingCode && gamesAvailable().length ? "Join" : "Connect"}</button></div>${body}
   <p class="note">You'll join as <b>${esc(me.name || "Driver")}</b> driving ${esc(TRUCKS[me.truck].name)}. Match the code with the one on the host's screen.</p>
   <div style="margin-top:10px">${statusHTML()}</div></section><button class="btn ghost" data-a="home" style="margin-top:12px">Back</button>`;
 }
@@ -389,20 +447,20 @@ function playerRow(p, host) {
 	return `<li><span class="dot" style="background:${pcol(p)}"></span><img alt="" src="${thumb(p.truck)}"><span class="nm">${esc(p.name)}${p.key === me.key ? " (you)" : ""}<small>${esc(TRUCKS[p.truck].name)}${tag ? ", " + tag : ""}</small></span>${G.teams ? `<button class="teamb" data-team="${esc(p.key)}" style="--tc:${TEAMS[p.team || 0].col}" ${host ? "" : "disabled"}>${TEAMS[p.team || 0].name.replace("Team ", "")}</button>` : ""}${host && p.key !== me.key ? `<button class="xbtn" data-kick="${esc(p.key)}" aria-label="Remove ${esc(p.name)}">Remove</button>` : ""}</li>`;
 }
 function joinURL() {
-	return ARTIFACT_URL || location.href;
+	return location.origin + location.pathname + "?join=" + encodeURIComponent((G && G.code) || "");
 }
 function lobbyHTML() {
 	const host = role === "host";
 	const watching = othersHere().filter((p) => !(p.presence && (p.presence.join === G.id || p.presence.game))).length;
 	const qr = host
 		? `<section class="sheet"><div class="row" style="align-items:center"><h2 style="margin:0">Scan to join</h2><span class="code" style="text-align:right">${esc(G.code)}</span></div>
-    <div class="qrbox" style="margin-top:10px"><div class="qr" id="qr"></div><div><p style="font-size:14px">Scan with the phone camera, sign in to Claude if asked, then tap <b>Join Game</b> and pick code <b>${esc(G.code)}</b>.</p>
+    <div class="qrbox" style="margin-top:10px"><div class="qr" id="qr"></div><div><p style="font-size:14px">Scan with the phone camera to open the game, pick a name and truck, then tap <b>Join Game</b>. Or enter code <b>${esc(G.code)}</b> on the Join screen.</p>
     <div style="margin-top:8px">${statusHTML()}</div></div></div>
     ${watching ? `<p class="note">${watching} ${watching === 1 ? "person has" : "people have"} the page open but hasn't joined yet.</p>` : ""}
     ${presenceErr ? `<div class="banner">The game couldn't broadcast (${esc(presenceErr)}). Try closing and hosting again.</div>` : ""}
     ${!room ? `<div class="banner">Multiplayer isn't available in this view. Add CPU trucks or players on this phone instead.</div>` : ""}
     <div class="linkline">${esc(joinURL())}</div>
-    <p class="note">Anyone joining needs access to this page. Share it with them from the Share menu so it opens for their Claude account.</p></section>`
+    <p class="note">Keep this phone's screen on during the game. It connects everyone.</p></section>`
 		: "";
 	const plist = `<section class="sheet"><h2>Drivers (${G.players.length}/8)</h2><ul class="plist">${G.players.map((p) => playerRow(p, host)).join("")}</ul>
     ${
@@ -422,7 +480,12 @@ function lobbyHTML() {
     <section class="sheet"><h2>Test mode</h2><div class="seg"><button data-test="off" class="${!G.test ? "on" : ""}">Off</button><button data-test="on" class="${G.test ? "on" : ""}">On</button></div>${G.test ? `<p class="note">On your turn you can pick your exact roll, tap any space to jump there and trigger it, and top up coins, shards and dust.</p>` : ""}</section>
     <section class="sheet"><h2>Rounds</h2><div class="seg">${[4, 6, 8, 10, 12, 16].map((r) => `<button data-rounds="${r}" class="${G.rounds === r ? "on" : ""}">${r}</button>`).join("")}</div></section>
     <section class="sheet stack"><button class="btn go" data-a="start" ${G.players.length < 2 ? "disabled" : ""}>${G.players.length < 2 ? "Waiting for another driver" : "Start the race"}</button><button class="btn ghost" data-a="quit">Close game</button></section>`
-		: `<section class="sheet"><h2>Waiting for ${esc(G.hostName || "the host")} to start</h2><p class="note" style="margin-top:0">Game ${esc(G.code || "")}: ${esc((MAPS[G.map] || JUNK).name)}, ${G.rounds} rounds${G.teams ? ", teams" : ""}. You're driving ${esc(TRUCKS[me.truck].name)}.</p>
+		: G.tv
+			? `${IOS_SAFARI && !LS.get("trp_tbtip", false) ? `<section class="sheet tbsheet"><h2>📱 Play fullscreen</h2>${tbTipHTML()}<button class="btn ghost small" data-a="tbtip">Got it</button></section>` : ""}<section class="sheet"><h2>📺 You're in! Watch the TV</h2><p class="note" style="margin-top:0">Game ${esc(G.code || "")}: ${esc((MAPS[G.map] || JUNK).name)}, ${G.rounds} rounds${G.teams ? ", teams" : ""}. You're driving ${esc(TRUCKS[me.truck].name)}. This phone is your controller.</p>
+       ${tvLead() && tvLead().key === me.key ? `<div class="stack" style="margin-top:10px"><button class="btn go" data-a="tvstart" ${G.players.length < 2 ? "disabled" : ""}>${G.players.length < 2 ? "Waiting for another driver" : "Start the race"}</button><button class="btn ghost small" data-a="tvcpu" ${G.players.length >= 8 ? "disabled" : ""}>+ CPU truck</button></div><h2 style="margin-top:14px">Practice a minigame</h2>${pracHTML()}` : `<p class="note">${esc((tvLead() || {}).name || "The first driver")} starts the race.</p>`}
+       <button class="btn ghost" data-a="changetruck" style="margin-top:10px">${changingTruck ? "Done" : "Change truck"}</button>${changingTruck ? `<div style="margin-top:10px">${carouselHTML(me.truck)}</div>` : ""}</section>
+       <button class="btn ghost" data-a="leave" style="margin-top:12px">Leave game</button>`
+			: `<section class="sheet"><h2>Waiting for ${esc(G.hostName || "the host")} to start</h2><p class="note" style="margin-top:0">Game ${esc(G.code || "")}: ${esc((MAPS[G.map] || JUNK).name)}, ${G.rounds} rounds${G.teams ? ", teams" : ""}. You're driving ${esc(TRUCKS[me.truck].name)}.</p>
        <button class="btn ghost" data-a="changetruck" style="margin-top:10px">${changingTruck ? "Done" : "Change truck"}</button>${changingTruck ? `<div style="margin-top:10px">${carouselHTML(me.truck)}</div>` : ""}</section>
        <button class="btn ghost" data-a="leave" style="margin-top:12px">Leave game</button>`;
 	return `<div class="stage short"><div class="brand"><i></i>Lobby</div></div>${qr}${plist}${settings}`;
@@ -445,13 +508,83 @@ function drawQR() {
 	}
 	el.innerHTML = `<small>QR unavailable</small>`;
 }
+/* phones in a TV game play sideways: full-screen "turn your phone" overlay while upright, plus a tip for hiding Safari's toolbar on iPhone */
+const IOS_SAFARI =
+	(/iP(hone|od)/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)) &&
+	!/CriOS|FxiOS|EdgiOS|OPiOS/.test(navigator.userAgent) &&
+	!navigator.standalone;
+const tbTipHTML = () =>
+	`<p class="tbtip"><b>Tip:</b> tap the page icon next to the web address, then <b>⋯</b>, then <b>Hide Toolbar</b> to play fullscreen.</p>`;
+function rotHTML() {
+	return `<div class="rotbox"><div class="rotph"><i></i></div><h2>Turn your phone sideways</h2><p>Big Rig Rumble on the TV is played in landscape.</p>${IOS_SAFARI ? tbTipHTML() : ""}</div>`;
+}
+/* TV lobby: the PC hosts and shows the game on the big screen, phones join as controllers */
+const tvLead = () => G && G.players.find((p) => !p.bot);
+const pracHTML = () =>
+	`<div class="pracgrid">${Object.keys(MG)
+		.map((k) => `<button class="pracb" data-tvprac="${k}">${esc(MG[k].name)}</button>`)
+		.join("")}</div>`;
+function tvLobbyHTML() {
+	const lead = tvLead(),
+		n = G.players.length;
+	return `<div class="tvlobby"><div class="logo tvlogo"><span class="l1">BIG RIG</span><span class="l2">RUMBLE</span><span class="l3">The truck party board game</span></div>
+  <section class="sheet tvjoin"><h2>Scan to join</h2><div class="qr big" id="qr"></div><p>or open <b>${esc(location.host + location.pathname)}</b> and enter</p><div class="code">${esc(G.code)}</div><div>${statusHTML()}</div></section>
+  <section class="sheet tvdrivers"><h2>Drivers (${n}/8)</h2>${n ? `<ul class="plist">${G.players.map((p) => playerRow(p, true)).join("")}</ul>` : `<div class="empty">Waiting for phones to join…</div>`}
+    <div class="row" style="margin-top:10px"><button class="btn ghost small" data-a="addcpu" ${n >= 8 ? "disabled" : ""}>+ CPU truck</button></div>
+    <h2 style="margin-top:16px">Practice a minigame</h2><p class="note" style="margin:-4px 0 8px">One minigame with everyone here. No coins, back to the lobby after.</p>${pracHTML()}</section>
+  <section class="sheet tvset"><h2>Map</h2><div class="mapgrid">${Object.values(MAPS)
+		.map(
+			(m) =>
+				`<button class="mapb ${G.map === m.id ? "on" : ""}" data-map="${m.id}"><b>${esc(m.name)}</b><small>${esc(m.blurb)}</small>${m.dice ? `<em class="mapdice">🎲 ${m.dice}x dice multiplier</em>` : ""}</button>`,
+		)
+		.join("")}</div>${mapRulesHTML()}
+    <h2 style="margin-top:14px">Rounds</h2><div class="seg">${[4, 6, 8, 10, 12, 16].map((r) => `<button data-rounds="${r}" class="${G.rounds === r ? "on" : ""}">${r}</button>`).join("")}</div>
+    <h2 style="margin-top:14px">Mode</h2><div class="seg"><button data-mode="ffa" class="${!G.teams ? "on" : ""}">Free-for-all</button><button data-mode="teams" class="${G.teams ? "on" : ""}">Teams</button></div>
+    <div class="stack" style="margin-top:14px"><button class="btn go" data-a="start" ${n < 2 ? "disabled" : ""}>${n < 2 ? "Waiting for drivers" : "Start the race"}</button>${lead ? `<p class="note" style="margin:0">${esc(lead.name)} can also start from their phone.</p>` : ""}<button class="btn ghost" data-a="quit">Close game</button></div></section></div>`;
+}
 /* ---------- game view ---------- */
 function buildGame() {
 	$("#app").innerHTML =
-		`<div class="hudtop"><span class="chip" id="rnd"></span><span class="chip grow" id="turnchip"></span><button class="chip" data-a="snd" aria-label="Sound on or off">${SFX.on ? "🔊" : "🔇"}</button><button class="chip" data-a="cam" id="cambtn">Board</button><button class="chip" data-a="${role === "host" ? "endask" : "leave"}" aria-label="Leave game">✕</button></div>
-  <div class="hudbot" id="hudbot"><div id="hostgone"></div><div class="hcard"><div class="msg"><i></i><span id="msg" aria-live="polite"></span></div><div id="panel"></div><div class="pstrip" id="pstrip"></div></div></div>`;
-	render.lastPanel = render.lastStrip = null;
+		`<div class="hudtop"><span class="chip" id="rnd"></span><span class="chip grow" id="turnchip"></span><button class="chip" data-a="snd" aria-label="Sound on or off">${SFX.on ? "🔊" : "🔇"}</button><button class="chip" data-a="cam" id="cambtn">Board</button><button class="chip" data-a="peek" id="peekbtn">${GFX.peek ? "🎮 Controls" : "🗺 Board"}</button><button class="chip" data-a="${role === "host" ? "endask" : "leave"}" aria-label="Leave game">✕</button></div>
+  <div class="hudbot" id="hudbot"><div id="hostgone"></div><div id="ctlme"></div><div class="hcard"><div class="msg"><i></i><span id="msg" aria-live="polite"></span></div><div id="panel"></div><div class="pstrip" id="pstrip"></div></div></div>`;
+	render.lastPanel = render.lastStrip = render.lastMe = null;
 }
+/* TV-mode phones: peek at the 3D board (follow cam, drag / pinch to look around); closes itself when it becomes your move */
+function togglePeek(on) {
+	GFX.peek = on === undefined ? !GFX.peek : !!on;
+	document.body.classList.toggle("peek", GFX.peek);
+	const b = $("#peekbtn");
+	if (b) b.textContent = GFX.peek ? "🎮 Controls" : "🗺 Board";
+	if (GFX.peek) {
+		GFX.follow = true;
+		GFX.ov = null;
+		GFX.camPos = null;
+		gfxResize();
+	}
+}
+function ctlMeHTML() {
+	const p = G.players.find((x) => x.key === me.key);
+	if (!p) return "";
+	const col = G.teams ? TEAMS[p.team || 0].col : pcol(p),
+		rank = standings(G.players).indexOf(p) + 1,
+		c = G.players[G.turn];
+	const mine =
+		(G.phase === "turn" && c === p) ||
+		(G.phase === "fork" && G.fork && G.fork.pid === p.key) ||
+		(G.phase === "shop" && G.shop && G.shop.pid === p.key) ||
+		(G.phase === "buy" && G.buy && G.buy.pid === p.key) ||
+		(G.phase === "duelpick" && G.duelPick && G.duelPick.pid === p.key);
+	return `<div class="ctlcard ${mine ? "now" : ""}" style="--c:${col}"><img alt="" src="${thumb(p.truck)}"><div class="who"><b>${esc(p.name)}</b><small>${G.teams ? esc(TEAMS[p.team || 0].name) : ordinal(rank) + " place"}</small></div><div class="stats"><span>${p.bat}${bIco()}</span><span>${p.coins}${coinIco}</span>${cargoHTML(p)}</div></div>${mine ? "" : `<div class="ctlidle">📺 Watch the TV</div>`}`;
+}
+const ordinal = (n) =>
+	n +
+	(n % 10 === 1 && n % 100 !== 11
+		? "st"
+		: n % 10 === 2 && n % 100 !== 12
+			? "nd"
+			: n % 10 === 3 && n % 100 !== 13
+				? "rd"
+				: "th");
 function updateGame() {
 	if (uiPick && (uiPick.seq !== G.seq || G.phase !== "turn")) uiPick = null;
 	syncBoard();
@@ -481,6 +614,16 @@ function updateGame() {
 		role === "client" && Date.now() - hostSeenAt > 5000
 			? `<div class="hostgone">Lost contact with the host. The game continues when they're back.</div>`
 			: "";
+	if (GFX.ctl) {
+		const h = ctlMeHTML(),
+			mine = h.includes("ctlcard now");
+		if (h !== render.lastMe) {
+			render.lastMe = h;
+			$("#ctlme").innerHTML = h;
+		}
+		if (mine && !render.wasMine && GFX.peek) togglePeek(false);
+		render.wasMine = mine;
+	}
 	const ph = panelHTML();
 	if (ph !== render.lastPanel) {
 		render.lastPanel = ph;
@@ -512,6 +655,12 @@ function handleFx() {
 		seen.ev = G.ev.n;
 		showEvent(G.ev);
 	}
+	if (W && (!G.mg || W.mg.nonce !== G.mg.nonce) && G.phase === "minigame") closeMg();
+	if (TVC && (!G.mg || TVC.mg.nonce !== G.mg.nonce) && G.phase === "minigame") closeMg();
+	if (G.phase === "minigame" && G.mg && G.mg.tv && role === "host" && !mgBusy) {
+		if (G.mg.tv === "split") openTvSplit(G.mg);
+		else openTvMg(G.mg);
+	}
 	if (G.phase === "minigame" && G.mg && !mgBusy) {
 		const pend = mgPending();
 		if (pend.length) enterMg(G.mg, pend[0]);
@@ -537,7 +686,7 @@ function showBattery(fx) {
 		} catch (e) {}
 	}
 	sfx("fanfare");
-	if (!GFX.ok || !GFX.board || GFX.ctl) return;
+	if (!GFX.ok || !GFX.board || (GFX.ctl && !GFX.peek)) return;
 	const bd = GFX.board;
 	if (GFX.bseq && GFX.bseq.m) bd.scene.remove(GFX.bseq.m);
 	const m = batteryMesh();

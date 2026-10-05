@@ -1,4 +1,3 @@
-const ARTIFACT_URL = "https://claude.ai/artifact/JzfVf1LkLBFjkJYbA7rbce";
 const PRICE = 20,
 	START_COINS = 10,
 	N = 32;
