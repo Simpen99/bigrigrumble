@@ -127,7 +127,7 @@ let EDC = { p: {}, n: {}, o: {}, reg: {} };
 const ep = k => { const v = EDC.p[k]; return typeof v === "number" ? v : ED_DEF[k]; };
 function mapEdits(map) { const ls = (LS.get("trp_mapedit", {}) || {})[map.id] || {}, b = map.bake || {}; return { p: Object.assign({}, b.p, ls.p), n: Object.assign({}, b.n, ls.n), o: Object.assign({}, b.o, ls.o) }; }
 function applyMapEdits(map) {
-  EDC = Object.assign(mapEdits(map), { reg: {} });
+  EDC = Object.assign(mapEdits(map), { reg: {} }); map._fs = null;
   map.nodes.forEach((n, i) => { if (!n._o) n._o = { x: n.x, y: n.y, z: n.z }; const e = EDC.n[i] || {}; ["x", "y", "z"].forEach(k => { n[k] = typeof e[k] === "number" ? e[k] : n._o[k]; }); });
   if (map.lava) [0, 1, 2].forEach(i => { LAVA_Y[i] = ep("lava" + i); });
 }
@@ -170,7 +170,7 @@ const SYM_W = "#FFFFFF";
 /* per tile type: layers [shapes, height, colour] */
 function symLayers(t) {
   const st = (pts, w) => strokeShape(pts, w);
-  if (t === "E") return [[[st(arcPts(0, .16, .21, 165, -62).concat([[0, -.1]]), .15), discShape(0, -.34, .09)], .08, SYM_W]];
+  if (t === "E") return [[[st(arcPts(0, .17, .2, 160, -35, 16).concat([[.09, .0], [.025, -.05], [0, -.09], [0, -.17]]), .15), discShape(0, -.36, .09)], .08, SYM_W]];
   if (t === "SH") { const S = arcPts(0, .13, .17, 25, 270).concat(arcPts(0, -.21, .17, 90, -155).slice(1)); return [[[st(S, .12)], .07, SYM_W], [[st([[0, -.46], [0, .46]], .07)], .1, SYM_W]]; }
   if (t === "D") { const S = arcPts(.25, .1, .1, 30, 270, 10).concat(arcPts(.25, -.1, .1, 90, -150, 10).slice(1)); return [[[st([[-.42, .2], [-.27, -.2], [-.12, .2]], .1), st(S, .09)], .08, SYM_W]]; }
   if (t === "SC") { /* shovel */ const blade = rotPts([[-.16, .12], [.16, .12], [.16, -.08], [0, -.26], [-.16, -.08]], 45, .18, -.18);
@@ -178,8 +178,6 @@ function symLayers(t) {
   if (t === "CR") { const five = [[.3, .2], [.08, .2], [.06, .02]].concat(arcPts(.16, -.08, .13, 130, -150, 12).slice(1)); return [[[st([[-.34, 0], [-.12, 0]], .09), st(five, .09)], .08, SYM_W]]; }
   if (t === "OB") { const plus = [st([[-.3, 0], [-.08, 0]], .075), st([[-.19, -.11], [-.19, .11]], .075)], two = st(arcPts(.13, .07, .1, 165, -35, 10).concat([[.03, -.14], [.25, -.14]]), .075);
     return [[[polyShape([[0, .5], [.36, .14], [0, -.5], [-.36, .14]])], .05, "#B78CFF"], [plus.concat([two]), .1, SYM_W]]; }
-  if (t === "GY") { const wave = x => Array.from({ length: 9 }, (_, k) => [x + Math.sin(k * .9) * .05, -.42 + k * .055]);
-    return [[[st(wave(-.08), .07), st(wave(.08), .07)], .06, SYM_W], [[discShape(-.2, .17, .13), discShape(.2, .17, .13)], .085, SYM_W], [[discShape(0, .25, .18)], .11, SYM_W]]; }
   if (t === "S") { const sq = []; for (let i = 0; i < 6; i++) for (let j = 0; j < 6; j++) if ((i + j) % 2) { const x = -.58 + i * .194, y = -.58 + j * .194; sq.push(polyShape([[x, y], [x + .194, y], [x + .194, y + .194], [x, y + .194]])); } return [[sq, .04, "#151B24"]]; }
   return null;
 }
@@ -302,25 +300,26 @@ function geoRefinery(w, sd) {
   const xp = Cy(.12, .12, 2 * zc, 8, "#D9480F", 0, 0, 0, GEO_PIPE); xp.rotation.x = Math.PI / 2; xp.position.set(.3, 3.02, 0); g.add(xp);
   const op = Cy(.11, .11, .75, 8, "#D9480F", 0, 0, 0, GEO_PIPE); op.rotation.x = Math.PI / 2; op.position.set(0, .6, sd * (zc + .45)); g.add(op);
   geoPipe(g, 0, sd * (zc + .8), .71, 13);
+  /* sign: a dark plate with shard → cell on both faces, each face read left to right from its own side (crystals sit in front of the plate, not through it) */
   const sg = new THREE.Group(); sg.add(B(1.5, .75, .1, "#151B24", 0, 0, 0), B(.1, .3, .1, "#3A302B", -.5, -.5, 0), B(.1, .3, .1, "#3A302B", .5, -.5, 0));
-  const sh = obsidianMesh(.6); sh.position.set(-.38, -.22, 0); sg.add(sh);
-  [1, -1].forEach(f => sg.add(B(.22, .07, .04, "#FFFFFF", .07 * f, 0, .07 * f), B(.18, .34, .06, "#FF9A3D", .4 * f, 0, .07 * f, { emissive: "#FF6A1F", emissiveIntensity: .7 }), B(.09, .06, .06, "#FF9A3D", .4 * f, .2, .07 * f)));
+  const arrow = new THREE.ExtrudeGeometry(polyShape([[-.13, .035], [.03, .035], [.03, .085], [.14, 0], [.03, -.085], [.03, -.035], [-.13, -.035]]), { depth: .04, bevelEnabled: false });
+  [1, -1].forEach(f => { const face = new THREE.Group(); face.rotation.y = f > 0 ? 0 : Math.PI; sg.add(face);
+    const sh = obsidianMesh(.45); sh.position.set(-.42, -.18, .17); face.add(sh);
+    const ar = mesh(arrow, "#FFFFFF"); ar.position.set(.02, 0, .05); face.add(ar);
+    face.add(B(.18, .34, .06, "#FF9A3D", .44, 0, .08, { emissive: "#FF6A1F", emissiveIntensity: .7 }), B(.09, .06, .06, "#FF9A3D", .44, .2, .08)); });
   sg.rotation.y = Math.PI / 2; sg.position.set(0, 3.98, 0); g.add(sg);
-  /* intake: a funnel under the girder sucks shards up in a purple whirl from a swirling patch on the road */
+  /* intake: a funnel under the girder, a faint purple cone of suction down to the tile, and spiral arms of half-transparent shards that bend as they climb */
   g.add(Cy(.16, .55, .45, 10, "#3A302B", 0, 2.95, 0), Cy(.57, .57, .06, 10, "#B78CFF", 0, 2.72, 0, { emissive: "#7A3CFF", emissiveIntensity: .8 }));
-  const sw = new THREE.Mesh(new THREE.RingGeometry(1.2, 1.75, 40), new THREE.MeshBasicMaterial({ map: swirlTex(), transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -8 }));
-  sw.rotation.x = -Math.PI / 2; sw.position.y = .14; g.add(sw);
-  const sg2 = new THREE.OctahedronGeometry(.11, 0), sm = new THREE.MeshStandardMaterial({ color: "#7A3CFF", emissive: "#7A3CFF", emissiveIntensity: .6, flatShading: true, roughness: .3 }), bits = [];
-  for (let k = 0; k < 14; k++) { const m = new THREE.Mesh(sg2, sm); g.add(m); bits.push(m); }
-  const tick = time => { sw.rotation.z = -time * 1.4;
-    bits.forEach((m, k) => { const u = (time * .3 + k / bits.length) % 1, a = u * Math.PI * 5 + k * .45, r = 1.15 * (1 - u) + .12, sc = u < .1 ? u / .1 : u > .85 ? (1 - u) / .15 : 1;
-      m.position.set(Math.cos(a) * r, .62 + u * 2.05, Math.sin(a) * r); m.rotation.y = a * 2; m.scale.set(sc, sc * 1.6, sc); }); };
+  const coneM = new THREE.MeshBasicMaterial({ color: "#B78CFF", transparent: true, opacity: .1, depthWrite: false, side: THREE.DoubleSide }), cone = new THREE.Mesh(new THREE.CylinderGeometry(.52, 1.15, 2.1, 28, 1, true), coneM);
+  cone.position.y = 1.66; g.add(cone);
+  const sg2 = new THREE.OctahedronGeometry(.1, 0), sm = new THREE.MeshStandardMaterial({ color: "#7A3CFF", emissive: "#7A3CFF", emissiveIntensity: .6, flatShading: true, roughness: .3, transparent: true, opacity: .5, depthWrite: false }), bits = [], ARMS = 4, PER = 6;
+  for (let k = 0; k < ARMS * PER; k++) { const m = new THREE.Mesh(sg2, sm); g.add(m); bits.push(m); }
+  const tick = time => { coneM.opacity = .08 + Math.sin(time * 2.2) * .025;
+    bits.forEach((m, k) => { const arm = k % ARMS, u = (time * .32 + (k / ARMS | 0) / PER) % 1, a = arm / ARMS * Math.PI * 2 + time * 1.1 + u * u * Math.PI * 2.4, r = 1.1 * Math.pow(1 - u, 1.25) + .16, sc = u < .1 ? u / .1 : u > .88 ? (1 - u) / .12 : 1;
+      m.position.set(Math.cos(a) * r, .58 + u * 2.1, Math.sin(a) * r); m.rotation.y = a * 2; m.scale.set(sc, sc * 1.6, sc); }); };
   g.userData = { puff: [.18, 4.2, zs], puffs: geoPuffs(g, 5), tick };
   return g;
 }
-let SWIRL_TEX = null;
-function swirlTex() { return SWIRL_TEX || (SWIRL_TEX = canvasTex(256, 256, (x, w, h) => { x.translate(128, 128); x.lineCap = "round";
-  for (let k = 0; k < 4; k++) { x.rotate(Math.PI / 2); x.beginPath(); for (let t = 0; t <= 1; t += .02) { const a = t * 2.4, r = 70 + t * 56; x.lineTo(Math.cos(a) * r, Math.sin(a) * r); } x.strokeStyle = "rgba(183,140,255,.75)"; x.lineWidth = 14; x.stroke(); } })); }
 /* ---------- battery factory models: two looks per style, FAC_LOOK picks the one in use ----------
    all face +z (the camera side), ~2.7 × 2 footprint; each returns a group with userData { sign (swings, optional), puff: steam origin, puffs, tick(time) } */
 const FAC_LOOK = { def: "works", volc: "forge" };
@@ -583,7 +582,7 @@ function stepVolcano(bd, dt, time) {
   vx.haze.forEach((m, i) => { m.position.y = ly + m.userData.dy; m.rotation.z = time * (i ? -.012 : .008); });
   vx.glow.position.y = ly + 2.5; vx.glow.intensity = (1.3 + Math.sin(time * 2.3) * .15) * (typeof bd.edp.glow === "number" ? bd.edp.glow : 1); vx.cr.rotation.y = time * .3;
   Object.keys(bd.scorch).forEach(i => { const n = MAP.nodes[i], m = bd.scorch[i]; m.visible = !!(flooded(+i, G.round) && ly > n.y + .05); if (m.visible) m.position.y = Math.max(.6, ly - n.y + .07) / m.parent.scale.y; if (bd.obCr[i]) bd.obCr[i].visible = !m.visible; if (bd.obs[i]) bd.obs[i].visible = !m.visible; });
-  bd.vents.forEach((v, j) => v.ps.forEach(p => { const u = p.userData.t = (p.userData.t + dt * .55) % 1; p.position.set(v.x + Math.sin(u * 7 + j) * .18, .6 + u * 3.4, v.z + Math.cos(u * 5 + j) * .18); p.scale.setScalar(.45 + u * 1.4); p.material.opacity = .8 * (1 - u); }));
+  bd.vents.forEach((v, j) => v.ps.forEach(p => { const u = p.userData.t = (p.userData.t + dt * .55) % 1; p.position.set(v.x + Math.sin(u * 6 + j) * (.12 + u * .5), .7 + u * 3.2, v.z + Math.cos(u * 4 + j) * (.12 + u * .5)); p.scale.setScalar(.3 + u * 1.7); p.material.opacity = .42 * Math.sin(Math.min(1, u * 1.4) * Math.PI); }));
   vx.smoke.forEach(m => { const d = m.userData, u = d.t = (d.t + dt * .04) % 1; m.position.set(Math.cos(d.a) * d.r + u * 4, ly + .5 + u * 16, Math.sin(d.a) * d.r - u * 3); m.scale.setScalar(.6 + u * 2.4); m.material.opacity = .45 * Math.sin(u * Math.PI); });
   const er = G.erupt;
   if (bd.eruptN === undefined) bd.eruptN = er ? er.n : null;
@@ -675,11 +674,15 @@ function buildBoardFor(map) {
       /* chevron on the tile edge pointing at the landing space (turns with the tile), a dotted steam arc to it and a pulsing ring round the landing space */
       const ch = new THREE.Mesh(new THREE.PlaneGeometry(.62, .62), new THREE.MeshBasicMaterial({ map: chevTex(), transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -8 })); ch.rotation.set(-Math.PI / 2, 0, rel); ch.position.set(-Math.sin(rel) * d, .54, -Math.cos(rel) * d); tl.add(ch);
       const a0 = new THREE.Vector3(x, Y(n) + .9, z), a1 = new THREE.Vector3(tg.x, Y(tg) + .9, tg.z), mid = a0.clone().lerp(a1, .5); mid.y = Math.max(a0.y, a1.y) + a0.distanceTo(a1) * .35 + 1.5;
-      const curve = new THREE.QuadraticBezierCurve3(a0, mid, a1), dots = []; for (let k = 0; k < 18; k++) { const m = new THREE.Mesh(new THREE.IcosahedronGeometry(.17, 0), new THREE.MeshBasicMaterial({ color: "#BDF1FF", transparent: true, opacity: .6, depthWrite: false })); s.add(m); dots.push(m); }
-      const ring = new THREE.Mesh(new THREE.TorusGeometry(1.45 * ep("tileR"), .08, 6, 28), new THREE.MeshStandardMaterial({ color: "#5FC3E8", emissive: "#3FB8E8", emissiveIntensity: .8 })); ring.rotation.x = Math.PI / 2; ring.position.set(tg.x, Y(tg) + .56, tg.z); s.add(ring);
+      const curve = new THREE.QuadraticBezierCurve3(a0, mid, a1), dots = []; for (let k = 0; k < 18; k++) { const m = new THREE.Mesh(new THREE.IcosahedronGeometry(.17, 0), new THREE.MeshBasicMaterial({ color: "#E3E7EC", transparent: true, opacity: .6, depthWrite: false })); s.add(m); dots.push(m); }
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(1.45 * ep("tileR"), .08, 6, 28), new THREE.MeshStandardMaterial({ color: "#C9D1DA", emissive: "#E3E7EC", emissiveIntensity: .35 })); ring.rotation.x = Math.PI / 2; ring.position.set(tg.x, Y(tg) + .56, tg.z); s.add(ring);
       gyArcs.push({ curve, dots, ring }); }
-    if (t === "GY") { const r = Math.hypot(x, z) || 1, vx = x + x / r * 1.25, vz = z + z / r * 1.25; ng.add(Cy(.42, .55, .5, 8, "#6B5A50", vx, .25, vz), Cy(.3, .3, .06, 8, "#FF8A3D", vx, .52, vz, { emissive: "#FF5A1F", emissiveIntensity: .8 }));
-      const ps = []; for (let k = 0; k < 6; k++) { const p = new THREE.Mesh(new THREE.IcosahedronGeometry(.3, 0), new THREE.MeshStandardMaterial({ color: "#F4F6F9", transparent: true, opacity: .8, flatShading: true, depthWrite: false })); p.userData.t = k / 6; ng.add(p); ps.push(p); } vents.push({ x: vx, z: vz, ps }); }
+    /* geyser tile: a pale sinter mound with a sulphur-stained vent in the middle, light mist rising out of it */
+    if (t === "GY") { const prof = [[.17, .5], [.22, .6], [.3, .65], [.42, .63], [.56, .58], [.7, .52], [.8, .485]].map(([r, y]) => new THREE.Vector2(r, y));
+      const sul = new THREE.Mesh(new THREE.TorusGeometry(.215, .045, 6, 16), M("#D9C36A")); sul.rotation.x = Math.PI / 2; sul.position.y = .6;
+      tl.add(mesh(new THREE.LatheGeometry(prof, 14), "#7E7A75", { side: THREE.DoubleSide }), Cy(.19, .19, .02, 12, "#151B24", 0, .52, 0), sul);
+      [[.5, .15], [-.38, .42], [-.28, -.48], [.52, -.3]].forEach(([a, b], q) => { const m = mesh(new THREE.DodecahedronGeometry(.07 + q * .012, 0), "#B5AFA6"); m.position.set(a, .58 - Math.hypot(a, b) * .06, b); tl.add(m); });
+      const ps = []; for (let k = 0; k < 8; k++) { const p = new THREE.Mesh(new THREE.IcosahedronGeometry(.3, 0), new THREE.MeshStandardMaterial({ color: "#F4F6F9", transparent: true, opacity: .45, flatShading: true, depthWrite: false })); p.userData.t = k / 8; ng.add(p); ps.push(p); } vents.push({ x, z, ps }); }
     if (n.br && !nd.some(m => !m.br && Math.hypot(m.x - x, m.z - z) < 2.6)) { const pl = B(.6, Y(n) + 1.4, .6, "#5A3A22", x, -(Y(n) + 1.4) / 2, z); ng.add(pl); }
     if (vol && n.lv) { const m = new THREE.Mesh(new THREE.CircleGeometry(1.36, sides), new THREE.MeshBasicMaterial({ map: scorchTex(), polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -6 })); m.rotation.set(-Math.PI / 2, 0, Math.PI / sides - Math.PI / 2); m.position.set(0, .6, 0); m.visible = false; tl.add(m); scorch[i] = m; }
   });
@@ -709,16 +712,23 @@ function setBoardMap(id) {
   if (!GFX.camLight) { GFX.camLight = new THREE.PointLight("#ffffff", .6, 20); GFX.cam.add(GFX.camLight); }
   GFX.camPos = null; initCamInput();
 }
-/* where the factory building stands next to its tile: outside the road on the outer loop, behind the road (seen from the camera) in the middle, always facing the camera */
+/* where the factory building stands next to its tile: beside the road at the first offset where its whole footprint stays clear of every road (bridges and other ledges included)
+   and of refinery gates; among clear spots, outside the loop on the outer edge, behind the road (seen from the camera) elsewhere. ok = false when nothing fits (pickFactory skips it) */
+const FAC_FOOT = [[-1.35, -1.05], [1.35, -1.05], [-1.35, 1.45], [1.35, 1.45], [0, -1.05], [0, 1.45], [-1.35, .2], [1.35, .2], [0, .2]];
+function segDist(px, pz, a, b) { const dx = b.x - a.x, dz = b.z - a.z, l2 = dx * dx + dz * dz || 1, t = Math.max(0, Math.min(1, ((px - a.x) * dx + (pz - a.z) * dz) / l2)); return Math.hypot(px - a.x - dx * t, pz - a.z - dz * t); }
 function facSpot(idx) {
-  const nd = MAP.nodes, n = nd[idx], a = nd[n.next[0]], b = nd[n.prev[0]] || n;
+  const map = MAP, cache = map._fs || (map._fs = {}); if (cache[idx]) return cache[idx];
+  const nd = map.nodes, n = nd[idx], a = nd[n.next[0]], b = nd[n.prev[0]] || n, half = ep("roadW") / 2 + .15;
   let dx = a.x - b.x, dz = a.z - b.z; const l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l;
+  const segs = []; nd.forEach(m => m.next.forEach(j => segs.push([m, nd[j]])));
+  const clear = (cx, cz) => Math.min(...FAC_FOOT.map(([ox, oz]) => { const px = cx + ox, pz = cz + oz; let c = Math.min(...segs.map(([p, q]) => segDist(px, pz, p, q))) - half;
+    nd.forEach(m => { if (m.ref) c = Math.min(c, Math.hypot(px - m.x, pz - m.z) - 2.5); }); return c; }));
+  const cands = []; [2.9, 3.3, 3.8].forEach(d => [[-dz, dx], [dz, -dx]].forEach(([ox, oz]) => { const cx = n.x + ox * d, cz = n.z + oz * d; cands.push({ cx, cz, d, clr: clear(cx, cz) }); }));
   const xs = nd.map(t => t.x), zs = nd.map(t => t.z), x0 = Math.min(...xs), x1 = Math.max(...xs), z0 = Math.min(...zs), z1 = Math.max(...zs), mx = (x0 + x1) / 2, mz = (z0 + z1) / 2, E = 2.5;
-  const cands = [[-dz, dx], [dz, -dx]].map(([ox, oz]) => { const cx = n.x + ox * 2.9, cz = n.z + oz * 2.9; return { cx, cz, near: Math.min(...nd.map(t => Math.hypot(t.x - cx, t.z - cz))) }; });
-  const free = cands.filter(c => c.near >= 2.2), pool = free.length ? free : cands;
+  const ok = cands.filter(c => c.clr >= 0), dMin = ok.length ? Math.min(...ok.map(c => c.d)) : 0, pool = ok.filter(c => c.d === dMin);
   const outer = n.x - x0 < E || x1 - n.x < E || n.z - z0 < E || z1 - n.z < E;
-  const best = outer ? pool.slice().sort((p, q) => Math.hypot(q.cx - mx, q.cz - mz) - Math.hypot(p.cx - mx, p.cz - mz))[0] : pool.slice().sort((p, q) => p.cz - q.cz)[0];
-  return { x: n.x, y: n.y || 0, z: n.z, bx: best.cx - n.x, bz: best.cz - n.z, rot: 0 };
+  const best = !pool.length ? cands.slice().sort((p, q) => q.clr - p.clr)[0] : outer ? pool.slice().sort((p, q) => Math.hypot(q.cx - mx, q.cz - mz) - Math.hypot(p.cx - mx, p.cz - mz))[0] : pool.slice().sort((p, q) => p.cz - q.cz)[0];
+  return (cache[idx] = { x: n.x, y: n.y || 0, z: n.z, bx: best.cx - n.x, bz: best.cz - n.z, rot: 0, ok: pool.length > 0 });
 }
 /* the battery factory moves once the purchase animation is done (waits briefly in case it hasn't started yet). Volcano: a rock pillar first rises out of the lava
    at the new spot, then the factory hops over onto it and the old pillar sinks */
@@ -801,7 +811,7 @@ function stepBoard(dt, time) {
     const off = offsetsFor(p.key);
     if (t.anim) { const a = t.anim; a.t += dt / a.dur; const k = Math.min(1, a.t), e = k < .5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
       t.g.position.lerpVectors(a.from, tilePos(a.toIdx, off), e);
-      if (MAP.lava && !a.jump) { const to = tilePos(a.toIdx, off), rd = (MAP.rampD || {})[a.fromIdx + "-" + a.toIdx], Lh = rd ? rd[2] : Math.hypot(to.x - a.from.x, to.z - a.from.z); t.g.position.y = a.from.y + (to.y - a.from.y) * (rd ? rampF(e, Lh, rd[0], rd[1]) : rampF(e, Lh)); }
+      if (MAP.lava && !a.jump) { const to = tilePos(a.toIdx, off), rd = (MAP.rampD || {})[a.fromIdx + "-" + a.toIdx] || (r => r && [r[1], r[0], r[2]])((MAP.rampD || {})[a.toIdx + "-" + a.fromIdx]), Lh = rd ? rd[2] : Math.hypot(to.x - a.from.x, to.z - a.from.z); t.g.position.y = a.from.y + (to.y - a.from.y) * (rd ? rampF(e, Lh, rd[0], rd[1]) : rampF(e, Lh)); }
       t.g.position.y += Math.sin(k * Math.PI) * (a.jump ? 2.4 + Math.abs(a.from.y - t.g.position.y) * .5 : .7); if (k >= 1) { t.anim = null; t.shown = a.toIdx; } }
     else { t.g.position.lerp(tilePos(t.shown, off), Math.min(1, dt * 8)); const c = nd[t.shown], nx = c && nd[c.next[0]]; if (t.yawT === undefined && c && nx) t.yawT = Math.atan2(-(nx.z - c.z), nx.x - c.x); }
     t.yaw = lerpA(t.yaw, t.yawT || 0, Math.min(1, dt * 10)); t.tr.rotation.y = t.yaw;
@@ -826,7 +836,7 @@ function stepBoard(dt, time) {
   const ir = GFX.introEnd ? (GFX.introEnd - performance.now()) / 1000 : 0, bcam = ir > 0 ? null : stepBattery(bd, dt);
   if (bcam) [tgt, pos] = bcam;
   else if (ir > 0) { const a = -.9 + (1 - ir / 5) * 1.8, d = (aspect < 1 ? 60 : 44) * (MAP.size || 1); tgt = new THREE.Vector3(0, MAP.camY || 0, 0); pos = new THREE.Vector3(Math.sin(a) * d, d * .72, Math.cos(a) * d); }
-  else if (!GFX.follow) { const o = GFX.ov || resetOv(); tgt = new THREE.Vector3(o.tx, MAP.camY || 0, o.tz); const cp = Math.cos(o.pitch); pos = tgt.clone().add(new THREE.Vector3(Math.sin(o.yaw) * cp * o.dist, Math.sin(o.pitch) * o.dist, Math.cos(o.yaw) * cp * o.dist)); }
+  else if (!GFX.follow) { const o = GFX.ov || resetOv(); tgt = new THREE.Vector3(o.tx, o.ty !== undefined ? o.ty : MAP.camY || 0, o.tz); const cp = Math.cos(o.pitch); pos = tgt.clone().add(new THREE.Vector3(Math.sin(o.yaw) * cp * o.dist, Math.sin(o.pitch) * o.dist, Math.cos(o.yaw) * cp * o.dist)); }
   else if (G.phase === "erupt") { tgt = new THREE.Vector3(0, 2, 0); pos = new THREE.Vector3(0, aspect < 1 ? 52 : 34, aspect < 1 ? 40 : 30); }
   else if ((ct && !inMg && G.phase !== "rival") || (G.phase === "rival" && rv)) { const rvl = G.phase === "rival"; tgt = (rvl ? rv : ct.g).position.clone(); tgt.y = Math.max(0, tgt.y - .5); pos = followCamPos(tgt, aspect, rvl ? 1.08 : 1); }
   else { const sz = MAP.size || 1; tgt = new THREE.Vector3(0, MAP.camY || 0, 1.5); pos = (aspect < 1 ? new THREE.Vector3(0, 52, 32) : new THREE.Vector3(0, 38, 25)).multiplyScalar(sz); }
@@ -835,7 +845,7 @@ function stepBoard(dt, time) {
     const ax = kbAxis(), rot = (KEYS.has("e") ? 1 : 0) - (KEYS.has("q") ? 1 : 0), zm = (KEYS.has("f") || KEYS.has("-") ? 1 : 0) - (KEYS.has("r") || KEYS.has("+") || KEYS.has("=") ? 1 : 0);
     GFX.kbCam = !!(ax.x || ax.y || rot || zm);
     if (GFX.kbCam) { GFX.toFree(); const o = GFX.ov || resetOv(), sp = dt * 520; GFX.camPan(-ax.x * sp, -ax.y * sp); o.yaw += rot * dt * 1.6; o.dist *= Math.exp(zm * dt * 1.3); GFX.clampOv(o);
-      const cp = Math.cos(o.pitch); tgt = new THREE.Vector3(o.tx, MAP.camY || 0, o.tz); pos = tgt.clone().add(new THREE.Vector3(Math.sin(o.yaw) * cp * o.dist, Math.sin(o.pitch) * o.dist, Math.cos(o.yaw) * cp * o.dist)); }
+      const cp = Math.cos(o.pitch); tgt = new THREE.Vector3(o.tx, o.ty !== undefined ? o.ty : MAP.camY || 0, o.tz); pos = tgt.clone().add(new THREE.Vector3(Math.sin(o.yaw) * cp * o.dist, Math.sin(o.pitch) * o.dist, Math.cos(o.yaw) * cp * o.dist)); }
   }
   const k = 1 - Math.exp(-dt * (bcam ? 3.4 : GFX.follow ? 2.6 : GFX.dragging || GFX.kbCam ? 18 : 8)); GFX.camPos.lerp(pos, k); GFX.camTgt.lerp(tgt, k);
   cam.position.copy(GFX.camPos); cam.lookAt(GFX.camTgt);
@@ -856,7 +866,8 @@ function initCamInput() {
   const active = () => GFX.mode === "board" && G && view === "game" && !mgOpen;
   const clampOv = o => { const L = 26 + ((MAP.size || 1) - 1) * 20; o.tx = Math.max(-L, Math.min(L, o.tx)); o.tz = Math.max(-L, Math.min(L + 2, o.tz)); o.dist = Math.max(9, Math.min(140, o.dist)); o.pitch = Math.max(.42, Math.min(1.5, o.pitch)); };
   const toFree = () => { GFX.introEnd = 0; if (!GFX.follow) return; GFX.follow = false; const t = GFX.camTgt || new THREE.Vector3(), p = GFX.camPos || new THREE.Vector3(0, 40, 25), off = p.clone().sub(t), d = off.length() || 40;
-    GFX.ov = { tx: t.x, tz: t.z, dist: d, yaw: Math.atan2(off.x, off.z), pitch: Math.asin(Math.min(1, Math.max(-1, off.y / d))) }; clampOv(GFX.ov); updateGame(); camHint(); };
+    /* keep the height the follow camera was looking at, so switching to the free camera doesn't dip */
+    GFX.ov = { tx: t.x, ty: t.y, tz: t.z, dist: d, yaw: Math.atan2(off.x, off.z), pitch: Math.asin(Math.min(1, Math.max(-1, off.y / d))) }; clampOv(GFX.ov); updateGame(); camHint(); };
   const pan = (dx, dy) => { const o = GFX.ov, k = o.dist * .0021, cy = Math.cos(o.yaw), sy = Math.sin(o.yaw); o.tx += -cy * dx * k - sy * dy * k; o.tz += sy * dx * k - cy * dy * k; clampOv(o); };
   const pairInfo = () => { const [a, b] = [...pts.values()]; return { d: Math.hypot(b.x - a.x, b.y - a.y), ang: Math.atan2(b.y - a.y, b.x - a.x), mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2 }; };
   cv.addEventListener("pointerdown", e => { if (!active()) return; e.preventDefault(); try { cv.setPointerCapture(e.pointerId); } catch (x) {} pts.set(e.pointerId, { x: e.clientX, y: e.clientY, b: e.button, ctrl: e.ctrlKey || e.shiftKey }); moved = 0; pair = pts.size === 2 ? pairInfo() : null; });

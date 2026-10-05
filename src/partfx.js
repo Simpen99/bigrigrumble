@@ -118,7 +118,7 @@ function stNext() { const el = document.getElementById("fxs"), h = stQ.shift(); 
 const EV_LOOK = [
   [/^conveyor/i, t => /backward/.test(t) ? "⏪" : "⏩", "belt"], [/^tailwind/i, "💨", "good"], [/^crusher/i, "🔨", "bad"],
   [/^scrap pile/i, t => /nothing/.test(t) ? "🔩" : "🪙", t => /nothing/.test(t) ? "meh" : "good"], [/spike strip/i, "📌", "bad"], [/^scrap shop/i, "🛒", "meh"],
-  [/^road swap/i, "🔀", "spec"], [/^lost cargo/i, "📦", "good"], [/^factory relocates/i, "🏭", "spec"], [/^toll booth/i, "🚧", "good"], [/^refinery/i, "⚡", "good"], [/^truck bed full/i, "📦", "meh"], [/^battery factory/i, "🔋", "spec"], [/^fuel tax/i, "⛽", "spec"], [/^duel/i, "⚔️", "spec"],
+  [/^road swap/i, "🔀", "spec"], [/^lost cargo/i, "📦", "good"], [/^factory relocates/i, "🏭", "spec"], [/^lucky find/i, "🍀", "good"], [/^refinery/i, "⚡", "good"], [/^truck bed full/i, "📦", "meh"], [/^battery factory/i, "🔋", "spec"], [/^fuel tax/i, "⛽", "spec"], [/^duel/i, "⚔️", "spec"],
   [/^lava/i, "🌋", "bad"], [/^eruption/i, "🌋", "bad"], [/^geyser/i, "💨", "good"], [/^obsidian/i, "💎", "good"], [/^scorched/i, "🔥", "bad"], [/^rock conveyor/i, "🪨", "belt"],
   [/^ore cart/i, t => /nothing/.test(t) ? "🪨" : "🪙", t => /nothing/.test(t) ? "meh" : "good"]];
 function showSticker(ev) {
@@ -155,7 +155,7 @@ function boardFx(bd, dt) {
   bd.crushers.forEach(c => { const low = c.blk.position.y < 1; if (low && !c.was) burst(bd.scene, c.blk.position.x + (c.blk.parent ? c.blk.parent.position.x : 0), .6, c.blk.parent ? c.blk.parent.position.z : 0, { n: 7, shape: "ico", cols: DUST, spd: 2.4, up: 1.5, grav: 5, life: .7 }); c.was = low; });
   if (!bd.dots) { bd.dots = []; for (let i = 0; i < 18; i++) { const m = new THREE.Mesh(new THREE.CircleGeometry(.32, 12), new THREE.MeshBasicMaterial({ color: "#FFE27A", transparent: true, opacity: .85 })); m.rotation.x = -Math.PI / 2; m.visible = false; bd.scene.add(m); bd.dots.push(m); } }
   let di = 0; const tm = performance.now() / 1000;
-  if (G.phase === "fork" && G.fork) G.fork.opts.forEach((o, k) => { let n = o; for (let s = 0; s < 6 && di < bd.dots.length; s++) { const nd = MAP.nodes[n]; if (!nd) break; const m = bd.dots[di++]; m.visible = true; m.position.set(nd.x, (nd.y || 0) + .56, nd.z); m.material.opacity = .35 + .5 * Math.max(0, Math.sin(tm * 5 - s * .7)); m.scale.setScalar(1 - s * .08); n = nd.next[0]; } });
+  if (G.phase === "fork" && G.fork) G.fork.opts.forEach((o, k) => { let n = o, f = G.fork.at; for (let s = 0; s < 6 && di < bd.dots.length; s++) { const nd = MAP.nodes[n]; if (!nd) break; const m = bd.dots[di++]; m.visible = true; m.position.set(nd.x, (nd.y || 0) + .56, nd.z); m.material.opacity = .35 + .5 * Math.max(0, Math.sin(tm * 5 - s * .7)); m.scale.setScalar(1 - s * .08); const nx = travelOpts(n, f)[0]; f = n; n = nx; } });
   for (; di < bd.dots.length; di++) bd.dots[di].visible = false;
   stepParts(bd.scene, dt);
 }
