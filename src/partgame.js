@@ -26,6 +26,19 @@ function addShards(p, k) { const got = Math.max(0, Math.min(k, SHARD_MAX - (p.sh
 function loseShard(p) { if (!shardMap() || !(p.shards | 0) || has(p, "armor")) return ""; p.shards--; return "1 shard"; }
 /* refinery: every 3 shards become a power cell while there's room for it */
 function refine(p) { let n = 0; while ((p.shards | 0) >= CELL_SHARDS && (p.cells | 0) < CELL_MAX) { p.shards -= CELL_SHARDS; p.cells = (p.cells | 0) + 1; n++; } return n; }
+/* ---------- routes: at any crossing you may take any road, also against the usual direction, except straight back the way you came ----------
+   p.from = the space a truck arrived from; unknown (start, teleports) means heading the usual way */
+const nbrs = i => [...new Set(MAP.nodes[i].next.concat(MAP.nodes[i].prev))];
+function travelOpts(i, from) { const n = MAP.nodes[i], nb = nbrs(i); if (from === undefined || from === null || !nb.includes(from)) from = n.prev[0]; const o = nb.filter(j => j !== from); return o.length ? o : nb; }
+/* fewest spaces from `to` (just reached from `from`) to `target`, picking the best road at every crossing */
+const RDC = {};
+function routeDist(from, to, target) {
+  if (to === target) return 0; const key = MAP.id + ":" + from + ":" + to + ":" + target; if (key in RDC) return RDC[key];
+  const seen = new Set([to + ">" + from]); let q = [[to, from]], d = 0, res = 99;
+  while (q.length && res === 99 && d < 99) { d++; const nq = []; for (const [c, f] of q) for (const nx of travelOpts(c, f)) { if (nx === target) { res = d; break; } const k = nx + ">" + c; if (!seen.has(k)) { seen.add(k); nq.push([nx, c]); } } q = nq; }
+  return (RDC[key] = res);
+}
+const playerDist = (p, target) => routeDist(p.from, p.pos, target);
 const TEAMS = [{ name: "Team Rust", col: "#FF8A1F" }, { name: "Team Chrome", col: "#2F7DE1" }];
 const DUEL_POOL = ["bumper", "light", "drag", "park", "coins", "cones", "hill", "tiles", "rocks", "hop", "scoop", "sort", "taco", "tow", "drift", "race"];
 const has = (p, u) => !!(p && p.up && p.up.includes(u));
@@ -75,7 +88,7 @@ function addCpu() {
   HG.players.push(newPlayer(rid(), "CPU " + TRUCKS[tr].name.split(" ")[0], tr, true, false)); push();
 }
 function pickFactory(old) {
-  let c = MAP.nodes.map((n, i) => i).filter(i => MAP.nodes[i].t === "B" && !MAP.nodes[i].ref && i !== 0 && (old < 0 || MAP.D[i][old] >= 5));
+  let c = MAP.nodes.map((n, i) => i).filter(i => MAP.nodes[i].t === "B" && !MAP.nodes[i].ref && i !== 0 && (old < 0 || MAP.D[i][old] >= 5) && facSpot(i).ok);
   /* Volcano Quarry: never on lava (now or next round); while the lava is low it often hides down in the crater */
   if (MAP.lava && HG) { const r = HG.round || 1, safe = c.filter(i => !flooded(i, r) && !flooded(i, r + 1)); if (safe.length) c = safe; const low = c.filter(i => MAP.nodes[i].lv); if (low.length && lavaLv(r) === 0 && Math.random() < .5) c = low; }
   return c[rnd(c.length)];
@@ -87,7 +100,7 @@ function hostStart() {
   if (HG.players.length < 2) return;
   MAP = MAPS[HG.map] || JUNK; HG.map = MAP.id;
   const a = HG.players; for (let i = a.length - 1; i > 0; i--) { const j = rnd(i + 1); [a[i], a[j]] = [a[j], a[i]]; }
-  a.forEach((p, i) => { p.pos = 0; p.coins = START_COINS; p.bat = 0; p.shards = 0; p.cells = 0; p.items = []; p.up = []; if (p.team === undefined) p.team = i % 2; });
+  a.forEach((p, i) => { p.pos = 0; p.from = null; p.coins = START_COINS; p.bat = 0; p.shards = 0; p.cells = 0; p.items = []; p.up = []; if (p.team === undefined) p.team = i % 2; });
   HG.round = 1; HG.turn = 0; HG.factory = pickFactory(-1); HG.kick = []; HG.lastMg = null; HG.roll = HG.fx = HG.ev = HG.mg = HG.buy = HG.fork = HG.shop = HG.duelPick = null; HG.used = []; HG.traps = {}; HG.obs = {}; HG.erupt = null;
   HG.rival = MAP.rival ? { at: MAP.rivalHome, carry: null } : null;
   HG.intro = true; later(() => { if (!HG || !HG.intro) return; HG.intro = false; rivalNote(); lavaRound(); push(); }, 5000);
@@ -102,9 +115,9 @@ function startTurn() {
 function botItem(p) {
   if (!p.items || !p.items.length || Math.random() < .3) return;
   const opp = HG.players.filter(o => o !== p && !mate(p, o)), idx = rnd(p.items.length), it = p.items[idx], a = { idx };
-  if (it === "tow") { const all = HG.players.filter(o => o !== p); if (!all.length) return; a.target = all.slice().sort((x, y) => MAP.F[x.pos][HG.factory] - MAP.F[y.pos][HG.factory])[0].key; if (MAP.F[p.pos][HG.factory] <= MAP.F[pByKey(a.target).pos][HG.factory]) return; }
+  if (it === "tow") { const all = HG.players.filter(o => o !== p); if (!all.length) return; a.target = all.slice().sort((x, y) => playerDist(x, HG.factory) - playerDist(y, HG.factory))[0].key; if (playerDist(p, HG.factory) <= playerDist(pByKey(a.target), HG.factory)) return; }
   if (it === "magnet") { if (!opp.length) return; a.target = opp.slice().sort((x, y) => y.coins - x.coins)[0].key; }
-  if (it === "golden") { const d = MAP.F[p.pos][HG.factory]; if (!(d >= 1 && d <= 10) || !canBuy(p)) return; a.val = d; }
+  if (it === "golden") { const d = playerDist(p, HG.factory); if (!(d >= 1 && d <= 10) || !canBuy(p)) return; a.val = d; }
   useItem(p, a);
 }
 function useItem(p, a) {
@@ -116,7 +129,7 @@ function useItem(p, a) {
   if (it === "nitro") { HG.mod.plus += 3; text = `${p.name} fires up Nitro: +3 spaces this turn.`; }
   if (it === "turbo") { HG.mod.turbo = true; text = `${p.name} will roll two dice this turn.`; }
   if (it === "golden") { HG.mod.fixed = Math.max(1, Math.min(10, a.val | 0 || 6)); text = `${p.name} uses the Golden Die and picks ${HG.mod.fixed}.`; }
-  if (it === "tow") { [p.pos, o.pos] = [o.pos, p.pos]; text = `${p.name} hooks ${o.name} and swaps places!`; }
+  if (it === "tow") { [p.pos, o.pos] = [o.pos, p.pos]; p.from = o.from = null; text = `${p.name} hooks ${o.name} and swaps places!`; }
   if (it === "magnet") { const s = Math.min(8, o.coins); o.coins -= s; p.coins += s; text = `${p.name} pulls ${s} coins from ${o.name}.`; }
   if (it === "spikes") { HG.traps[p.pos] = p.key; text = `${p.name} drops a spike strip on this space.`; }
   HG.ev = { title: `${def.icon} ${def.name}`, text, n: rid() }; HG.msg = text; HG.seq++; push();
@@ -142,8 +155,8 @@ function move(p, steps, done) {
   HG.phase = "moving"; HG.left = steps; push();
   const step = () => {
     if (HG.left <= 0) { done(); return; }
-    const nx = MAP.nodes[p.pos].next;
-    const go = to => later(() => { p.pos = to; HG.left--; push(); afterStep(p, step); }, MAP.dice ? 380 : 470);
+    const nx = travelOpts(p.pos, p.from);
+    const go = to => later(() => { p.from = p.pos; p.pos = to; HG.left--; push(); afterStep(p, step); }, MAP.dice ? 380 : 470);
     if (nx.length === 1) go(nx[0]); else askFork(p, nx, go);
   };
   step();
@@ -157,18 +170,18 @@ function afterStep(p, cont) {
   go();
 }
 /* would this road run into lava this round or next? (bots steer clear) */
-function lavaRisk(o) { if (!MAP.lava) return 0; let n = o; for (let k = 0; k < 7 && MAP.nodes[n]; k++) { if (flooded(n, HG.round) || flooded(n, HG.round + 1)) return 8; n = MAP.nodes[n].next[0]; } return 0; }
+function lavaRisk(from, o) { if (!MAP.lava) return 0; let n = o, f = from; for (let k = 0; k < 7 && MAP.nodes[n]; k++) { if (flooded(n, HG.round) || flooded(n, HG.round + 1)) return 8; const nx = travelOpts(n, f)[0]; f = n; n = nx; } return 0; }
 /* how far a road takes a bot from its goal. Volcano Quarry: dig in the crater until 3 shards, then the nearest refinery; the factory once they hold a cell (or are rich) */
 function botDist(p, o) {
-  const F = MAP.F[o], near = l => l.length ? Math.min(...l.map(i => F[i])) : 99;
-  if (!shardMap() || canCell(p) || p.coins >= RAW_PRICE + BOT_RICH) return F[HG.factory];
+  const F = t => routeDist(p.pos, o, t), near = l => l.length ? Math.min(...l.map(F)) : 99;
+  if (!shardMap() || canCell(p) || p.coins >= RAW_PRICE + BOT_RICH) return F(HG.factory);
   const ids = MAP.nodes.map((n, i) => i);
   if ((p.shards | 0) >= CELL_SHARDS && (p.cells | 0) < CELL_MAX) return near(ids.filter(i => MAP.nodes[i].ref));
   const dig = ids.filter(i => { const n = MAP.nodes[i]; return ((n.lv === 1 && n.t === "B") || n.t === "OB" || (HG.obs && HG.obs[i])) && !flooded(i, HG.round) && !flooded(i, HG.round + 1); });
-  return dig.length ? near(dig) : F[HG.factory];
+  return dig.length ? near(dig) : F(HG.factory);
 }
 function askFork(p, opts, go) {
-  if (p.bot) { const s = opts.slice().sort((a, b) => botDist(p, a) + lavaRisk(a) - botDist(p, b) - lavaRisk(b)); const ch = Math.random() < .75 ? s[0] : opts[rnd(opts.length)]; HG.msg = `${p.name} picks a road…`; push(); later(() => go(ch), 700); return; }
+  if (p.bot) { const s = opts.slice().sort((a, b) => botDist(p, a) + lavaRisk(p.pos, a) - botDist(p, b) - lavaRisk(p.pos, b)); const ch = Math.random() < .75 ? s[0] : opts[rnd(opts.length)]; HG.msg = `${p.name} picks a road…`; push(); later(() => go(ch), 700); return; }
   HG.phase = "fork"; HG.seq++; HG.fork = { pid: p.key, opts: opts.slice(), at: p.pos }; forkCont = go; HG.msg = `${p.name} reached a fork. Which way?`; push();
 }
 function resolveFork(to) {
@@ -218,7 +231,7 @@ function land(p, moved) {
 function spaceEffect(p, allowEvent, done) {
   const n = MAP.nodes[p.pos], t = n.t, sc = has(p, "scoop"), ar = has(p, "armor");
   if (p.pos === HG.factory) { HG.msg = `${p.name} parks at the factory.`; push(); done(); return; }
-  if (t === "GY" && n.gy !== undefined) { HG.ev = { title: "Geyser!", text: `A steam geyser blasts ${p.name} up the slope!`, n: rid() }; HG.msg = HG.ev.text; push(); later(() => { p.pos = n.gy; push(); later(() => spaceEffect(p, false, done), 1300); }, 1200); return; }
+  if (t === "GY" && n.gy !== undefined) { HG.ev = { title: "Geyser!", text: `A steam geyser blasts ${p.name} up the slope!`, n: rid() }; HG.msg = HG.ev.text; push(); later(() => { p.pos = n.gy; p.from = null; push(); later(() => spaceEffect(p, false, done), 1300); }, 1200); return; }
   if (flooded(p.pos, HG.round)) { const b = p.coins; if (!ar) p.coins = Math.max(0, p.coins - 5); const ls = loseShard(p); HG.ev = { title: "Scorched!", text: ar ? `${p.name} parks on the lava crust. The armor takes the heat.` : `${p.name} parks on the lava crust and pays ${b - p.coins} coins in burnt tyres${ls ? `. ${ls} melts away` : ""}.`, n: rid() }; HG.msg = HG.ev.text; push(); done(); return; }
   if (t === "OB" || (HG.obs && HG.obs[p.pos])) {
     if (shardMap()) { const r = addShards(p, 2); HG.ev = r.lost ? { title: "Truck bed full!", text: `${p.name} chips off obsidian${r.got ? ` and keeps ${plural(r.got, "shard")}` : ""}, but ${plural(r.lost, "shard")} ${r.lost === 1 ? "falls" : "fall"} off the back (max ${SHARD_MAX}).`, n: rid() } : { title: "Obsidian!", text: `${p.name} chips off a chunk of obsidian: +2 shards.`, n: rid() }; }
@@ -242,7 +255,7 @@ function spaceEffect(p, allowEvent, done) {
 }
 function conveyor(p, n, done) {
   HG.ev = { title: "Conveyor belt!", text: `The belt drags ${p.name} ${n.conv.dir > 0 ? "forward" : "backward"} ${n.conv.n} spaces.`, n: rid() }; HG.msg = HG.ev.text; HG.phase = "moving"; push();
-  const st = k => { if (k <= 0) { push(); done(); return; } later(() => { const c = MAP.nodes[p.pos], nx = n.conv.dir > 0 ? c.next[0] : c.prev[0]; if (nx !== undefined) p.pos = nx; push(); st(k - 1); }, 420); };
+  const st = k => { if (k <= 0) { push(); done(); return; } later(() => { const c = MAP.nodes[p.pos], nx = n.conv.dir > 0 ? c.next[0] : c.prev[0]; if (nx !== undefined) { p.pos = nx; p.from = null; } push(); st(k - 1); }, 420); };
   later(() => st(n.conv.n), 900);
 }
 function doEvent(p, done) {
@@ -250,10 +263,10 @@ function doEvent(p, done) {
   if (k === 0) { HG.ev = { title: "Tailwind!", text: `${p.name} gets blown 3 spaces ahead.`, n }; HG.msg = HG.ev.text; push(); later(() => move(p, 3, () => spaceEffect(p, false, done)), 1800); return; }
   if (k === 2 && !others.length) k = 3;
   if (k === 1) { const b = p.coins; p.coins = Math.max(0, p.coins - 5); title = "Pothole!"; text = `${p.name} blows a tire and pays ${b - p.coins} coins for repairs.`; }
-  if (k === 2) { const o = others[rnd(others.length)]; [p.pos, o.pos] = [o.pos, p.pos]; title = "Road swap!"; text = `${p.name} and ${o.name} trade places.`; }
+  if (k === 2) { const o = others[rnd(others.length)]; [p.pos, o.pos] = [o.pos, p.pos]; p.from = o.from = null; title = "Road swap!"; text = `${p.name} and ${o.name} trade places.`; }
   if (k === 3) { p.coins += 8; title = "Lost cargo!"; text = `${p.name} finds a crate of coins: +8.`; }
   if (k === 4) { HG.factory = pickFactory(HG.factory); title = "Factory relocates!"; text = "The battery factory packs up and moves."; }
-  if (k === 5) { let got = 0; others.forEach(o => { if (mate(p, o)) return; const t = Math.min(2, o.coins); o.coins -= t; got += t; }); p.coins += got; title = "Toll booth!"; text = `${p.name} opens a toll booth and collects ${got} coins.`; }
+  if (k === 5) { title = "Lucky find!"; if (shardMap() && (p.shards | 0) < SHARD_MAX) { addShards(p, 1); text = `${p.name} spots a loose obsidian shard by the road: +1 shard.`; } else { p.coins += 5; text = `${p.name} finds 5 coins under the seat.`; } }
   if (k === 6) { const lead = others.filter(o => !mate(p, o)).sort((a, b) => b.bat - a.bat || b.coins - a.coins)[0];
     if (lead && lead.coins > 0) { const t = Math.min(5, lead.coins); lead.coins -= t; p.coins += t; title = "Fuel tax!"; text = `${lead.name} is leading, so they pay ${p.name} ${t} coins.`; }
     else { p.coins += 5; title = "Fuel tax!"; text = `${p.name} gets a 5-coin refund.`; } }
@@ -296,7 +309,7 @@ function rivalEvent(done) {
   HG.ev = { title: "🧲 Magnet Mike!", text: `${v.name} has the most coins, so Magnet Mike is coming for them!`, n: rid() }; HG.msg = HG.ev.text; push();
   later(() => { if (!HG) return; HG.rival.carry = v.key; HG.msg = `Magnet Mike grabbed ${v.name}!`; push();
     later(() => { if (!HG) return; const o = MAP.nodes.map((n, i) => i).filter(i => i !== v.pos && i !== HG.factory && MAP.D[i][v.pos] >= 4); const to = o[rnd(o.length)]; HG.rival.at = to; HG.msg = `Magnet Mike hauls ${v.name} across the yard…`; push();
-      later(() => { if (!HG) return; v.pos = to; HG.rival.carry = null; HG.msg = `${v.name} got dropped somewhere new.`; push(); later(done, 1500); }, 2000); }, 1300); }, 2400);
+      later(() => { if (!HG) return; v.pos = to; v.from = null; HG.rival.carry = null; HG.msg = `${v.name} got dropped somewhere new.`; push(); later(done, 1500); }, 2000); }, 1300); }, 2400);
 }
 /* Volcano Quarry: start-of-round lava news (it rises, drains, or will soon), pushing trucks off newly flooded spaces */
 function lavaRound() {
@@ -304,7 +317,7 @@ function lavaRound() {
   const r = HG.round, lv = lavaLv(r), was = r > 1 ? lavaLv(r - 1) : 0, ph = lavaPh(r), parts = []; let title = "🌋 Lava";
   if (lv > was) { title = "🌋 Lava rises!"; const moved = [];
     HG.players.forEach(p => { if (!flooded(p.pos, r)) return; const safe = MAP.nodes.map((n, i) => i).filter(i => !flooded(i, r)).sort((a, b) => MAP.D[p.pos][a] - MAP.D[p.pos][b] || (MAP.nodes[b].y || 0) - (MAP.nodes[a].y || 0));
-      p.pos = safe[0]; const c = p.coins; if (!has(p, "armor")) p.coins = Math.max(0, p.coins - 3); const ls = loseShard(p), lost = [c - p.coins ? `−${c - p.coins}` : "", ls ? `−${ls}` : ""].filter(Boolean).join(", "); moved.push(`${p.name}${lost ? ` (${lost})` : ""}`); });
+      p.pos = safe[0]; p.from = null; const c = p.coins; if (!has(p, "armor")) p.coins = Math.max(0, p.coins - 3); const ls = loseShard(p), lost = [c - p.coins ? `−${c - p.coins}` : "", ls ? `−${ls}` : ""].filter(Boolean).join(", "); moved.push(`${p.name}${lost ? ` (${lost})` : ""}`); });
     parts.push(lv === 1 ? "The crater floor floods." : "The lower ledges flood.");
     if (moved.length) parts.push(`Pushed uphill: ${moved.join(", ")}.`);
     if (flooded(HG.factory, r)) { HG.factory = pickFactory(HG.factory); parts.push("The battery factory escapes uphill."); } }
@@ -324,7 +337,7 @@ function eruption(done) {
   HG.phase = "erupt"; HG.seq++; HG.erupt = { n: rid(), hits }; HG.ev = { title: "🌋 Eruption!", text: "The volcano blows! Lava bombs rain down on the ledges.", n: rid() }; HG.msg = HG.ev.text; push();
   later(() => { if (!HG) return; const out = [], rim = MAP.nodes.map((n, i) => i).filter(i => MAP.nodes[i].rim && i !== HG.factory);
     HG.players.forEach(p => { const n = MAP.nodes[p.pos];
-      if (n.lv === 1) { p.pos = rim[rnd(rim.length)]; out.push(`${p.name} is launched to the rim`); }
+      if (n.lv === 1) { p.pos = rim[rnd(rim.length)]; p.from = null; out.push(`${p.name} is launched to the rim`); }
       else if (hits.includes(p.pos)) { const b = p.coins; if (!has(p, "armor")) p.coins = Math.max(0, p.coins - 5); out.push(`${p.name} gets hit${b - p.coins ? ` (−${b - p.coins})` : " (armor held)"}`); } });
     HG.obs = {}; hits.forEach(h => HG.obs[h] = 1);
     HG.ev = { title: "Obsidian!", text: `${out.length ? out.join(", ") + ". " : ""}The bombs cool into obsidian: land on one for ${shardMap() ? "+2 shards" : "+8 coins"}.`, n: rid() }; HG.msg = HG.ev.text; push();
@@ -389,7 +402,7 @@ function afterMg() {
   if (HG.round > HG.rounds) { HG.round = HG.rounds; HG.phase = "over"; HG.seq++; HG.msg = "Race over!"; push(); }
   else { HG.turn = 0; rivalNote(); lavaRound(); startTurn(); }
 }
-function hostPlayAgain() { clearTimers(); HG.phase = "lobby"; HG.seq++; HG.players.forEach(p => { p.pos = 0; p.coins = START_COINS; p.bat = 0; p.shards = 0; p.cells = 0; p.items = []; p.up = []; }); HG.traps = {}; HG.obs = {}; HG.erupt = null; HG.roll = HG.fx = HG.ev = HG.mg = HG.buy = HG.fork = HG.shop = HG.duelPick = null; push(); }
+function hostPlayAgain() { clearTimers(); HG.phase = "lobby"; HG.seq++; HG.players.forEach(p => { p.pos = 0; p.from = null; p.coins = START_COINS; p.bat = 0; p.shards = 0; p.cells = 0; p.items = []; p.up = []; }); HG.traps = {}; HG.obs = {}; HG.erupt = null; HG.roll = HG.fx = HG.ev = HG.mg = HG.buy = HG.fork = HG.shop = HG.duelPick = null; push(); }
 function hostTick() {
   if (!HG) return; const now = Date.now();
   const idle = (p, fn) => { if (!p) return; if (p.bot || online(p.key)) { delete offSince[p.key]; return; } offSince[p.key] = offSince[p.key] || now; if (now - offSince[p.key] > 8000) { delete offSince[p.key]; fn(); } };
@@ -412,15 +425,15 @@ function showDice(r) {
   setTimeout(() => { const d = $("#dl"); if (d) d.textContent = label; sfx("diceland"); }, 1150);
 }
 const P_ = k => G.players.find(p => p.key === k);
-const refDist = o => { const F = MAP.F[o]; if (!F) return 99; const r = MAP.nodes.map((n, i) => i).filter(i => MAP.nodes[i].ref); return r.length ? Math.min(...r.map(i => F[i])) : 99; };
-function factoryHint(p) { const d = MAP.F[p.pos] ? MAP.F[p.pos][G.factory] : 99, r = shardMap() ? refDist(p.pos) : 99;
+const refDist = (from, o) => { const r = MAP.nodes.map((n, i) => i).filter(i => MAP.nodes[i].ref); return r.length ? Math.min(...r.map(i => routeDist(from, o, i))) : 99; };
+function factoryHint(p) { const d = MAP.nodes[p.pos] ? playerDist(p, G.factory) : 99, r = shardMap() ? refDist(p.from, p.pos) : 99;
   return (d < 99 ? `<p class="panhint">Battery factory: ${d} space${d === 1 ? "" : "s"} ahead on the quickest road.${r < 99 && r > 0 ? ` Nearest refinery: ${r}.` : ""}</p>` : "") + lavaHint(); }
 const lavaHint = () => MAP.lava ? `<p class="panhint">${lavaChip(G.round)} ${esc(lavaText(G.round))}</p>` : "";
 function panelHTML() {
   const c = G.players[G.turn], mine = G.players.filter(ctrl);
   if (role === "host" && G.tv) return tvPanelHTML();
   if (!mine.length) return `<div class="pan"><p>You're watching this game.</p></div>`;
-  if (G.phase === "turn" && c && G.hold && !G.intro) return `<div class="pan"><p>🧲 Magnet Mike is watching… ${esc(c.name)} is up next.</p></div>`;
+  if (G.phase === "turn" && c && G.hold && !G.intro) return `<div class="pan"><p>${MAP.rival ? "🧲 Magnet Mike is watching…" : "🌋 Lava news…"} ${esc(c.name)} is up next.</p></div>`;
   if (G.phase === "turn" && c && G.intro) return `<div class="pan"><p>Welcome to ${esc((MAPS[G.map] || JUNK).name)}! ${esc(c.name)} goes first.</p></div>`;
   if (G.phase === "turn" && c && ctrl(c)) {
     const t = TRUCKS[c.truck], hasLocal = role === "host" && G.players.some(p => p.local), used = G.mod && G.mod.used;
@@ -428,7 +441,7 @@ function panelHTML() {
     if (uiPick && uiPick.key === c.key && ITEMS[(c.items || [])[uiPick.idx]]) {
       const it = ITEMS[c.items[uiPick.idx]], cancel = `<button class="btn ghost small" data-a="pickcancel" style="width:100%;margin-top:8px">Cancel</button>`;
       if (uiPick.kind === "target") { const k = c.items[uiPick.idx], opts = G.players.filter(o => o !== c && !(k === "magnet" && mate(c, o)));
-        return `<div class="pan"><h3>${it.icon} ${esc(it.name)}: pick a truck</h3><div class="optgrid">${opts.map(o => `<button class="optb" data-itarget="${esc(o.key)}"><img alt="" src="${thumb(o.truck)}"><span>${esc(o.name)}<small>${o.coins} coins, ${o.bat} batter${o.bat === 1 ? "y" : "ies"}${MAP.F[o.pos] ? `, ${MAP.F[o.pos][G.factory]} from the factory` : ""}</small></span></button>`).join("")}</div>${cancel}</div>`; }
+        return `<div class="pan"><h3>${it.icon} ${esc(it.name)}: pick a truck</h3><div class="optgrid">${opts.map(o => `<button class="optb" data-itarget="${esc(o.key)}"><img alt="" src="${thumb(o.truck)}"><span>${esc(o.name)}<small>${o.coins} coins, ${o.bat} batter${o.bat === 1 ? "y" : "ies"}${MAP.nodes[o.pos] ? `, ${playerDist(o, G.factory)} from the factory` : ""}</small></span></button>`).join("")}</div>${cancel}</div>`; }
       return `<div class="pan"><h3>${it.icon} Golden Die: pick your roll</h3>${factoryHint(c)}<div class="numgrid">${[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(v => `<button class="numb" data-ival="${v}">${v}</button>`).join("")}</div>${cancel}</div>`;
     }
     const items = (c.items || []).length ? `<div class="itemrow">${c.items.map((k, i) => `<button class="itm" data-item="${i}" ${used ? "disabled" : ""}><b>${ITEMS[k].icon}</b><span>${esc(ITEMS[k].name)}<small>${esc(ITEMS[k].desc)}</small></span></button>`).join("")}</div>` : "";
@@ -438,8 +451,8 @@ function panelHTML() {
   }
   if (G.phase === "fork" && G.fork && ctrl(P_(G.fork.pid))) {
     const p = P_(G.fork.pid), n = MAP.nodes[G.fork.at !== undefined ? G.fork.at : p.pos];
-    return `<div class="pan"><h3>${p.key === me.key ? "" : esc(p.name) + ": "}Which way?</h3>${lavaHint()}<div class="optgrid">${G.fork.opts.map((o, k) => { const d = MAP.F[o][G.factory];
-      return `<button class="optb" data-fork="${o}"><b class="optn">${k + 1}</b><span>${esc((n.labels && n.labels[o]) || "Path " + (k + 1))}<small>${d >= 99 ? "The factory isn't down this road" : `Battery factory in ${d + 1} space${d ? "s" : ""}`}${shardMap() && refDist(o) < 99 ? `, refinery in ${refDist(o) + 1}` : ""}</small></span></button>`; }).join("")}</div></div>`;
+    return `<div class="pan"><h3>${p.key === me.key ? "" : esc(p.name) + ": "}Which way?</h3>${lavaHint()}<div class="optgrid">${G.fork.opts.map((o, k) => { const at = G.fork.at !== undefined ? G.fork.at : p.pos, d = routeDist(at, o, G.factory);
+      return `<button class="optb" data-fork="${o}"><b class="optn">${k + 1}</b><span>${esc(roadLabel(n, at, o, k))}<small>${d >= 99 ? "The factory isn't down this road" : `Battery factory in ${d + 1} space${d ? "s" : ""}`}${shardMap() && refDist(at, o) < 99 ? `, refinery in ${refDist(at, o) + 1}` : ""}</small></span></button>`; }).join("")}</div></div>`;
   }
   if (G.phase === "shop" && G.shop && ctrl(P_(G.shop.pid))) {
     const p = P_(G.shop.pid), full = (p.items || []).length >= 3;
@@ -468,7 +481,7 @@ function panelHTML() {
 /* status line on the TV: says who the game is waiting for */
 function tvPanelHTML() {
   const c = G.players[G.turn], who = k => { const p = P_(k); return p ? `<b style="color:${pcol(p)}">${esc(p.name)}</b>` : "Someone"; }, ph = (k, what) => `<div class="pan tvst"><p>${who(k)} ${what}${P_(k) && P_(k).bot ? "" : " 📱"}</p></div>`;
-  if (G.phase === "turn" && c && G.hold && !G.intro) return `<div class="pan tvst"><p>🧲 Magnet Mike is watching… ${esc(c.name)} is up next.</p></div>`;
+  if (G.phase === "turn" && c && G.hold && !G.intro) return `<div class="pan tvst"><p>${MAP.rival ? "🧲 Magnet Mike is watching…" : "🌋 Lava news…"} ${esc(c.name)} is up next.</p></div>`;
   if (G.phase === "turn" && c && G.intro) return `<div class="pan tvst"><p>Welcome to ${esc((MAPS[G.map] || JUNK).name)}! ${esc(c.name)} goes first.</p></div>`;
   if (G.phase === "turn" && c) return ph(c.key, c.bot ? "is thinking…" : "is rolling on their phone");
   if (G.phase === "fork" && G.fork) return ph(G.fork.pid, "is choosing a road");
@@ -485,6 +498,13 @@ function tvPanelHTML() {
 }
 /* lobby: the selected map's own rules (Volcano Quarry) */
 function mapRulesHTML() { const m = MAPS[G.map]; return m && m.rules ? `<ul class="note maprules">${m.rules.map(r => `<li>${esc(r)}</li>`).join("")}</ul>` : ""; }
+/* fork button names: the map's own labels for the usual roads; otherwise where the road leads, and "Turn back" when it runs against the usual direction */
+const REGION = n => n.br ? "the rock bridge" : n.rim ? "the rim road" : n.sl ? "the upper ledge" : n.lv === 2 ? "the lower ledge" : n.lv === 1 ? "the crater floor" : "";
+function roadLabel(n, at, o, k) {
+  if (n.labels && n.labels[o]) return n.labels[o];
+  const m = MAP.nodes[o], back = !n.next.includes(o), rg = REGION(m), same = rg && rg === REGION(n);
+  return back ? `Turn back${rg && !same ? ` to ${rg}` : rg ? ` along ${rg}` : ""}` : rg && !same ? `Onto ${rg}` : n.next.length > 1 ? `Path ${k + 1}` : "Keep going";
+}
 const LASTST = {};
 const bIco = () => shardMap() ? batIcoV : batIco;
 /* Volcano Quarry cargo on a player card: shards and power cells */
