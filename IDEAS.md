@@ -6,7 +6,7 @@
 - Possibly swap to real Kenney assets (CC0) now that files can live in the project.
 
 ## Minigames picked (to build)
-- **Hot Load** (free-for-all, arena + RAM): a ticking dynamite crate sticks to one truck; ramming passes it on. Whoever holds it when it blows is out; repeat until one is left.
+- Done: Hot Load (`hotload`, partmg3).
 - **Paint the Lot** (free-for-all or teams, arena): trucks leave a trail in their colour; most of the car park covered wins.
 - **Monster Mash** (1v3): the solo truck is a giant monster truck; the others must survive 30 s.
 - **Magnet Mike's Crane** (1v3): the solo player works a scrapyard magnet crane and lifts the others out of the arena.
