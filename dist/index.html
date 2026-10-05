@@ -1141,7 +1141,7 @@ const VOLCANO = (() => {
   const rim = RIM.map((t, k) => add(29 + (k % 3 === 1 ? .25 : k % 3 === 2 ? -.2 : 0), 90 + 10 * k + JIT[k], 8, t, { rim: 1 }));
   const U1 = arc(23.5, 22.5, 7, 5.2, [143, 158, 173, 188, 203], ["B", "E", "B", "SC", "B"], { sl: 1 });
   const L1 = arc(16, 16, 4.1, 2.9, [218, 236, 254, 271], ["B", "GY", "B", "R"], { lv: 2 });
-  const C = Array.from({ length: 10 }, (_, i) => add(9.5, 286 + i * 28.9, 1 + .35 * Math.abs(i - 4.5) / 4.5, ["B", "OB", "B", "E", "B", "GY", "B", "OB", "R", "B"][i], { lv: 1 }));
+  const C = Array.from({ length: 10 }, (_, i) => add(9.5, 286 + i * 28.9, 1 + .35 * Math.abs(i - 4.5) / 4.5, ["GY", "OB", "SD", "SD", "SD", "MC", "SD", "OB", "SD", "GY"][i], { lv: 1 }));
   const L2 = arc(16, 16, 2.9, 3.8, [166, 146, 126, 106], ["SC", "B", "E", "B"], { lv: 2 });
   /* refineries: a gate over a normal space (like the factory, it has no tile of its own) */
   [rim[25], U1[2], L2[3]].forEach(i => { nodes[i].ref = 1; });
@@ -1154,11 +1154,11 @@ const VOLCANO = (() => {
   nodes[rim[4]].labels = { [rim[5]]: "Rim road (safe)", [U1[0]]: "Down into the crater" };
   nodes[rim[18]].labels = { [rim[19]]: "Rim road (safe)", [U3[0]]: "Mine track to the crater floor" };
   nodes[U1[3]].labels = { [U1[4]]: "Keep to the ledge", [BR[0]]: "Rock conveyor bridge" };
-  nodes[U1[4]].labels = { [rim[12]]: "Back up to the rim", [L1[0]]: "Deeper: crater floor (shards)" };
-  nodes[L1[1]].gy = rim[15]; nodes[C[5]].gy = U2[1];
+  nodes[U1[4]].labels = { [rim[12]]: "Back up to the rim", [L1[0]]: "Deeper: the crater floor (shards)" };
+  nodes[L1[1]].gy = rim[15]; nodes[C[0]].gy = U2[0]; nodes[C[9]].gy = rim[20];
   BT.forEach((t, k) => { if (t === "CV") nodes[BR[k]].conv = { dir: 1, n: 2 }; });
   return Object.assign(mkGraph(nodes), { id: "volcano", name: "Volcano Quarry", blurb: "Mine obsidian shards in the crater, grind them into dust at a refinery, but watch the lava.", ground: "#3E322D", dice: 1.5, lava: true, shards: true,
-    rules: ["Land on crater-floor blue spaces for +1 obsidian shard (no coins), or on obsidian for +2.", "Drive through a refinery to grind your shards into obsidian dust (1 shard = 1 dust). Your truck carries up to 5 shards and 6 dust.", "Battery factory: melts 3 dust + 10 coins into a battery, or sells one for 50 coins.", "Landing on lava, or getting pushed uphill by rising lava, costs a shard."], size: 2, camY: 3, follow: 1.2 });
+    rules: ["Shard spaces give +1 obsidian shard, obsidian +2, the minecart 1–3. Rising lava scatters loose shards: drive over them to grab one.", "Drive through a refinery to grind your shards into obsidian dust (1 shard = 1 dust). Your truck carries up to 5 shards and 6 dust.", "Battery factory: melts 3 dust + 10 coins into a battery, or sells one for 50 coins.", "Landing on lava, or getting pushed uphill by rising lava, costs a shard."], size: 2, camY: 3, follow: 1.2 });
 })();
 /* layout and shape tuned in the map editor (2026-10-04) */
 VOLCANO.bake = {
@@ -1232,8 +1232,8 @@ function applyMapEdits(map) {
   if (map.lava) [0, 1, 2].forEach(i => { LAVA_Y[i] = ep("lava" + i); });
 }
 function edReg(o, id) { o.userData.edId = id; EDC.reg[id] = o; const e = EDC.o[id]; if (e) { if (e.p) o.position.fromArray(e.p); if (e.r) o.rotation.set(e.r[0], e.r[1], e.r[2]); if (e.s) o.scale.fromArray(e.s); } return o; }
-const SPACE_COL = { B: "#2F7DE1", R: "#E5484D", E: "#8E5BE0", S: "#BFC5CE", SC: "#B0703C", CR: "#4B515E", CV: "#2A2F3A", D: "#FF8A1F", SH: "#1FB5A8", OB: "#3B2466", GY: "#4A525C" };
-const SPACE_INFO = { B: "+3 coins", R: "−3 coins", E: "Surprise", SC: "Scrap pile: 0–15 coins", CR: "Crusher: −5 coins, free item", CV: "Conveyor belt", D: "Duel", SH: "Shop", OB: "Obsidian: +2 shards", GY: "Geyser: blasts you up the slope" };
+const SPACE_COL = { B: "#2F7DE1", R: "#E5484D", E: "#8E5BE0", S: "#BFC5CE", SC: "#B0703C", CR: "#4B515E", CV: "#2A2F3A", D: "#FF8A1F", SH: "#1FB5A8", OB: "#3B2466", GY: "#4A525C", SD: "#4A3F5C", MC: "#7A5234" };
+const SPACE_INFO = { B: "+3 coins", R: "−3 coins", E: "Surprise", SC: "Scrap pile: 0–15 coins", CR: "Crusher: −5 coins, free item", CV: "Conveyor belt", D: "Duel", SH: "Shop", OB: "Obsidian: +2 shards", GY: "Geyser: blasts you to a new spot every round", SD: "Shard space: +1 obsidian shard", MC: "Minecart: ride the pillar rails for 1–3 shards" };
 function tileIcon(type) {
   return canvasTex(128, 128, (x, w, h) => {
     x.textAlign = "center"; x.textBaseline = "middle";
@@ -1284,9 +1284,11 @@ function symHoles(t) {
   if (t === "S") { const top = Array.from({ length: 9 }, (_, q) => { const x = -.275 + q / 8 * .7; return [x, .5 + Math.sin(q / 8 * Math.PI * 2) * .05]; }), bot = top.map(([x, y]) => [x, y - .42]).reverse();
     return { holes: [polyShape([[-.37, -.52], [-.37, .52]].concat(top, [[.425, .08 + Math.sin(Math.PI * 2) * .05]], bot.slice(1), [[-.275, -.52]]))] }; }
   if (t === "GY") return { holes: [discShape(0, 0, .74)] };
+  if (t === "SD") return { holes: [polyShape(rotPts([[0, .5], [.19, .28], [.19, -.28], [0, -.5], [-.19, -.28], [-.19, .28]].map(([a, b]) => [a * 1.15, b * 1.15]), -12, 0, 0))] };
+  if (t === "MC") return { holes: [polyShape([[-.46, .3], [.46, .3], [.34, -.12], [-.34, -.12]]), discShape(-.22, -.3, .11), discShape(.22, -.3, .11)] };
   return null;
 }
-const SYM_FLOOR = { OB: "#B78CFF", S: "#E5484D", GY: "#10151C" }, FACE_GEO = {};
+const SYM_FLOOR = { OB: "#B78CFF", SD: "#B78CFF", S: "#E5484D", GY: "#10151C" }, FACE_GEO = {};
 function tileFace(t, sides) {
   const col = SPACE_COL[t], key = t + sides;
   const c = FACE_GEO[key] || (FACE_GEO[key] = (() => { const sym = symHoles(t) || { holes: [] }, R = 1.08;
@@ -1686,7 +1688,13 @@ function volcanoScenery(s, map) {
   return { lava, tex, glow, cr, smoke, haze };
 }
 /* per-frame volcano board: lava level follows the round, flooded tiles show a floating crust, geyser steam, smoke, eruption fireworks */
-function stepGyArcs(bd, time) { bd.gyArcs.forEach(g => { g.dots.forEach((m, k) => { const u = (k / g.dots.length + time * .16) % 1; g.curve.getPoint(u, m.position); m.material.opacity = .75 * Math.sin(u * Math.PI); }); g.ring.scale.setScalar(1 + Math.sin(time * 3.2) * .05); }); }
+function aimGy(nd, a, ti) {
+  const n = nd[a.node], tg = nd[ti], Y = m => m.y || 0; if (!tg) return; a.tg = ti; const rel = Math.atan2(-(tg.x - n.x), -(tg.z - n.z)) - a.tl.userData.auto, d = .98;
+  a.ch.rotation.set(-Math.PI / 2, 0, rel); a.ch.position.set(-Math.sin(rel) * d, .54, -Math.cos(rel) * d);
+  a.curve.v0.set(n.x, Y(n) + .9, n.z); a.curve.v2.set(tg.x, Y(tg) + .9, tg.z); a.curve.v1.copy(a.curve.v0).lerp(a.curve.v2, .5); a.curve.v1.y = Math.max(a.curve.v0.y, a.curve.v2.y) + a.curve.v0.distanceTo(a.curve.v2) * .35 + 1.5;
+  a.ring.position.set(tg.x, Y(tg) + .56, tg.z);
+}
+function stepGyArcs(bd, time) { bd.gyArcs.forEach(g => { const ti = G.gyT && G.gyT[g.node] !== undefined ? G.gyT[g.node] : MAP.nodes[g.node].gy; if (ti !== g.tg) aimGy(MAP.nodes, g, ti); g.dots.forEach((m, k) => { const u = (k / g.dots.length + time * .16) % 1; g.curve.getPoint(u, m.position); m.material.opacity = .75 * Math.sin(u * Math.PI); }); g.ring.scale.setScalar(1 + Math.sin(time * 3.2) * .05); }); }
 function stepVolcano(bd, dt, time) {
   stepGyArcs(bd, time);
   const vx = bd.vx, ty = LAVA_Y[G.phase === "lobby" ? 0 : lavaLv(G.round)], s = bd.scene;
@@ -1780,13 +1788,12 @@ function buildBoardFor(map) {
       const blk = B(1.5, .6, 1.5, "#3A4150", 0, 3, 0); g.add(blk); const st = B(1.52, .14, 1.52, "#FFC83D", 0, 2.72, 0); g.add(st); ng.add(g); crushers.push({ blk, st, ph: i * .7 }); }
     if (t === "SH") { const sp = textSprite("SHOP", "#1FB5A8", "#fff", 1.7); sp.position.set(x, 2.3, z); ng.add(sp); }
     if (t === "OB") { const c = obsidianMesh(.7); c.position.set(x + .85, .45, z - .55); ng.add(c); obCr[i] = c; }
-    if (t === "GY" && n.gy !== undefined) { const tg = nd[n.gy], rel = Math.atan2(-(tg.x - x), -(tg.z - z)) - tl.userData.auto, d = .98;
-      /* chevron on the tile edge pointing at the landing space (turns with the tile), a dotted steam arc to it and a pulsing ring round the landing space */
-      const ch = new THREE.Mesh(new THREE.PlaneGeometry(.62, .62), new THREE.MeshBasicMaterial({ map: chevTex(), transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -8 })); ch.rotation.set(-Math.PI / 2, 0, rel); ch.position.set(-Math.sin(rel) * d, .54, -Math.cos(rel) * d); tl.add(ch);
-      const a0 = new THREE.Vector3(x, Y(n) + .9, z), a1 = new THREE.Vector3(tg.x, Y(tg) + .9, tg.z), mid = a0.clone().lerp(a1, .5); mid.y = Math.max(a0.y, a1.y) + a0.distanceTo(a1) * .35 + 1.5;
-      const curve = new THREE.QuadraticBezierCurve3(a0, mid, a1), dots = []; for (let k = 0; k < 18; k++) { const m = new THREE.Mesh(new THREE.IcosahedronGeometry(.17, 0), new THREE.MeshBasicMaterial({ color: "#E3E7EC", transparent: true, opacity: .6, depthWrite: false })); s.add(m); dots.push(m); }
-      const ring = new THREE.Mesh(new THREE.TorusGeometry(1.45 * ep("tileR"), .08, 6, 28), new THREE.MeshStandardMaterial({ color: "#C9D1DA", emissive: "#E3E7EC", emissiveIntensity: .35 })); ring.rotation.x = Math.PI / 2; ring.position.set(tg.x, Y(tg) + .56, tg.z); s.add(ring);
-      gyArcs.push({ curve, dots, ring }); }
+    /* geyser: chevron on the tile edge pointing at the landing space (turns with the tile), a dotted steam arc to it and a pulsing ring round it; re-aimed when the target changes each round */
+    if (t === "GY" && n.gy !== undefined) {
+      const ch = new THREE.Mesh(new THREE.PlaneGeometry(.62, .62), new THREE.MeshBasicMaterial({ map: chevTex(), transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -8 })); tl.add(ch);
+      const curve = new THREE.QuadraticBezierCurve3(new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()), dots = []; for (let k = 0; k < 18; k++) { const m = new THREE.Mesh(new THREE.IcosahedronGeometry(.17, 0), new THREE.MeshBasicMaterial({ color: "#E3E7EC", transparent: true, opacity: .6, depthWrite: false })); s.add(m); dots.push(m); }
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(1.45 * ep("tileR"), .08, 6, 28), new THREE.MeshStandardMaterial({ color: "#C9D1DA", emissive: "#E3E7EC", emissiveIntensity: .35 })); ring.rotation.x = Math.PI / 2; s.add(ring);
+      const arc = { node: i, tl, ch, curve, dots, ring, tg: -1 }; aimGy(nd, arc, n.gy); gyArcs.push(arc); }
     /* geyser tile: a pale sinter mound with a sulphur-stained vent in the middle, light mist rising out of it */
     /* geyser tile: the face is the crater rim around a wide dark vent (see tileFace), sulphur-stained lip, light mist rising out of it */
     if (t === "GY") { const sul = new THREE.Mesh(new THREE.TorusGeometry(.76, .035, 6, 28), M("#D9C36A")); sul.rotation.x = Math.PI / 2; sul.position.y = .5; tl.add(sul);
@@ -1797,6 +1804,7 @@ function buildBoardFor(map) {
   if (pebbles.length) { const im = new THREE.InstancedMesh(new THREE.DodecahedronGeometry(.13, 0), new THREE.MeshStandardMaterial({ color: "#FFFFFF", flatShading: true, roughness: .9 }), pebbles.length), dm = new THREE.Object3D(), c = new THREE.Color();
     pebbles.forEach(([x, y, z, k, r], i) => { dm.position.set(x, y, z); dm.rotation.set(r * 3, r * 7, 0); dm.scale.set(k, k * .7, k); dm.updateMatrix(); im.setMatrixAt(i, dm.matrix); c.set(r < .5 ? "#6A5A4E" : "#8C7A6A"); im.setColorAt(i, c); }); s.add(im); }
   const vx = vol ? volcanoScenery(s, map) : null;
+  const cart = vol ? buildCartRails(s, map) : null, badge = stepBadge(); s.add(badge.g);
   if (map.id === "junk") junkScenery(s); else if (!vol) classicScenery(s);
   const fac = new THREE.Group(), ring = new THREE.Mesh(new THREE.TorusGeometry(1.35, .09, 6, 24), new THREE.MeshStandardMaterial({ color: "#FFC83D", emissive: "#FFB000", emissiveIntensity: .9 })); ring.rotation.x = Math.PI / 2; ring.position.y = .56;
   const bld = FAC_MODELS[vol ? FAC_LOOK.volc : FAC_LOOK.def](), puffs = bld.userData.puffs;
@@ -1809,7 +1817,7 @@ function buildBoardFor(map) {
   const arrows = [0, 1, 2].map(k => { const g = new THREE.Group(); const c = mesh(new THREE.ConeGeometry(.45, .9, 8), "#FFC83D", { emissive: "#FFB000", emissiveIntensity: .8 }); c.rotation.x = Math.PI; c.position.y = .45; g.add(c); const sp = textSprite(String(k + 1), "#151B24", "#FFC83D", 1.1); sp.position.y = 1.5; g.add(sp); g.visible = false; s.add(g); return g; });
   let rival = null; if (map.rival) { rival = buildRival(); const h = nd[map.rivalHome]; rival.position.set(h.x + 1.3, 0, h.z + 1.3); s.add(rival); }
   applySky(s, map.id === "junk" ? "junk" : vol ? "volc" : "def");
-  return { scene: s, map, fac, ring, bld, puffs, clouds, hl, belts, crushers, arrows, rival, refs, traps: {}, obs: {}, facIdx: -1, facTarget: null, vents, scorch, obCr, vx, nodeG, gyArcs, reg: EDC.reg, edp: EDC.p };
+  return { scene: s, map, fac, ring, bld, puffs, clouds, hl, belts, crushers, arrows, rival, refs, cart, badge, loose: {}, traps: {}, obs: {}, facIdx: -1, facTarget: null, vents, scorch, obCr, vx, nodeG, gyArcs, reg: EDC.reg, edp: EDC.p };
 }
 function setBoardMap(id) {
   const map = MAPS[id] || CLASSIC; if (GFX.board && GFX.board.map === map) return;
@@ -1872,6 +1880,10 @@ function syncBoard() {
   const obs = G.obs || {};
   Object.keys(bd.obs).forEach(k => { if (!obs[k]) { bd.scene.remove(bd.obs[k]); delete bd.obs[k]; } });
   Object.keys(obs).forEach(k => { const n = MAP.nodes[k]; if (bd.obs[k] || !n) return; const c = obsidianMesh(.75); c.position.set(n.x - .8, (n.y || 0) + .5, n.z + .6); bd.scene.add(c); bd.obs[k] = c; });
+  /* loose shards from rising lava: a glowing crystal hovering over the space, popping in and out */
+  const loose = G.loose || {}, LC = ["#7A3CFF", "#B78CFF", "#FFFFFF"];
+  Object.keys(bd.loose).forEach(k => { if (loose[k]) return; const m = bd.loose[k]; burst(bd.scene, m.position.x, m.position.y, m.position.z, { n: 10, shape: "ico", cols: LC, spd: 2.5, up: 3, grav: 8, life: .7 }); bd.scene.remove(m); delete bd.loose[k]; });
+  Object.keys(loose).forEach(k => { const n = MAP.nodes[k]; if (bd.loose[k] || !n) return; const c = obsidianMesh(.5); c.position.set(n.x, (n.y || 0) + 1.1, n.z); c.userData.ph = +k; bd.scene.add(c); bd.loose[k] = c; burst(bd.scene, n.x, (n.y || 0) + 1, n.z, { n: 12, shape: "ico", cols: ["#FF7A2A", "#FFD24A", "#7A3CFF"], spd: 3, up: 5, grav: 9, life: .9 }); });
   ps.forEach(p => {
     let t = GFX.tok[p.key];
     if (!t || t.truck !== p.truck) {
@@ -1925,7 +1937,9 @@ function stepBoard(dt, time) {
     t.yaw = lerpA(t.yaw, t.yawT || 0, Math.min(1, dt * 10)); t.tr.rotation.y = t.yaw;
     { const pp = t.g.position, sp = t.lp && dt > 0 ? Math.hypot(pp.x - t.lp.x, pp.z - t.lp.z) / dt : 0; t.lp = pp.clone(); animTruck(t.tr, dt, Math.min(sp, 14)); }
   });
+  stepCart(bd, time); Object.values(bd.loose).forEach(c => { c.rotation.y = time * 1.5 + c.userData.ph; c.position.y += Math.sin(time * 3 + c.userData.ph) * .004; });
   const cur = ps[G.turn], ct = cur && GFX.tok[cur.key], inMg = G.phase === "minigame" || G.phase === "mgres";
+  stepBadgeFor(bd, ct, time);
   bd.hl.visible = !!ct && !inMg; if (ct) { bd.hl.position.x = ct.g.position.x; bd.hl.position.z = ct.g.position.z; bd.hl.position.y = (MAP.nodes[ct.shownT] ? MAP.nodes[ct.shownT].y || 0 : 0) + .53; bd.hl.scale.setScalar(1 + Math.sin(time * 4) * .08); }
   const fo = G.phase === "fork" && G.fork ? G.fork.opts : [];
   bd.arrows.forEach((a, k) => { const n = nd[fo[k]]; a.visible = !!n; if (n) a.position.set(n.x, (n.y || 0) + 1.4 + Math.abs(Math.sin(time * 4 + k)) * .5, n.z); });
@@ -1975,6 +1989,51 @@ function stepGrind(bd, dt, time) {
     burst(bd.scene, gp.x + (tp.x - gp.x) * .3, fy - .1, gp.z + (tp.z - gp.z) * .3, { n: 14, shape: "cube", cols: ["#6A5A8A", "#8C7AB0", "#D9C8FF", "#3B2466"], spd: 1.4, up: -1.5, grav: 9, life: .9, size: .55 });
     if (a.spat === 3) { a.tok.sq = .3; sfx("battery"); } }
   if (k > 3.6) { a.bits.forEach(m => bd.scene.remove(m)); a.gate.position.copy(gp); a.gate.rotation.z = 0; bd.gr = null; }
+}
+/* ---------- minecart: a closed rail loop from the MC space up round the crater's central pillar and back down; HG.cart {pid, at, laps, n} sends a truck round it laps times ---------- */
+function cartCurve(map) {
+  const mc = map.nodes.findIndex(n => n.t === "MC"); if (mc < 0) return null; const T = map.nodes[mc], isl = EDC.reg.island, C = isl ? isl.position : new THREE.Vector3(.87, 0, -.9), R = 4.4, y0 = (T.y || 0) + .55;
+  const a0 = Math.atan2(T.z - C.z, T.x - C.x), P = [new THREE.Vector3(T.x, y0, T.z)], at = (a, r, y) => new THREE.Vector3(C.x + Math.cos(a) * r, y, C.z + Math.sin(a) * r);
+  P.push(at(a0 - .45, R + .8, y0 + .6)); for (let k = 0; k <= 10; k++) P.push(at(a0 - .7 - k / 10 * Math.PI * 2.05, R, y0 + 1.2 + k * .34)); P.push(at(a0 + .45, R + 1.3, y0 + 2.2));
+  return { mc, curve: new THREE.CatmullRomCurve3(P, true, "catmullrom", .35) };
+}
+function buildCartRails(s, map) {
+  const cc = cartCurve(map); if (!cc) return null; const { curve } = cc, N = 220, up = new THREE.Vector3(0, 1, 0), L = [], Rr = [], g = new THREE.Group(); s.add(g);
+  for (let k = 0; k <= N; k++) { const u = k / N, p = curve.getPointAt(u), t = curve.getTangentAt(u), side = new THREE.Vector3().crossVectors(t, up).normalize().multiplyScalar(.22); L.push(p.clone().add(side)); Rr.push(p.clone().sub(side));
+    if (k % 4 === 0) { const tie = B(.12, .05, .62, "#6B4A36", 0, 0, 0); tie.position.copy(p).y -= .05; tie.lookAt(p.clone().add(side)); g.add(tie); }
+    if (k % 14 === 7 && u > .06 && u < .94) { const h = p.y + 1.5, post = B(.12, h, .12, "#4A3C36", p.x, p.y - .1 - h / 2, p.z); g.add(post); } }
+  [L, Rr].forEach(pts => g.add(mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts, true), N, .045, 5, true), "#3A3A40", { metalness: .4, roughness: .5 })));
+  const cart = new THREE.Group(); cart.add(B(.95, .42, .62, "#6B4A36", 0, .3, 0), B(.99, .06, .66, "#3A3A40", 0, .47, 0), B(.99, .06, .66, "#3A3A40", 0, .16, 0));
+  [[-.3, -.3], [.3, -.3], [-.3, .3], [.3, .3]].forEach(([x, z]) => { const w = Cy(.1, .1, .06, 10, "#2A2A30", x, .08, z); w.rotation.x = Math.PI / 2; cart.add(w); });
+  g.add(cart); const home = curve.getPointAt(0); cart.position.set(home.x, home.y - .5, home.z);
+  return { ...cc, cart, g };
+}
+function stepCart(bd, time) {
+  const c = bd.cart, cr = G.cart; if (!c) return;
+  if (bd.cartN === undefined) bd.cartN = cr ? cr.n : null; else if (cr && cr.n !== bd.cartN) { bd.cartN = cr.n; bd.ca = { t0: time, pid: cr.pid, laps: cr.laps }; sfx("step"); }
+  const a = bd.ca, tok = a && GFX.tok[a.pid]; let u = 0, k = 0;
+  if (a && tok) { k = time - a.t0; const ride = k - .5, D = a.laps * 1.8;
+    if (ride > 0 && ride < D) { const f = ride / D, e = f < .08 ? f * f / .16 : f > .92 ? 1 - (1 - f) * (1 - f) / .16 : f - .04; u = (e * a.laps) % 1; }
+    const p = c.curve.getPointAt(u), t = c.curve.getTangentAt(u); c.cart.position.set(p.x, p.y - .5, p.z); c.cart.rotation.set(0, Math.atan2(-t.z, t.x), Math.asin(Math.max(-1, Math.min(1, t.y))));
+    if (k < D + 1.1) { tok.g.position.set(p.x, p.y - .05 + (k < .5 ? Math.sin(k / .5 * Math.PI) * .8 : 0), p.z); tok.tr.rotation.y = Math.atan2(-t.z, t.x); }
+    if (ride > 0 && ride < D && Math.floor(ride / .35) !== a.sp) { a.sp = Math.floor(ride / .35); burst(bd.scene, p.x, p.y, p.z, { n: 3, shape: "ico", cols: ["#B78CFF", "#FFD24A"], spd: 1.5, up: 1.5, grav: 6, life: .5 }); }
+    if (k > D + 1.4) { bd.ca = null; const h = c.curve.getPointAt(0); c.cart.position.set(h.x, h.y - .5, h.z); c.cart.rotation.set(0, 0, 0); } }
+}
+/* ---------- steps-left badge: a chunky gold coin with the number, floating over the moving truck and facing the camera ---------- */
+function stepBadge() {
+  const cv = document.createElement("canvas"); cv.width = cv.height = 128; const tex = new THREE.CanvasTexture(cv), geo = new THREE.CylinderGeometry(.6, .6, .18, 28); geo.rotateX(Math.PI / 2);
+  const face = new THREE.MeshStandardMaterial({ map: tex, roughness: .5 }), rim = new THREE.MeshStandardMaterial({ color: "#FFC83D", emissive: "#B07800", emissiveIntensity: .3, roughness: .35, metalness: .3, flatShading: true });
+  const disc = new THREE.Mesh(geo, [rim, face, face]), g = new THREE.Group(); g.add(disc); g.visible = false;
+  return { g, disc, cv, tex, val: null, popT: -9 };
+}
+function badgeDraw(b, v) { const x = b.cv.getContext("2d"); x.clearRect(0, 0, 128, 128); x.fillStyle = "#FFC83D"; x.fillRect(0, 0, 128, 128); x.fillStyle = "#151B24"; x.beginPath(); x.arc(64, 64, 52, 0, Math.PI * 2); x.fill();
+  x.fillStyle = "#FFFFFF"; x.font = `900 ${v > 9 ? 58 : 70}px Bungee, Rubik, Arial`; x.textAlign = "center"; x.textBaseline = "middle"; /* cylinder cap UVs run sideways: turn the text so it reads upright on the +z face */ x.save(); x.translate(64, 64); x.rotate(-Math.PI / 2); x.fillText(String(v), 0, 4); x.restore(); b.tex.needsUpdate = true; }
+function stepBadgeFor(bd, ct, time) {
+  const b = bd.badge; if (!b) return; const v = G.left | 0, on = !!ct && (G.phase === "moving" || G.phase === "fork") && v > 0 && !(bd.ca && bd.ca.pid === (G.players[G.turn] || {}).key);
+  b.g.visible = on; if (!on) { b.val = null; return; }
+  if (v !== b.val) { b.val = v; badgeDraw(b, v); b.popT = time; }
+  const pk = time - b.popT, pop = pk < .25 ? 1 + Math.sin(pk / .25 * Math.PI) * .35 : 1;
+  b.g.position.set(ct.g.position.x, ct.g.position.y + 3.35 + Math.sin(time * 3) * .08, ct.g.position.z); b.g.lookAt(GFX.cam.position); b.g.scale.setScalar(pop); b.disc.rotation.y = Math.sin(time * 2.2) * .35;
 }
 /* follow camera: pulled back a little, and swung gently toward the middle of the board depending on which side the truck is on */
 function followCamPos(tgt, aspect, k) {
@@ -2154,7 +2213,7 @@ function stNext() { const el = document.getElementById("fxs"), h = stQ.shift(); 
 const EV_LOOK = [
   [/^conveyor/i, t => /backward/.test(t) ? "⏪" : "⏩", "belt"], [/^tailwind/i, "💨", "good"], [/^crusher/i, "🔨", "bad"],
   [/^scrap pile/i, t => /nothing/.test(t) ? "🔩" : "🪙", t => /nothing/.test(t) ? "meh" : "good"], [/spike strip/i, "📌", "bad"], [/^scrap shop/i, "🛒", "meh"],
-  [/^road swap/i, "🔀", "spec"], [/^lost cargo/i, "📦", "good"], [/^factory relocates/i, "🏭", "spec"], [/^lucky find/i, "🍀", "good"], [/^refinery/i, "⚙️", "good"], [/^truck bed full/i, "📦", "meh"], [/^battery factory/i, "🔋", "spec"], [/^fuel tax/i, "⛽", "spec"], [/^duel/i, "⚔️", "spec"],
+  [/^road swap/i, "🔀", "spec"], [/^lost cargo/i, "📦", "good"], [/^factory relocates/i, "🏭", "spec"], [/^lucky find/i, "🍀", "good"], [/^minecart/i, "🛒", "good"], [/^refinery/i, "⚙️", "good"], [/^truck bed full/i, "📦", "meh"], [/^battery factory/i, "🔋", "spec"], [/^fuel tax/i, "⛽", "spec"], [/^duel/i, "⚔️", "spec"],
   [/^lava/i, "🌋", "bad"], [/^eruption/i, "🌋", "bad"], [/^geyser/i, "💨", "good"], [/^obsidian/i, "💎", "good"], [/^scorched/i, "🔥", "bad"], [/^rock conveyor/i, "🪨", "belt"],
   [/^ore cart/i, t => /nothing/.test(t) ? "🪨" : "🪙", t => /nothing/.test(t) ? "meh" : "good"]];
 function showSticker(ev) {
@@ -2715,7 +2774,7 @@ function hostStart() {
   MAP = MAPS[HG.map] || JUNK; HG.map = MAP.id;
   const a = HG.players; for (let i = a.length - 1; i > 0; i--) { const j = rnd(i + 1); [a[i], a[j]] = [a[j], a[i]]; }
   a.forEach((p, i) => { p.pos = 0; p.from = null; p.coins = START_COINS; p.bat = 0; p.shards = 0; p.dust = 0; p.items = []; p.up = []; if (p.team === undefined) p.team = i % 2; });
-  HG.round = 1; HG.turn = 0; HG.factory = pickFactory(-1); HG.kick = []; HG.lastMg = null; HG.roll = HG.fx = HG.ev = HG.mg = HG.buy = HG.fork = HG.shop = HG.duelPick = null; HG.used = []; HG.traps = {}; HG.obs = {}; HG.erupt = null;
+  HG.round = 1; HG.turn = 0; HG.factory = pickFactory(-1); HG.kick = []; HG.lastMg = null; HG.roll = HG.fx = HG.ev = HG.mg = HG.buy = HG.fork = HG.shop = HG.duelPick = null; HG.used = []; HG.traps = {}; HG.obs = {}; HG.erupt = null; HG.loose = {}; HG.cart = HG.grind = null; if (MAP.lava) rollGeysers();
   HG.rival = MAP.rival ? { at: MAP.rivalHome, carry: null } : null;
   HG.intro = true; later(() => { if (!HG || !HG.intro) return; HG.intro = false; rivalNote(); lavaRound(); push(); }, 5000);
   startTurn();
@@ -2777,6 +2836,11 @@ function move(p, steps, done) {
 }
 function afterStep(p, cont) {
   const n = MAP.nodes[p.pos], go = () => { if (p.pos === HG.factory) offerBuy(p, cont); else if (n.t === "SH" && HG.left > 0) offerShop(p, cont); else cont(); };
+  /* loose shards thrown out by rising lava: driving over one picks it up (if the truck bed has room) */
+  if (HG.loose && HG.loose[p.pos] && shardMap() && (p.shards | 0) < SHARD_MAX) { delete HG.loose[p.pos]; addShards(p, 1); HG.msg = `${p.name} scoops up a loose shard (${p.shards}/${SHARD_MAX}).`; push(); later(() => afterRef(p, n, go), 450); return; }
+  afterRef(p, n, go);
+}
+function afterRef(p, n, go) {
   /* Volcano Quarry refinery: anyone carrying shards stops under the gate (either direction): the shards are sucked up, ground, and spat back down as dust (HG.grind drives the animation) */
   if (n.ref && shardMap() && (p.shards | 0) > 0) {
     if ((p.dust | 0) >= DUST_MAX) { HG.msg = `${p.name} passes the refinery, but their dust bag is full (${DUST_MAX}/${DUST_MAX}).`; push(); later(go, 700); return; }
@@ -2792,7 +2856,7 @@ function botDist(p, o) {
   if (!shardMap() || canDust(p) || p.coins >= RAW_PRICE + BOT_RICH) return F(HG.factory);
   const ids = MAP.nodes.map((n, i) => i);
   if ((p.shards | 0) && (p.shards | 0) + (p.dust | 0) >= DUST_BAT && (p.dust | 0) < DUST_MAX) return near(ids.filter(i => MAP.nodes[i].ref));
-  const dig = ids.filter(i => { const n = MAP.nodes[i]; return ((n.lv === 1 && n.t === "B") || n.t === "OB" || (HG.obs && HG.obs[i])) && !flooded(i, HG.round) && !flooded(i, HG.round + 1); });
+  const dig = ids.filter(i => { const n = MAP.nodes[i]; return (["SD", "OB", "MC"].includes(n.t) || (HG.obs && HG.obs[i]) || (HG.loose && HG.loose[i])) && !flooded(i, HG.round) && !flooded(i, HG.round + 1); });
   return dig.length ? near(dig) : F(HG.factory);
 }
 function askFork(p, opts, go) {
@@ -2846,16 +2910,19 @@ function land(p, moved) {
 function spaceEffect(p, allowEvent, done) {
   const n = MAP.nodes[p.pos], t = n.t, sc = has(p, "scoop"), ar = has(p, "armor");
   if (p.pos === HG.factory) { HG.msg = `${p.name} parks at the factory.`; push(); done(); return; }
-  if (t === "GY" && n.gy !== undefined) { HG.ev = { title: "Geyser!", text: `A steam geyser blasts ${p.name} up the slope!`, n: rid() }; HG.msg = HG.ev.text; push(); later(() => { p.pos = n.gy; p.from = null; push(); later(() => spaceEffect(p, false, done), 1300); }, 1200); return; }
+  if (t === "GY" && gyTarget(p.pos) !== undefined) { HG.ev = { title: "Geyser!", text: `A steam geyser blasts ${p.name} up the slope!`, n: rid() }; HG.msg = HG.ev.text; push(); later(() => { p.pos = gyTarget(p.pos); p.from = null; push(); later(() => spaceEffect(p, false, done), 1300); }, 1200); return; }
   if (flooded(p.pos, HG.round)) { const b = p.coins; if (!ar) p.coins = Math.max(0, p.coins - 5); const ls = loseShard(p); HG.ev = { title: "Scorched!", text: ar ? `${p.name} parks on the lava crust. The armor takes the heat.` : `${p.name} parks on the lava crust and pays ${b - p.coins} coins in burnt tyres${ls ? `. ${ls} melts away` : ""}.`, n: rid() }; HG.msg = HG.ev.text; push(); done(); return; }
   if (t === "OB" || (HG.obs && HG.obs[p.pos])) {
     if (shardMap()) { const r = addShards(p, 2); HG.ev = r.lost ? { title: "Truck bed full!", text: `${p.name} chips off obsidian${r.got ? ` and keeps ${plural(r.got, "shard")}` : ""}, but ${plural(r.lost, "shard")} ${r.lost === 1 ? "falls" : "fall"} off the back (max ${SHARD_MAX}).`, n: rid() } : { title: "Obsidian!", text: `${p.name} chips off a chunk of obsidian: +2 shards.`, n: rid() }; }
     else { p.coins += 8; HG.ev = { title: "Obsidian!", text: `${p.name} chips off a chunk of obsidian: +8 coins.`, n: rid() }; }
     HG.msg = HG.ev.text; push(); done(); return; }
-  if (t === "B" && shardMap() && n.lv === 1) { const r = addShards(p, 1);
+  if (t === "SD") { const r = addShards(p, 1);
     if (r.lost) { HG.ev = { title: "Truck bed full!", text: `${p.name} digs up a shard, but the truck bed is full (max ${SHARD_MAX}). It falls off the back.`, n: rid() }; HG.msg = HG.ev.text; }
-    else HG.msg = `${p.name} digs in the crater: +1 obsidian shard (${p.shards}/${SHARD_MAX}).`; push(); done(); return; }
-  if (t === "B" || t === "S") { const dbl = MAP.lava && n.lv === 1, g = (3 + (sc ? 2 : 0)) * (dbl ? 2 : 1); p.coins += g; HG.msg = `${p.name} lands on blue${dbl ? " in the crater (double)" : ""}: +${g} coins.`; }
+    else HG.msg = `${p.name} digs out an obsidian shard (${p.shards}/${SHARD_MAX}).`; push(); done(); return; }
+  /* minecart: a ride round the rails on the crater's central pillar and back to the same space, picking up 1–3 shards on the way (HG.cart drives the animation) */
+  if (t === "MC") { const got = [1, 1, 2, 2, 2, 3][rnd(6)], laps = 1 + rnd(2); HG.cart = { pid: p.key, at: p.pos, laps, n: rid() }; HG.ev = { title: "Minecart!", text: `${p.name} hops into the minecart…`, n: rid() }; HG.msg = HG.ev.text; push();
+    later(() => { if (!HG) return; const r = addShards(p, got); HG.ev = { title: r.lost ? "Truck bed full!" : "Minecart!", text: `${p.name} rides the pillar rails and grabs ${plural(got, "shard")}${r.lost ? `, but ${r.lost} ${r.lost === 1 ? "falls" : "fall"} off (max ${SHARD_MAX})` : ""}.`, n: rid() }; HG.msg = HG.ev.text; push(); later(done, 900); }, 2600 + laps * 1800); return; }
+  if (t === "B" || t === "S") { const dbl = false, g = 3 + (sc ? 2 : 0); p.coins += g; HG.msg = `${p.name} lands on blue${dbl ? " in the crater (double)" : ""}: +${g} coins.`; }
   else if (t === "R") { if (ar) HG.msg = `${p.name}'s armor shrugs off the red space.`; else { const b = p.coins; p.coins = Math.max(0, p.coins - 3); HG.msg = `${p.name} lands on red: −${b - p.coins} coins.`; } }
   else if (t === "SC") { const r = [0, 1, 2, 3, 4, 5, 6, 8, 10, 12, 15][rnd(11)] + (sc ? 3 : 0); p.coins += r; HG.ev = { title: MAP.lava ? "Ore cart!" : "Scrap pile!", text: r ? `${p.name} digs up ${r} coins.` : `${p.name} finds nothing but rust.`, n: rid() }; HG.msg = HG.ev.text; }
   else if (t === "CR") { const b = p.coins; if (!ar) p.coins = Math.max(0, p.coins - 5); const it = Object.keys(ITEMS)[rnd(6)]; let got;
@@ -2927,9 +2994,23 @@ function rivalEvent(done) {
       later(() => { if (!HG) return; v.pos = to; v.from = null; HG.rival.carry = null; HG.msg = `${v.name} got dropped somewhere new.`; push(); later(done, 1500); }, 2000); }, 1300); }, 2400);
 }
 /* Volcano Quarry: start-of-round lava news (it rises, drains, or will soon), pushing trucks off newly flooded spaces */
+/* every round each geyser turns to a new random landing space anywhere on the map (not on lava, a geyser, the minecart or a refinery) */
+const gyTarget = i => HG && HG.gyT && HG.gyT[i] !== undefined ? HG.gyT[i] : MAP.nodes[i].gy;
+function rollGeysers() {
+  HG.gyT = {}; const r = HG.round || 1, pool = MAP.nodes.map((n, i) => i).filter(i => { const n = MAP.nodes[i]; return !["GY", "MC"].includes(n.t) && !n.ref && !n.br && !flooded(i, r); });
+  MAP.nodes.forEach((n, i) => { if (n.t !== "GY") return; const far = pool.filter(j => MAP.D[i][j] >= 4); const c = far.length ? far : pool; HG.gyT[i] = c[rnd(c.length)]; });
+}
+/* rising lava throws loose shards onto 6 dry spaces; they last until the lava drains */
+function scatterShards(r) {
+  HG.loose = {}; const pool = MAP.nodes.map((n, i) => i).filter(i => { const n = MAP.nodes[i]; return !flooded(i, r) && !flooded(i, r + 1) && !n.ref && !n.br && !["GY", "MC", "S"].includes(n.t) && i !== HG.factory; });
+  for (let k = 0; k < 6 && pool.length; k++) HG.loose[pool.splice(rnd(pool.length), 1)[0]] = 1;
+}
 function lavaRound() {
   if (!MAP.lava || !HG) return;
+  rollGeysers();
   const r = HG.round, lv = lavaLv(r), was = r > 1 ? lavaLv(r - 1) : 0, ph = lavaPh(r), parts = []; let title = "🌋 Lava";
+  if (lv > was && shardMap()) { scatterShards(r); parts.push("Lava bursts throw loose shards onto the ledges: drive over them to grab one."); }
+  if (lv < was) HG.loose = {};
   if (lv > was) { title = "🌋 Lava rises!"; const moved = [];
     HG.players.forEach(p => { if (!flooded(p.pos, r)) return; const safe = MAP.nodes.map((n, i) => i).filter(i => !flooded(i, r)).sort((a, b) => MAP.D[p.pos][a] - MAP.D[p.pos][b] || (MAP.nodes[b].y || 0) - (MAP.nodes[a].y || 0));
       p.pos = safe[0]; p.from = null; const c = p.coins; if (!has(p, "armor")) p.coins = Math.max(0, p.coins - 3); const ls = loseShard(p), lost = [c - p.coins ? `−${c - p.coins}` : "", ls ? `−${ls}` : ""].filter(Boolean).join(", "); moved.push(`${p.name}${lost ? ` (${lost})` : ""}`); });
@@ -3017,7 +3098,7 @@ function afterMg() {
   if (HG.round > HG.rounds) { HG.round = HG.rounds; HG.phase = "over"; HG.seq++; HG.msg = "Race over!"; push(); }
   else { HG.turn = 0; rivalNote(); lavaRound(); startTurn(); }
 }
-function hostPlayAgain() { clearTimers(); HG.phase = "lobby"; HG.seq++; HG.players.forEach(p => { p.pos = 0; p.from = null; p.coins = START_COINS; p.bat = 0; p.shards = 0; p.dust = 0; p.items = []; p.up = []; }); HG.traps = {}; HG.obs = {}; HG.erupt = null; HG.roll = HG.fx = HG.ev = HG.mg = HG.buy = HG.fork = HG.shop = HG.duelPick = null; push(); }
+function hostPlayAgain() { clearTimers(); HG.phase = "lobby"; HG.seq++; HG.players.forEach(p => { p.pos = 0; p.from = null; p.coins = START_COINS; p.bat = 0; p.shards = 0; p.dust = 0; p.items = []; p.up = []; }); HG.traps = {}; HG.obs = {}; HG.erupt = null; HG.loose = {}; HG.cart = HG.grind = null; HG.roll = HG.fx = HG.ev = HG.mg = HG.buy = HG.fork = HG.shop = HG.duelPick = null; push(); }
 function hostTick() {
   if (!HG) return; const now = Date.now();
   const idle = (p, fn) => { if (!p) return; if (p.bot || online(p.key)) { delete offSince[p.key]; return; } offSince[p.key] = offSince[p.key] || now; if (now - offSince[p.key] > 8000) { delete offSince[p.key]; fn(); } };
@@ -5554,7 +5635,7 @@ const ED_CSS = `#ed{position:fixed;inset:0;z-index:50;pointer-events:none;font:1
 #ed .edrow{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:6px}#ed .edrow label{font-size:11px;color:#AEB8C6}
 #ed .edsl{display:block;margin:4px 0 8px;font-size:12px}#ed .edsl span{float:right;color:#FFC83D}#ed .edsl input{width:100%}
 #ed .ednote{font-size:11px;color:#9AA6B6;margin:8px 0}#ed b{font-weight:700}`;
-const edTypeName = t => ({ B: "blue", R: "red", E: "surprise", S: "start", SC: "scrap", CR: "crusher", CV: "conveyor", D: "duel", SH: "shop", OB: "obsidian", GY: "geyser" })[t] || t;
+const edTypeName = t => ({ B: "blue", R: "red", E: "surprise", S: "start", SC: "scrap", CR: "crusher", CV: "conveyor", D: "duel", SH: "shop", OB: "obsidian", GY: "geyser", SD: "shard", MC: "minecart" })[t] || t;
 
 function openEditor() {
   if (!GFX.ok || ED) return;

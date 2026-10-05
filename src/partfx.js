@@ -118,7 +118,7 @@ function stNext() { const el = document.getElementById("fxs"), h = stQ.shift(); 
 const EV_LOOK = [
   [/^conveyor/i, t => /backward/.test(t) ? "⏪" : "⏩", "belt"], [/^tailwind/i, "💨", "good"], [/^crusher/i, "🔨", "bad"],
   [/^scrap pile/i, t => /nothing/.test(t) ? "🔩" : "🪙", t => /nothing/.test(t) ? "meh" : "good"], [/spike strip/i, "📌", "bad"], [/^scrap shop/i, "🛒", "meh"],
-  [/^road swap/i, "🔀", "spec"], [/^lost cargo/i, "📦", "good"], [/^factory relocates/i, "🏭", "spec"], [/^lucky find/i, "🍀", "good"], [/^refinery/i, "⚙️", "good"], [/^truck bed full/i, "📦", "meh"], [/^battery factory/i, "🔋", "spec"], [/^fuel tax/i, "⛽", "spec"], [/^duel/i, "⚔️", "spec"],
+  [/^road swap/i, "🔀", "spec"], [/^lost cargo/i, "📦", "good"], [/^factory relocates/i, "🏭", "spec"], [/^lucky find/i, "🍀", "good"], [/^minecart/i, "🛒", "good"], [/^refinery/i, "⚙️", "good"], [/^truck bed full/i, "📦", "meh"], [/^battery factory/i, "🔋", "spec"], [/^fuel tax/i, "⛽", "spec"], [/^duel/i, "⚔️", "spec"],
   [/^lava/i, "🌋", "bad"], [/^eruption/i, "🌋", "bad"], [/^geyser/i, "💨", "good"], [/^obsidian/i, "💎", "good"], [/^scorched/i, "🔥", "bad"], [/^rock conveyor/i, "🪨", "belt"],
   [/^ore cart/i, t => /nothing/.test(t) ? "🪨" : "🪙", t => /nothing/.test(t) ? "meh" : "good"]];
 function showSticker(ev) {

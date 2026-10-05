@@ -25,7 +25,7 @@ const ED_CSS = `#ed{position:fixed;inset:0;z-index:50;pointer-events:none;font:1
 #ed .edrow{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:6px}#ed .edrow label{font-size:11px;color:#AEB8C6}
 #ed .edsl{display:block;margin:4px 0 8px;font-size:12px}#ed .edsl span{float:right;color:#FFC83D}#ed .edsl input{width:100%}
 #ed .ednote{font-size:11px;color:#9AA6B6;margin:8px 0}#ed b{font-weight:700}`;
-const edTypeName = t => ({ B: "blue", R: "red", E: "surprise", S: "start", SC: "scrap", CR: "crusher", CV: "conveyor", D: "duel", SH: "shop", OB: "obsidian", GY: "geyser" })[t] || t;
+const edTypeName = t => ({ B: "blue", R: "red", E: "surprise", S: "start", SC: "scrap", CR: "crusher", CV: "conveyor", D: "duel", SH: "shop", OB: "obsidian", GY: "geyser", SD: "shard", MC: "minecart" })[t] || t;
 
 function openEditor() {
   if (!GFX.ok || ED) return;

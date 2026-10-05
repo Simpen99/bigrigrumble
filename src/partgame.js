@@ -101,7 +101,7 @@ function hostStart() {
   MAP = MAPS[HG.map] || JUNK; HG.map = MAP.id;
   const a = HG.players; for (let i = a.length - 1; i > 0; i--) { const j = rnd(i + 1); [a[i], a[j]] = [a[j], a[i]]; }
   a.forEach((p, i) => { p.pos = 0; p.from = null; p.coins = START_COINS; p.bat = 0; p.shards = 0; p.dust = 0; p.items = []; p.up = []; if (p.team === undefined) p.team = i % 2; });
-  HG.round = 1; HG.turn = 0; HG.factory = pickFactory(-1); HG.kick = []; HG.lastMg = null; HG.roll = HG.fx = HG.ev = HG.mg = HG.buy = HG.fork = HG.shop = HG.duelPick = null; HG.used = []; HG.traps = {}; HG.obs = {}; HG.erupt = null;
+  HG.round = 1; HG.turn = 0; HG.factory = pickFactory(-1); HG.kick = []; HG.lastMg = null; HG.roll = HG.fx = HG.ev = HG.mg = HG.buy = HG.fork = HG.shop = HG.duelPick = null; HG.used = []; HG.traps = {}; HG.obs = {}; HG.erupt = null; HG.loose = {}; HG.cart = HG.grind = null; if (MAP.lava) rollGeysers();
   HG.rival = MAP.rival ? { at: MAP.rivalHome, carry: null } : null;
   HG.intro = true; later(() => { if (!HG || !HG.intro) return; HG.intro = false; rivalNote(); lavaRound(); push(); }, 5000);
   startTurn();
@@ -163,6 +163,11 @@ function move(p, steps, done) {
 }
 function afterStep(p, cont) {
   const n = MAP.nodes[p.pos], go = () => { if (p.pos === HG.factory) offerBuy(p, cont); else if (n.t === "SH" && HG.left > 0) offerShop(p, cont); else cont(); };
+  /* loose shards thrown out by rising lava: driving over one picks it up (if the truck bed has room) */
+  if (HG.loose && HG.loose[p.pos] && shardMap() && (p.shards | 0) < SHARD_MAX) { delete HG.loose[p.pos]; addShards(p, 1); HG.msg = `${p.name} scoops up a loose shard (${p.shards}/${SHARD_MAX}).`; push(); later(() => afterRef(p, n, go), 450); return; }
+  afterRef(p, n, go);
+}
+function afterRef(p, n, go) {
   /* Volcano Quarry refinery: anyone carrying shards stops under the gate (either direction): the shards are sucked up, ground, and spat back down as dust (HG.grind drives the animation) */
   if (n.ref && shardMap() && (p.shards | 0) > 0) {
     if ((p.dust | 0) >= DUST_MAX) { HG.msg = `${p.name} passes the refinery, but their dust bag is full (${DUST_MAX}/${DUST_MAX}).`; push(); later(go, 700); return; }
@@ -178,7 +183,7 @@ function botDist(p, o) {
   if (!shardMap() || canDust(p) || p.coins >= RAW_PRICE + BOT_RICH) return F(HG.factory);
   const ids = MAP.nodes.map((n, i) => i);
   if ((p.shards | 0) && (p.shards | 0) + (p.dust | 0) >= DUST_BAT && (p.dust | 0) < DUST_MAX) return near(ids.filter(i => MAP.nodes[i].ref));
-  const dig = ids.filter(i => { const n = MAP.nodes[i]; return ((n.lv === 1 && n.t === "B") || n.t === "OB" || (HG.obs && HG.obs[i])) && !flooded(i, HG.round) && !flooded(i, HG.round + 1); });
+  const dig = ids.filter(i => { const n = MAP.nodes[i]; return (["SD", "OB", "MC"].includes(n.t) || (HG.obs && HG.obs[i]) || (HG.loose && HG.loose[i])) && !flooded(i, HG.round) && !flooded(i, HG.round + 1); });
   return dig.length ? near(dig) : F(HG.factory);
 }
 function askFork(p, opts, go) {
@@ -232,16 +237,19 @@ function land(p, moved) {
 function spaceEffect(p, allowEvent, done) {
   const n = MAP.nodes[p.pos], t = n.t, sc = has(p, "scoop"), ar = has(p, "armor");
   if (p.pos === HG.factory) { HG.msg = `${p.name} parks at the factory.`; push(); done(); return; }
-  if (t === "GY" && n.gy !== undefined) { HG.ev = { title: "Geyser!", text: `A steam geyser blasts ${p.name} up the slope!`, n: rid() }; HG.msg = HG.ev.text; push(); later(() => { p.pos = n.gy; p.from = null; push(); later(() => spaceEffect(p, false, done), 1300); }, 1200); return; }
+  if (t === "GY" && gyTarget(p.pos) !== undefined) { HG.ev = { title: "Geyser!", text: `A steam geyser blasts ${p.name} up the slope!`, n: rid() }; HG.msg = HG.ev.text; push(); later(() => { p.pos = gyTarget(p.pos); p.from = null; push(); later(() => spaceEffect(p, false, done), 1300); }, 1200); return; }
   if (flooded(p.pos, HG.round)) { const b = p.coins; if (!ar) p.coins = Math.max(0, p.coins - 5); const ls = loseShard(p); HG.ev = { title: "Scorched!", text: ar ? `${p.name} parks on the lava crust. The armor takes the heat.` : `${p.name} parks on the lava crust and pays ${b - p.coins} coins in burnt tyres${ls ? `. ${ls} melts away` : ""}.`, n: rid() }; HG.msg = HG.ev.text; push(); done(); return; }
   if (t === "OB" || (HG.obs && HG.obs[p.pos])) {
     if (shardMap()) { const r = addShards(p, 2); HG.ev = r.lost ? { title: "Truck bed full!", text: `${p.name} chips off obsidian${r.got ? ` and keeps ${plural(r.got, "shard")}` : ""}, but ${plural(r.lost, "shard")} ${r.lost === 1 ? "falls" : "fall"} off the back (max ${SHARD_MAX}).`, n: rid() } : { title: "Obsidian!", text: `${p.name} chips off a chunk of obsidian: +2 shards.`, n: rid() }; }
     else { p.coins += 8; HG.ev = { title: "Obsidian!", text: `${p.name} chips off a chunk of obsidian: +8 coins.`, n: rid() }; }
     HG.msg = HG.ev.text; push(); done(); return; }
-  if (t === "B" && shardMap() && n.lv === 1) { const r = addShards(p, 1);
+  if (t === "SD") { const r = addShards(p, 1);
     if (r.lost) { HG.ev = { title: "Truck bed full!", text: `${p.name} digs up a shard, but the truck bed is full (max ${SHARD_MAX}). It falls off the back.`, n: rid() }; HG.msg = HG.ev.text; }
-    else HG.msg = `${p.name} digs in the crater: +1 obsidian shard (${p.shards}/${SHARD_MAX}).`; push(); done(); return; }
-  if (t === "B" || t === "S") { const dbl = MAP.lava && n.lv === 1, g = (3 + (sc ? 2 : 0)) * (dbl ? 2 : 1); p.coins += g; HG.msg = `${p.name} lands on blue${dbl ? " in the crater (double)" : ""}: +${g} coins.`; }
+    else HG.msg = `${p.name} digs out an obsidian shard (${p.shards}/${SHARD_MAX}).`; push(); done(); return; }
+  /* minecart: a ride round the rails on the crater's central pillar and back to the same space, picking up 1–3 shards on the way (HG.cart drives the animation) */
+  if (t === "MC") { const got = [1, 1, 2, 2, 2, 3][rnd(6)], laps = 1 + rnd(2); HG.cart = { pid: p.key, at: p.pos, laps, n: rid() }; HG.ev = { title: "Minecart!", text: `${p.name} hops into the minecart…`, n: rid() }; HG.msg = HG.ev.text; push();
+    later(() => { if (!HG) return; const r = addShards(p, got); HG.ev = { title: r.lost ? "Truck bed full!" : "Minecart!", text: `${p.name} rides the pillar rails and grabs ${plural(got, "shard")}${r.lost ? `, but ${r.lost} ${r.lost === 1 ? "falls" : "fall"} off (max ${SHARD_MAX})` : ""}.`, n: rid() }; HG.msg = HG.ev.text; push(); later(done, 900); }, 2600 + laps * 1800); return; }
+  if (t === "B" || t === "S") { const dbl = false, g = 3 + (sc ? 2 : 0); p.coins += g; HG.msg = `${p.name} lands on blue${dbl ? " in the crater (double)" : ""}: +${g} coins.`; }
   else if (t === "R") { if (ar) HG.msg = `${p.name}'s armor shrugs off the red space.`; else { const b = p.coins; p.coins = Math.max(0, p.coins - 3); HG.msg = `${p.name} lands on red: −${b - p.coins} coins.`; } }
   else if (t === "SC") { const r = [0, 1, 2, 3, 4, 5, 6, 8, 10, 12, 15][rnd(11)] + (sc ? 3 : 0); p.coins += r; HG.ev = { title: MAP.lava ? "Ore cart!" : "Scrap pile!", text: r ? `${p.name} digs up ${r} coins.` : `${p.name} finds nothing but rust.`, n: rid() }; HG.msg = HG.ev.text; }
   else if (t === "CR") { const b = p.coins; if (!ar) p.coins = Math.max(0, p.coins - 5); const it = Object.keys(ITEMS)[rnd(6)]; let got;
@@ -313,9 +321,23 @@ function rivalEvent(done) {
       later(() => { if (!HG) return; v.pos = to; v.from = null; HG.rival.carry = null; HG.msg = `${v.name} got dropped somewhere new.`; push(); later(done, 1500); }, 2000); }, 1300); }, 2400);
 }
 /* Volcano Quarry: start-of-round lava news (it rises, drains, or will soon), pushing trucks off newly flooded spaces */
+/* every round each geyser turns to a new random landing space anywhere on the map (not on lava, a geyser, the minecart or a refinery) */
+const gyTarget = i => HG && HG.gyT && HG.gyT[i] !== undefined ? HG.gyT[i] : MAP.nodes[i].gy;
+function rollGeysers() {
+  HG.gyT = {}; const r = HG.round || 1, pool = MAP.nodes.map((n, i) => i).filter(i => { const n = MAP.nodes[i]; return !["GY", "MC"].includes(n.t) && !n.ref && !n.br && !flooded(i, r); });
+  MAP.nodes.forEach((n, i) => { if (n.t !== "GY") return; const far = pool.filter(j => MAP.D[i][j] >= 4); const c = far.length ? far : pool; HG.gyT[i] = c[rnd(c.length)]; });
+}
+/* rising lava throws loose shards onto 6 dry spaces; they last until the lava drains */
+function scatterShards(r) {
+  HG.loose = {}; const pool = MAP.nodes.map((n, i) => i).filter(i => { const n = MAP.nodes[i]; return !flooded(i, r) && !flooded(i, r + 1) && !n.ref && !n.br && !["GY", "MC", "S"].includes(n.t) && i !== HG.factory; });
+  for (let k = 0; k < 6 && pool.length; k++) HG.loose[pool.splice(rnd(pool.length), 1)[0]] = 1;
+}
 function lavaRound() {
   if (!MAP.lava || !HG) return;
+  rollGeysers();
   const r = HG.round, lv = lavaLv(r), was = r > 1 ? lavaLv(r - 1) : 0, ph = lavaPh(r), parts = []; let title = "🌋 Lava";
+  if (lv > was && shardMap()) { scatterShards(r); parts.push("Lava bursts throw loose shards onto the ledges: drive over them to grab one."); }
+  if (lv < was) HG.loose = {};
   if (lv > was) { title = "🌋 Lava rises!"; const moved = [];
     HG.players.forEach(p => { if (!flooded(p.pos, r)) return; const safe = MAP.nodes.map((n, i) => i).filter(i => !flooded(i, r)).sort((a, b) => MAP.D[p.pos][a] - MAP.D[p.pos][b] || (MAP.nodes[b].y || 0) - (MAP.nodes[a].y || 0));
       p.pos = safe[0]; p.from = null; const c = p.coins; if (!has(p, "armor")) p.coins = Math.max(0, p.coins - 3); const ls = loseShard(p), lost = [c - p.coins ? `−${c - p.coins}` : "", ls ? `−${ls}` : ""].filter(Boolean).join(", "); moved.push(`${p.name}${lost ? ` (${lost})` : ""}`); });
@@ -403,7 +425,7 @@ function afterMg() {
   if (HG.round > HG.rounds) { HG.round = HG.rounds; HG.phase = "over"; HG.seq++; HG.msg = "Race over!"; push(); }
   else { HG.turn = 0; rivalNote(); lavaRound(); startTurn(); }
 }
-function hostPlayAgain() { clearTimers(); HG.phase = "lobby"; HG.seq++; HG.players.forEach(p => { p.pos = 0; p.from = null; p.coins = START_COINS; p.bat = 0; p.shards = 0; p.dust = 0; p.items = []; p.up = []; }); HG.traps = {}; HG.obs = {}; HG.erupt = null; HG.roll = HG.fx = HG.ev = HG.mg = HG.buy = HG.fork = HG.shop = HG.duelPick = null; push(); }
+function hostPlayAgain() { clearTimers(); HG.phase = "lobby"; HG.seq++; HG.players.forEach(p => { p.pos = 0; p.from = null; p.coins = START_COINS; p.bat = 0; p.shards = 0; p.dust = 0; p.items = []; p.up = []; }); HG.traps = {}; HG.obs = {}; HG.erupt = null; HG.loose = {}; HG.cart = HG.grind = null; HG.roll = HG.fx = HG.ev = HG.mg = HG.buy = HG.fork = HG.shop = HG.duelPick = null; push(); }
 function hostTick() {
   if (!HG) return; const now = Date.now();
   const idle = (p, fn) => { if (!p) return; if (p.bot || online(p.key)) { delete offSince[p.key]; return; } offSince[p.key] = offSince[p.key] || now; if (now - offSince[p.key] > 8000) { delete offSince[p.key]; fn(); } };
