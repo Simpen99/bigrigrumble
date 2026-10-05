@@ -58,7 +58,7 @@ const VOLCANO = (() => {
   nodes[L1[1]].gy = rim[15]; nodes[C[0]].gy = U2[0]; nodes[C[9]].gy = rim[20];
   BT.forEach((t, k) => { if (t === "CV") nodes[BR[k]].conv = { dir: 1, n: 2 }; });
   return Object.assign(mkGraph(nodes), { id: "volcano", name: "Volcano Quarry", blurb: "Mine obsidian shards in the crater, grind them into dust at a refinery, but watch the lava.", ground: "#3E322D", dice: 1.5, lava: true, shards: true,
-    rules: ["Shard spaces give +1 obsidian shard, obsidian +2. The pillar minecart smashes the giant crystal for +15 (it regrows each round). Rail carts take you on a random ride.", "Rising lava and eruptions scatter loose shards: drive over them to grab them.", "Drive through a refinery to grind your shards into obsidian dust (1 shard = 1 dust). No limit on how much you carry.", "Battery factory: melts 3 dust + 10 coins into a battery, or sells one for 50 coins.", "Landing on lava, or getting pushed uphill by rising lava, costs a shard."], size: 2, camY: 3, follow: 1.2 });
+    rules: ["Shard spaces give +1 obsidian shard, obsidian +2. The pillar minecart smashes the giant crystal for +15 (it regrows each round). Rail carts take you on a random ride.", "Rising lava and eruptions scatter loose shards: drive over them to grab them.", "Drive through a refinery to grind your shards into obsidian dust (1 shard = 1 dust). No limit on how much you carry.", "Battery factory: melts 5 dust + 10 coins into a battery, or sells one for 50 coins.", "Landing on lava, or getting pushed uphill by rising lava, costs a shard."], size: 2, camY: 3, follow: 1.2 });
 })();
 /* layout and shape tuned in the map editor (2026-10-04) */
 VOLCANO.bake = {
@@ -789,7 +789,9 @@ function syncBoard() {
   /* loose shards from rising lava: a glowing crystal hovering over the space, popping in and out */
   const loose = G.loose || {}, LC = ["#7A3CFF", "#B78CFF", "#FFFFFF"];
   Object.keys(bd.loose).forEach(k => { if (loose[k]) return; const m = bd.loose[k]; burst(bd.scene, m.position.x, m.position.y, m.position.z, { n: 10, shape: "ico", cols: LC, spd: 2.5, up: 3, grav: 8, life: .7 }); bd.scene.remove(m); delete bd.loose[k]; });
-  Object.keys(loose).forEach(k => { const n = MAP.nodes[k]; if (bd.loose[k] || !n) return; const c = new THREE.Group(), x1 = mesh(xtalGeo(), "#5B2BB5", { emissive: "#7A3CFF", emissiveIntensity: .5, roughness: .25 }); x1.scale.set(1.1, 1.25, 1.1); x1.position.y = .62; c.add(x1); c.position.set(n.x, (n.y || 0) + .5, n.z); c.userData.ph = +k; bd.scene.add(c); bd.loose[k] = c; burst(bd.scene, n.x, (n.y || 0) + 1, n.z, { n: 9, shape: "ico", cols: ["#FF7A2A", "#FFD24A", "#7A3CFF"], spd: 2.4, up: 4, grav: 9, life: .8, size: .6, vary: 1, op: .55 }); });
+  Object.keys(loose).forEach(k => { const n = MAP.nodes[k]; if (bd.loose[k] || !n) return; const c = new THREE.Group(), x1 = mesh(xtalGeo(), "#5B2BB5", { emissive: "#7A3CFF", emissiveIntensity: .5, roughness: .25 }); x1.scale.set(1.1, 1.25, 1.1); x1.position.y = .62; c.add(x1); c.position.set(n.x, (n.y || 0) + .5, n.z); c.userData.ph = +k;
+    /* launched from the lava lake (unless an eruption bomb already carried it there): flies in an arc and lands with a puff */
+    if (G.phase !== "erupt" && bd.vx) { const d = Object.keys(bd.loose).filter(q => bd.loose[q].userData.fly).length; c.userData.fly = { t0: performance.now() / 1000 + .35 * d, from: new THREE.Vector3((Math.random() - .5) * 4, bd.vx.lava.position.y, (Math.random() - .5) * 4), to: c.position.clone() }; c.position.copy(c.userData.fly.from); c.visible = false; } bd.scene.add(c); bd.loose[k] = c; if (!c.userData.fly) burst(bd.scene, n.x, (n.y || 0) + 1, n.z, { n: 9, shape: "ico", cols: ["#FF7A2A", "#FFD24A", "#7A3CFF"], spd: 2.4, up: 4, grav: 9, life: .8, size: .6, vary: 1, op: .55 }); });
   ps.forEach(p => {
     let t = GFX.tok[p.key];
     if (!t || t.truck !== p.truck) {
@@ -843,7 +845,10 @@ function stepBoard(dt, time) {
     t.yaw = lerpA(t.yaw, t.yawT || 0, Math.min(1, dt * 10)); t.tr.rotation.y = t.yaw;
     { const pp = t.g.position, sp = t.lp && dt > 0 ? Math.hypot(pp.x - t.lp.x, pp.z - t.lp.z) / dt : 0; t.lp = pp.clone(); animTruck(t.tr, dt, Math.min(sp, 14)); }
   });
-  stepCart(bd, dt, time); Object.values(bd.loose).forEach(c => { c.rotation.y = time * .8 + c.userData.ph; c.children[0].position.y = .62 + Math.sin(time * 2.5 + c.userData.ph) * .06; });
+  stepCart(bd, dt, time); Object.values(bd.loose).forEach(c => { const f = c.userData.fly; if (f) { const u = (performance.now() / 1000 - f.t0) / 1.3; if (u < 0) return; c.visible = true;
+      if (u < 1) { c.position.lerpVectors(f.from, f.to, u); c.position.y += Math.sin(u * Math.PI) * (10 + f.from.distanceTo(f.to) * .25); c.rotation.set(u * 9, u * 6, 0); if (!f.p0) { f.p0 = 1; burst(bd.scene, f.from.x, f.from.y + .3, f.from.z, { n: 6, shape: "ico", cols: ["#FF7A2A", "#FFD24A"], spd: 2, up: 5, grav: 9, life: .7, size: .6, vary: 1, op: .55 }); } return; }
+      c.userData.fly = null; c.position.copy(f.to); c.rotation.set(0, 0, 0); burst(bd.scene, f.to.x, f.to.y + .5, f.to.z, { n: 9, shape: "ico", cols: ["#FF7A2A", "#FFD24A", "#7A3CFF"], spd: 2.4, up: 4, grav: 9, life: .8, size: .6, vary: 1, op: .55 }); sfx("coin"); }
+    c.rotation.y = time * .8 + c.userData.ph; c.children[0].position.y = .62 + Math.sin(time * 2.5 + c.userData.ph) * .06; });
   const cur = ps[G.turn], ct = cur && GFX.tok[cur.key], inMg = G.phase === "minigame" || G.phase === "mgres";
   stepBadgeFor(bd, ct, time);
   bd.hl.visible = !!ct && !inMg; if (ct) { bd.hl.position.x = ct.g.position.x; bd.hl.position.z = ct.g.position.z; bd.hl.position.y = (MAP.nodes[ct.shownT] ? MAP.nodes[ct.shownT].y || 0 : 0) + .53; bd.hl.scale.setScalar(1 + Math.sin(time * 4) * .08); }
@@ -897,22 +902,22 @@ function stepGrind(bd, dt, time) {
   if (k > 3.6) { a.bits.forEach(m => bd.scene.remove(m)); a.gate.position.copy(gp); a.gate.rotation.z = 0; bd.gr = null; }
 }
 /* ---------- minecart: a closed rail loop from the MC space up round the crater's central pillar and back down; HG.cart {pid, at, laps, n} sends a truck round it laps times ---------- */
-/* the loop: off the MC space, sideways onto a helix that climbs round the pillar (1⅓ turns, ending on the far side), straight across the top through the giant crystal,
-   then a straight run back down to the space. The helix only crosses the return run once, 1.3+ higher/lower, so the track never folds into itself */
+/* the track: a short straight spur from the MC space to the pillar, one climbing turn hugging the pillar, then straight into the giant crystal on top.
+   The cart rides up and back down the same track, so nothing ever crosses another tile or rail */
 function cartCurve(map) {
-  const mc = map.nodes.findIndex(n => n.t === "MC"); if (mc < 0) return null; const T = map.nodes[mc], isl = EDC.reg.island, C = isl ? isl.position : new THREE.Vector3(.87, 0, -.9), R = 4.4, y0 = (T.y || 0) + .55;
-  const sc = isl ? isl.scale.y : 1, top = C.y + 4.9 * sc, a0 = Math.atan2(T.z - C.z, T.x - C.x), dT = Math.hypot(T.x - C.x, T.z - C.z), at = (a, r, y) => new THREE.Vector3(C.x + Math.cos(a) * r, y, C.z + Math.sin(a) * r);
-  const P = [new THREE.Vector3(T.x, y0, T.z), at(a0 + .5, (dT + R) / 2 + .4, y0 + .3)], s0 = a0 + 1.05, sweep = Math.PI * 3 - 1.05;
-  for (let k = 0; k <= 16; k++) { const f = k / 16; P.push(at(s0 + f * sweep, R, y0 + .9 + f * (top - .6 - y0 - .9))); }
-  P.push(at(a0 + Math.PI, R * .45, top), new THREE.Vector3(C.x, top + .15, C.z), at(a0, R * .45, top), at(a0, R + .1, top - .3), at(a0 - .04, (R + dT) / 2, (top - .3 + y0) / 2 + .2));
-  return { mc, curve: new THREE.CatmullRomCurve3(P, true, "centripetal") };
+  const mc = map.nodes.findIndex(n => n.t === "MC"); if (mc < 0) return null; const T = map.nodes[mc], isl = EDC.reg.island, C = isl ? isl.position : new THREE.Vector3(.87, 0, -.9), sc = isl ? isl.scale.x : 1;
+  const R = 3.5 * sc + .3, y0 = (T.y || 0) + .55, top = C.y + 4.9 * (isl ? isl.scale.y : 1), a0 = Math.atan2(T.z - C.z, T.x - C.x), at = (a, r, y) => new THREE.Vector3(C.x + Math.cos(a) * r, y, C.z + Math.sin(a) * r);
+  const P = [new THREE.Vector3(T.x, y0, T.z), at(a0, R + 1.2, y0 + .15)];
+  for (let k = 0; k <= 12; k++) { const f = k / 12; P.push(at(a0 + .35 + f * Math.PI * 2.1, R, y0 + .4 + f * (top - .3 - y0 - .4))); }
+  P.push(at(a0 + .35 + Math.PI * 2.1 + .5, R * .5, top + .1), new THREE.Vector3(C.x, top + .25, C.z));
+  return { mc, curve: new THREE.CatmullRomCurve3(P, false, "centripetal") };
 }
 function buildCartRails(s, map) {
-  const cc = cartCurve(map); if (!cc) return null; const { curve } = cc, N = 220, up = new THREE.Vector3(0, 1, 0), L = [], Rr = [], g = new THREE.Group(); s.add(g);
-  for (let k = 0; k <= N; k++) { const u = k / N, p = curve.getPointAt(u), t = curve.getTangentAt(u), side = new THREE.Vector3().crossVectors(t, up).normalize().multiplyScalar(.22); L.push(p.clone().add(side)); Rr.push(p.clone().sub(side));
-    if (k % 4 === 0) { const tie = B(.12, .05, .62, "#6B4A36", 0, 0, 0); tie.position.copy(p).y -= .05; tie.lookAt(p.clone().add(side)); g.add(tie); }
-    if (k % 14 === 7 && u > .06 && u < .94) { const h = p.y + 1.5, post = B(.12, h, .12, "#4A3C36", p.x, p.y - .1 - h / 2, p.z); g.add(post); } }
-  [L, Rr].forEach(pts => g.add(mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts, true), N, .045, 5, true), "#3A3A40", { metalness: .4, roughness: .5 })));
+  const cc = cartCurve(map); if (!cc) return null; const { curve } = cc, N = 160, up = new THREE.Vector3(0, 1, 0), L = [], Rr = [], g = new THREE.Group(); s.add(g);
+  for (let k = 0; k <= N; k++) { const u = k / N, p = curve.getPointAt(u), t = curve.getTangentAt(u), side = new THREE.Vector3().crossVectors(t, up).normalize().multiplyScalar(.36); L.push(p.clone().add(side)); Rr.push(p.clone().sub(side));
+    if (k % 4 === 0) { const tie = B(.16, .06, .95, "#6B4A36", 0, 0, 0); tie.position.copy(p).y -= .05; tie.lookAt(p.clone().add(side)); g.add(tie); }
+    if (k % 22 === 11 && u > .12 && u < .85) { const h = p.y + 1.5, post = B(.16, h, .16, "#4A3C36", p.x, p.y - .1 - h / 2, p.z); g.add(post); } }
+  [L, Rr].forEach(pts => g.add(mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts, false), N, .075, 6, false), "#3A3A40", { metalness: .4, roughness: .5 })));
   const cart = cartMesh(); g.add(cart); const home = curve.getPointAt(0); cart.position.set(home.x, home.y - .5, home.z);
   return { ...cc, cart, g };
 }
@@ -930,8 +935,8 @@ function stepCart(bd, dt, time) {
     tg.position.set(w.x, w.y + 4.3 + Math.sin(time * 2) * .15, w.z); }
   const a = bd.ca, tok = a && GFX.tok[a.pid]; let u = 0;
   if (a && tok) { const k = time - a.t0, ride = k - .6, D = 5.6;
-    if (ride > 0 && ride < D) { const f = ride / D; u = f < .1 ? f * f / .2 : f > .9 ? 1 - (1 - f) * (1 - f) / .2 : f - .05; }
-    const p = c.curve.getPointAt(u), t = c.curve.getTangentAt(u); c.cart.position.set(p.x, p.y - .5, p.z); c.cart.rotation.set(0, Math.atan2(-t.z, t.x), Math.asin(Math.max(-1, Math.min(1, t.y))));
+    if (ride > 0 && ride < D) { const f = ride / D, h = f < .5 ? f * 2 : (1 - f) * 2; u = h * h * (3 - 2 * h); a.down = f > .5; }
+    const p = c.curve.getPointAt(u), t = c.curve.getTangentAt(u); if (a.down) t.negate(); c.cart.position.set(p.x, p.y - .5, p.z); c.cart.rotation.set(0, Math.atan2(-t.z, t.x), Math.asin(Math.max(-1, Math.min(1, t.y))));
     if (k < D + 1.1) { tok.g.position.set(p.x, p.y - .05 + (k < .6 ? Math.sin(k / .6 * Math.PI) * 1 : 0), p.z); tok.tr.rotation.y = Math.atan2(-t.z, t.x); if (k < .62 && k + dt >= .6) tok.sq = .3; }
     if (a.boom && !a.boomed && cy && p.distanceTo(cy.getWorldPosition(new THREE.Vector3())) < 1.6) { a.boomed = true; sfx("crush"); sfx("battery"); bd.crysK = 0;
       for (let q = 0; q < 3; q++) burst(bd.scene, p.x, p.y + .5 + q * .6, p.z, { n: 30, shape: "ico", cols: ["#5B2BB5", "#7A3CFF", "#B78CFF", "#FFFFFF"], spd: 6 + q * 2, up: 6, grav: 9, life: 1.6, size: 1.6 }); }

@@ -14,9 +14,9 @@ const UPGRADES = {
   scoop: { name: "Coin Scoop", cost: 12, icon: "🪣", desc: "+2 coins on blue spaces, +3 on scrap piles" },
   armor: { name: "Armor Plating", cost: 14, icon: "🛡️", desc: "Red spaces and crushers cost nothing, and Magnet Mike can't grab you" }
 };
-/* Volcano Quarry cargo: obsidian shards (crater-floor blues +1, obsidian +2) → ground into obsidian dust at a refinery (1 shard = 1 dust) → the factory melts 3 dust into a battery (+ 10 coins), or sells one for 50 coins */
+/* Volcano Quarry cargo: obsidian shards (crater-floor blues +1, obsidian +2) → ground into obsidian dust at a refinery (1 shard = 1 dust) → the factory melts 5 dust into a battery (+ 10 coins), or sells one for 50 coins */
 /* no carry limits on shards or dust (the map is meant to get wild) */
-const SHARD_MAX = 999, DUST_MAX = 999, DUST_BAT = 3, DUST_COINS = 10, RAW_PRICE = 50, BOT_RICH = 25, BIG_SHARD = 15;
+const SHARD_MAX = 999, DUST_MAX = 999, DUST_BAT = 5, DUST_COINS = 10, RAW_PRICE = 50, BOT_RICH = 25, BIG_SHARD = 15;
 const shardMap = () => !!(((typeof G !== "undefined" && G && MAPS[G.map]) || MAP) || {}).shards;
 const canDust = p => shardMap() && (p.dust | 0) >= DUST_BAT && p.coins >= DUST_COINS;
 const rawPrice = () => shardMap() ? RAW_PRICE : PRICE;
@@ -232,7 +232,7 @@ function resolveBuy(yes, seqCheck, how) {
   const p = pByKey(HG.buy.pid); delete offSince[p.key];
   HG.buy = null; HG.seq++; HG.phase = "moving";
   const cont = pendingCont || (() => land(p, true)); pendingCont = null;
-  /* Volcano Quarry: the factory melts 3 dust + 10 coins into a battery (the default when possible), or sells one for 50 coins */
+  /* Volcano Quarry: the factory melts 5 dust + 10 coins into a battery (the default when possible), or sells one for 50 coins */
   const cell = canDust(p) && how !== "coins", price = cell ? DUST_COINS : rawPrice();
   if (yes && p.coins >= price) { p.coins -= price; if (cell) p.dust -= DUST_BAT; p.bat++; HG.factory = pickFactory(HG.factory); HG.fx = { t: "bat", pid: p.key, n: rid() };
     HG.msg = `${p.name} bought a battery${shardMap() ? (cell ? ` melted from ${DUST_BAT} obsidian dust and ${DUST_COINS} coins` : ` for ${price} coins`) : ""}! The factory is moving.`; push(); later(cont, 6500); }
@@ -354,10 +354,10 @@ function rollGeysers() {
   HG.gyT = {}; const r = HG.round || 1, pool = MAP.nodes.map((n, i) => i).filter(i => { const n = MAP.nodes[i]; return !["GY", "MC"].includes(n.t) && !n.ref && !n.br && !flooded(i, r); });
   MAP.nodes.forEach((n, i) => { if (n.t !== "GY") return; const far = pool.filter(j => MAP.D[i][j] >= 4); const c = far.length ? far : pool; HG.gyT[i] = c[rnd(c.length)]; });
 }
-/* rising lava throws loose shards onto 6 dry spaces; they last until the lava drains */
+/* rising lava throws loose shards out of the volcano onto dry spaces, more each level (6, then 10); they last until the lava drains */
 function scatterShards(r) {
-  HG.loose = {}; const pool = MAP.nodes.map((n, i) => i).filter(i => { const n = MAP.nodes[i]; return !flooded(i, r) && !flooded(i, r + 1) && !n.ref && !n.br && !["GY", "MC", "S"].includes(n.t) && i !== HG.factory; });
-  for (let k = 0; k < 6 && pool.length; k++) HG.loose[pool.splice(rnd(pool.length), 1)[0]] = 1;
+  HG.loose = HG.loose || {}; const want = lavaLv(r) >= 2 ? 10 : 6; const pool = MAP.nodes.map((n, i) => i).filter(i => { const n = MAP.nodes[i]; return !flooded(i, r) && !flooded(i, r + 1) && !n.ref && !n.br && !["GY", "MC", "S"].includes(n.t) && i !== HG.factory; });
+  pool.splice(0, pool.length, ...pool.filter(i => !HG.loose[i])); for (let k = 0; k < want && pool.length; k++) HG.loose[pool.splice(rnd(pool.length), 1)[0]] = 1;
 }
 function lavaRound() {
   if (!MAP.lava || !HG) return;
@@ -383,7 +383,7 @@ function lavaRound() {
 /* end of every 7th round: lava bombs turn 4 ledge spaces into obsidian, trucks in the crater get launched to the rim */
 function eruption(done) {
   const pool = MAP.nodes.map((n, i) => i).filter(i => { const n = MAP.nodes[i]; return !n.lv && !n.br && ["B", "R", "E", "SC", "D", "SD"].includes(n.t) && !n.ref && i !== HG.factory; }), hits = [];
-  while (hits.length < 8 && pool.length) hits.push(pool.splice(rnd(pool.length), 1)[0]);
+  while (hits.length < 14 && pool.length) hits.push(pool.splice(rnd(pool.length), 1)[0]);
   HG.phase = "erupt"; HG.seq++; HG.erupt = { n: rid(), hits }; HG.ev = { title: "🌋 Eruption!", text: "The volcano blows! Lava bombs rain down all over the quarry.", n: rid() }; HG.msg = HG.ev.text; push();
   later(() => { if (!HG) return; const out = [], rim = MAP.nodes.map((n, i) => i).filter(i => MAP.nodes[i].rim && i !== HG.factory);
     HG.players.forEach(p => { const n = MAP.nodes[p.pos];
