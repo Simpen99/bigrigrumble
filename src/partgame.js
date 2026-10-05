@@ -54,7 +54,7 @@ function railPath(start) {
 }
 function railRide(p, done) {
   const start = p.pos, path = railPath(start); if (path[path.length - 1] !== start) path.push(start); let got = 0;
-  HG.ride = { pid: p.key, n: rid() }; HG.ev = { title: "Rail cart!", text: `${p.name} plops into a rail cart for a wild ride…`, n: rid() }; HG.msg = HG.ev.text; HG.phase = "moving"; push();
+  HG.ride = { pid: p.key, n: rid(), at: start, path: path.slice(), dt: .24 }; HG.ev = { title: "Rail cart!", text: `${p.name} plops into a rail cart for a wild ride…`, n: rid() }; HG.msg = HG.ev.text; HG.phase = "moving"; push();
   const st = k => { if (!HG) return; if (k >= path.length) { p.pos = start; p.from = null; HG.ride = null; HG.ev = { title: "Rail cart!", text: got ? `${p.name} rolls back in with ${plural(got, "loose shard")}!` : `${p.name} rolls back in empty-handed.`, n: rid() }; HG.msg = HG.ev.text; push(); later(done, 1700); return; }
     p.from = p.pos; p.pos = path[k]; if (HG.loose && HG.loose[p.pos]) { delete HG.loose[p.pos]; addShards(p, 1); got++; } push(); later(() => st(k + 1), 240); };
   later(() => st(0), 1100);

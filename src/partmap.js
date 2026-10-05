@@ -965,17 +965,28 @@ function stepCart(bd, dt, time) {
 }
 /* rail cart (MR spaces): the cart pops in beside the truck (on the camera side), the truck hops in, the cart rolls onto the road and rides under it
    for the whole trip; at the end the truck hops out and the cart rolls off and poofs. The truck sits on the cart floor via tr.position (g follows the board path) */
+/* 0..1 ride progress → distance along the route: speeds up over the first 6%, cruises, slows down over the last 6% */
+function rideEase(f, a = .06) { const v = 1 / (1 - a); return f < a ? v * f * f / (2 * a) : f > 1 - a ? 1 - v * (1 - f) * (1 - f) / (2 * a) : v * (f - a / 2); }
 function stepRideCart(bd, time) {
   const rc = bd.rideCart, rd = G.ride; if (!rc) return;
   if (bd.rideN === undefined) { bd.rideN = rd ? rd.n : null; if (rd) bd.rIn = { t0: time - 9, pid: rd.pid }; }
   else if (rd && rd.n !== bd.rideN) { bd.rideN = rd.n; bd.rIn = { t0: time, pid: rd.pid }; bd.rOut = null; }
   /* the ride is over on the host: keep rolling (fast steps via rideQ) until the truck is really back on its space, then hop out */
+  if (!rd && bd.rIn && bd.rIn.ids && GFX.tok[bd.rIn.pid]) { const t_ = GFX.tok[bd.rIn.pid], L_ = bd.rIn.ids[bd.rIn.ids.length - 1]; t_.q.length = 0; t_.anim = null; t_.shown = t_.shownT = L_; }
   if (!rd && bd.rIn) { const t_ = GFX.tok[bd.rIn.pid]; if (t_ && (t_.anim || t_.q.length)) t_.rideQ = 1; else { if (t_) t_.rideQ = 0; bd.rOut = { t0: time, pid: bd.rIn.pid }; bd.rIn = null; bd.rideN = null; } }
   const st = bd.rIn || bd.rOut, tk = st && GFX.tok[st.pid];
   if (!tk) { rc.visible = false; if (st) { bd.rIn = bd.rOut = null; } return; }
+  /* the host sends the whole route: drive the truck along one smooth curve through every space at a steady speed (gentle start and stop),
+     timed to the host's steps (first one 1.1 s after the ride starts, then rd.dt each); the per-step board moves are dropped meanwhile */
+  if (bd.rIn && rd && rd.path && rd.path.length) { const R_ = bd.rIn;
+    if (!R_.cv) { const ids = [rd.at].concat(rd.path).filter((v, i, A) => !i || v !== A[i - 1]); R_.ids = ids; R_.D = rd.path.length * (rd.dt || .24); R_.cv = ids.length > 1 ? new THREE.CatmullRomCurve3(ids.map(i => tilePos(i, [0, 0])), false, "centripetal") : null; }
+    const f = (time - R_.t0 - 1.1) / R_.D;
+    if (R_.cv && f > 0) { const u = rideEase(Math.min(1, f)), p = R_.cv.getPointAt(u), tg = R_.cv.getTangentAt(u), id = R_.ids[Math.round(u * (R_.ids.length - 1))];
+      tk.g.position.copy(p); tk.q.length = 0; tk.anim = null; tk.shown = tk.shownT = id; tk.yaw = tk.yawT = Math.atan2(-tg.z, tg.x); tk.tr.rotation.y = tk.yaw; tk.tr.rotation.z = Math.asin(Math.max(-1, Math.min(1, tg.y))); } }
+  if (bd.rOut && !st.flat) { st.flat = 1; tk.tr.rotation.z = 0; }
   const g = tk.g.position, tr = tk.tr, k = time - st.t0, cl = v => Math.max(0, Math.min(1, v)), ez = f => f * f * (3 - 2 * f);
   if (!st.side) { const y = tr.rotation.y, s = new THREE.Vector3(Math.sin(y), 0, Math.cos(y)); if (GFX.camPos && s.dot(GFX.camPos.clone().sub(g)) < 0) s.negate(); st.side = s.multiplyScalar(1.7); }
-  rc.visible = true; rc.rotation.y = tr.rotation.y; const S = st.side;
+  rc.visible = true; rc.rotation.set(0, tr.rotation.y, tr.rotation.z); const S = st.side;
   if (bd.rIn) {
     const pop = cl(k / .35), hf = cl((k - .35) / .5), gl = ez(cl((k - .85) / .3)), off = S.clone().multiplyScalar(1 - gl);
     if (!st.puff && k < 1) { st.puff = 1; burst(bd.scene, g.x + S.x, g.y + .3, g.z + S.z, { n: 12, shape: "ico", cols: DUST, spd: 2, up: 2, grav: 6, life: .6 }); sfx("step"); }
