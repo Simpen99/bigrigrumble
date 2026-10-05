@@ -92,6 +92,9 @@ function handleAct(pl, act) {
   const c = cur();
   if (act.t === "roll" && HG.phase === "turn" && c.key === pl.key) doRoll(pl, act.die === "char" ? "char" : "std");
   else if (act.t === "item" && HG.phase === "turn" && c.key === pl.key) useItem(pl, act);
+  else if (HG.test && act.t === "troll" && HG.phase === "turn" && c.key === pl.key) { HG.mod.fixed = Math.max(1, Math.min(20, act.n | 0)); doRoll(pl, "std"); }
+  else if (HG.test && act.t === "tjump" && HG.phase === "turn" && c.key === pl.key && MAP.nodes[act.to | 0]) { pl.pos = act.to | 0; pl.from = null; HG.phase = "moving"; HG.seq++; HG.left = 0; HG.msg = `${pl.name} jumps to a space (test mode).`; push(); later(() => land(pl, true), 900); }
+  else if (HG.test && act.t === "tgive" && HG.phase === "turn" && c.key === pl.key) { const w = String(act.w); if (w === "coins") pl.coins += 20; if (w === "shards") pl.shards = (pl.shards | 0) + 5; if (w === "dust") pl.dust = (pl.dust | 0) + 3; if (w === "lava") { HG.round++; lavaRound(); } HG.seq++; push(); }
   else if (act.t === "buy" && HG.phase === "buy" && HG.buy && HG.buy.pid === pl.key) resolveBuy(!!act.yes, undefined, act.how === "coins" ? "coins" : "cell");
   else if (act.t === "fork" && HG.phase === "fork" && HG.fork && HG.fork.pid === pl.key) resolveFork(Number(act.to));
   else if (act.t === "shop" && HG.phase === "shop" && HG.shop && HG.shop.pid === pl.key) resolveShop(pl, typeof act.what === "string" ? act.what : null);
@@ -494,7 +497,7 @@ function panelHTML() {
     const items = (c.items || []).length ? `<div class="itemrow">${c.items.map((k, i) => `<button class="itm" data-item="${i}" ${used ? "disabled" : ""}><b>${ITEMS[k].icon}</b><span>${esc(ITEMS[k].name)}<small>${esc(ITEMS[k].desc)}</small></span></button>`).join("")}</div>` : "";
     return `<div class="pan">${c.local || hasLocal ? `<h3>${head}</h3>` : ""}${items}${used ? `<p class="panhint">Item used. Now roll!</p>` : factoryHint(c)}<div class="dice2">
       <button class="diebtn" data-roll="std" data-for="${esc(c.key)}"><b>Standard${diceMul() !== 1 ? ` ×${diceMul()}` : ""}</b>${facesHTML(mulFaces(STD))}</button>
-      <button class="diebtn char" data-roll="char" data-for="${esc(c.key)}"><b>${esc(t.name)}</b>${facesHTML(mulFaces(t.faces))}</button></div></div>`;
+      <button class="diebtn char" data-roll="char" data-for="${esc(c.key)}"><b>${esc(t.name)}</b>${facesHTML(mulFaces(t.faces))}</button></div>${G.test ? testHTML(c) : ""}</div>`;
   }
   if (G.phase === "fork" && G.fork && ctrl(P_(G.fork.pid))) {
     const p = P_(G.fork.pid), n = MAP.nodes[G.fork.at !== undefined ? G.fork.at : p.pos];
@@ -552,6 +555,11 @@ function roadLabel(n, at, o, k) {
   const m = MAP.nodes[o], back = !n.next.includes(o), rg = REGION(m), same = rg && rg === REGION(n);
   return back ? `Turn back${rg && !same ? ` to ${rg}` : rg ? ` along ${rg}` : ""}` : rg && !same ? `Onto ${rg}` : n.next.length > 1 ? `Path ${k + 1}` : "Keep going";
 }
+/* test mode (lobby setting): pick the exact roll, tap any space to jump there and trigger it, top up coins/shards/dust, skip the lava ahead a round */
+function testHTML(c) {
+  return `<div class="testbox"><h4>🧪 Test mode</h4><div class="numgrid">${Array.from({ length: 12 }, (_, k) => `<button class="numb" data-troll="${k + 1}">${k + 1}</button>`).join("")}</div>
+    <div class="row" style="margin-top:6px;flex-wrap:wrap;gap:6px"><button class="btn ghost small" data-a="tjump">${GFX.jumpPick ? "Tap a space on the board… (cancel)" : "📍 Jump to a space"}</button><button class="btn ghost small" data-tgive="coins">+20 coins</button>${shardMap() ? `<button class="btn ghost small" data-tgive="shards">+5 shards</button><button class="btn ghost small" data-tgive="dust">+3 dust</button>` : ""}${MAP.lava ? `<button class="btn ghost small" data-tgive="lava">Next lava round</button>` : ""}</div></div>`;
+}
 const LASTST = {};
 const bIco = () => shardMap() ? batIcoV : batIco;
 /* Volcano Quarry cargo on a player card: shards and obsidian dust */
@@ -578,11 +586,15 @@ document.addEventListener("click", e => {
   if (d.itarget !== undefined && uiPick) { act({ t: "item", idx: uiPick.idx, target: d.itarget, seq: G.seq }, uiPick.key); uiPick = null; refreshPanel(); unstick(); return; }
   if (d.ival !== undefined && uiPick) { act({ t: "item", idx: uiPick.idx, val: +d.ival, seq: G.seq }, uiPick.key); uiPick = null; refreshPanel(); unstick(); return; }
   if (d.a === "pickcancel") { uiPick = null; refreshPanel(); return; }
+  if (d.troll !== undefined) { const c = G.players[G.turn]; if (c && ctrl(c)) { act({ t: "troll", n: +d.troll, seq: G.seq }, c.key); unstick(); } return; }
+  if (d.tgive) { const c = G.players[G.turn]; if (c && ctrl(c)) act({ t: "tgive", w: d.tgive, seq: G.seq }, c.key); return; }
+  if (d.a === "tjump") { const c = G.players[G.turn]; if (!c || !ctrl(c)) return; if (GFX.jumpPick) { GFX.jumpPick = null; refreshPanel(); return; } GFX.jumpPick = i => { GFX.jumpPick = null; act({ t: "tjump", to: i, seq: G.seq }, c.key); refreshPanel(); }; refreshPanel(); return; }
   if (d.fork !== undefined && G.fork) { b.disabled = true; act({ t: "fork", to: +d.fork, seq: G.seq }, G.fork.pid); unstick(); return; }
   if (d.shop !== undefined && G.shop) { b.disabled = true; act({ t: "shop", what: d.shop || null, seq: G.seq }, G.shop.pid); unstick(); return; }
   if (d.duel !== undefined && G.duelPick) { b.disabled = true; act({ t: "duel", target: d.duel, seq: G.seq }, G.duelPick.pid); unstick(); return; }
   if (role === "host" && HG && HG.phase === "lobby") {
     if (d.map) { HG.map = MAPS[d.map] ? d.map : "junk"; MAP = MAPS[HG.map]; push(); return; }
+    if (d.test) { HG.test = d.test === "on"; push(); return; }
     if (d.mode) { HG.teams = d.mode === "teams"; HG.players.forEach((p, i) => { if (p.team === undefined) p.team = i % 2; }); push(); return; }
     if (d.team) { const p = pByKey(d.team); if (p) { p.team = (p.team || 0) ? 0 : 1; push(); } return; }
   }

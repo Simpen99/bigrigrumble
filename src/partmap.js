@@ -789,7 +789,7 @@ function syncBoard() {
   /* loose shards from rising lava: a glowing crystal hovering over the space, popping in and out */
   const loose = G.loose || {}, LC = ["#7A3CFF", "#B78CFF", "#FFFFFF"];
   Object.keys(bd.loose).forEach(k => { if (loose[k]) return; const m = bd.loose[k]; burst(bd.scene, m.position.x, m.position.y, m.position.z, { n: 10, shape: "ico", cols: LC, spd: 2.5, up: 3, grav: 8, life: .7 }); bd.scene.remove(m); delete bd.loose[k]; });
-  Object.keys(loose).forEach(k => { const n = MAP.nodes[k]; if (bd.loose[k] || !n) return; const c = obsidianMesh(.7); c.position.set(n.x, (n.y || 0) + .95, n.z); c.userData.ph = +k; bd.scene.add(c); bd.loose[k] = c; burst(bd.scene, n.x, (n.y || 0) + 1, n.z, { n: 12, shape: "ico", cols: ["#FF7A2A", "#FFD24A", "#7A3CFF"], spd: 3, up: 5, grav: 9, life: .9 }); });
+  Object.keys(loose).forEach(k => { const n = MAP.nodes[k]; if (bd.loose[k] || !n) return; const c = new THREE.Group(), x1 = mesh(xtalGeo(), "#5B2BB5", { emissive: "#7A3CFF", emissiveIntensity: .5, roughness: .25 }); x1.scale.set(1.1, 1.25, 1.1); x1.position.y = .62; c.add(x1); c.position.set(n.x, (n.y || 0) + .5, n.z); c.userData.ph = +k; bd.scene.add(c); bd.loose[k] = c; burst(bd.scene, n.x, (n.y || 0) + 1, n.z, { n: 12, shape: "ico", cols: ["#FF7A2A", "#FFD24A", "#7A3CFF"], spd: 3, up: 5, grav: 9, life: .9 }); });
   ps.forEach(p => {
     let t = GFX.tok[p.key];
     if (!t || t.truck !== p.truck) {
@@ -843,7 +843,7 @@ function stepBoard(dt, time) {
     t.yaw = lerpA(t.yaw, t.yawT || 0, Math.min(1, dt * 10)); t.tr.rotation.y = t.yaw;
     { const pp = t.g.position, sp = t.lp && dt > 0 ? Math.hypot(pp.x - t.lp.x, pp.z - t.lp.z) / dt : 0; t.lp = pp.clone(); animTruck(t.tr, dt, Math.min(sp, 14)); }
   });
-  stepCart(bd, dt, time); Object.values(bd.loose).forEach(c => { c.rotation.y = time * 1.5 + c.userData.ph; c.position.y += Math.sin(time * 3 + c.userData.ph) * .004; });
+  stepCart(bd, dt, time); Object.values(bd.loose).forEach(c => { c.rotation.y = time * .8 + c.userData.ph; c.children[0].position.y = .62 + Math.sin(time * 2.5 + c.userData.ph) * .06; });
   const cur = ps[G.turn], ct = cur && GFX.tok[cur.key], inMg = G.phase === "minigame" || G.phase === "mgres";
   stepBadgeFor(bd, ct, time);
   bd.hl.visible = !!ct && !inMg; if (ct) { bd.hl.position.x = ct.g.position.x; bd.hl.position.z = ct.g.position.z; bd.hl.position.y = (MAP.nodes[ct.shownT] ? MAP.nodes[ct.shownT].y || 0 : 0) + .53; bd.hl.scale.setScalar(1 + Math.sin(time * 4) * .08); }
@@ -963,6 +963,12 @@ function stepBadgeFor(bd, ct, time) {
   const pk = time - b.popT, pop = pk < .25 ? 1 + Math.sin(pk / .25 * Math.PI) * .35 : 1;
   b.g.position.set(ct.g.position.x, ct.g.position.y + 3.35 + Math.sin(time * 3) * .08, ct.g.position.z); b.g.lookAt(GFX.cam.position); b.g.scale.setScalar(pop); b.disc.rotation.y = Math.sin(time * 2.2) * .35;
 }
+/* test mode: which board space is under this screen point (-1 if none) */
+function pickNodeAt(cx, cy) {
+  const bd = GFX.board, cv = $("#gl"); if (!bd || !cv) return -1; const r = cv.getBoundingClientRect(), rc = new THREE.Raycaster();
+  rc.setFromCamera(new THREE.Vector2((cx - r.left) / r.width * 2 - 1, -((cy - r.top) / r.height) * 2 + 1), GFX.cam);
+  const hit = rc.intersectObjects(bd.nodeG.filter(Boolean), true)[0]; let o = hit && hit.object; while (o && !(o.userData && o.userData.node !== undefined)) o = o.parent; return o ? o.userData.node : -1;
+}
 /* follow camera: pulled back a little, and swung gently toward the middle of the board depending on which side the truck is on */
 function followCamPos(tgt, aspect, k) {
   const d = (aspect < 1 ? 1.45 : 1.12) * k * (MAP.follow || 1), yaw = Math.max(-1, Math.min(1, tgt.x / (22 * (MAP.size || 1)))) * .3, h = 15 * d;
@@ -997,7 +1003,7 @@ function initCamInput() {
       pair = n;
     }
   });
-  const end = e => { pts.delete(e.pointerId); pair = pts.size === 2 ? pairInfo() : null; if (!pts.size) GFX.dragging = false; };
+  const end = e => { if (GFX.jumpPick && moved < 8 && pts.has(e.pointerId)) { const i = pickNodeAt(e.clientX, e.clientY); if (i >= 0) GFX.jumpPick(i); } pts.delete(e.pointerId); pair = pts.size === 2 ? pairInfo() : null; if (!pts.size) GFX.dragging = false; };
   cv.addEventListener("pointerup", end); cv.addEventListener("pointercancel", end);
   cv.addEventListener("contextmenu", e => { if (active()) e.preventDefault(); });
   GFX.toFree = toFree; GFX.camPan = pan; GFX.clampOv = clampOv;

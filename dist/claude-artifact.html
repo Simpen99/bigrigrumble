@@ -226,7 +226,7 @@ body.mgres .hudtop,body.mgres .hudbot{display:none}
 .optgrid{display:grid;gap:8px}
 .optb{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:var(--hud2);border:1px solid var(--hudline);border-radius:14px;padding:9px 12px;color:#fff}
 .optb:active{background:rgba(255,200,61,.2)}
-.optb:disabled{opacity:.45}.optb .optn .ico{width:22px;height:22px}.optb img{width:52px;height:36px;object-fit:contain}.optb span{font-weight:800;flex:1}.optb small{display:block;font-weight:500;font-size:12px;color:#b9c4d2}
+.testbox{margin-top:10px;padding:8px;border:1.5px dashed #B78CFF;border-radius:12px}.testbox h4{margin:0 0 6px;font-size:13px;color:#B78CFF}.optb:disabled{opacity:.45}.optb .optn .ico{width:22px;height:22px}.optb img{width:52px;height:36px;object-fit:contain}.optb span{font-weight:800;flex:1}.optb small{display:block;font-weight:500;font-size:12px;color:#b9c4d2}
 .optn{flex:none;width:34px;height:34px;border-radius:50%;background:var(--yellow);color:#151B24;display:grid;place-items:center;font-family:var(--display);font-size:17px}
 .numgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
 .numb{border:0;border-radius:12px;padding:12px 0;background:var(--yellow);color:#151B24;font-family:var(--display);font-size:20px}
@@ -1777,7 +1777,7 @@ function syncBoard() {
   /* loose shards from rising lava: a glowing crystal hovering over the space, popping in and out */
   const loose = G.loose || {}, LC = ["#7A3CFF", "#B78CFF", "#FFFFFF"];
   Object.keys(bd.loose).forEach(k => { if (loose[k]) return; const m = bd.loose[k]; burst(bd.scene, m.position.x, m.position.y, m.position.z, { n: 10, shape: "ico", cols: LC, spd: 2.5, up: 3, grav: 8, life: .7 }); bd.scene.remove(m); delete bd.loose[k]; });
-  Object.keys(loose).forEach(k => { const n = MAP.nodes[k]; if (bd.loose[k] || !n) return; const c = obsidianMesh(.7); c.position.set(n.x, (n.y || 0) + .95, n.z); c.userData.ph = +k; bd.scene.add(c); bd.loose[k] = c; burst(bd.scene, n.x, (n.y || 0) + 1, n.z, { n: 12, shape: "ico", cols: ["#FF7A2A", "#FFD24A", "#7A3CFF"], spd: 3, up: 5, grav: 9, life: .9 }); });
+  Object.keys(loose).forEach(k => { const n = MAP.nodes[k]; if (bd.loose[k] || !n) return; const c = new THREE.Group(), x1 = mesh(xtalGeo(), "#5B2BB5", { emissive: "#7A3CFF", emissiveIntensity: .5, roughness: .25 }); x1.scale.set(1.1, 1.25, 1.1); x1.position.y = .62; c.add(x1); c.position.set(n.x, (n.y || 0) + .5, n.z); c.userData.ph = +k; bd.scene.add(c); bd.loose[k] = c; burst(bd.scene, n.x, (n.y || 0) + 1, n.z, { n: 12, shape: "ico", cols: ["#FF7A2A", "#FFD24A", "#7A3CFF"], spd: 3, up: 5, grav: 9, life: .9 }); });
   ps.forEach(p => {
     let t = GFX.tok[p.key];
     if (!t || t.truck !== p.truck) {
@@ -1831,7 +1831,7 @@ function stepBoard(dt, time) {
     t.yaw = lerpA(t.yaw, t.yawT || 0, Math.min(1, dt * 10)); t.tr.rotation.y = t.yaw;
     { const pp = t.g.position, sp = t.lp && dt > 0 ? Math.hypot(pp.x - t.lp.x, pp.z - t.lp.z) / dt : 0; t.lp = pp.clone(); animTruck(t.tr, dt, Math.min(sp, 14)); }
   });
-  stepCart(bd, dt, time); Object.values(bd.loose).forEach(c => { c.rotation.y = time * 1.5 + c.userData.ph; c.position.y += Math.sin(time * 3 + c.userData.ph) * .004; });
+  stepCart(bd, dt, time); Object.values(bd.loose).forEach(c => { c.rotation.y = time * .8 + c.userData.ph; c.children[0].position.y = .62 + Math.sin(time * 2.5 + c.userData.ph) * .06; });
   const cur = ps[G.turn], ct = cur && GFX.tok[cur.key], inMg = G.phase === "minigame" || G.phase === "mgres";
   stepBadgeFor(bd, ct, time);
   bd.hl.visible = !!ct && !inMg; if (ct) { bd.hl.position.x = ct.g.position.x; bd.hl.position.z = ct.g.position.z; bd.hl.position.y = (MAP.nodes[ct.shownT] ? MAP.nodes[ct.shownT].y || 0 : 0) + .53; bd.hl.scale.setScalar(1 + Math.sin(time * 4) * .08); }
@@ -1951,6 +1951,12 @@ function stepBadgeFor(bd, ct, time) {
   const pk = time - b.popT, pop = pk < .25 ? 1 + Math.sin(pk / .25 * Math.PI) * .35 : 1;
   b.g.position.set(ct.g.position.x, ct.g.position.y + 3.35 + Math.sin(time * 3) * .08, ct.g.position.z); b.g.lookAt(GFX.cam.position); b.g.scale.setScalar(pop); b.disc.rotation.y = Math.sin(time * 2.2) * .35;
 }
+/* test mode: which board space is under this screen point (-1 if none) */
+function pickNodeAt(cx, cy) {
+  const bd = GFX.board, cv = $("#gl"); if (!bd || !cv) return -1; const r = cv.getBoundingClientRect(), rc = new THREE.Raycaster();
+  rc.setFromCamera(new THREE.Vector2((cx - r.left) / r.width * 2 - 1, -((cy - r.top) / r.height) * 2 + 1), GFX.cam);
+  const hit = rc.intersectObjects(bd.nodeG.filter(Boolean), true)[0]; let o = hit && hit.object; while (o && !(o.userData && o.userData.node !== undefined)) o = o.parent; return o ? o.userData.node : -1;
+}
 /* follow camera: pulled back a little, and swung gently toward the middle of the board depending on which side the truck is on */
 function followCamPos(tgt, aspect, k) {
   const d = (aspect < 1 ? 1.45 : 1.12) * k * (MAP.follow || 1), yaw = Math.max(-1, Math.min(1, tgt.x / (22 * (MAP.size || 1)))) * .3, h = 15 * d;
@@ -1985,7 +1991,7 @@ function initCamInput() {
       pair = n;
     }
   });
-  const end = e => { pts.delete(e.pointerId); pair = pts.size === 2 ? pairInfo() : null; if (!pts.size) GFX.dragging = false; };
+  const end = e => { if (GFX.jumpPick && moved < 8 && pts.has(e.pointerId)) { const i = pickNodeAt(e.clientX, e.clientY); if (i >= 0) GFX.jumpPick(i); } pts.delete(e.pointerId); pair = pts.size === 2 ? pairInfo() : null; if (!pts.size) GFX.dragging = false; };
   cv.addEventListener("pointerup", end); cv.addEventListener("pointercancel", end);
   cv.addEventListener("contextmenu", e => { if (active()) e.preventDefault(); });
   GFX.toFree = toFree; GFX.camPan = pan; GFX.clampOv = clampOv;
@@ -2390,6 +2396,7 @@ function lobbyHTML() {
     ${localForm ? `<div class="localform"><label class="field">Name<input id="lname" maxlength="12" placeholder="Player name" autocomplete="off"></label><label class="field" style="margin-top:8px">Truck<select class="inp" id="ltruck">${TRUCKS.map((t, i) => `<option value="${i}">${esc(t.name)}</option>`).join("")}</select></label><button class="btn go small" data-a="addlocalok" style="width:100%;margin-top:10px">Add player</button></div>` : ""}` : ""}</section>`;
   const settings = host ? `<section class="sheet"><h2>Map</h2><div class="mapgrid">${Object.values(MAPS).map(m => `<button class="mapb ${G.map === m.id ? "on" : ""}" data-map="${m.id}"><b>${esc(m.name)}</b><small>${esc(m.blurb)}</small>${m.dice ? `<em class="mapdice">🎲 ${m.dice}x dice multiplier</em>` : ""}</button>`).join("")}</div>${mapRulesHTML()}</section>
     <section class="sheet"><h2>Mode</h2><div class="seg"><button data-mode="ffa" class="${!G.teams ? "on" : ""}">Free-for-all</button><button data-mode="teams" class="${G.teams ? "on" : ""}">Teams</button></div>${G.teams ? `<p class="note">Teammates add their batteries together and can't duel or rob each other. Tap a team badge to switch a driver's team.</p>` : ""}</section>
+    <section class="sheet"><h2>Test mode</h2><div class="seg"><button data-test="off" class="${!G.test ? "on" : ""}">Off</button><button data-test="on" class="${G.test ? "on" : ""}">On</button></div>${G.test ? `<p class="note">On your turn you can pick your exact roll, tap any space to jump there and trigger it, and top up coins, shards and dust.</p>` : ""}</section>
     <section class="sheet"><h2>Rounds</h2><div class="seg">${[4, 6, 8, 10, 12, 16].map(r => `<button data-rounds="${r}" class="${G.rounds === r ? "on" : ""}">${r}</button>`).join("")}</div></section>
     <section class="sheet stack"><button class="btn go" data-a="start" ${G.players.length < 2 ? "disabled" : ""}>${G.players.length < 2 ? "Waiting for another driver" : "Start the race"}</button><button class="btn ghost" data-a="quit">Close game</button></section>`
     : `<section class="sheet"><h2>Waiting for ${esc(G.hostName || "the host")} to start</h2><p class="note" style="margin-top:0">Game ${esc(G.code || "")}: ${esc((MAPS[G.map] || JUNK).name)}, ${G.rounds} rounds${G.teams ? ", teams" : ""}. You're driving ${esc(TRUCKS[me.truck].name)}.</p>
@@ -2538,6 +2545,9 @@ function handleAct(pl, act) {
   const c = cur();
   if (act.t === "roll" && HG.phase === "turn" && c.key === pl.key) doRoll(pl, act.die === "char" ? "char" : "std");
   else if (act.t === "item" && HG.phase === "turn" && c.key === pl.key) useItem(pl, act);
+  else if (HG.test && act.t === "troll" && HG.phase === "turn" && c.key === pl.key) { HG.mod.fixed = Math.max(1, Math.min(20, act.n | 0)); doRoll(pl, "std"); }
+  else if (HG.test && act.t === "tjump" && HG.phase === "turn" && c.key === pl.key && MAP.nodes[act.to | 0]) { pl.pos = act.to | 0; pl.from = null; HG.phase = "moving"; HG.seq++; HG.left = 0; HG.msg = `${pl.name} jumps to a space (test mode).`; push(); later(() => land(pl, true), 900); }
+  else if (HG.test && act.t === "tgive" && HG.phase === "turn" && c.key === pl.key) { const w = String(act.w); if (w === "coins") pl.coins += 20; if (w === "shards") pl.shards = (pl.shards | 0) + 5; if (w === "dust") pl.dust = (pl.dust | 0) + 3; if (w === "lava") { HG.round++; lavaRound(); } HG.seq++; push(); }
   else if (act.t === "buy" && HG.phase === "buy" && HG.buy && HG.buy.pid === pl.key) resolveBuy(!!act.yes, undefined, act.how === "coins" ? "coins" : "cell");
   else if (act.t === "fork" && HG.phase === "fork" && HG.fork && HG.fork.pid === pl.key) resolveFork(Number(act.to));
   else if (act.t === "shop" && HG.phase === "shop" && HG.shop && HG.shop.pid === pl.key) resolveShop(pl, typeof act.what === "string" ? act.what : null);
@@ -2940,7 +2950,7 @@ function panelHTML() {
     const items = (c.items || []).length ? `<div class="itemrow">${c.items.map((k, i) => `<button class="itm" data-item="${i}" ${used ? "disabled" : ""}><b>${ITEMS[k].icon}</b><span>${esc(ITEMS[k].name)}<small>${esc(ITEMS[k].desc)}</small></span></button>`).join("")}</div>` : "";
     return `<div class="pan">${c.local || hasLocal ? `<h3>${head}</h3>` : ""}${items}${used ? `<p class="panhint">Item used. Now roll!</p>` : factoryHint(c)}<div class="dice2">
       <button class="diebtn" data-roll="std" data-for="${esc(c.key)}"><b>Standard${diceMul() !== 1 ? ` ×${diceMul()}` : ""}</b>${facesHTML(mulFaces(STD))}</button>
-      <button class="diebtn char" data-roll="char" data-for="${esc(c.key)}"><b>${esc(t.name)}</b>${facesHTML(mulFaces(t.faces))}</button></div></div>`;
+      <button class="diebtn char" data-roll="char" data-for="${esc(c.key)}"><b>${esc(t.name)}</b>${facesHTML(mulFaces(t.faces))}</button></div>${G.test ? testHTML(c) : ""}</div>`;
   }
   if (G.phase === "fork" && G.fork && ctrl(P_(G.fork.pid))) {
     const p = P_(G.fork.pid), n = MAP.nodes[G.fork.at !== undefined ? G.fork.at : p.pos];
@@ -2998,6 +3008,11 @@ function roadLabel(n, at, o, k) {
   const m = MAP.nodes[o], back = !n.next.includes(o), rg = REGION(m), same = rg && rg === REGION(n);
   return back ? `Turn back${rg && !same ? ` to ${rg}` : rg ? ` along ${rg}` : ""}` : rg && !same ? `Onto ${rg}` : n.next.length > 1 ? `Path ${k + 1}` : "Keep going";
 }
+/* test mode (lobby setting): pick the exact roll, tap any space to jump there and trigger it, top up coins/shards/dust, skip the lava ahead a round */
+function testHTML(c) {
+  return `<div class="testbox"><h4>🧪 Test mode</h4><div class="numgrid">${Array.from({ length: 12 }, (_, k) => `<button class="numb" data-troll="${k + 1}">${k + 1}</button>`).join("")}</div>
+    <div class="row" style="margin-top:6px;flex-wrap:wrap;gap:6px"><button class="btn ghost small" data-a="tjump">${GFX.jumpPick ? "Tap a space on the board… (cancel)" : "📍 Jump to a space"}</button><button class="btn ghost small" data-tgive="coins">+20 coins</button>${shardMap() ? `<button class="btn ghost small" data-tgive="shards">+5 shards</button><button class="btn ghost small" data-tgive="dust">+3 dust</button>` : ""}${MAP.lava ? `<button class="btn ghost small" data-tgive="lava">Next lava round</button>` : ""}</div></div>`;
+}
 const LASTST = {};
 const bIco = () => shardMap() ? batIcoV : batIco;
 /* Volcano Quarry cargo on a player card: shards and obsidian dust */
@@ -3024,11 +3039,15 @@ document.addEventListener("click", e => {
   if (d.itarget !== undefined && uiPick) { act({ t: "item", idx: uiPick.idx, target: d.itarget, seq: G.seq }, uiPick.key); uiPick = null; refreshPanel(); unstick(); return; }
   if (d.ival !== undefined && uiPick) { act({ t: "item", idx: uiPick.idx, val: +d.ival, seq: G.seq }, uiPick.key); uiPick = null; refreshPanel(); unstick(); return; }
   if (d.a === "pickcancel") { uiPick = null; refreshPanel(); return; }
+  if (d.troll !== undefined) { const c = G.players[G.turn]; if (c && ctrl(c)) { act({ t: "troll", n: +d.troll, seq: G.seq }, c.key); unstick(); } return; }
+  if (d.tgive) { const c = G.players[G.turn]; if (c && ctrl(c)) act({ t: "tgive", w: d.tgive, seq: G.seq }, c.key); return; }
+  if (d.a === "tjump") { const c = G.players[G.turn]; if (!c || !ctrl(c)) return; if (GFX.jumpPick) { GFX.jumpPick = null; refreshPanel(); return; } GFX.jumpPick = i => { GFX.jumpPick = null; act({ t: "tjump", to: i, seq: G.seq }, c.key); refreshPanel(); }; refreshPanel(); return; }
   if (d.fork !== undefined && G.fork) { b.disabled = true; act({ t: "fork", to: +d.fork, seq: G.seq }, G.fork.pid); unstick(); return; }
   if (d.shop !== undefined && G.shop) { b.disabled = true; act({ t: "shop", what: d.shop || null, seq: G.seq }, G.shop.pid); unstick(); return; }
   if (d.duel !== undefined && G.duelPick) { b.disabled = true; act({ t: "duel", target: d.duel, seq: G.seq }, G.duelPick.pid); unstick(); return; }
   if (role === "host" && HG && HG.phase === "lobby") {
     if (d.map) { HG.map = MAPS[d.map] ? d.map : "junk"; MAP = MAPS[HG.map]; push(); return; }
+    if (d.test) { HG.test = d.test === "on"; push(); return; }
     if (d.mode) { HG.teams = d.mode === "teams"; HG.players.forEach((p, i) => { if (p.team === undefined) p.team = i % 2; }); push(); return; }
     if (d.team) { const p = pByKey(d.team); if (p) { p.team = (p.team || 0) ? 0 : 1; push(); } return; }
   }
