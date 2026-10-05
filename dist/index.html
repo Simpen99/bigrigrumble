@@ -24351,7 +24351,7 @@ function texBox(w, h, d, tex, tile, x, y, z, o) {
 	m.receiveShadow = true;
 	return m;
 }
-/* decal sprites drawn on one canvas sheet: oil stain (bottom-left), drain grate (bottom-right); the top row is unused */
+/* decal sprites drawn on one canvas sheet: oil stain (bottom-left quadrant; the rest is unused) */
 const wearSheet = () =>
 	SCN_TEX.wear ||
 	(SCN_TEX.wear = canvasTex(256, 256, (x) => {
@@ -24388,13 +24388,6 @@ const wearSheet = () =>
 			x.fillStyle = q;
 			x.fillRect(0, 128, 128, 128);
 			x.restore();
-		}
-		{
-			// drain grate (1,1)
-			x.fillStyle = "#2A2D33";
-			x.fillRect(150, 160, 84, 60);
-			x.fillStyle = "#5E636D";
-			for (let k = 0; k < 7; k++) x.fillRect(156 + k * 11, 166, 6, 48);
 		}
 	}));
 /* four different cracks (one per quadrant): a wandering main line with a couple of branches */
@@ -24507,14 +24500,13 @@ function roadLines(s, xs, z0, z1, y, o = {}) {
 	im.renderOrder = 1;
 	s.add(im);
 }
-/* scatter road wear over a strip: oil stains, cracks, drains along the edges (one instanced mesh per kind) */
+/* scatter road wear over a strip: oil stains and cracks (one instanced mesh per kind) */
 function roadWear(s, x0, x1, z0, z1, y, density = 1) {
 	const sheet = wearSheet(),
 		L = Math.abs(z1 - z0),
 		zs = Math.min(z0, z1),
 		kinds = [
 			{ u: 0, v: 0, n: L / 30, sz: [1.6, 1.6], edge: false, rnd: true },
-			{ u: 1, v: 0, n: L / 10, sz: [0.7, 0.5], edge: true },
 			...[0, 1, 2, 3].map((q) => ({ u: q % 2, v: 1 - (q >> 1), n: L / 30, sz: [3, 3], crack: true })),
 		];
 	kinds.forEach((k, ki) => {
@@ -24537,12 +24529,11 @@ function roadWear(s, x0, x1, z0, z1, y, density = 1) {
 			o = new THREE.Object3D();
 		for (let i = 0; i < n; i++) {
 			const z = zs + scnR() * L,
-				sd = scnR() < 0.5 ? -1 : 1,
-				x = k.edge ? (sd < 0 ? x0 + 0.45 : x1 - 0.45) : x0 + 0.8 + scnR() * (x1 - x0 - 1.6),
+				x = x0 + 0.8 + scnR() * (x1 - x0 - 1.6),
 				a = k.crack ? scnR() * 6.283 : k.rnd ? scnR() * 0.6 - 0.3 : 0,
 				sc = k.crack ? 0.45 + scnR() * 1.1 : k.rnd ? 0.7 + scnR() * 0.6 : 1;
 			o.position.set(x, y + (k.crack ? 0 : 0.002 * ki), z);
-			o.rotation.set(-Math.PI / 2, 0, a + (k.edge ? Math.PI / 2 : 0));
+			o.rotation.set(-Math.PI / 2, 0, a);
 			o.scale.set(k.sz[0] * sc, k.sz[1] * sc, 1);
 			o.updateMatrix();
 			im.setMatrixAt(i, o.matrix);
