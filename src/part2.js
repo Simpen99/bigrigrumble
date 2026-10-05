@@ -219,6 +219,8 @@ function frame(t) {
   if (!GFX.ok) return;
   const dt = Math.min(.05, (t - lastT) / 1000 || 0); lastT = performance.now();
   if (document.hidden) return;
+  /* small FPS readout in the corner (averaged over half a second) */
+  { const f = GFX.fps || (GFX.fps = { n: 0, t: t, el: null }); f.n++; if (t - f.t > 500) { if (!f.el) { f.el = document.createElement("div"); f.el.id = "fps"; document.body.appendChild(f.el); } f.el.textContent = Math.round(f.n * 1000 / (t - f.t)) + " fps"; f.n = 0; f.t = t; } }
   if (GFX.mode === "edit") { if (ED) try { edFrame(dt, t / 1000); } catch (e) { console.error(e); } return; }
   if (GFX.mode === "mg") { if (TVS) { try { tvsFrame(); } catch (e) { console.error(e); } return; } if (W) { const now = performance.now(), real = Math.min(1, (now - (GFX.mgLast || now)) / 1000); GFX.mgLast = now; const n = Math.max(1, Math.ceil(real / .034));
       try { for (let i = 0; i < n && W; i++) stepMG(real / n); } catch (e) { console.error(e); } if (W) renderMG(W.sc, GFX.cam); } return; }

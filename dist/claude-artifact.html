@@ -226,7 +226,7 @@ body.mgres .hudtop,body.mgres .hudbot{display:none}
 .optgrid{display:grid;gap:8px}
 .optb{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:var(--hud2);border:1px solid var(--hudline);border-radius:14px;padding:9px 12px;color:#fff}
 .optb:active{background:rgba(255,200,61,.2)}
-.testbox{margin-top:10px;padding:8px;border:1.5px dashed #B78CFF;border-radius:12px}.testbox h4{margin:0 0 6px;font-size:13px;color:#B78CFF}.optb:disabled{opacity:.45}.optb .optn .ico{width:22px;height:22px}.optb img{width:52px;height:36px;object-fit:contain}.optb span{font-weight:800;flex:1}.optb small{display:block;font-weight:500;font-size:12px;color:#b9c4d2}
+.testbox{margin-top:10px;padding:8px;border:1.5px dashed #B78CFF;border-radius:12px}.testbox h4{margin:0 0 6px;font-size:13px;color:#B78CFF}#fps{position:fixed;left:6px;bottom:4px;z-index:50;font:600 11px/1 Rubik,Arial,sans-serif;color:#fff;background:rgba(21,27,36,.55);padding:3px 6px;border-radius:6px;pointer-events:none}.optb:disabled{opacity:.45}.optb .optn .ico{width:22px;height:22px}.optb img{width:52px;height:36px;object-fit:contain}.optb span{font-weight:800;flex:1}.optb small{display:block;font-weight:500;font-size:12px;color:#b9c4d2}
 .optn{flex:none;width:34px;height:34px;border-radius:50%;background:var(--yellow);color:#151B24;display:grid;place-items:center;font-family:var(--display);font-size:17px}
 .numgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
 .numb{border:0;border-radius:12px;padding:12px 0;background:var(--yellow);color:#151B24;font-family:var(--display);font-size:20px}
@@ -776,6 +776,8 @@ function frame(t) {
   if (!GFX.ok) return;
   const dt = Math.min(.05, (t - lastT) / 1000 || 0); lastT = performance.now();
   if (document.hidden) return;
+  /* small FPS readout in the corner (averaged over half a second) */
+  { const f = GFX.fps || (GFX.fps = { n: 0, t: t, el: null }); f.n++; if (t - f.t > 500) { if (!f.el) { f.el = document.createElement("div"); f.el.id = "fps"; document.body.appendChild(f.el); } f.el.textContent = Math.round(f.n * 1000 / (t - f.t)) + " fps"; f.n = 0; f.t = t; } }
   if (GFX.mode === "edit") { if (ED) try { edFrame(dt, t / 1000); } catch (e) { console.error(e); } return; }
   if (GFX.mode === "mg") { if (TVS) { try { tvsFrame(); } catch (e) { console.error(e); } return; } if (W) { const now = performance.now(), real = Math.min(1, (now - (GFX.mgLast || now)) / 1000); GFX.mgLast = now; const n = Math.max(1, Math.ceil(real / .034));
       try { for (let i = 0; i < n && W; i++) stepMG(real / n); } catch (e) { console.error(e); } if (W) renderMG(W.sc, GFX.cam); } return; }
@@ -1588,7 +1590,7 @@ function aimGy(nd, a, ti) {
   a.curve.v0.set(n.x, Y(n) + .9, n.z); a.curve.v2.set(tg.x, Y(tg) + .9, tg.z); a.curve.v1.copy(a.curve.v0).lerp(a.curve.v2, .5); a.curve.v1.y = Math.max(a.curve.v0.y, a.curve.v2.y) + a.curve.v0.distanceTo(a.curve.v2) * .35 + 1.5;
   a.ring.position.set(tg.x, Y(tg) + .56, tg.z);
 }
-function stepGyArcs(bd, time) { bd.gyArcs.forEach(g => { const ti = G.gyT && G.gyT[g.node] !== undefined ? G.gyT[g.node] : MAP.nodes[g.node].gy; if (ti !== g.tg) aimGy(MAP.nodes, g, ti); g.dots.forEach((m, k) => { const u = (k / g.dots.length + time * .16) % 1; g.curve.getPoint(u, m.position); m.material.opacity = .75 * Math.sin(u * Math.PI); }); g.ring.scale.setScalar(1 + Math.sin(time * 3.2) * .05); }); }
+function stepGyArcs(bd, time) { bd.gyArcs.forEach(g => { const ti = G.gyT && G.gyT[g.node] !== undefined ? G.gyT[g.node] : MAP.nodes[g.node].gy; if (ti !== g.tg) aimGy(MAP.nodes, g, ti); g.dots.forEach((m, k) => { const u = (k / g.dots.length + time * .16) % 1; g.curve.getPoint(u, m.position); m.material.opacity = .37 * Math.sin(u * Math.PI); }); g.ring.scale.setScalar(1 + Math.sin(time * 3.2) * .05); }); }
 function stepVolcano(bd, dt, time) {
   stepGyArcs(bd, time);
   const vx = bd.vx, ty = LAVA_Y[G.phase === "lobby" ? 0 : lavaLv(G.round)], s = bd.scene;
@@ -1684,9 +1686,9 @@ function buildBoardFor(map) {
     if (t === "OB") { const c = obsidianMesh(.7); c.position.set(x + .85, .45, z - .55); ng.add(c); obCr[i] = c; }
     /* geyser: chevron on the tile edge pointing at the landing space (turns with the tile), a dotted steam arc to it and a pulsing ring round it; re-aimed when the target changes each round */
     if (t === "GY" && n.gy !== undefined) {
-      const ch = new THREE.Mesh(new THREE.PlaneGeometry(.62, .62), new THREE.MeshBasicMaterial({ map: chevTex(), transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -8 })); tl.add(ch);
+      const ch = new THREE.Mesh(new THREE.PlaneGeometry(.62, .62), new THREE.MeshBasicMaterial({ map: chevTex(), transparent: true, opacity: .5, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -8 })); tl.add(ch);
       const curve = new THREE.QuadraticBezierCurve3(new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()), dots = []; for (let k = 0; k < 18; k++) { const m = new THREE.Mesh(new THREE.IcosahedronGeometry(.17, 0), new THREE.MeshBasicMaterial({ color: "#E3E7EC", transparent: true, opacity: .6, depthWrite: false })); s.add(m); dots.push(m); }
-      const ring = new THREE.Mesh(new THREE.TorusGeometry(1.45 * ep("tileR"), .08, 6, 28), new THREE.MeshStandardMaterial({ color: "#C9D1DA", emissive: "#E3E7EC", emissiveIntensity: .35 })); ring.rotation.x = Math.PI / 2; s.add(ring);
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(1.45 * ep("tileR"), .08, 6, 28), new THREE.MeshStandardMaterial({ color: "#C9D1DA", emissive: "#E3E7EC", emissiveIntensity: .35, transparent: true, opacity: .45, depthWrite: false })); ring.rotation.x = Math.PI / 2; s.add(ring);
       const arc = { node: i, tl, ch, curve, dots, ring, tg: -1 }; aimGy(nd, arc, n.gy); gyArcs.push(arc); }
     /* geyser tile: a pale sinter mound with a sulphur-stained vent in the middle, light mist rising out of it */
     /* geyser tile: the face is the crater rim around a wide dark vent (see tileFace), sulphur-stained lip, light mist rising out of it */
@@ -1708,7 +1710,8 @@ function buildBoardFor(map) {
     const sd = Math.hypot(n.x + px * 2, n.z + pz * 2) < Math.hypot(n.x - px * 2, n.z - pz * 2) ? 1 : -1, g = geoRefinery(rw / 2, sd); g.position.set(n.x, Y(n), n.z); g.rotation.y = yaw; g.userData.node = i; s.add(edReg(g, "ref" + i)); g.userData.base = g.position.clone(); refs.push(g); });
   const clouds = []; for (let i = 0; i < 8; i++) { const c = cloud(); c.scale.setScalar(.5 + Math.random() * .2); c.position.set(-60 + i * 16, (vol ? 26 : 7) + Math.random() * 3, (i % 2 ? 28 + Math.random() * 10 : -29 - Math.random() * 14) * (vol ? 1.7 : 1)); s.add(c); clouds.push(c); }
   const hl = new THREE.Mesh(new THREE.RingGeometry(1.25, 1.55, 24), new THREE.MeshBasicMaterial({ color: "#FFFFFF", transparent: true, opacity: .8 })); hl.rotation.x = -Math.PI / 2; hl.position.y = .53; s.add(hl);
-  const arrows = [0, 1, 2].map(k => { const g = new THREE.Group(); const c = mesh(new THREE.ConeGeometry(.45, .9, 8), "#FFC83D", { emissive: "#FFB000", emissiveIntensity: .8 }); c.rotation.x = Math.PI; c.position.y = .45; g.add(c); const sp = textSprite(String(k + 1), "#151B24", "#FFC83D", 1.1); sp.position.y = 1.5; g.add(sp); g.visible = false; s.add(g); return g; });
+  /* fork choices: a big floating number over each road's first space (matches the numbered buttons) */
+  const arrows = [0, 1, 2].map(k => { const g = new THREE.Group(), tex = canvasTex(128, 128, x => { x.fillStyle = "#151B24"; x.beginPath(); x.arc(64, 64, 58, 0, Math.PI * 2); x.fill(); x.fillStyle = "#FFC83D"; x.beginPath(); x.arc(64, 64, 50, 0, Math.PI * 2); x.fill(); x.fillStyle = "#151B24"; x.font = "900 76px Bungee, Rubik, Arial"; x.textAlign = "center"; x.textBaseline = "middle"; x.fillText(String(k + 1), 64, 70); }), sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false })); sp.renderOrder = 5; sp.scale.set(1.7, 1.7, 1); g.add(sp); g.visible = false; s.add(g); return g; });
   let rival = null; if (map.rival) { rival = buildRival(); const h = nd[map.rivalHome]; rival.position.set(h.x + 1.3, 0, h.z + 1.3); s.add(rival); }
   applySky(s, map.id === "junk" ? "junk" : vol ? "volc" : "def");
   return { scene: s, map, fac, ring, bld, puffs, clouds, hl, belts, crushers, arrows, rival, refs, cart, badge, rideCart, crys: vol ? EDC.reg.crystal : null, crysK: 1, loose: {}, traps: {}, obs: {}, facIdx: -1, facTarget: null, vents, scorch, obCr, vx, nodeG, gyArcs, reg: EDC.reg, edp: EDC.p };
@@ -1841,7 +1844,7 @@ function stepBoard(dt, time) {
   stepBadgeFor(bd, ct, time);
   bd.hl.visible = !!ct && !inMg; if (ct) { bd.hl.position.x = ct.g.position.x; bd.hl.position.z = ct.g.position.z; bd.hl.position.y = (MAP.nodes[ct.shownT] ? MAP.nodes[ct.shownT].y || 0 : 0) + .53; bd.hl.scale.setScalar(1 + Math.sin(time * 4) * .08); }
   const fo = G.phase === "fork" && G.fork ? G.fork.opts : [];
-  bd.arrows.forEach((a, k) => { const n = nd[fo[k]]; a.visible = !!n; if (n) a.position.set(n.x, (n.y || 0) + 1.4 + Math.abs(Math.sin(time * 4 + k)) * .5, n.z); });
+  bd.arrows.forEach((a, k) => { const n = nd[fo[k]]; a.visible = !!n; if (n) a.position.set(n.x, (n.y || 0) + 2 + Math.abs(Math.sin(time * 3 + k)) * .35, n.z); });
   if (bd.vx) stepVolcano(bd, dt, time);
   bd.belts.forEach(tx => { tx.offset.y = (tx.offset.y - dt * 1.2) % 1; });
   bd.crushers.forEach(c => { const u = (time * .45 + c.ph) % 1, y = u < .08 ? 3 - (u / .08) * 2.1 : u < .25 ? .9 : .9 + Math.min(1, (u - .25) / .3) * 2.1; c.blk.position.y = y; c.st.position.y = y - .28; });
@@ -1950,7 +1953,9 @@ function stepBadge() {
 function badgeDraw(b, v) { const x = b.cv.getContext("2d"); x.clearRect(0, 0, 128, 128); x.fillStyle = "#FFC83D"; x.fillRect(0, 0, 128, 128); x.fillStyle = "#151B24"; x.beginPath(); x.arc(64, 64, 52, 0, Math.PI * 2); x.fill();
   x.fillStyle = "#FFFFFF"; x.font = `900 ${v > 9 ? 58 : 70}px Bungee, Rubik, Arial`; x.textAlign = "center"; x.textBaseline = "middle"; /* cylinder cap UVs run sideways: turn the text so it reads upright on the +z face */ x.save(); x.translate(64, 64); x.rotate(-Math.PI / 2); x.fillText(String(v), 0, 4); x.restore(); b.tex.needsUpdate = true; }
 function stepBadgeFor(bd, ct, time) {
-  const b = bd.badge; if (!b) return; const v = G.left | 0, on = !!ct && (G.phase === "moving" || G.phase === "fork") && v > 0 && !(bd.ca && bd.ca.pid === (G.players[G.turn] || {}).key);
+  const b = bd.badge; if (!b) return; const v = (G.left | 0) + (ct ? ct.q.length + (ct.anim ? 1 : 0) : 0), mv = !!ct && (G.phase === "moving" || G.phase === "fork");
+  if (!mv) b.go = false; else if (ct.anim) b.go = true;
+  const on = mv && b.go && v > 0 && !(bd.ca && bd.ca.pid === (G.players[G.turn] || {}).key) && !G.ride;
   b.g.visible = on; if (!on) { b.val = null; return; }
   if (v !== b.val) { b.val = v; badgeDraw(b, v); b.popT = time; }
   const pk = time - b.popT, pop = pk < .25 ? 1 + Math.sin(pk / .25 * Math.PI) * .35 : 1;
