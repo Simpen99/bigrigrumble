@@ -37,7 +37,7 @@ const VOLCANO = (() => {
   /* a winding ledge: radius and height change smoothly from the first space to the last */
   const arc = (r0, r1, y0, y1, degs, types, o) => degs.map((d, k) => { const f = degs.length > 1 ? k / (degs.length - 1) : 0; return add(r0 + (r1 - r0) * f, d, y0 + (y1 - y0) * f, types[k], o); });
   const JIT = [0, 1.5, -1, 2, 0, -2, 1, 0, -1.5, 2, 0, -1, 1.5, 0, -2, 0, 1, -1, 0, 1.5, 0, -1.5, 1, 0, 0, 2, -1, 1, 0, -1, 0, 1.5, -1, 0, 1, -1];
-  const RIM = ["S", "B", "E", "B", "B", "R", "B", "SH", "B", "E", "B", "R", "B", "B", "D", "B", "E", "R", "B", "B", "E", "SH", "B", "R", "B", "B", "B", "E", "R", "B", "B", "D", "B", "R", "E", "B"];
+  const RIM = ["S", "B", "E", "B", "B", "R", "B", "SH", "MR", "E", "B", "R", "B", "B", "D", "B", "E", "R", "B", "B", "E", "SH", "MR", "R", "B", "B", "B", "E", "R", "B", "B", "D", "B", "R", "E", "B"];
   const rim = RIM.map((t, k) => add(29 + (k % 3 === 1 ? .25 : k % 3 === 2 ? -.2 : 0), 90 + 10 * k + JIT[k], 8, t, { rim: 1 }));
   const U1 = arc(23.5, 22.5, 7, 5.2, [143, 158, 173, 188, 203], ["B", "E", "B", "SC", "B"], { sl: 1 });
   const L1 = arc(16, 16, 4.1, 2.9, [218, 236, 254, 271], ["B", "GY", "B", "R"], { lv: 2 });
@@ -46,7 +46,7 @@ const VOLCANO = (() => {
   /* refineries: a gate over a normal space (like the factory, it has no tile of its own) */
   [rim[25], U1[2], L2[3]].forEach(i => { nodes[i].ref = 1; });
   const U2 = arc(22.5, 23.2, 5, 7.2, [94, 76, 58, 40], ["B", "B", "SC", "E"], { sl: 1 });
-  const U3 = arc(23, 22.5, 7, 5.2, [282, 296, 310, 324], ["B", "R", "E", "B"], { sl: 1 });
+  const U3 = arc(23, 22.5, 7, 5.2, [282, 296, 310, 324], ["B", "R", "E", "MR"], { sl: 1 });
   const L3 = arc(16, 16, 4, 3.2, [337, 352], ["B", "SC"], { lv: 2 });
   const a = nodes[U1[3]], b = nodes[U2[2]], BT = ["CV", "B", "CV", "R", "B", "CV", "B", "E"];
   const BR = BT.map((t, k) => { const f = (k + 1) / (BT.length + 1); nodes.push({ x: a.x + (b.x - a.x) * f, z: a.z + (b.z - a.z) * f, y: a.y + (b.y - a.y) * f + .7 * Math.sin(f * Math.PI), t, next: [], br: 1 }); return nodes.length - 1; });
@@ -132,8 +132,8 @@ function applyMapEdits(map) {
   if (map.lava) [0, 1, 2].forEach(i => { LAVA_Y[i] = ep("lava" + i); });
 }
 function edReg(o, id) { o.userData.edId = id; EDC.reg[id] = o; const e = EDC.o[id]; if (e) { if (e.p) o.position.fromArray(e.p); if (e.r) o.rotation.set(e.r[0], e.r[1], e.r[2]); if (e.s) o.scale.fromArray(e.s); } return o; }
-const SPACE_COL = { B: "#2F7DE1", R: "#E5484D", E: "#8E5BE0", S: "#BFC5CE", SC: "#B0703C", CR: "#4B515E", CV: "#2A2F3A", D: "#FF8A1F", SH: "#1FB5A8", OB: "#3B2466", GY: "#4A525C", SD: "#4A3F5C", MC: "#7A5234" };
-const SPACE_INFO = { B: "+3 coins", R: "−3 coins", E: "Surprise", SC: "Scrap pile: 0–15 coins", CR: "Crusher: −5 coins, free item", CV: "Conveyor belt", D: "Duel", SH: "Shop", OB: "Obsidian: +2 shards", GY: "Geyser: blasts you to a new spot every round", SD: "Shard space: +1 obsidian shard", MC: "Minecart: ride the pillar rails for 1–3 shards" };
+const SPACE_COL = { B: "#2F7DE1", R: "#E5484D", E: "#8E5BE0", S: "#BFC5CE", SC: "#B0703C", CR: "#4B515E", CV: "#2A2F3A", D: "#FF8A1F", SH: "#1FB5A8", OB: "#3B2466", GY: "#4A525C", SD: "#4A3F5C", MC: "#7A5234", MR: "#2E7D6B" };
+const SPACE_INFO = { B: "+3 coins", R: "−3 coins", E: "Surprise", SC: "Scrap pile: 0–15 coins", CR: "Crusher: −5 coins, free item", CV: "Conveyor belt", D: "Duel", SH: "Shop", OB: "Obsidian: +2 shards", GY: "Geyser: blasts you to a new spot every round", SD: "Shard space: +1 obsidian shard", MC: "Minecart: smash through the giant crystal for 15 shards (regrows each round)", MR: "Rail cart: a random ride round the quarry, grabbing loose shards" };
 function tileIcon(type) {
   return canvasTex(128, 128, (x, w, h) => {
     x.textAlign = "center"; x.textBaseline = "middle";
@@ -185,7 +185,8 @@ function symHoles(t) {
     return { holes: [polyShape([[-.37, -.52], [-.37, .52]].concat(top, [[.425, .08 + Math.sin(Math.PI * 2) * .05]], bot.slice(1), [[-.275, -.52]]))] }; }
   if (t === "GY") return { holes: [discShape(0, 0, .74)] };
   if (t === "SD") return { holes: [polyShape(rotPts([[0, .5], [.19, .28], [.19, -.28], [0, -.5], [-.19, -.28], [-.19, .28]].map(([a, b]) => [a * 1.15, b * 1.15]), -12, 0, 0))] };
-  if (t === "MC") return { holes: [polyShape([[-.46, .3], [.46, .3], [.34, -.12], [-.34, -.12]]), discShape(-.22, -.3, .11), discShape(.22, -.3, .11)] };
+  if (t === "MC") return { holes: [polyShape([[-.46, .12], [.46, .12], [.34, -.28], [-.34, -.28]]), discShape(-.22, -.44, .1), discShape(.22, -.44, .1), polyShape([[0, .67], [.11, .55], [.11, .29], [0, .17], [-.11, .29], [-.11, .55]])] };
+  if (t === "MR") return { holes: [polyShape([[-.34, .22], [.56, .22], [.44, -.18], [-.22, -.18]]), discShape(-.1, -.34, .1), discShape(.32, -.34, .1), st([[-.68, .1], [-.46, .1]], .07), st([[-.74, -.03], [-.44, -.03]], .07), st([[-.66, -.16], [-.42, -.16]], .07)] };
   return null;
 }
 const SYM_FLOOR = { OB: "#B78CFF", SD: "#B78CFF", S: "#E5484D", GY: "#10151C" }, FACE_GEO = {};
@@ -289,10 +290,14 @@ function buildRival() {
   return g;
 }
 /* ---------- Volcano Quarry scenery ---------- */
+/* obsidian: hexagonal crystals with pointed ends, like the pressed-in tile icons: a big one leaning left and a smaller one leaning right; base at y 0 */
+let XTAL_GEO = null;
+const xtalGeo = () => XTAL_GEO || (XTAL_GEO = new THREE.LatheGeometry([[0, -.5], [.2, -.29], [.2, .29], [0, .5]].map(([r, y]) => new THREE.Vector2(r, y)), 6));
 function obsidianMesh(k = 1) {
-  const g = new THREE.Group();
-  [[0, 0, 0, 1], [.32, -.08, .18, .65], [-.28, -.12, .1, .55], [.05, -.15, -.3, .5]].forEach(([x, y, z, s]) => { const c = mesh(new THREE.OctahedronGeometry(.32 * s * k, 0), "#5B2BB5", { emissive: "#7A3CFF", emissiveIntensity: .45, roughness: .25 }); c.scale.y = 1.7; c.position.set(x * k, (y + .3 * s) * k, z * k); c.rotation.set(.2 * x, x * 3, .25 * z); g.add(c); });
-  return g;
+  const g = new THREE.Group(), o = { emissive: "#7A3CFF", emissiveIntensity: .45, roughness: .25 };
+  const big = mesh(xtalGeo(), "#5B2BB5", o); big.scale.setScalar(k); big.position.set(-.06 * k, .46 * k, 0); big.rotation.z = .24;
+  const sm = mesh(xtalGeo(), "#6A35D0", o); sm.scale.setScalar(.62 * k); sm.position.set(.24 * k, .28 * k, .06 * k); sm.rotation.set(.15, 0, -.38);
+  g.add(big, sm); return g;
 }
 /* Volcano Quarry buildings (same 2.2 × 1.6 footprint as the battery factory). A glowing pipe runs from the building down the outside of its rock pillar into the lava (r 2.05 clears the pillar);
    each returns a group with userData { sign (swings), puff: steam origin, puffs } */
@@ -320,7 +325,8 @@ function geoRefinery(w, sd) {
   [1, -1].forEach(f => { const face = new THREE.Group(); face.rotation.y = f > 0 ? 0 : Math.PI; sg.add(face);
     const sh = obsidianMesh(.45); sh.position.set(-.42, -.18, .17); face.add(sh);
     const ar = mesh(arrow, "#FFFFFF"); ar.position.set(.02, 0, .05); face.add(ar);
-    face.add(B(.18, .34, .06, "#FF9A3D", .44, 0, .08, { emissive: "#FF6A1F", emissiveIntensity: .7 }), B(.09, .06, .06, "#FF9A3D", .44, .2, .08)); });
+    const pile = mesh(new THREE.ConeGeometry(.22, .2, 9), "#8C7AB0"); pile.position.set(.44, -.15, .12); face.add(pile);
+    [[.38, -.02, .2], [.5, -.08, .19], [.45, .06, .14]].forEach(([x, y, z]) => { const d = mesh(new THREE.IcosahedronGeometry(.035, 0), "#D9C8FF", { emissive: "#B78CFF", emissiveIntensity: .5 }); d.position.set(x, y, z); face.add(d); }); });
   sg.rotation.y = Math.PI / 2; sg.position.set(0, 3.98, 0); g.add(sg);
   /* intake: a funnel under the girder, a faint purple cone of suction down to the tile, and spiral arms of half-transparent shards that bend as they climb */
   g.add(Cy(.16, .55, .45, 10, "#3A302B", 0, 2.95, 0), Cy(.57, .57, .06, 10, "#B78CFF", 0, 2.72, 0, { emissive: "#7A3CFF", emissiveIntensity: .8 }));
@@ -696,7 +702,7 @@ function buildBoardFor(map) {
       const arc = { node: i, tl, ch, curve, dots, ring, tg: -1 }; aimGy(nd, arc, n.gy); gyArcs.push(arc); }
     /* geyser tile: a pale sinter mound with a sulphur-stained vent in the middle, light mist rising out of it */
     /* geyser tile: the face is the crater rim around a wide dark vent (see tileFace), sulphur-stained lip, light mist rising out of it */
-    if (t === "GY") { const sul = new THREE.Mesh(new THREE.TorusGeometry(.76, .035, 6, 28), M("#D9C36A")); sul.rotation.x = Math.PI / 2; sul.position.y = .5; tl.add(sul);
+    if (t === "GY") {
       const ps = []; for (let k = 0; k < 8; k++) { const p = new THREE.Mesh(new THREE.IcosahedronGeometry(.3, 0), new THREE.MeshStandardMaterial({ color: "#F4F6F9", transparent: true, opacity: .45, flatShading: true, depthWrite: false })); p.userData.t = k / 8; ng.add(p); ps.push(p); } vents.push({ x, z, ps }); }
     if (n.br && !nd.some(m => !m.br && Math.hypot(m.x - x, m.z - z) < 2.6)) { const pl = B(.6, Y(n) + 1.4, .6, "#5A3A22", x, -(Y(n) + 1.4) / 2, z); ng.add(pl); }
     if (vol && n.lv) { const m = new THREE.Mesh(new THREE.CircleGeometry(1.36, sides), new THREE.MeshBasicMaterial({ map: scorchTex(), polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -6 })); m.rotation.set(-Math.PI / 2, 0, Math.PI / sides - Math.PI / 2); m.position.set(0, .6, 0); m.visible = false; tl.add(m); scorch[i] = m; }
@@ -704,7 +710,7 @@ function buildBoardFor(map) {
   if (pebbles.length) { const im = new THREE.InstancedMesh(new THREE.DodecahedronGeometry(.13, 0), new THREE.MeshStandardMaterial({ color: "#FFFFFF", flatShading: true, roughness: .9 }), pebbles.length), dm = new THREE.Object3D(), c = new THREE.Color();
     pebbles.forEach(([x, y, z, k, r], i) => { dm.position.set(x, y, z); dm.rotation.set(r * 3, r * 7, 0); dm.scale.set(k, k * .7, k); dm.updateMatrix(); im.setMatrixAt(i, dm.matrix); c.set(r < .5 ? "#6A5A4E" : "#8C7A6A"); im.setColorAt(i, c); }); s.add(im); }
   const vx = vol ? volcanoScenery(s, map) : null;
-  const cart = vol ? buildCartRails(s, map) : null, badge = stepBadge(); s.add(badge.g);
+  const cart = vol ? buildCartRails(s, map) : null, badge = stepBadge(), rideCart = vol ? cartMesh() : null; s.add(badge.g); if (rideCart) { rideCart.visible = false; s.add(rideCart); }
   if (map.id === "junk") junkScenery(s); else if (!vol) classicScenery(s);
   const fac = new THREE.Group(), ring = new THREE.Mesh(new THREE.TorusGeometry(1.35, .09, 6, 24), new THREE.MeshStandardMaterial({ color: "#FFC83D", emissive: "#FFB000", emissiveIntensity: .9 })); ring.rotation.x = Math.PI / 2; ring.position.y = .56;
   const bld = FAC_MODELS[vol ? FAC_LOOK.volc : FAC_LOOK.def](), puffs = bld.userData.puffs;
@@ -717,7 +723,7 @@ function buildBoardFor(map) {
   const arrows = [0, 1, 2].map(k => { const g = new THREE.Group(); const c = mesh(new THREE.ConeGeometry(.45, .9, 8), "#FFC83D", { emissive: "#FFB000", emissiveIntensity: .8 }); c.rotation.x = Math.PI; c.position.y = .45; g.add(c); const sp = textSprite(String(k + 1), "#151B24", "#FFC83D", 1.1); sp.position.y = 1.5; g.add(sp); g.visible = false; s.add(g); return g; });
   let rival = null; if (map.rival) { rival = buildRival(); const h = nd[map.rivalHome]; rival.position.set(h.x + 1.3, 0, h.z + 1.3); s.add(rival); }
   applySky(s, map.id === "junk" ? "junk" : vol ? "volc" : "def");
-  return { scene: s, map, fac, ring, bld, puffs, clouds, hl, belts, crushers, arrows, rival, refs, cart, badge, loose: {}, traps: {}, obs: {}, facIdx: -1, facTarget: null, vents, scorch, obCr, vx, nodeG, gyArcs, reg: EDC.reg, edp: EDC.p };
+  return { scene: s, map, fac, ring, bld, puffs, clouds, hl, belts, crushers, arrows, rival, refs, cart, badge, rideCart, crys: vol ? EDC.reg.crystal : null, crysK: 1, loose: {}, traps: {}, obs: {}, facIdx: -1, facTarget: null, vents, scorch, obCr, vx, nodeG, gyArcs, reg: EDC.reg, edp: EDC.p };
 }
 function setBoardMap(id) {
   const map = MAPS[id] || CLASSIC; if (GFX.board && GFX.board.map === map) return;
@@ -837,7 +843,7 @@ function stepBoard(dt, time) {
     t.yaw = lerpA(t.yaw, t.yawT || 0, Math.min(1, dt * 10)); t.tr.rotation.y = t.yaw;
     { const pp = t.g.position, sp = t.lp && dt > 0 ? Math.hypot(pp.x - t.lp.x, pp.z - t.lp.z) / dt : 0; t.lp = pp.clone(); animTruck(t.tr, dt, Math.min(sp, 14)); }
   });
-  stepCart(bd, time); Object.values(bd.loose).forEach(c => { c.rotation.y = time * 1.5 + c.userData.ph; c.position.y += Math.sin(time * 3 + c.userData.ph) * .004; });
+  stepCart(bd, dt, time); Object.values(bd.loose).forEach(c => { c.rotation.y = time * 1.5 + c.userData.ph; c.position.y += Math.sin(time * 3 + c.userData.ph) * .004; });
   const cur = ps[G.turn], ct = cur && GFX.tok[cur.key], inMg = G.phase === "minigame" || G.phase === "mgres";
   stepBadgeFor(bd, ct, time);
   bd.hl.visible = !!ct && !inMg; if (ct) { bd.hl.position.x = ct.g.position.x; bd.hl.position.z = ct.g.position.z; bd.hl.position.y = (MAP.nodes[ct.shownT] ? MAP.nodes[ct.shownT].y || 0 : 0) + .53; bd.hl.scale.setScalar(1 + Math.sin(time * 4) * .08); }
@@ -891,11 +897,15 @@ function stepGrind(bd, dt, time) {
   if (k > 3.6) { a.bits.forEach(m => bd.scene.remove(m)); a.gate.position.copy(gp); a.gate.rotation.z = 0; bd.gr = null; }
 }
 /* ---------- minecart: a closed rail loop from the MC space up round the crater's central pillar and back down; HG.cart {pid, at, laps, n} sends a truck round it laps times ---------- */
+/* the loop: off the MC space, sideways onto a helix that climbs round the pillar (1⅓ turns, ending on the far side), straight across the top through the giant crystal,
+   then a straight run back down to the space. The helix only crosses the return run once, 1.3+ higher/lower, so the track never folds into itself */
 function cartCurve(map) {
   const mc = map.nodes.findIndex(n => n.t === "MC"); if (mc < 0) return null; const T = map.nodes[mc], isl = EDC.reg.island, C = isl ? isl.position : new THREE.Vector3(.87, 0, -.9), R = 4.4, y0 = (T.y || 0) + .55;
-  const a0 = Math.atan2(T.z - C.z, T.x - C.x), P = [new THREE.Vector3(T.x, y0, T.z)], at = (a, r, y) => new THREE.Vector3(C.x + Math.cos(a) * r, y, C.z + Math.sin(a) * r);
-  P.push(at(a0 - .45, R + .8, y0 + .6)); for (let k = 0; k <= 10; k++) P.push(at(a0 - .7 - k / 10 * Math.PI * 2.05, R, y0 + 1.2 + k * .34)); P.push(at(a0 + .45, R + 1.3, y0 + 2.2));
-  return { mc, curve: new THREE.CatmullRomCurve3(P, true, "catmullrom", .35) };
+  const sc = isl ? isl.scale.y : 1, top = C.y + 4.9 * sc, a0 = Math.atan2(T.z - C.z, T.x - C.x), dT = Math.hypot(T.x - C.x, T.z - C.z), at = (a, r, y) => new THREE.Vector3(C.x + Math.cos(a) * r, y, C.z + Math.sin(a) * r);
+  const P = [new THREE.Vector3(T.x, y0, T.z), at(a0 + .5, (dT + R) / 2 + .4, y0 + .3)], s0 = a0 + 1.05, sweep = Math.PI * 3 - 1.05;
+  for (let k = 0; k <= 16; k++) { const f = k / 16; P.push(at(s0 + f * sweep, R, y0 + .9 + f * (top - .6 - y0 - .9))); }
+  P.push(at(a0 + Math.PI, R * .45, top), new THREE.Vector3(C.x, top + .15, C.z), at(a0, R * .45, top), at(a0, R + .1, top - .3), at(a0 - .04, (R + dT) / 2, (top - .3 + y0) / 2 + .2));
+  return { mc, curve: new THREE.CatmullRomCurve3(P, true, "centripetal") };
 }
 function buildCartRails(s, map) {
   const cc = cartCurve(map); if (!cc) return null; const { curve } = cc, N = 220, up = new THREE.Vector3(0, 1, 0), L = [], Rr = [], g = new THREE.Group(); s.add(g);
@@ -903,22 +913,30 @@ function buildCartRails(s, map) {
     if (k % 4 === 0) { const tie = B(.12, .05, .62, "#6B4A36", 0, 0, 0); tie.position.copy(p).y -= .05; tie.lookAt(p.clone().add(side)); g.add(tie); }
     if (k % 14 === 7 && u > .06 && u < .94) { const h = p.y + 1.5, post = B(.12, h, .12, "#4A3C36", p.x, p.y - .1 - h / 2, p.z); g.add(post); } }
   [L, Rr].forEach(pts => g.add(mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts, true), N, .045, 5, true), "#3A3A40", { metalness: .4, roughness: .5 })));
-  const cart = new THREE.Group(); cart.add(B(.95, .42, .62, "#6B4A36", 0, .3, 0), B(.99, .06, .66, "#3A3A40", 0, .47, 0), B(.99, .06, .66, "#3A3A40", 0, .16, 0));
-  [[-.3, -.3], [.3, -.3], [-.3, .3], [.3, .3]].forEach(([x, z]) => { const w = Cy(.1, .1, .06, 10, "#2A2A30", x, .08, z); w.rotation.x = Math.PI / 2; cart.add(w); });
-  g.add(cart); const home = curve.getPointAt(0); cart.position.set(home.x, home.y - .5, home.z);
+  const cart = cartMesh(); g.add(cart); const home = curve.getPointAt(0); cart.position.set(home.x, home.y - .5, home.z);
   return { ...cc, cart, g };
 }
-function stepCart(bd, time) {
+function stepCart(bd, dt, time) {
   const c = bd.cart, cr = G.cart; if (!c) return;
-  if (bd.cartN === undefined) bd.cartN = cr ? cr.n : null; else if (cr && cr.n !== bd.cartN) { bd.cartN = cr.n; bd.ca = { t0: time, pid: cr.pid, laps: cr.laps }; sfx("step"); }
-  const a = bd.ca, tok = a && GFX.tok[a.pid]; let u = 0, k = 0;
-  if (a && tok) { k = time - a.t0; const ride = k - .5, D = a.laps * 1.8;
-    if (ride > 0 && ride < D) { const f = ride / D, e = f < .08 ? f * f / .16 : f > .92 ? 1 - (1 - f) * (1 - f) / .16 : f - .04; u = (e * a.laps) % 1; }
+  if (bd.cartN === undefined) bd.cartN = cr ? cr.n : null; else if (cr && cr.n !== bd.cartN) { bd.cartN = cr.n; bd.ca = { t0: time, pid: cr.pid, boom: !!cr.boom }; sfx("step"); }
+  /* the giant crystal: gone from the moment a cart smashes it until G.bigShard comes back, then it grows back with sparkles */
+  const cy = bd.crys; if (cy) { const smashing = bd.ca && bd.ca.boom && !bd.ca.boomed, want = G.bigShard === false && !smashing ? 0 : 1;
+    if (want) { if (bd.crysK < 1) { bd.crysK = Math.min(1, bd.crysK + dt / 2.6); if (Math.random() < dt * 8) { const w = cy.getWorldPosition(new THREE.Vector3()); burst(bd.scene, w.x + (Math.random() - .5) * 2, w.y + Math.random() * 2, w.z + (Math.random() - .5) * 2, { n: 3, shape: "ico", cols: ["#B78CFF", "#FFFFFF"], spd: 1, up: 1.5, grav: 1, life: .6 }); } } }
+    else bd.crysK = 0;
+    const e = bd.crysK, eb = e <= 0 ? 0 : 1 + 2.7 * Math.pow(e - 1, 3) + 1.7 * Math.pow(e - 1, 2); cy.visible = e > .01; cy.scale.setScalar(Math.max(.001, eb)); }
+  const a = bd.ca, tok = a && GFX.tok[a.pid]; let u = 0;
+  if (a && tok) { const k = time - a.t0, ride = k - .6, D = 5.6;
+    if (ride > 0 && ride < D) { const f = ride / D; u = f < .1 ? f * f / .2 : f > .9 ? 1 - (1 - f) * (1 - f) / .2 : f - .05; }
     const p = c.curve.getPointAt(u), t = c.curve.getTangentAt(u); c.cart.position.set(p.x, p.y - .5, p.z); c.cart.rotation.set(0, Math.atan2(-t.z, t.x), Math.asin(Math.max(-1, Math.min(1, t.y))));
-    if (k < D + 1.1) { tok.g.position.set(p.x, p.y - .05 + (k < .5 ? Math.sin(k / .5 * Math.PI) * .8 : 0), p.z); tok.tr.rotation.y = Math.atan2(-t.z, t.x); }
-    if (ride > 0 && ride < D && Math.floor(ride / .35) !== a.sp) { a.sp = Math.floor(ride / .35); burst(bd.scene, p.x, p.y, p.z, { n: 3, shape: "ico", cols: ["#B78CFF", "#FFD24A"], spd: 1.5, up: 1.5, grav: 6, life: .5 }); }
+    if (k < D + 1.1) { tok.g.position.set(p.x, p.y - .05 + (k < .6 ? Math.sin(k / .6 * Math.PI) * 1 : 0), p.z); tok.tr.rotation.y = Math.atan2(-t.z, t.x); if (k < .62 && k + dt >= .6) tok.sq = .3; }
+    if (a.boom && !a.boomed && cy && p.distanceTo(cy.getWorldPosition(new THREE.Vector3())) < 1.6) { a.boomed = true; sfx("crush"); sfx("battery"); bd.crysK = 0;
+      for (let q = 0; q < 3; q++) burst(bd.scene, p.x, p.y + .5 + q * .6, p.z, { n: 30, shape: "ico", cols: ["#5B2BB5", "#7A3CFF", "#B78CFF", "#FFFFFF"], spd: 6 + q * 2, up: 6, grav: 9, life: 1.6, size: 1.6 }); }
     if (k > D + 1.4) { bd.ca = null; const h = c.curve.getPointAt(0); c.cart.position.set(h.x, h.y - .5, h.z); c.cart.rotation.set(0, 0, 0); } }
+  /* rail cart (MR spaces): a cart rides under the truck for the whole trip */
+  const rc = bd.rideCart, rd = G.ride, rt = rd && GFX.tok[rd.pid]; if (rc) { rc.visible = !!rt; if (rt) { rc.position.set(rt.g.position.x, rt.g.position.y - .42, rt.g.position.z); rc.rotation.y = rt.tr.rotation.y; } }
 }
+function cartMesh() { const cart = new THREE.Group(); cart.add(B(.95, .42, .62, "#6B4A36", 0, .3, 0), B(.99, .06, .66, "#3A3A40", 0, .47, 0), B(.99, .06, .66, "#3A3A40", 0, .16, 0));
+  [[-.3, -.3], [.3, -.3], [-.3, .3], [.3, .3]].forEach(([x, z]) => { const w = Cy(.1, .1, .06, 10, "#2A2A30", x, .08, z); w.rotation.x = Math.PI / 2; cart.add(w); }); return cart; }
 /* ---------- steps-left badge: a chunky gold coin with the number, floating over the moving truck and facing the camera ---------- */
 function stepBadge() {
   const cv = document.createElement("canvas"); cv.width = cv.height = 128; const tex = new THREE.CanvasTexture(cv), geo = new THREE.CylinderGeometry(.6, .6, .18, 28); geo.rotateX(Math.PI / 2);

@@ -6,7 +6,8 @@ const ITEMS = {
   golden: { name: "Golden Die", cost: 14, icon: "⭐", desc: "Choose any roll from 1 to 10", pick: "value" },
   tow: { name: "Tow Hook", cost: 10, icon: "🪝", desc: "Swap places with any truck", pick: "target" },
   magnet: { name: "Coin Magnet", cost: 8, icon: "🧲", desc: "Steal up to 8 coins from a rival", pick: "target" },
-  spikes: { name: "Spike Strip", cost: 6, icon: "📌", desc: "Trap your space. The next rival to land there pays you 10" }
+  spikes: { name: "Spike Strip", cost: 6, icon: "📌", desc: "Trap your space. The next rival to land there pays you 10" },
+  grinder: { name: "Portable Grinder", cost: 20, icon: "⚙️", desc: "Grind all your shards into obsidian dust on the spot", shards: true }
 };
 const UPGRADES = {
   tires: { name: "Big Tires", cost: 16, icon: "🛞", desc: "+1 space on every roll" },
@@ -14,7 +15,8 @@ const UPGRADES = {
   armor: { name: "Armor Plating", cost: 14, icon: "🛡️", desc: "Red spaces and crushers cost nothing, and Magnet Mike can't grab you" }
 };
 /* Volcano Quarry cargo: obsidian shards (crater-floor blues +1, obsidian +2) → ground into obsidian dust at a refinery (1 shard = 1 dust) → the factory melts 3 dust into a battery (+ 10 coins), or sells one for 50 coins */
-const SHARD_MAX = 5, DUST_MAX = 6, DUST_BAT = 3, DUST_COINS = 10, RAW_PRICE = 50, BOT_RICH = 25;
+/* no carry limits on shards or dust (the map is meant to get wild) */
+const SHARD_MAX = 999, DUST_MAX = 999, DUST_BAT = 3, DUST_COINS = 10, RAW_PRICE = 50, BOT_RICH = 25, BIG_SHARD = 15;
 const shardMap = () => !!(((typeof G !== "undefined" && G && MAPS[G.map]) || MAP) || {}).shards;
 const canDust = p => shardMap() && (p.dust | 0) >= DUST_BAT && p.coins >= DUST_COINS;
 const rawPrice = () => shardMap() ? RAW_PRICE : PRICE;
@@ -39,6 +41,24 @@ function routeDist(from, to, target) {
   return (RDC[key] = res);
 }
 const playerDist = (p, target) => routeDist(p.from, p.pos, target);
+const itemHere = k => !ITEMS[k].shards || shardMap();
+/* rail-cart ride: a random run along the roads (8–14 spaces, never straight back), then the quickest way home; every loose shard on the way is picked up */
+function railPath(start) {
+  const path = []; let cur = start, from = null; const n = 8 + rnd(7);
+  for (let k = 0; k < n; k++) { const o = travelOpts(cur, from); const nx = o[rnd(o.length)]; path.push(nx); from = cur; cur = nx; }
+  const key = st => st[0] + ">" + st[1], s0 = [cur, from], par = new Map([[key(s0), null]]); let q = [s0], end = null;
+  while (q.length && !end) { const nq = []; for (const st of q) { for (const nx of travelOpts(st[0], st[1])) { const ns = [nx, st[0]]; if (par.has(key(ns))) continue; par.set(key(ns), st); if (nx === start) { end = ns; break; } nq.push(ns); } if (end) break; } q = nq; }
+  if (!end) return path.concat(path.slice(0, -1).reverse(), [start]);
+  const back = []; for (let st = end; st && key(st) !== key(s0); st = par.get(key(st))) back.push(st[0]);
+  return path.concat(back.reverse());
+}
+function railRide(p, done) {
+  const start = p.pos, path = railPath(start); if (path[path.length - 1] !== start) path.push(start); let got = 0;
+  HG.ride = { pid: p.key, n: rid() }; HG.ev = { title: "Rail cart!", text: `${p.name} plops into a rail cart for a wild ride…`, n: rid() }; HG.msg = HG.ev.text; HG.phase = "moving"; push();
+  const st = k => { if (!HG) return; if (k >= path.length) { p.pos = start; p.from = null; HG.ride = null; HG.ev = { title: "Rail cart!", text: got ? `${p.name} rolls back in with ${plural(got, "loose shard")}!` : `${p.name} rolls back in empty-handed.`, n: rid() }; HG.msg = HG.ev.text; push(); later(done, 900); return; }
+    p.from = p.pos; p.pos = path[k]; if (HG.loose && HG.loose[p.pos]) { delete HG.loose[p.pos]; addShards(p, 1); got++; } push(); later(() => st(k + 1), 240); };
+  later(() => st(0), 1100);
+}
 const TEAMS = [{ name: "Team Rust", col: "#FF8A1F" }, { name: "Team Chrome", col: "#2F7DE1" }];
 const DUEL_POOL = ["bumper", "light", "drag", "park", "coins", "cones", "hill", "tiles", "rocks", "hop", "scoop", "sort", "taco", "tow", "drift", "race"];
 const has = (p, u) => !!(p && p.up && p.up.includes(u));
@@ -101,7 +121,7 @@ function hostStart() {
   MAP = MAPS[HG.map] || JUNK; HG.map = MAP.id;
   const a = HG.players; for (let i = a.length - 1; i > 0; i--) { const j = rnd(i + 1); [a[i], a[j]] = [a[j], a[i]]; }
   a.forEach((p, i) => { p.pos = 0; p.from = null; p.coins = START_COINS; p.bat = 0; p.shards = 0; p.dust = 0; p.items = []; p.up = []; if (p.team === undefined) p.team = i % 2; });
-  HG.round = 1; HG.turn = 0; HG.factory = pickFactory(-1); HG.kick = []; HG.lastMg = null; HG.roll = HG.fx = HG.ev = HG.mg = HG.buy = HG.fork = HG.shop = HG.duelPick = null; HG.used = []; HG.traps = {}; HG.obs = {}; HG.erupt = null; HG.loose = {}; HG.cart = HG.grind = null; if (MAP.lava) rollGeysers();
+  HG.round = 1; HG.turn = 0; HG.factory = pickFactory(-1); HG.kick = []; HG.lastMg = null; HG.roll = HG.fx = HG.ev = HG.mg = HG.buy = HG.fork = HG.shop = HG.duelPick = null; HG.used = []; HG.traps = {}; HG.obs = {}; HG.erupt = null; HG.loose = {}; HG.cart = HG.grind = HG.ride = null; HG.bigShard = true; if (MAP.lava) rollGeysers();
   HG.rival = MAP.rival ? { at: MAP.rivalHome, carry: null } : null;
   HG.intro = true; later(() => { if (!HG || !HG.intro) return; HG.intro = false; rivalNote(); lavaRound(); push(); }, 5000);
   startTurn();
@@ -117,6 +137,7 @@ function botItem(p) {
   const opp = HG.players.filter(o => o !== p && !mate(p, o)), idx = rnd(p.items.length), it = p.items[idx], a = { idx };
   if (it === "tow") { const all = HG.players.filter(o => o !== p); if (!all.length) return; a.target = all.slice().sort((x, y) => playerDist(x, HG.factory) - playerDist(y, HG.factory))[0].key; if (playerDist(p, HG.factory) <= playerDist(pByKey(a.target), HG.factory)) return; }
   if (it === "magnet") { if (!opp.length) return; a.target = opp.slice().sort((x, y) => y.coins - x.coins)[0].key; }
+  if (it === "grinder" && (p.shards | 0) < 3) return;
   if (it === "golden") { const d = playerDist(p, HG.factory); if (!(d >= 1 && d <= 10) || !canBuy(p)) return; a.val = d; }
   useItem(p, a);
 }
@@ -132,6 +153,7 @@ function useItem(p, a) {
   if (it === "tow") { [p.pos, o.pos] = [o.pos, p.pos]; p.from = o.from = null; text = `${p.name} hooks ${o.name} and swaps places!`; }
   if (it === "magnet") { const s = Math.min(8, o.coins); o.coins -= s; p.coins += s; text = `${p.name} pulls ${s} coins from ${o.name}.`; }
   if (it === "spikes") { HG.traps[p.pos] = p.key; text = `${p.name} drops a spike strip on this space.`; }
+  if (it === "grinder") { const k = refine(p); HG.grind = { pid: p.key, at: -1, k, n: rid() }; text = k ? `${p.name} fires up a portable grinder: ${plural(k, "shard")} into dust.` : `${p.name} fires up a portable grinder, but has no shards to grind.`; }
   HG.ev = { title: `${def.icon} ${def.name}`, text, n: rid() }; HG.msg = text; HG.seq++; push();
 }
 function doRoll(p, die) {
@@ -164,7 +186,7 @@ function move(p, steps, done) {
 function afterStep(p, cont) {
   const n = MAP.nodes[p.pos], go = () => { if (p.pos === HG.factory) offerBuy(p, cont); else if (n.t === "SH" && HG.left > 0) offerShop(p, cont); else cont(); };
   /* loose shards thrown out by rising lava: driving over one picks it up (if the truck bed has room) */
-  if (HG.loose && HG.loose[p.pos] && shardMap() && (p.shards | 0) < SHARD_MAX) { delete HG.loose[p.pos]; addShards(p, 1); HG.msg = `${p.name} scoops up a loose shard (${p.shards}/${SHARD_MAX}).`; push(); later(() => afterRef(p, n, go), 450); return; }
+  if (HG.loose && HG.loose[p.pos] && shardMap() && (p.shards | 0) < SHARD_MAX) { delete HG.loose[p.pos]; addShards(p, 1); HG.msg = `${p.name} scoops up a loose shard (${p.shards} shards).`; push(); later(() => afterRef(p, n, go), 450); return; }
   afterRef(p, n, go);
 }
 function afterRef(p, n, go) {
@@ -172,7 +194,7 @@ function afterRef(p, n, go) {
   if (n.ref && shardMap() && (p.shards | 0) > 0) {
     if ((p.dust | 0) >= DUST_MAX) { HG.msg = `${p.name} passes the refinery, but their dust bag is full (${DUST_MAX}/${DUST_MAX}).`; push(); later(go, 700); return; }
     const k = Math.min(p.shards | 0, DUST_MAX - (p.dust | 0)); HG.grind = { pid: p.key, at: p.pos, k, n: rid() }; HG.msg = `${p.name} pulls under the refinery…`; push();
-    later(() => { if (!HG) return; refine(p); HG.ev = { title: "Refinery!", text: `${p.name}'s ${plural(k, "shard")} ${k === 1 ? "is" : "are"} ground into obsidian dust. Dust: ${p.dust}/${DUST_MAX}.`, n: rid() }; HG.msg = HG.ev.text; push(); later(go, 1300); }, 3000); return; }
+    later(() => { if (!HG) return; refine(p); HG.ev = { title: "Refinery!", text: `${p.name}'s ${plural(k, "shard")} ${k === 1 ? "is" : "are"} ground into obsidian dust. Dust: ${p.dust}.`, n: rid() }; HG.msg = HG.ev.text; push(); later(go, 1300); }, 3000); return; }
   go();
 }
 /* would this road run into lava this round or next? (bots steer clear) */
@@ -183,7 +205,7 @@ function botDist(p, o) {
   if (!shardMap() || canDust(p) || p.coins >= RAW_PRICE + BOT_RICH) return F(HG.factory);
   const ids = MAP.nodes.map((n, i) => i);
   if ((p.shards | 0) && (p.shards | 0) + (p.dust | 0) >= DUST_BAT && (p.dust | 0) < DUST_MAX) return near(ids.filter(i => MAP.nodes[i].ref));
-  const dig = ids.filter(i => { const n = MAP.nodes[i]; return (["SD", "OB", "MC"].includes(n.t) || (HG.obs && HG.obs[i]) || (HG.loose && HG.loose[i])) && !flooded(i, HG.round) && !flooded(i, HG.round + 1); });
+  const dig = ids.filter(i => { const n = MAP.nodes[i]; return (["SD", "OB"].includes(n.t) || (n.t === "MC" && HG.bigShard !== false) || (n.t === "MR" && HG.loose && Object.keys(HG.loose).length > 2) || (HG.obs && HG.obs[i]) || (HG.loose && HG.loose[i])) && !flooded(i, HG.round) && !flooded(i, HG.round + 1); });
   return dig.length ? near(dig) : F(HG.factory);
 }
 function askFork(p, opts, go) {
@@ -219,7 +241,7 @@ function buyThing(p, what) {
   return "";
 }
 function offerShop(p, cont) {
-  if (p.bot) { const o = []; Object.keys(UPGRADES).forEach(u => { if (!has(p, u) && p.coins >= UPGRADES[u].cost + 8) o.push(u); }); Object.keys(ITEMS).forEach(i => { if (p.items.length < 3 && p.coins >= ITEMS[i].cost + 14) o.push(i); });
+  if (p.bot) { const o = []; Object.keys(UPGRADES).forEach(u => { if (!has(p, u) && p.coins >= UPGRADES[u].cost + 8) o.push(u); }); Object.keys(ITEMS).forEach(i => { if (itemHere(i) && p.items.length < 3 && p.coins >= ITEMS[i].cost + 14) o.push(i); });
     const t = o.length && Math.random() < .65 ? buyThing(p, o[rnd(o.length)]) : ""; HG.msg = t || `${p.name} browses the shop and keeps driving.`; push(); later(cont, 1100); return; }
   HG.phase = "shop"; HG.seq++; HG.shop = { pid: p.key }; shopCont = cont; HG.msg = `${p.name} pulls into the Scrap Shop.`; push();
 }
@@ -245,10 +267,12 @@ function spaceEffect(p, allowEvent, done) {
     HG.msg = HG.ev.text; push(); done(); return; }
   if (t === "SD") { const r = addShards(p, 1);
     if (r.lost) { HG.ev = { title: "Truck bed full!", text: `${p.name} digs up a shard, but the truck bed is full (max ${SHARD_MAX}). It falls off the back.`, n: rid() }; HG.msg = HG.ev.text; }
-    else HG.msg = `${p.name} digs out an obsidian shard (${p.shards}/${SHARD_MAX}).`; push(); done(); return; }
+    else HG.msg = `${p.name} digs out an obsidian shard (${p.shards} shards).`; push(); done(); return; }
   /* minecart: a ride round the rails on the crater's central pillar and back to the same space, picking up 1–3 shards on the way (HG.cart drives the animation) */
-  if (t === "MC") { const got = [1, 1, 2, 2, 2, 3][rnd(6)], laps = 1 + rnd(2); HG.cart = { pid: p.key, at: p.pos, laps, n: rid() }; HG.ev = { title: "Minecart!", text: `${p.name} hops into the minecart…`, n: rid() }; HG.msg = HG.ev.text; push();
-    later(() => { if (!HG) return; const r = addShards(p, got); HG.ev = { title: r.lost ? "Truck bed full!" : "Minecart!", text: `${p.name} rides the pillar rails and grabs ${plural(got, "shard")}${r.lost ? `, but ${r.lost} ${r.lost === 1 ? "falls" : "fall"} off (max ${SHARD_MAX})` : ""}.`, n: rid() }; HG.msg = HG.ev.text; push(); later(done, 900); }, 2600 + laps * 1800); return; }
+  if (t === "MC") { const boom = HG.bigShard !== false; if (boom) HG.bigShard = false; HG.cart = { pid: p.key, at: p.pos, boom, n: rid() }; HG.ev = { title: "Minecart!", text: `${p.name} plops into the minecart and heads up the pillar…`, n: rid() }; HG.msg = HG.ev.text; push();
+    later(() => { if (!HG) return; if (boom) addShards(p, BIG_SHARD); HG.ev = { title: "Minecart!", text: boom ? `${p.name} smashes straight through the giant crystal: +${BIG_SHARD} shards!` : `${p.name} rides the pillar, but the giant crystal hasn't grown back yet.`, n: rid() }; HG.msg = HG.ev.text; push(); later(done, 900); }, 7200); return; }
+  /* rail cart: a random ride along the roads and back to this space, scooping up every loose shard it passes (HG.ride puts a cart under the truck) */
+  if (t === "MR") { railRide(p, done); return; }
   if (t === "B" || t === "S") { const dbl = false, g = 3 + (sc ? 2 : 0); p.coins += g; HG.msg = `${p.name} lands on blue${dbl ? " in the crater (double)" : ""}: +${g} coins.`; }
   else if (t === "R") { if (ar) HG.msg = `${p.name}'s armor shrugs off the red space.`; else { const b = p.coins; p.coins = Math.max(0, p.coins - 3); HG.msg = `${p.name} lands on red: −${b - p.coins} coins.`; } }
   else if (t === "SC") { const r = [0, 1, 2, 3, 4, 5, 6, 8, 10, 12, 15][rnd(11)] + (sc ? 3 : 0); p.coins += r; HG.ev = { title: MAP.lava ? "Ore cart!" : "Scrap pile!", text: r ? `${p.name} digs up ${r} coins.` : `${p.name} finds nothing but rust.`, n: rid() }; HG.msg = HG.ev.text; }
@@ -275,7 +299,7 @@ function doEvent(p, done) {
   if (k === 2) { const o = others[rnd(others.length)]; [p.pos, o.pos] = [o.pos, p.pos]; p.from = o.from = null; title = "Road swap!"; text = `${p.name} and ${o.name} trade places.`; }
   if (k === 3) { p.coins += 8; title = "Lost cargo!"; text = `${p.name} finds a crate of coins: +8.`; }
   if (k === 4) { HG.factory = pickFactory(HG.factory); title = "Factory relocates!"; text = "The battery factory packs up and moves."; }
-  if (k === 5) { title = "Lucky find!"; if (shardMap() && (p.shards | 0) < SHARD_MAX) { addShards(p, 1); text = `${p.name} spots a loose obsidian shard by the road: +1 shard.`; } else { p.coins += 5; text = `${p.name} finds 5 coins under the seat.`; } }
+  if (k === 5) { title = "Lucky find!"; if (shardMap()) { addShards(p, 1); text = `${p.name} spots a loose obsidian shard by the road: +1 shard.`; } else { p.coins += 5; text = `${p.name} finds 5 coins under the seat.`; } }
   if (k === 6) { const lead = others.filter(o => !mate(p, o)).sort((a, b) => b.bat - a.bat || b.coins - a.coins)[0];
     if (lead && lead.coins > 0) { const t = Math.min(5, lead.coins); lead.coins -= t; p.coins += t; title = "Fuel tax!"; text = `${lead.name} is leading, so they pay ${p.name} ${t} coins.`; }
     else { p.coins += 5; title = "Fuel tax!"; text = `${p.name} gets a 5-coin refund.`; } }
@@ -334,7 +358,7 @@ function scatterShards(r) {
 }
 function lavaRound() {
   if (!MAP.lava || !HG) return;
-  rollGeysers();
+  rollGeysers(); if (shardMap()) HG.bigShard = true;
   const r = HG.round, lv = lavaLv(r), was = r > 1 ? lavaLv(r - 1) : 0, ph = lavaPh(r), parts = []; let title = "🌋 Lava";
   if (lv > was && shardMap()) { scatterShards(r); parts.push("Lava bursts throw loose shards onto the ledges: drive over them to grab one."); }
   if (lv < was) HG.loose = {};
@@ -355,15 +379,15 @@ function lavaRound() {
 }
 /* end of every 7th round: lava bombs turn 4 ledge spaces into obsidian, trucks in the crater get launched to the rim */
 function eruption(done) {
-  const pool = MAP.nodes.map((n, i) => i).filter(i => { const n = MAP.nodes[i]; return (n.sl || n.lv === 2) && ["B", "R", "E", "SC"].includes(n.t) && !n.ref && i !== HG.factory; }), hits = [];
-  while (hits.length < 4 && pool.length) hits.push(pool.splice(rnd(pool.length), 1)[0]);
-  HG.phase = "erupt"; HG.seq++; HG.erupt = { n: rid(), hits }; HG.ev = { title: "🌋 Eruption!", text: "The volcano blows! Lava bombs rain down on the ledges.", n: rid() }; HG.msg = HG.ev.text; push();
+  const pool = MAP.nodes.map((n, i) => i).filter(i => { const n = MAP.nodes[i]; return !n.lv && !n.br && ["B", "R", "E", "SC", "D", "SD"].includes(n.t) && !n.ref && i !== HG.factory; }), hits = [];
+  while (hits.length < 8 && pool.length) hits.push(pool.splice(rnd(pool.length), 1)[0]);
+  HG.phase = "erupt"; HG.seq++; HG.erupt = { n: rid(), hits }; HG.ev = { title: "🌋 Eruption!", text: "The volcano blows! Lava bombs rain down all over the quarry.", n: rid() }; HG.msg = HG.ev.text; push();
   later(() => { if (!HG) return; const out = [], rim = MAP.nodes.map((n, i) => i).filter(i => MAP.nodes[i].rim && i !== HG.factory);
     HG.players.forEach(p => { const n = MAP.nodes[p.pos];
       if (n.lv === 1) { p.pos = rim[rnd(rim.length)]; p.from = null; out.push(`${p.name} is launched to the rim`); }
       else if (hits.includes(p.pos)) { const b = p.coins; if (!has(p, "armor")) p.coins = Math.max(0, p.coins - 5); out.push(`${p.name} gets hit${b - p.coins ? ` (−${b - p.coins})` : " (armor held)"}`); } });
-    HG.obs = {}; hits.forEach(h => HG.obs[h] = 1);
-    HG.ev = { title: "Obsidian!", text: `${out.length ? out.join(", ") + ". " : ""}The bombs cool into obsidian: land on one for ${shardMap() ? "+2 shards" : "+8 coins"}.`, n: rid() }; HG.msg = HG.ev.text; push();
+    HG.loose = HG.loose || {}; hits.forEach(h => { HG.loose[h] = 1; });
+    HG.ev = { title: "Eruption!", text: `${out.length ? out.join(", ") + ". " : ""}The bombs crack open into loose shards: drive over them to grab them.`, n: rid() }; HG.msg = HG.ev.text; push();
     later(done, 3200); }, 3800);
 }
 function startMinigame(duel, forceG) {
@@ -425,7 +449,7 @@ function afterMg() {
   if (HG.round > HG.rounds) { HG.round = HG.rounds; HG.phase = "over"; HG.seq++; HG.msg = "Race over!"; push(); }
   else { HG.turn = 0; rivalNote(); lavaRound(); startTurn(); }
 }
-function hostPlayAgain() { clearTimers(); HG.phase = "lobby"; HG.seq++; HG.players.forEach(p => { p.pos = 0; p.from = null; p.coins = START_COINS; p.bat = 0; p.shards = 0; p.dust = 0; p.items = []; p.up = []; }); HG.traps = {}; HG.obs = {}; HG.erupt = null; HG.loose = {}; HG.cart = HG.grind = null; HG.roll = HG.fx = HG.ev = HG.mg = HG.buy = HG.fork = HG.shop = HG.duelPick = null; push(); }
+function hostPlayAgain() { clearTimers(); HG.phase = "lobby"; HG.seq++; HG.players.forEach(p => { p.pos = 0; p.from = null; p.coins = START_COINS; p.bat = 0; p.shards = 0; p.dust = 0; p.items = []; p.up = []; }); HG.traps = {}; HG.obs = {}; HG.erupt = null; HG.loose = {}; HG.cart = HG.grind = HG.ride = null; HG.bigShard = true; HG.roll = HG.fx = HG.ev = HG.mg = HG.buy = HG.fork = HG.shop = HG.duelPick = null; push(); }
 function hostTick() {
   if (!HG) return; const now = Date.now();
   const idle = (p, fn) => { if (!p) return; if (p.bot || online(p.key)) { delete offSince[p.key]; return; } offSince[p.key] = offSince[p.key] || now; if (now - offSince[p.key] > 8000) { delete offSince[p.key]; fn(); } };
@@ -479,7 +503,7 @@ function panelHTML() {
   }
   if (G.phase === "shop" && G.shop && ctrl(P_(G.shop.pid))) {
     const p = P_(G.shop.pid), full = (p.items || []).length >= 3;
-    const it = Object.keys(ITEMS).map(k => { const d = ITEMS[k], dis = p.coins < d.cost || full; return `<button class="shopb" data-shop="${k}" ${dis ? "disabled" : ""}><b>${d.icon}</b><span>${esc(d.name)}<small>${esc(d.desc)}</small></span><em>${d.cost}${coinIco}</em></button>`; }).join("");
+    const it = Object.keys(ITEMS).filter(itemHere).map(k => { const d = ITEMS[k], dis = p.coins < d.cost || full; return `<button class="shopb" data-shop="${k}" ${dis ? "disabled" : ""}><b>${d.icon}</b><span>${esc(d.name)}<small>${esc(d.desc)}</small></span><em>${d.cost}${coinIco}</em></button>`; }).join("");
     const up = Object.keys(UPGRADES).map(k => { const d = UPGRADES[k], own = has(p, k), dis = own || p.coins < d.cost; return `<button class="shopb" data-shop="${k}" ${dis ? "disabled" : ""}><b>${d.icon}</b><span>${esc(d.name)}<small>${esc(d.desc)}</small></span><em>${own ? "Owned" : d.cost + coinIco}</em></button>`; }).join("");
     return `<div class="pan"><h3>${p.key === me.key ? "" : esc(p.name) + ": "}Scrap Shop</h3><p class="panhint">${p.coins} coins${full ? ". Item bag full (3 max)" : ""}. One purchase per visit.</p><div class="shoplist"><h4>Items</h4>${it}<h4>Upgrades, kept all game</h4>${up}</div><button class="btn ghost small" data-shop="" style="width:100%;margin-top:8px">Leave shop</button></div>`;
   }
