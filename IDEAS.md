@@ -5,6 +5,12 @@
 - Concrete Crumble (`tiles`) CPUs still fall early; bot pathing could be smarter.
 - Possibly swap to real Kenney assets (CC0) now that files can live in the project.
 
+## Minigame visual upgrade (one PR each)
+1. Lane races (Drag Race, Green Light, Rush Hour, Ramp Jump, Crate Drop): done, shared `partscene.js`.
+2. Arenas: Cone Smash, Fire Brigade, Rock Fall.
+3. Coin Rush retheme (casino rooftop car park at dusk).
+4. Touch-ups: Dump Run and the rest.
+
 ## Minigames picked (to build)
 - Done: Hot Load (`hotload`, partmg3).
 - **Paint the Lot** (free-for-all or teams, arena): trucks leave a trail in their colour; most of the car park covered wins.

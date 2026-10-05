@@ -82,9 +82,22 @@ function laneWorld(W, len, extra) {
 	W.laneX = (i) => (i - (n - 1) / 2) * LW;
 	W.len = len;
 	const wid = n * LW;
-	const road = B(wid + 0.6, 0.1, len + 30, "#454B58", 0, 0.05, -len / 2 + 5);
-	road.castShadow = false;
-	s.add(road);
+	s.add(texBox(wid + 0.6, 0.1, len + 30, asphaltTex(), 8, 0, 0.05, -len / 2 + 5));
+	roadWear(s, -wid / 2 - 0.3, wid / 2 + 0.3, 20, -len - 10, 0.101);
+	autoTracks(W, "#9DA0A6", 0.112);
+	if (!W.def.bare) {
+		kerbs(s, -wid / 2 - 0.3, wid / 2 + 0.3, 20, -len - 10, "race");
+		vergeScatter(
+			s,
+			[
+				[-wid / 2 - 14, -wid / 2 - 1.1],
+				[wid / 2 + 1.1, wid / 2 + 14],
+			],
+			24,
+			-len - 20,
+			Math.round(len * 6),
+		);
+	}
 	for (let i = 0; i <= n; i++) {
 		const l = B(0.12, 0.16, len + 30, "#E9EDF2", (i - n / 2) * LW, 0.06, -len / 2 + 5);
 		l.castShadow = false;
@@ -376,6 +389,9 @@ function tyreStep(W, T, dt, y = 0.02, only) {
 		const sp = Math.hypot(e.vx || 0, e.vz || 0);
 		wheelTrack(T, e, !((only && !only(e)) || e.gone || e.falling || e.fly || !e.al || e.y > 0.2) && sp >= 1.5, W.t, y);
 	});
+	tyreFade(T, dt);
+}
+function tyreFade(T, dt) {
 	/* smooth fade along the whole trail: by age, and by place in the buffer so the oldest ~2/3 always grades out before marks get reused */
 	let ch = false;
 	const nw = T.n - 1;
@@ -3109,6 +3125,37 @@ const MG = {
 			const s = W.sc,
 				wid = laneWorld(W, 220, { noTrees: true });
 			gantry(s, wid, -200, 5, "#151B24");
+			{
+				// laid-down rubber in the launch zone of every lane, darkest at the line
+				const rub = canvasTex(32, 256, (x, w, h) => {
+						const q = x.createLinearGradient(0, h, 0, 0);
+						q.addColorStop(0, "rgba(16,16,18,.75)");
+						q.addColorStop(0.35, "rgba(16,16,18,.35)");
+						q.addColorStop(1, "rgba(16,16,18,0)");
+						x.fillStyle = q;
+						x.fillRect(4, 0, w - 8, h);
+						for (let i = 0; i < 6; i++) {
+							x.fillStyle = "rgba(10,10,12,.25)";
+							x.fillRect(6 + Math.random() * (w - 14), h * (0.4 + Math.random() * 0.6), 2, -h * Math.random() * 0.5);
+						}
+					}),
+					rm = new THREE.MeshBasicMaterial({
+						map: rub,
+						transparent: true,
+						depthWrite: false,
+						polygonOffset: true,
+						polygonOffsetFactor: -3,
+					});
+				W.plist.forEach((p, i) =>
+					[-0.5, 0.5].forEach((o) => {
+						const m = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 70), rm);
+						m.rotation.x = -Math.PI / 2;
+						m.position.set(W.laneX(i) + o, 0.108, -33);
+						m.renderOrder = 1;
+						s.add(m);
+					}),
+				);
+			}
 			const f = new THREE.Mesh(
 				new THREE.PlaneGeometry(wid, 1.2),
 				new THREE.MeshBasicMaterial({
@@ -3490,18 +3537,71 @@ const MG = {
 				p.g.rotation.y = moving ? (tx > p.x ? Math.PI / 2 : -Math.PI / 2) : p.side > 0 ? -Math.PI / 2 : Math.PI / 2;
 			});
 		},
+		furniture(W, wid) {
+			// kerbside clutter: hydrants, bins, benches, planters, bollards, newspaper boxes; kept clear of lamp posts, traffic lights and crossings
+			const s = W.sc,
+				near = (z, step, off, r) => Math.abs(((((z - off) % step) + step + step / 2) % step) - step / 2) < r;
+			let k = 0;
+			[-1, 1].forEach((sd) => {
+				for (let z = 6; z > -this.LEN - 15; z -= 4.5, k++) {
+					if (
+						near(z, 15, 0, 1.6) ||
+						near(z, 24, -8, 1.6) ||
+						near(z, 24, -4.8, 2.4) ||
+						(sd < 0 && Math.abs(z + 30) < 1.6)
+					)
+						continue;
+					const x = sd * (wid / 2 + 1.15),
+						g = new THREE.Group();
+					g.position.set(x, 0.25, z);
+					switch ((k * 5 + (sd > 0 ? 2 : 0)) % 6) {
+						case 0:
+							g.add(Cy(0.16, 0.2, 0.55, 10, "#D93A35", 0, 0.28, 0), Cy(0.12, 0.17, 0.14, 10, "#B52A26", 0, 0.62, 0));
+							g.add(Cy(0.07, 0.07, 0.5, 6, "#B52A26", 0, 0.35, 0).rotateZ(Math.PI / 2));
+							break;
+						case 1:
+							g.add(Cy(0.28, 0.24, 0.85, 12, "#2E7D4F", 0, 0.43, 0), Cy(0.3, 0.3, 0.08, 12, "#245F3D", 0, 0.88, 0));
+							break;
+						case 2:
+							g.add(
+								B(0.45, 0.07, 1.6, "#B07A46", 0, 0.45, 0),
+								B(0.08, 0.45, 1.6, "#B07A46", sd * 0.22, 0.72, 0),
+								B(0.4, 0.45, 0.07, "#2A2F3A", 0, 0.22, -0.7),
+								B(0.4, 0.45, 0.07, "#2A2F3A", 0, 0.22, 0.7),
+							);
+							break;
+						case 3: {
+							g.add(B(0.9, 0.5, 0.9, "#8C939E", 0, 0.25, 0), B(0.8, 0.06, 0.8, "#5A3E2A", 0, 0.5, 0));
+							const t = tree(0, 0, 0.45, k % 3);
+							t.position.y = 0.5;
+							g.add(t);
+							break;
+						}
+						case 4:
+							[-0.5, 0.5].forEach((o) =>
+								g.add(Cy(0.08, 0.1, 0.7, 8, "#2A2F3A", 0, 0.35, o), Cy(0.09, 0.09, 0.06, 8, "#FFC83D", 0, 0.62, o)),
+							);
+							break;
+						default:
+							g.add(
+								B(0.45, 0.9, 0.4, ["#2F7DE1", "#E5484D", "#FFC83D"][k % 3], 0, 0.45, 0),
+								B(0.35, 0.2, 0.02, "#F4F6F9", -sd * 0.22, 0.65, 0).rotateY(Math.PI / 2),
+							);
+					}
+					s.add(g);
+				}
+			});
+		},
 		city(W, wid) {
 			// downtown street: sidewalks, shop fronts with awnings, apartment blocks, street lamps
 			const s = W.sc,
 				C = ["#D9C3A5", "#B8C4D6", "#E8B4A0", "#C9D6B8", "#E6D8BE", "#A9B8C9"],
 				AW = ["#E5484D", "#2F7DE1", "#1FA35C", "#FFC83D", "#8E5BE0"];
-			const g0 = B(160, 0.4, 300, "#8A9099", 0, -0.2, -80);
-			g0.castShadow = false;
-			s.add(g0);
+			s.add(texBox(160, 0.4, 300, asphaltTex(), 8, 0, -0.2, -80, { color: "#C8CCD4" }));
+			kerbs(s, -wid / 2 - 0.3, wid / 2 + 0.3, 70, -230, "city");
+			this.furniture(W, wid);
 			[-1, 1].forEach((sd) => {
-				const sw = B(4, 0.25, 300, "#C9CED8", sd * (wid / 2 + 2.3), 0.12, -80);
-				sw.castShadow = false;
-				s.add(sw);
+				s.add(texBox(4, 0.25, 300, pavingTex(), 4, sd * (wid / 2 + 2.3), 0.12, -80));
 				for (let z = 12, k = 0; z > -this.LEN - 40; z -= 9, k++) {
 					const o = sd > 0 ? 2 : 0,
 						h = 7 + ((k * 7 + o) % 5) * 2.2,
@@ -4482,12 +4582,20 @@ const MG = {
 			const s = W.sc,
 				L = 1100,
 				zc = -L / 2 + 30;
-			const g0 = B(220, 0.4, L, "#7CC66A", 0, -0.25, zc);
-			g0.castShadow = false;
-			s.add(g0);
-			const rd = B(wid + 1.4, 0.1, L, "#454B58", 0, 0.05, zc);
-			rd.castShadow = false;
-			s.add(rd);
+			s.add(texBox(220, 0.4, L, grassTex(), 10, 0, -0.25, zc));
+			s.add(texBox(wid + 1.4, 0.1, L, asphaltTex(), 8, 0, 0.05, zc));
+			roadWear(s, -wid / 2 - 0.7, wid / 2 + 0.7, 30, -L + 30, 0.101, 0.8);
+			autoTracks(W, "#9DA0A6", 0.112);
+			vergeScatter(
+				s,
+				[
+					[-wid / 2 - 13, -wid / 2 - 1.5],
+					[wid / 2 + 1.5, wid / 2 + 13],
+				],
+				30,
+				-L + 30,
+				2600,
+			);
 			[-1, 1].forEach((sd) => {
 				s.add(
 					B(0.14, 0.12, L, "#E9EDF2", sd * (wid / 2 + 0.35), 0.1, zc),
@@ -4907,9 +5015,23 @@ const MG = {
 			const s = W.sc,
 				CC = ["#E5484D", "#2F7DE1", "#FF8A1F", "#1FA35C", "#FFC83D", "#8E96A3", "#1FB5A8", "#B5622F"],
 				rc = () => CC[Math.floor(W.rng() * CC.length)];
-			const q = B(260, 0.4, 70, "#9AA0A8", 0, -0.2, -2);
-			q.castShadow = false;
-			s.add(q);
+			s.add(texBox(260, 0.4, 70, concreteTex(), 8, 0, -0.2, -2));
+			roadWear(s, -60, 60, 30, -34, 0.002, 0.5);
+			// painted bay lines and crane rails on the quay
+			[-1, 1].forEach((sd) => {
+				for (let r = 0; r < 3; r++)
+					for (let k = 0; k < 5; k++)
+						decal(
+							s,
+							new THREE.PlaneGeometry(0.14, 6.6),
+							"#F2C230",
+							sd * (wid / 2 + 4.65 + k * 2.7),
+							0.01,
+							-4 - r * 7.4,
+							0.85,
+						);
+			});
+			[-32, -35.9].forEach((z) => s.add(B(260, 0.06, 0.12, "#5E636D", 0, 0.03, z)));
 			s.add(B(260, 0.5, 0.6, "#FFC83D", 0, 0.05, -36.7));
 			const sea = new THREE.Mesh(
 				new THREE.PlaneGeometry(600, 400, 30, 20),
