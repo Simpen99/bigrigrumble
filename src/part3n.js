@@ -305,7 +305,7 @@ function handleFx() {
   if (W && (!G.mg || W.mg.nonce !== G.mg.nonce) && G.phase === "minigame") closeMg();
   if (TVC && (!G.mg || TVC.mg.nonce !== G.mg.nonce) && G.phase === "minigame") closeMg();
   if (G.phase === "minigame" && G.mg && G.mg.tv && role === "host" && !mgBusy) { if (G.mg.tv === "split") openTvSplit(G.mg); else openTvMg(G.mg); }
-  if (G.phase === "minigame" && G.mg && !mgBusy) { const pend = mgPending(); if (pend.length) openMg(G.mg, pend[0]); }
+  if (G.phase === "minigame" && G.mg && !mgBusy) { const pend = mgPending(); if (pend.length) enterMg(G.mg, pend[0]); }
   if (W) syncStart();
   if (G.phase === "mgres" && G.mg && seen.res !== G.mg.nonce) { seen.res = G.mg.nonce; showMgResults(G.mg); }
   if (G.phase !== "minigame" && G.phase !== "mgres" && mgOpen) closeMg();

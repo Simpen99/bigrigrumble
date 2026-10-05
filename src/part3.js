@@ -258,7 +258,7 @@ function handleFx() {
   if (G.roll && G.roll.n !== seen.roll) { seen.roll = G.roll.n; showDice(G.roll); }
   if (G.fx && G.fx.n !== seen.fx) { seen.fx = G.fx.n; setTimeout(() => showBattery(G.fx), 50); }
   if (G.ev && G.ev.n !== seen.ev) { seen.ev = G.ev.n; showEvent(G.ev); }
-  if (G.phase === "minigame" && G.mg && !mgBusy) { const pend = mgPending(); if (pend.length) openMg(G.mg, pend[0]); }
+  if (G.phase === "minigame" && G.mg && !mgBusy) { const pend = mgPending(); if (pend.length) enterMg(G.mg, pend[0]); }
   if (W) syncStart();
   if (G.phase === "mgres" && G.mg && seen.res !== G.mg.nonce) { seen.res = G.mg.nonce; showMgResults(G.mg); }
   if (G.phase !== "minigame" && G.phase !== "mgres" && mgOpen) closeMg();

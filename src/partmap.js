@@ -290,6 +290,10 @@ function buildRival() {
   return g;
 }
 /* ---------- Volcano Quarry scenery ---------- */
+/* soft purple glow sprite (additive) for shard spaces and loose shards */
+let GLOW_TEX = null;
+function shardGlow(sz, op) { GLOW_TEX = GLOW_TEX || canvasTex(64, 64, (x, w, h) => { const g = x.createRadialGradient(32, 32, 0, 32, 32, 32); g.addColorStop(0, "rgba(190,140,255,.9)"); g.addColorStop(.45, "rgba(150,90,255,.35)"); g.addColorStop(1, "rgba(120,60,255,0)"); x.fillStyle = g; x.fillRect(0, 0, w, h); });
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: GLOW_TEX, transparent: true, opacity: op, depthWrite: false, blending: THREE.AdditiveBlending })); sp.scale.set(sz, sz, 1); return sp; }
 /* obsidian: hexagonal crystals with pointed ends, like the pressed-in tile icons: a big one leaning left and a smaller one leaning right; base at y 0 */
 let XTAL_GEO = null;
 const xtalGeo = () => XTAL_GEO || (XTAL_GEO = new THREE.LatheGeometry([[0, -.5], [.2, -.29], [.2, .29], [0, .5]].map(([r, y]) => new THREE.Vector2(r, y)), 6));
@@ -693,6 +697,7 @@ function buildBoardFor(map) {
     if (t === "CR") { const g = new THREE.Group(); g.position.set(x, 0, z); g.add(B(.22, 3.6, .22, "#6A717E", -1.1, 1.8, 0), B(.22, 3.6, .22, "#6A717E", 1.1, 1.8, 0), B(2.6, .3, .4, "#FFC83D", 0, 3.6, 0));
       const blk = B(1.5, .6, 1.5, "#3A4150", 0, 3, 0); g.add(blk); const st = B(1.52, .14, 1.52, "#FFC83D", 0, 2.72, 0); g.add(st); blk.userData.dyn = st.userData.dyn = 1; ng.add(g); crushers.push({ blk, st, ph: i * .7 }); }
     if (t === "SH") { const sp = textSprite("SHOP", "#1FB5A8", "#fff", 1.7); sp.position.set(x, 2.3, z); ng.add(sp); }
+    if (t === "SD") { const gl = shardGlow(2.4, .28); gl.position.set(x, .9, z); ng.add(gl); }
     if (t === "OB") { const c = obsidianMesh(.7); c.position.set(x + .85, .45, z - .55); ng.add(c); obCr[i] = c; c.userData.dyn = 1; }
     /* geyser: chevron on the tile edge pointing at the landing space (turns with the tile), a dotted steam arc to it and a pulsing ring round it; re-aimed when the target changes each round */
     if (t === "GY" && n.gy !== undefined) {
@@ -790,7 +795,7 @@ function syncBoard() {
   /* loose shards from rising lava: a glowing crystal hovering over the space, popping in and out */
   const loose = G.loose || {}, LC = ["#7A3CFF", "#B78CFF", "#FFFFFF"];
   Object.keys(bd.loose).forEach(k => { if (loose[k]) return; const m = bd.loose[k]; burst(bd.scene, m.position.x, m.position.y, m.position.z, { n: 10, shape: "ico", cols: LC, spd: 2.5, up: 3, grav: 8, life: .7 }); bd.scene.remove(m); delete bd.loose[k]; });
-  Object.keys(loose).forEach(k => { const n = MAP.nodes[k]; if (bd.loose[k] || !n) return; const c = new THREE.Group(), x1 = mesh(xtalGeo(), "#5B2BB5", { emissive: "#7A3CFF", emissiveIntensity: .5, roughness: .25 }); x1.scale.set(1.1, 1.25, 1.1); x1.position.y = .62; c.add(x1); c.position.set(n.x, (n.y || 0) + .5, n.z); c.userData.ph = +k;
+  Object.keys(loose).forEach(k => { const n = MAP.nodes[k]; if (bd.loose[k] || !n) return; const c = new THREE.Group(), x1 = mesh(xtalGeo(), "#5B2BB5", { emissive: "#7A3CFF", emissiveIntensity: .5, roughness: .25 }); x1.scale.set(1.1, 1.25, 1.1); x1.position.y = .62; c.add(x1); const gl = shardGlow(2.6, .35); gl.position.y = .7; c.add(gl); c.position.set(n.x, (n.y || 0) + .5, n.z); c.userData.ph = +k;
     /* launched from the lava lake (unless an eruption bomb already carried it there): flies in an arc and lands with a puff */
     if (G.phase !== "erupt" && bd.vx) { const d = Object.keys(bd.loose).filter(q => bd.loose[q].userData.fly).length; c.userData.fly = { t0: performance.now() / 1000 + .35 * d, from: new THREE.Vector3((Math.random() - .5) * 4, bd.vx.lava.position.y, (Math.random() - .5) * 4), to: c.position.clone() }; c.position.copy(c.userData.fly.from); c.visible = false; } bd.scene.add(c); bd.loose[k] = c; if (!c.userData.fly) burst(bd.scene, n.x, (n.y || 0) + 1, n.z, { n: 9, shape: "ico", cols: ["#FF7A2A", "#FFD24A", "#7A3CFF"], spd: 2.4, up: 4, grav: 9, life: .8, size: .6, vary: 1, op: .55 }); });
   ps.forEach(p => {
@@ -882,7 +887,8 @@ function stepBoard(dt, time) {
     if (GFX.kbCam) { GFX.toFree(); const o = GFX.ov || resetOv(), sp = dt * 520; GFX.camPan(-ax.x * sp, -ax.y * sp); o.yaw += rot * dt * 1.6; o.dist *= Math.exp(zm * dt * 1.3); GFX.clampOv(o);
       const cp = Math.cos(o.pitch); tgt = new THREE.Vector3(o.tx, o.ty !== undefined ? o.ty : MAP.camY || 0, o.tz); pos = tgt.clone().add(new THREE.Vector3(Math.sin(o.yaw) * cp * o.dist, Math.sin(o.pitch) * o.dist, Math.cos(o.yaw) * cp * o.dist)); }
   }
-  const k = 1 - Math.exp(-dt * (bcam ? 3.4 : GFX.follow ? 2.6 : GFX.dragging || GFX.kbCam ? 18 : 8)); GFX.camPos.lerp(pos, k); GFX.camTgt.lerp(tgt, k);
+  if (GFX.rise) { const u = Math.min(1, (performance.now() - GFX.rise) / 1300), e = u * u; tgt = tgt.clone(); pos = pos.clone(); tgt.y += e * 30; pos.y += e * 46; }
+  const k = 1 - Math.exp(-dt * (GFX.rise ? 4 : bcam ? 3.4 : GFX.follow ? 2.6 : GFX.dragging || GFX.kbCam ? 18 : 8)); GFX.camPos.lerp(pos, k); GFX.camTgt.lerp(tgt, k);
   cam.position.copy(GFX.camPos); cam.lookAt(GFX.camTgt);
 }
 
