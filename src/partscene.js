@@ -42,15 +42,15 @@ const asphaltTex = () =>
 	scnTex("asphalt", 256, (x, w, h) => {
 		x.fillStyle = "#4A4F59";
 		x.fillRect(0, 0, w, h);
-		for (let i = 0; i < 18; i++)
+		for (let i = 0; i < 7; i++)
 			wrapBlob(
 				x,
 				w,
 				h,
 				scnR() * w,
 				scnR() * h,
-				20 + scnR() * 50,
-				scnR() < 0.5 ? "rgba(30,33,40,.28)" : "rgba(120,124,132,.16)",
+				45 + scnR() * 60,
+				i % 2 ? "rgba(34,37,44,.09)" : "rgba(120,124,132,.07)",
 				"rgba(0,0,0,0)",
 			);
 		specks(x, w, h, 5200, ["rgba(20,22,28,.2)", "rgba(150,152,158,.16)", "rgba(95,98,106,.22)"], 0.6, 1.6);
@@ -189,17 +189,38 @@ const wearSheet = () =>
 			}
 		}
 		{
-			// oil stain (0,1)
-			for (let i = 0; i < 5; i++) {
-				const px = 64 + (scnR() - 0.5) * 40,
-					py = 192 + (scnR() - 0.5) * 40,
-					r = 16 + scnR() * 22,
-					q = x.createRadialGradient(px, py, 0, px, py, r);
-				q.addColorStop(0, "rgba(14,12,12,.55)");
-				q.addColorStop(1, "rgba(14,12,12,0)");
-				x.fillStyle = q;
-				x.fillRect(0, 128, 128, 128);
-			}
+			// oil stain (0,1): a few soft irregular layers, a darker core, scattered drips and a faint rainbow sheen
+			const cx = 64,
+				cy = 192,
+				blob = (bx, by, r, a) => {
+					x.beginPath();
+					for (let k = 0; k <= 14; k++) {
+						const t = (k / 14) * 6.283,
+							rr = r * (0.72 + scnR() * 0.45);
+						x[k ? "lineTo" : "moveTo"](bx + Math.cos(t) * rr, by + Math.sin(t) * rr * 0.8);
+					}
+					x.closePath();
+					x.fillStyle = `rgba(30,25,22,${a})`;
+					x.fill();
+				};
+			x.save();
+			x.beginPath();
+			x.rect(0, 128, 128, 128);
+			x.clip();
+			x.filter = "blur(2px)";
+			for (let i = 0; i < 4; i++) blob(cx + (scnR() - 0.5) * 28, cy + (scnR() - 0.5) * 22, 20 + scnR() * 14, 0.1);
+			blob(cx, cy, 15, 0.12);
+			blob(cx + 3, cy - 2, 7, 0.12);
+			for (let i = 0; i < 8; i++) blob(cx + (scnR() - 0.5) * 92, cy + (scnR() - 0.5) * 72, 1.5 + scnR() * 3.5, 0.16);
+			x.filter = "none";
+			const q = x.createRadialGradient(cx, cy, 4, cx, cy, 28);
+			q.addColorStop(0, "rgba(150,110,190,0)");
+			q.addColorStop(0.55, "rgba(90,150,180,.06)");
+			q.addColorStop(0.8, "rgba(170,130,200,.05)");
+			q.addColorStop(1, "rgba(150,110,190,0)");
+			x.fillStyle = q;
+			x.fillRect(0, 128, 128, 128);
+			x.restore();
 		}
 		{
 			// drain grate (1,1)
@@ -247,6 +268,63 @@ const crackSheet = () =>
 			}
 		}
 	}));
+/* painted road lines lying flush on the road (flat decals with worn paint, not raised boxes); no gap = solid line */
+const paintTex = () =>
+	scnTex("paint", 64, (x, w, h) => {
+		x.fillStyle = "#FFFFFF";
+		x.fillRect(0, 0, w, h);
+		x.globalCompositeOperation = "destination-out";
+		for (let i = 0; i < 220; i++) {
+			x.fillStyle = `rgba(0,0,0,${0.2 + scnR() * 0.6})`;
+			const z = 0.8 + scnR() * 2.6;
+			x.fillRect(scnR() * w, scnR() * h, z, z);
+		}
+		x.globalCompositeOperation = "source-over";
+	});
+function roadLines(s, xs, z0, z1, y, o = {}) {
+	const w = o.w || 0.14,
+		dash = o.dash || 0,
+		gap = o.gap || 0,
+		zt = Math.max(z0, z1),
+		L = Math.abs(z1 - z0),
+		mat = (len) =>
+			new THREE.MeshStandardMaterial({
+				color: o.col || "#F2F4F7",
+				map: texRep(paintTex(), 1, len / 1.5),
+				transparent: true,
+				depthWrite: false,
+				roughness: 0.75,
+				polygonOffset: true,
+				polygonOffsetFactor: -2,
+				polygonOffsetUnits: -2,
+			});
+	if (!gap) {
+		xs.forEach((x) => {
+			const m = new THREE.Mesh(new THREE.PlaneGeometry(w, L), mat(L));
+			m.rotation.x = -Math.PI / 2;
+			m.position.set(x, y, zt - L / 2);
+			m.receiveShadow = true;
+			m.renderOrder = 1;
+			s.add(m);
+		});
+		return;
+	}
+	const per = Math.floor(L / (dash + gap)),
+		im = new THREE.InstancedMesh(new THREE.PlaneGeometry(w, dash), mat(dash), per * xs.length),
+		O = new THREE.Object3D();
+	let i = 0;
+	O.rotation.x = -Math.PI / 2;
+	xs.forEach((x) => {
+		for (let k = 0; k < per; k++) {
+			O.position.set(x, y, zt - dash / 2 - k * (dash + gap));
+			O.updateMatrix();
+			im.setMatrixAt(i++, O.matrix);
+		}
+	});
+	im.receiveShadow = true;
+	im.renderOrder = 1;
+	s.add(im);
+}
 /* scatter road wear over a strip: manholes, patches, oil stains, drains along the edges (one instanced mesh per kind) */
 function roadWear(s, x0, x1, z0, z1, y, density = 1) {
 	const sheet = wearSheet(),
@@ -255,7 +333,7 @@ function roadWear(s, x0, x1, z0, z1, y, density = 1) {
 		kinds = [
 			{ u: 0, v: 1, n: L / 28, sz: [0.95, 0.95], edge: false },
 			{ u: 1, v: 1, n: L / 16, sz: [1.4, 3.2], edge: false, rnd: true },
-			{ u: 0, v: 0, n: L / 9, sz: [1.2, 2.2], edge: false, rnd: true },
+			{ u: 0, v: 0, n: L / 30, sz: [1.6, 1.6], edge: false, rnd: true },
 			{ u: 1, v: 0, n: L / 10, sz: [0.7, 0.5], edge: true },
 			...[0, 1, 2, 3].map((q) => ({ u: q % 2, v: 1 - (q >> 1), n: L / 30, sz: [3, 3], crack: true })),
 		];

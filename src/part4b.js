@@ -98,11 +98,14 @@ function laneWorld(W, len, extra) {
 			Math.round(len * 6),
 		);
 	}
-	for (let i = 0; i <= n; i++) {
-		const l = B(0.12, 0.16, len + 30, "#E9EDF2", (i - n / 2) * LW, 0.06, -len / 2 + 5);
-		l.castShadow = false;
-		s.add(l);
-	}
+	roadLines(
+		s,
+		Array.from({ length: n + 1 }, (_, i) => (i - n / 2) * LW),
+		20,
+		-len - 10,
+		0.104,
+		{ w: 0.12 },
+	);
 	const chk = new THREE.Mesh(
 		new THREE.PlaneGeometry(wid, 1.2),
 		new THREE.MeshBasicMaterial({
@@ -116,7 +119,9 @@ function laneWorld(W, len, extra) {
 		}),
 	);
 	chk.rotation.x = -Math.PI / 2;
-	chk.position.set(0, 0.14, -1.2);
+	chk.material.polygonOffset = true;
+	chk.material.polygonOffsetFactor = -2;
+	chk.position.set(0, 0.106, -1.2);
 	s.add(chk);
 	for (let z = 30; z > -len - 120; z -= 38)
 		[-1, 1].forEach((sd) => {
@@ -3169,7 +3174,9 @@ const MG = {
 				}),
 			);
 			f.rotation.x = -Math.PI / 2;
-			f.position.set(0, 0.14, -200);
+			f.material.polygonOffset = true;
+			f.material.polygonOffsetFactor = -2;
+			f.position.set(0, 0.106, -200);
 			s.add(f);
 			grandstands(W, wid, 14, -232);
 			// run-off past the finish: a crash cushion per lane in front of a concrete wall
@@ -3200,13 +3207,14 @@ const MG = {
 				return { g, sq: 0, w: 0 };
 			});
 			// lane dashes and distance boards: things whizzing past are what sell the speed
-			W.plist.forEach((p, i) => {
-				for (let z = -5; z > -198; z -= 6) {
-					const d = B(0.16, 0.03, 2.2, "#E9EDF2", W.laneX(i), 0.115, z);
-					d.castShadow = false;
-					s.add(d);
-				}
-			});
+			roadLines(
+				s,
+				W.plist.map((p, i) => W.laneX(i)),
+				-3.9,
+				-198,
+				0.106,
+				{ w: 0.16, dash: 2.2, gap: 3.8 },
+			);
 			for (let d = 25; d < 200; d += 25) {
 				const tex = canvasTex(96, 48, (x, w, h) => {
 					x.fillStyle = "#FFC83D";
@@ -3453,7 +3461,9 @@ const MG = {
 				}),
 			);
 			f.rotation.x = -Math.PI / 2;
-			f.position.set(0, 0.14, -this.LEN);
+			f.material.polygonOffset = true;
+			f.material.polygonOffsetFactor = -2;
+			f.position.set(0, 0.106, -this.LEN);
 			s.add(f);
 			this.city(W, wid);
 			// the light schedule comes from the shared seed so every device sees the same lights
@@ -4597,18 +4607,18 @@ const MG = {
 				2600,
 			);
 			[-1, 1].forEach((sd) => {
-				s.add(
-					B(0.14, 0.12, L, "#E9EDF2", sd * (wid / 2 + 0.35), 0.1, zc),
-					B(0.2, 0.5, L, "#C9CED8", sd * (wid / 2 + 1.1), 0.75, zc),
-				);
+				s.add(B(0.2, 0.5, L, "#C9CED8", sd * (wid / 2 + 1.1), 0.75, zc));
 				for (let z = 20; z > -L + 30; z -= 4) s.add(B(0.16, 0.7, 0.16, "#8E96A3", sd * (wid / 2 + 1.1), 0.35, z));
 			});
-			for (let l = 1; l < this.LANES; l++)
-				for (let z = 20; z > -L + 30; z -= 6) {
-					const d = B(0.14, 0.12, 2.6, "#E9EDF2", (l - this.LANES / 2) * this.LW, 0.1, z);
-					d.castShadow = false;
-					s.add(d);
-				}
+			roadLines(s, [-(wid / 2 + 0.35), wid / 2 + 0.35], 30, -L + 30, 0.104);
+			roadLines(
+				s,
+				[1, 2, 3].map((l) => (l - this.LANES / 2) * this.LW),
+				21.3,
+				-L + 30,
+				0.104,
+				{ dash: 2.6, gap: 3.4 },
+			);
 			for (let z = -60; z > -L + 30; z -= 140) {
 				s.add(B(0.4, 7, 0.4, "#5A6272", -wid / 2 - 2, 3.5, z), B(0.4, 7, 0.4, "#5A6272", wid / 2 + 2, 3.5, z));
 				const sg = new THREE.Mesh(
