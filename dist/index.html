@@ -24243,12 +24243,12 @@ const asphaltTex = () =>
 				scnR() < 0.5 ? "rgba(30,33,40,.28)" : "rgba(120,124,132,.16)",
 				"rgba(0,0,0,0)",
 			);
-		specks(x, w, h, 5200, ["rgba(20,22,28,.45)", "rgba(150,152,158,.35)", "rgba(95,98,106,.5)"], 0.6, 1.6);
+		specks(x, w, h, 5200, ["rgba(20,22,28,.32)", "rgba(150,152,158,.25)", "rgba(95,98,106,.35)"], 0.6, 1.6);
 		x.lineCap = "round";
 		for (let i = 0; i < 4; i++) {
 			let px = scnR() * w,
 				py = scnR() * h;
-			x.strokeStyle = i % 2 ? "rgba(28,30,36,.75)" : "rgba(22,24,28,.5)";
+			x.strokeStyle = i % 2 ? "rgba(28,30,36,.53)" : "rgba(22,24,28,.35)";
 			x.lineWidth = i % 2 ? 1 : 2.4;
 			x.beginPath();
 			x.moveTo(px, py);
