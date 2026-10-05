@@ -1158,7 +1158,7 @@ const VOLCANO = (() => {
   nodes[L1[1]].gy = rim[15]; nodes[C[0]].gy = U2[0]; nodes[C[9]].gy = rim[20];
   BT.forEach((t, k) => { if (t === "CV") nodes[BR[k]].conv = { dir: 1, n: 2 }; });
   return Object.assign(mkGraph(nodes), { id: "volcano", name: "Volcano Quarry", blurb: "Mine obsidian shards in the crater, grind them into dust at a refinery, but watch the lava.", ground: "#3E322D", dice: 1.5, lava: true, shards: true,
-    rules: ["Shard spaces give +1 obsidian shard, obsidian +2, the minecart 1–3. Rising lava scatters loose shards: drive over them to grab one.", "Drive through a refinery to grind your shards into obsidian dust (1 shard = 1 dust). Your truck carries up to 5 shards and 6 dust.", "Battery factory: melts 3 dust + 10 coins into a battery, or sells one for 50 coins.", "Landing on lava, or getting pushed uphill by rising lava, costs a shard."], size: 2, camY: 3, follow: 1.2 });
+    rules: ["Shard spaces give +1 obsidian shard, obsidian +2. The pillar minecart smashes the giant crystal for +15 (it regrows each round). Rail carts take you on a random ride.", "Rising lava and eruptions scatter loose shards: drive over them to grab them.", "Drive through a refinery to grind your shards into obsidian dust (1 shard = 1 dust). No limit on how much you carry.", "Battery factory: melts 3 dust + 10 coins into a battery, or sells one for 50 coins.", "Landing on lava, or getting pushed uphill by rising lava, costs a shard."], size: 2, camY: 3, follow: 1.2 });
 })();
 /* layout and shape tuned in the map editor (2026-10-04) */
 VOLCANO.bake = {
@@ -1889,7 +1889,7 @@ function syncBoard() {
   /* loose shards from rising lava: a glowing crystal hovering over the space, popping in and out */
   const loose = G.loose || {}, LC = ["#7A3CFF", "#B78CFF", "#FFFFFF"];
   Object.keys(bd.loose).forEach(k => { if (loose[k]) return; const m = bd.loose[k]; burst(bd.scene, m.position.x, m.position.y, m.position.z, { n: 10, shape: "ico", cols: LC, spd: 2.5, up: 3, grav: 8, life: .7 }); bd.scene.remove(m); delete bd.loose[k]; });
-  Object.keys(loose).forEach(k => { const n = MAP.nodes[k]; if (bd.loose[k] || !n) return; const c = obsidianMesh(.5); c.position.set(n.x, (n.y || 0) + 1.1, n.z); c.userData.ph = +k; bd.scene.add(c); bd.loose[k] = c; burst(bd.scene, n.x, (n.y || 0) + 1, n.z, { n: 12, shape: "ico", cols: ["#FF7A2A", "#FFD24A", "#7A3CFF"], spd: 3, up: 5, grav: 9, life: .9 }); });
+  Object.keys(loose).forEach(k => { const n = MAP.nodes[k]; if (bd.loose[k] || !n) return; const c = obsidianMesh(.7); c.position.set(n.x, (n.y || 0) + .95, n.z); c.userData.ph = +k; bd.scene.add(c); bd.loose[k] = c; burst(bd.scene, n.x, (n.y || 0) + 1, n.z, { n: 12, shape: "ico", cols: ["#FF7A2A", "#FFD24A", "#7A3CFF"], spd: 3, up: 5, grav: 9, life: .9 }); });
   ps.forEach(p => {
     let t = GFX.tok[p.key];
     if (!t || t.truck !== p.truck) {
@@ -2023,7 +2023,11 @@ function stepCart(bd, dt, time) {
   const cy = bd.crys; if (cy) { const smashing = bd.ca && bd.ca.boom && !bd.ca.boomed, want = G.bigShard === false && !smashing ? 0 : 1;
     if (want) { if (bd.crysK < 1) { bd.crysK = Math.min(1, bd.crysK + dt / 2.6); if (Math.random() < dt * 8) { const w = cy.getWorldPosition(new THREE.Vector3()); burst(bd.scene, w.x + (Math.random() - .5) * 2, w.y + Math.random() * 2, w.z + (Math.random() - .5) * 2, { n: 3, shape: "ico", cols: ["#B78CFF", "#FFFFFF"], spd: 1, up: 1.5, grav: 1, life: .6 }); } } }
     else bd.crysK = 0;
-    const e = bd.crysK, eb = e <= 0 ? 0 : 1 + 2.7 * Math.pow(e - 1, 3) + 1.7 * Math.pow(e - 1, 2); cy.visible = e > .01; cy.scale.setScalar(Math.max(.001, eb)); }
+    const e = bd.crysK, eb = e <= 0 ? 0 : 1 + 2.7 * Math.pow(e - 1, 3) + 1.7 * Math.pow(e - 1, 2); cy.visible = e > .01; cy.scale.setScalar(Math.max(.001, eb));
+    /* "+15" tag floating over the grown crystal so everyone can see it's up for grabs */
+    if (!bd.crysTag) { bd.crysTag = crysTagSprite(); bd.scene.add(bd.crysTag); }
+    const tg = bd.crysTag, w = cy.getWorldPosition(new THREE.Vector3()), show = e >= 1; tg.material.opacity += ((show ? 1 : 0) - tg.material.opacity) * Math.min(1, dt * 6); tg.visible = tg.material.opacity > .02;
+    tg.position.set(w.x, w.y + 4.3 + Math.sin(time * 2) * .15, w.z); }
   const a = bd.ca, tok = a && GFX.tok[a.pid]; let u = 0;
   if (a && tok) { const k = time - a.t0, ride = k - .6, D = 5.6;
     if (ride > 0 && ride < D) { const f = ride / D; u = f < .1 ? f * f / .2 : f > .9 ? 1 - (1 - f) * (1 - f) / .2 : f - .05; }
@@ -2034,6 +2038,12 @@ function stepCart(bd, dt, time) {
     if (k > D + 1.4) { bd.ca = null; const h = c.curve.getPointAt(0); c.cart.position.set(h.x, h.y - .5, h.z); c.cart.rotation.set(0, 0, 0); } }
   /* rail cart (MR spaces): a cart rides under the truck for the whole trip */
   const rc = bd.rideCart, rd = G.ride, rt = rd && GFX.tok[rd.pid]; if (rc) { rc.visible = !!rt; if (rt) { rc.position.set(rt.g.position.x, rt.g.position.y - .42, rt.g.position.z); rc.rotation.y = rt.tr.rotation.y; } }
+}
+function crysTagSprite() {
+  const tex = canvasTex(200, 84, (x, W_, H) => { x.fillStyle = "rgba(21,27,36,.88)"; rr(x, 4, 4, W_ - 8, H - 8, 38); x.fill(); x.strokeStyle = "#B78CFF"; x.lineWidth = 4; rr(x, 4, 4, W_ - 8, H - 8, 38); x.stroke();
+    x.fillStyle = "#B78CFF"; x.beginPath(); [[46, 16], [60, 30], [60, 54], [46, 68], [32, 54], [32, 30]].forEach(([a, b], i) => i ? x.lineTo(a, b) : x.moveTo(a, b)); x.fill();
+    x.fillStyle = "#FFFFFF"; x.font = "900 44px Bungee, Rubik, Arial"; x.textAlign = "center"; x.textBaseline = "middle"; x.fillText("+" + BIG_SHARD, 124, 45); });
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, opacity: 0, depthWrite: false })); sp.scale.set(3.2, 3.2 * 84 / 200, 1); return sp;
 }
 function cartMesh() { const cart = new THREE.Group(); cart.add(B(.95, .42, .62, "#6B4A36", 0, .3, 0), B(.99, .06, .66, "#3A3A40", 0, .47, 0), B(.99, .06, .66, "#3A3A40", 0, .16, 0));
   [[-.3, -.3], [.3, -.3], [-.3, .3], [.3, .3]].forEach(([x, z]) => { const w = Cy(.1, .1, .06, 10, "#2A2A30", x, .08, z); w.rotation.x = Math.PI / 2; cart.add(w); }); return cart; }
