@@ -13,19 +13,19 @@ const UPGRADES = {
   scoop: { name: "Coin Scoop", cost: 12, icon: "🪣", desc: "+2 coins on blue spaces, +3 on scrap piles" },
   armor: { name: "Armor Plating", cost: 14, icon: "🛡️", desc: "Red spaces and crushers cost nothing, and Magnet Mike can't grab you" }
 };
-/* Volcano Quarry cargo: obsidian shards (crater-floor blues +1, obsidian +2) → power cells at a refinery (3 shards each) → batteries at the factory (cell + 10 coins, or 50 coins) */
-const SHARD_MAX = 5, CELL_MAX = 2, CELL_SHARDS = 3, CELL_COINS = 10, RAW_PRICE = 50, BOT_RICH = 25;
+/* Volcano Quarry cargo: obsidian shards (crater-floor blues +1, obsidian +2) → ground into obsidian dust at a refinery (1 shard = 1 dust) → the factory melts 3 dust into a battery (+ 10 coins), or sells one for 50 coins */
+const SHARD_MAX = 5, DUST_MAX = 6, DUST_BAT = 3, DUST_COINS = 10, RAW_PRICE = 50, BOT_RICH = 25;
 const shardMap = () => !!(((typeof G !== "undefined" && G && MAPS[G.map]) || MAP) || {}).shards;
-const canCell = p => shardMap() && (p.cells | 0) >= 1 && p.coins >= CELL_COINS;
+const canDust = p => shardMap() && (p.dust | 0) >= DUST_BAT && p.coins >= DUST_COINS;
 const rawPrice = () => shardMap() ? RAW_PRICE : PRICE;
-const canBuy = p => canCell(p) || p.coins >= rawPrice();
+const canBuy = p => canDust(p) || p.coins >= rawPrice();
 const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
 /* adds shards up to the truck bed limit; returns { got, lost } */
 function addShards(p, k) { const got = Math.max(0, Math.min(k, SHARD_MAX - (p.shards | 0))); p.shards = (p.shards | 0) + got; return { got, lost: k - got }; }
 /* lava costs a shard (armor keeps the cargo safe too); returns a text fragment */
 function loseShard(p) { if (!shardMap() || !(p.shards | 0) || has(p, "armor")) return ""; p.shards--; return "1 shard"; }
-/* refinery: every 3 shards become a power cell while there's room for it */
-function refine(p) { let n = 0; while ((p.shards | 0) >= CELL_SHARDS && (p.cells | 0) < CELL_MAX) { p.shards -= CELL_SHARDS; p.cells = (p.cells | 0) + 1; n++; } return n; }
+/* refinery: grinds every shard into a scoop of dust while the dust bag has room; returns how many */
+function refine(p) { const k = Math.max(0, Math.min(p.shards | 0, DUST_MAX - (p.dust | 0))); p.shards = (p.shards | 0) - k; p.dust = (p.dust | 0) + k; return k; }
 /* ---------- routes: at any crossing you may take any road, also against the usual direction, except straight back the way you came ----------
    p.from = the space a truck arrived from; unknown (start, teleports) means heading the usual way */
 const nbrs = i => [...new Set(MAP.nodes[i].next.concat(MAP.nodes[i].prev))];
@@ -100,7 +100,7 @@ function hostStart() {
   if (HG.players.length < 2) return;
   MAP = MAPS[HG.map] || JUNK; HG.map = MAP.id;
   const a = HG.players; for (let i = a.length - 1; i > 0; i--) { const j = rnd(i + 1); [a[i], a[j]] = [a[j], a[i]]; }
-  a.forEach((p, i) => { p.pos = 0; p.from = null; p.coins = START_COINS; p.bat = 0; p.shards = 0; p.cells = 0; p.items = []; p.up = []; if (p.team === undefined) p.team = i % 2; });
+  a.forEach((p, i) => { p.pos = 0; p.from = null; p.coins = START_COINS; p.bat = 0; p.shards = 0; p.dust = 0; p.items = []; p.up = []; if (p.team === undefined) p.team = i % 2; });
   HG.round = 1; HG.turn = 0; HG.factory = pickFactory(-1); HG.kick = []; HG.lastMg = null; HG.roll = HG.fx = HG.ev = HG.mg = HG.buy = HG.fork = HG.shop = HG.duelPick = null; HG.used = []; HG.traps = {}; HG.obs = {}; HG.erupt = null;
   HG.rival = MAP.rival ? { at: MAP.rivalHome, carry: null } : null;
   HG.intro = true; later(() => { if (!HG || !HG.intro) return; HG.intro = false; rivalNote(); lavaRound(); push(); }, 5000);
@@ -163,10 +163,11 @@ function move(p, steps, done) {
 }
 function afterStep(p, cont) {
   const n = MAP.nodes[p.pos], go = () => { if (p.pos === HG.factory) offerBuy(p, cont); else if (n.t === "SH" && HG.left > 0) offerShop(p, cont); else cont(); };
-  /* Volcano Quarry refinery: landing on or driving past turns shards into power cells */
-  if (n.ref && shardMap()) { const k = refine(p);
-    if (k) { HG.ev = { title: "Refinery!", text: `${p.name} refines ${k * CELL_SHARDS} shards into ${k > 1 ? k + " power cells" : "a power cell"}. Cells: ${p.cells}/${CELL_MAX}.`, n: rid() }; HG.msg = HG.ev.text; push(); later(go, 1500); return; }
-    if ((p.shards | 0) >= CELL_SHARDS) { HG.msg = `${p.name} passes the refinery, but their cell rack is full (${CELL_MAX}/${CELL_MAX}).`; push(); later(go, 700); return; } }
+  /* Volcano Quarry refinery: anyone carrying shards stops under the gate (either direction): the shards are sucked up, ground, and spat back down as dust (HG.grind drives the animation) */
+  if (n.ref && shardMap() && (p.shards | 0) > 0) {
+    if ((p.dust | 0) >= DUST_MAX) { HG.msg = `${p.name} passes the refinery, but their dust bag is full (${DUST_MAX}/${DUST_MAX}).`; push(); later(go, 700); return; }
+    const k = Math.min(p.shards | 0, DUST_MAX - (p.dust | 0)); HG.grind = { pid: p.key, at: p.pos, k, n: rid() }; HG.msg = `${p.name} pulls under the refinery…`; push();
+    later(() => { if (!HG) return; refine(p); HG.ev = { title: "Refinery!", text: `${p.name}'s ${plural(k, "shard")} ${k === 1 ? "is" : "are"} ground into obsidian dust. Dust: ${p.dust}/${DUST_MAX}.`, n: rid() }; HG.msg = HG.ev.text; push(); later(go, 1300); }, 3000); return; }
   go();
 }
 /* would this road run into lava this round or next? (bots steer clear) */
@@ -174,9 +175,9 @@ function lavaRisk(from, o) { if (!MAP.lava) return 0; let n = o, f = from; for (
 /* how far a road takes a bot from its goal. Volcano Quarry: dig in the crater until 3 shards, then the nearest refinery; the factory once they hold a cell (or are rich) */
 function botDist(p, o) {
   const F = t => routeDist(p.pos, o, t), near = l => l.length ? Math.min(...l.map(F)) : 99;
-  if (!shardMap() || canCell(p) || p.coins >= RAW_PRICE + BOT_RICH) return F(HG.factory);
+  if (!shardMap() || canDust(p) || p.coins >= RAW_PRICE + BOT_RICH) return F(HG.factory);
   const ids = MAP.nodes.map((n, i) => i);
-  if ((p.shards | 0) >= CELL_SHARDS && (p.cells | 0) < CELL_MAX) return near(ids.filter(i => MAP.nodes[i].ref));
+  if ((p.shards | 0) && (p.shards | 0) + (p.dust | 0) >= DUST_BAT && (p.dust | 0) < DUST_MAX) return near(ids.filter(i => MAP.nodes[i].ref));
   const dig = ids.filter(i => { const n = MAP.nodes[i]; return ((n.lv === 1 && n.t === "B") || n.t === "OB" || (HG.obs && HG.obs[i])) && !flooded(i, HG.round) && !flooded(i, HG.round + 1); });
   return dig.length ? near(dig) : F(HG.factory);
 }
@@ -189,9 +190,9 @@ function resolveFork(to) {
   HG.fork = null; HG.phase = "moving"; HG.seq++; const g = forkCont; forkCont = null; push(); if (g) g(to); else later(nextTurn, 500);
 }
 function offerBuy(p, cont) {
-  if (!canBuy(p)) { HG.msg = shardMap() ? `${p.name} passes the battery factory but needs a power cell + ${CELL_COINS} coins, or ${RAW_PRICE} coins.` : `${p.name} passes the battery factory but needs ${PRICE} coins.`; push(); later(cont, 1100); return; }
+  if (!canBuy(p)) { HG.msg = shardMap() ? `${p.name} passes the battery factory but needs ${DUST_BAT} obsidian dust + ${DUST_COINS} coins, or ${RAW_PRICE} coins.` : `${p.name} passes the battery factory but needs ${PRICE} coins.`; push(); later(cont, 1100); return; }
   /* CPUs always use a cell; without one they only pay full price when rich (or in the last round) */
-  if (p.bot && shardMap() && !canCell(p) && p.coins < RAW_PRICE + BOT_RICH && HG.round < HG.rounds) { HG.msg = `${p.name} drives past the battery factory, saving up for a power cell.`; push(); later(cont, 1100); return; }
+  if (p.bot && shardMap() && !canDust(p) && p.coins < RAW_PRICE + BOT_RICH && HG.round < HG.rounds) { HG.msg = `${p.name} drives past the battery factory, still collecting dust.`; push(); later(cont, 1100); return; }
   HG.phase = "buy"; HG.seq++; HG.buy = { pid: p.key }; HG.msg = `${p.name} pulls into the battery factory.`; pendingCont = cont; push();
   if (p.bot) { const s = HG.seq; later(() => resolveBuy(true, s), 1300); }
 }
@@ -201,10 +202,10 @@ function resolveBuy(yes, seqCheck, how) {
   const p = pByKey(HG.buy.pid); delete offSince[p.key];
   HG.buy = null; HG.seq++; HG.phase = "moving";
   const cont = pendingCont || (() => land(p, true)); pendingCont = null;
-  /* Volcano Quarry: pay with a power cell + 10 coins (the default when possible) or 50 coins */
-  const cell = canCell(p) && how !== "coins", price = cell ? CELL_COINS : rawPrice();
-  if (yes && p.coins >= price) { p.coins -= price; if (cell) p.cells--; p.bat++; HG.factory = pickFactory(HG.factory); HG.fx = { t: "bat", pid: p.key, n: rid() };
-    HG.msg = `${p.name} bought a battery${shardMap() ? (cell ? ` with a power cell and ${CELL_COINS} coins` : ` for ${price} coins`) : ""}! The factory is moving.`; push(); later(cont, 6500); }
+  /* Volcano Quarry: the factory melts 3 dust + 10 coins into a battery (the default when possible), or sells one for 50 coins */
+  const cell = canDust(p) && how !== "coins", price = cell ? DUST_COINS : rawPrice();
+  if (yes && p.coins >= price) { p.coins -= price; if (cell) p.dust -= DUST_BAT; p.bat++; HG.factory = pickFactory(HG.factory); HG.fx = { t: "bat", pid: p.key, n: rid() };
+    HG.msg = `${p.name} bought a battery${shardMap() ? (cell ? ` melted from ${DUST_BAT} obsidian dust and ${DUST_COINS} coins` : ` for ${price} coins`) : ""}! The factory is moving.`; push(); later(cont, 6500); }
   else { HG.msg = `${p.name} keeps driving.`; push(); later(cont, 500); }
 }
 function buyThing(p, what) {
@@ -402,7 +403,7 @@ function afterMg() {
   if (HG.round > HG.rounds) { HG.round = HG.rounds; HG.phase = "over"; HG.seq++; HG.msg = "Race over!"; push(); }
   else { HG.turn = 0; rivalNote(); lavaRound(); startTurn(); }
 }
-function hostPlayAgain() { clearTimers(); HG.phase = "lobby"; HG.seq++; HG.players.forEach(p => { p.pos = 0; p.from = null; p.coins = START_COINS; p.bat = 0; p.shards = 0; p.cells = 0; p.items = []; p.up = []; }); HG.traps = {}; HG.obs = {}; HG.erupt = null; HG.roll = HG.fx = HG.ev = HG.mg = HG.buy = HG.fork = HG.shop = HG.duelPick = null; push(); }
+function hostPlayAgain() { clearTimers(); HG.phase = "lobby"; HG.seq++; HG.players.forEach(p => { p.pos = 0; p.from = null; p.coins = START_COINS; p.bat = 0; p.shards = 0; p.dust = 0; p.items = []; p.up = []; }); HG.traps = {}; HG.obs = {}; HG.erupt = null; HG.roll = HG.fx = HG.ev = HG.mg = HG.buy = HG.fork = HG.shop = HG.duelPick = null; push(); }
 function hostTick() {
   if (!HG) return; const now = Date.now();
   const idle = (p, fn) => { if (!p) return; if (p.bot || online(p.key)) { delete offSince[p.key]; return; } offSince[p.key] = offSince[p.key] || now; if (now - offSince[p.key] > 8000) { delete offSince[p.key]; fn(); } };
@@ -465,8 +466,8 @@ function panelHTML() {
     return `<div class="pan"><h3>Duel! Pick an opponent</h3><p class="panhint">Winner takes up to 10 coins from the loser.</p><div class="optgrid">${opts.map(o => `<button class="optb" data-duel="${esc(o.key)}"><img alt="" src="${thumb(o.truck)}"><span>${esc(o.name)}<small>${o.coins} coins</small></span></button>`).join("")}</div></div>`;
   }
   if (G.phase === "buy" && G.buy) { const b = P_(G.buy.pid);
-    if (ctrl(b) && shardMap()) return `<div class="pan"><h3>${b.key === me.key ? "" : esc(b.name) + ": "}Battery factory!</h3><p>${b.key === me.key ? "You have" : "They have"} ${b.coins} coins and ${plural(b.cells | 0, "power cell")}.</p>
-      <div class="optgrid" style="margin-top:10px"><button class="optb" data-buy="1" data-how="cell" data-for="${esc(b.key)}" ${canCell(b) ? "" : "disabled"}><b class="optn">${cellIco}</b><span>Use a power cell<small>1 cell + ${CELL_COINS} coins</small></span></button><button class="optb" data-buy="1" data-how="coins" data-for="${esc(b.key)}" ${b.coins >= RAW_PRICE ? "" : "disabled"}><b class="optn">${coinIco}</b><span>Pay full price<small>${RAW_PRICE} coins, no cell</small></span></button></div>
+    if (ctrl(b) && shardMap()) return `<div class="pan"><h3>${b.key === me.key ? "" : esc(b.name) + ": "}Battery factory!</h3><p>${b.key === me.key ? "You have" : "They have"} ${b.coins} coins and ${b.dust | 0} obsidian dust.</p>
+      <div class="optgrid" style="margin-top:10px"><button class="optb" data-buy="1" data-how="cell" data-for="${esc(b.key)}" ${canDust(b) ? "" : "disabled"}><b class="optn">${dustIco}</b><span>Melt obsidian dust<small>${DUST_BAT} dust + ${DUST_COINS} coins</small></span></button><button class="optb" data-buy="1" data-how="coins" data-for="${esc(b.key)}" ${b.coins >= RAW_PRICE ? "" : "disabled"}><b class="optn">${coinIco}</b><span>Pay full price<small>${RAW_PRICE} coins, no dust</small></span></button></div>
       <button class="btn ghost small" data-buy="0" data-for="${esc(b.key)}" style="width:100%;margin-top:8px">Keep driving</button></div>`;
     if (ctrl(b)) return `<div class="pan"><h3>${b.key === me.key ? "" : esc(b.name) + ": "}Battery factory!</h3><p>Buy a battery for ${PRICE} coins? ${b.key === me.key ? "You have" : "They have"} ${b.coins}.</p>
       <div class="row" style="margin-top:10px"><button class="btn go" data-buy="1" data-for="${esc(b.key)}">Buy battery</button><button class="btn ghost" data-buy="0" data-for="${esc(b.key)}">Keep driving</button></div></div>`; }
@@ -507,12 +508,12 @@ function roadLabel(n, at, o, k) {
 }
 const LASTST = {};
 const bIco = () => shardMap() ? batIcoV : batIco;
-/* Volcano Quarry cargo on a player card: shards and power cells */
-const cargoHTML = (p, bs, bc) => shardMap() ? `<span class="cargo${bs ? " bump" : ""}">${p.shards | 0}${shardIco}</span><span class="cargo${bc ? " bump" : ""}">${p.cells | 0}${cellIco}</span>` : "";
+/* Volcano Quarry cargo on a player card: shards and obsidian dust */
+const cargoHTML = (p, bs, bc) => shardMap() ? `<span class="cargo${bs ? " bump" : ""}">${p.shards | 0}${shardIco}</span><span class="cargo${bc ? " bump" : ""}">${p.dust | 0}${dustIco}</span>` : "";
 function stripHTML() {
   const st = standings(G.players), c = G.players[G.turn], inTurn = !["minigame", "mgres", "rival", "erupt"].includes(G.phase);
   let head = ""; if (G.teams) { const T = teamTotals(); head = [0, 1].map(k => `<div class="teamc" style="--tc:${TEAMS[k].col}"><b>${TEAMS[k].name}</b><div class="stats"><span>${T[k].bat}${bIco()}</span><span>${T[k].coins}${coinIco}</span></div></div>`).join(""); }
-  return head + G.players.map(p => { const sh = p.shards | 0, ce = p.cells | 0, ls = LASTST[p.key] || [p.bat, p.coins, 0, sh, ce], bumpB = ls[0] !== p.bat, bumpC = ls[1] !== p.coins, bumpS = ls[3] !== sh, bumpL = ls[4] !== ce; if (!LASTST[p.key] || bumpB || bumpC || bumpS || bumpL) LASTST[p.key] = [p.bat, p.coins, performance.now(), sh, ce]; const rank = st.indexOf(p) + 1, off = role === "host" && !p.bot && !p.local && !online(p.key), gear = (p.up || []).map(u => UPGRADES[u].icon).join("") + ((p.items || []).length ? `🎒${p.items.length}` : "");
+  return head + G.players.map(p => { const sh = p.shards | 0, ce = p.dust | 0, ls = LASTST[p.key] || [p.bat, p.coins, 0, sh, ce], bumpB = ls[0] !== p.bat, bumpC = ls[1] !== p.coins, bumpS = ls[3] !== sh, bumpL = ls[4] !== ce; if (!LASTST[p.key] || bumpB || bumpC || bumpS || bumpL) LASTST[p.key] = [p.bat, p.coins, performance.now(), sh, ce]; const rank = st.indexOf(p) + 1, off = role === "host" && !p.bot && !p.local && !online(p.key), gear = (p.up || []).map(u => UPGRADES[u].icon).join("") + ((p.items || []).length ? `🎒${p.items.length}` : "");
     return `<div class="pc ${inTurn && c === p ? "now" : ""}" data-k="${esc(p.key)}" style="--c:${G.teams ? TEAMS[p.team || 0].col : pcol(p)}"><span class="cdot" style="background:${G.teams ? TEAMS[p.team || 0].col : pcol(p)}"></span><img alt="" src="${thumb(p.truck)}"><div class="who"><b>${G.teams ? "" : rank + ". "}${esc(p.name)}</b><div class="stats"><span class="${bumpB ? "bump" : ""}">${p.bat}${bIco()}</span><span class="${bumpC ? "bump" : ""}">${p.coins}${coinIco}</span>${cargoHTML(p, bumpS, bumpL)}${gear ? `<span class="gear">${gear}</span>` : ""}</div>${off ? `<span class="off">offline</span>` : ""}</div></div>`; }).join("");
 }
 function overHTML() {

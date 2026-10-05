@@ -118,7 +118,7 @@ function stNext() { const el = document.getElementById("fxs"), h = stQ.shift(); 
 const EV_LOOK = [
   [/^conveyor/i, t => /backward/.test(t) ? "⏪" : "⏩", "belt"], [/^tailwind/i, "💨", "good"], [/^crusher/i, "🔨", "bad"],
   [/^scrap pile/i, t => /nothing/.test(t) ? "🔩" : "🪙", t => /nothing/.test(t) ? "meh" : "good"], [/spike strip/i, "📌", "bad"], [/^scrap shop/i, "🛒", "meh"],
-  [/^road swap/i, "🔀", "spec"], [/^lost cargo/i, "📦", "good"], [/^factory relocates/i, "🏭", "spec"], [/^lucky find/i, "🍀", "good"], [/^refinery/i, "⚡", "good"], [/^truck bed full/i, "📦", "meh"], [/^battery factory/i, "🔋", "spec"], [/^fuel tax/i, "⛽", "spec"], [/^duel/i, "⚔️", "spec"],
+  [/^road swap/i, "🔀", "spec"], [/^lost cargo/i, "📦", "good"], [/^factory relocates/i, "🏭", "spec"], [/^lucky find/i, "🍀", "good"], [/^refinery/i, "⚙️", "good"], [/^truck bed full/i, "📦", "meh"], [/^battery factory/i, "🔋", "spec"], [/^fuel tax/i, "⛽", "spec"], [/^duel/i, "⚔️", "spec"],
   [/^lava/i, "🌋", "bad"], [/^eruption/i, "🌋", "bad"], [/^geyser/i, "💨", "good"], [/^obsidian/i, "💎", "good"], [/^scorched/i, "🔥", "bad"], [/^rock conveyor/i, "🪨", "belt"],
   [/^ore cart/i, t => /nothing/.test(t) ? "🪨" : "🪙", t => /nothing/.test(t) ? "meh" : "good"]];
 function showSticker(ev) {
@@ -141,9 +141,9 @@ function boardFx(bd, dt) {
       if (d > 0) { burst(bd.scene, pos.x, pos.y + 1.2, pos.z, { n: Math.min(3 + d, 16), shape: "coin", cols: ["#FFC83D", "#FFE27A"], spd: 2.2, up: 7, grav: 14, life: 1.1 }); sfx("coin"); }
       else { burst(bd.scene, pos.x, pos.y + 1, pos.z, { n: Math.min(3 - d, 12), shape: "coin", cols: ["#E5484D", "#B5313A"], spd: 2.5, up: 3, grav: 10, life: .9 }); sfx("loss"); } }
     if (p.bat !== t.lb) { if (p.bat > t.lb) { burst(bd.scene, pos.x, pos.y + 1.5, pos.z, { n: 30, shape: "ico", cols: BAT_FX[batKey()], spd: 5, up: 8, grav: 9, life: 1.5 }); sfx("battery"); } t.lb = p.bat; }
-    /* Volcano Quarry cargo: purple shards pop up when dug, scatter dark when lost; a refined power cell flashes orange */
-    const sh = p.shards | 0, ce = p.cells | 0; if (t.lsh === undefined) { t.lsh = sh; t.lce = ce; }
-    if (ce > t.lce) { burst(bd.scene, pos.x, pos.y + 1.4, pos.z, { n: 22, shape: "ico", cols: ["#FF9A3D", "#FFD24A", "#FFFFFF"], spd: 3.5, up: 6, grav: 9, life: 1.1 }); sfx("battery"); }
+    /* Volcano Quarry cargo: purple shards pop up when dug, scatter dark when lost (refining is animated by the gate itself) */
+    const sh = p.shards | 0, ce = p.dust | 0; if (t.lsh === undefined) { t.lsh = sh; t.lce = ce; }
+    if (ce > t.lce) {}
     else if (sh > t.lsh) { burst(bd.scene, pos.x, pos.y + 1.2, pos.z, { n: 6 + 5 * (sh - t.lsh), shape: "ico", cols: ["#7A3CFF", "#B78CFF", "#3B2466"], spd: 2.4, up: 7, grav: 13, life: 1.1 }); sfx("coin"); }
     else if (sh < t.lsh) { burst(bd.scene, pos.x, pos.y + 1, pos.z, { n: 10, shape: "ico", cols: ["#3B2466", "#2A1D19", "#FF6A1F"], spd: 2.6, up: 3, grav: 10, life: .9 }); sfx("loss"); }
     t.lsh = sh; t.lce = ce;

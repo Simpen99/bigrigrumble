@@ -173,7 +173,7 @@ function homeHTML() {
     <li>On your turn, pick the standard die or your truck's special die and roll.</li>
     <li>Blue tiles pay 3 coins, red tiles cost 3, and purple tiles trigger a surprise.</li>
     <li>Drive onto or past the battery factory with ${PRICE} coins to buy a battery. The factory then moves somewhere new.</li>
-    <li>Volcano Quarry works differently: mine obsidian shards in the crater, refine them into power cells, and trade a cell plus 10 coins for a battery (or pay 50 coins).</li>
+    <li>Volcano Quarry works differently: mine obsidian shards in the crater, grind them into dust at a refinery, and have the factory melt 3 dust plus 10 coins into a battery (or pay 50 coins).</li>
     <li>After everyone moves, all drivers play a minigame at the same time. First place earns 10 coins.</li>
     <li>After the last round, the most batteries wins. Coins break ties.</li>
     <li>No second phone? The host can add players on the same phone and pass it around.</li>
