@@ -24351,7 +24351,7 @@ function texBox(w, h, d, tex, tile, x, y, z, o) {
 	m.receiveShadow = true;
 	return m;
 }
-/* decal sprites drawn on one canvas sheet: manhole, patch, oil, drain grate, tar snake */
+/* decal sprites drawn on one canvas sheet: manhole, oil stain, drain grate (top-right quadrant unused) */
 const wearSheet = () =>
 	SCN_TEX.wear ||
 	(SCN_TEX.wear = canvasTex(256, 256, (x) => {
@@ -24377,30 +24377,6 @@ const wearSheet = () =>
 			}
 			x.fillStyle = "#6A707A";
 			x.fillRect(c - 16, c - 6, 32, 12);
-		}
-		{
-			// repair patch (1,0): darker, smoother asphalt with a sealed edge
-			x.beginPath();
-			[
-				[134, 12],
-				[190, 9],
-				[246, 14],
-				[243, 70],
-				[247, 118],
-				[180, 115],
-				[136, 119],
-				[131, 60],
-			].forEach(([a, b], i) => x[i ? "lineTo" : "moveTo"](a + (scnR() - 0.5) * 4, b + (scnR() - 0.5) * 4));
-			x.closePath();
-			x.fillStyle = "rgba(34,37,44,.3)";
-			x.fill();
-			x.strokeStyle = "rgba(20,22,26,.45)";
-			x.lineWidth = 2.5;
-			x.stroke();
-			for (let i = 0; i < 500; i++) {
-				x.fillStyle = "rgba(90,94,102,.3)";
-				x.fillRect(134 + scnR() * 110, 10 + scnR() * 106, 1.2, 1.2);
-			}
 		}
 		{
 			// oil stain (0,1): a few soft irregular layers, a darker core, scattered drips and a faint rainbow sheen
@@ -24554,14 +24530,13 @@ function roadLines(s, xs, z0, z1, y, o = {}) {
 	im.renderOrder = 1;
 	s.add(im);
 }
-/* scatter road wear over a strip: manholes, patches, oil stains, drains along the edges (one instanced mesh per kind) */
+/* scatter road wear over a strip: manholes, oil stains, cracks, drains along the edges (one instanced mesh per kind) */
 function roadWear(s, x0, x1, z0, z1, y, density = 1) {
 	const sheet = wearSheet(),
 		L = Math.abs(z1 - z0),
 		zs = Math.min(z0, z1),
 		kinds = [
 			{ u: 0, v: 1, n: L / 28, sz: [0.95, 0.95], edge: false },
-			{ u: 1, v: 1, n: L / 16, sz: [1.4, 3.2], edge: false, rnd: true },
 			{ u: 0, v: 0, n: L / 30, sz: [1.6, 1.6], edge: false, rnd: true },
 			{ u: 1, v: 0, n: L / 10, sz: [0.7, 0.5], edge: true },
 			...[0, 1, 2, 3].map((q) => ({ u: q % 2, v: 1 - (q >> 1), n: L / 30, sz: [3, 3], crack: true })),
