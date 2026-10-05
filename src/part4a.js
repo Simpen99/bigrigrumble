@@ -70,7 +70,10 @@ function mgEnv(s, water, lane, bare, night, storm, dusk) {
 		w.receiveShadow = true;
 		s.add(w);
 	} else {
-		const g = new THREE.Mesh(new THREE.PlaneGeometry(420, 1000), M("#7CC66A", { roughness: 1 }));
+		const g = new THREE.Mesh(
+			new THREE.PlaneGeometry(420, 1000),
+			groundMat(grassTex(), 420, 1000, 10, { roughness: 1 }),
+		);
 		g.rotation.x = -Math.PI / 2;
 		g.position.set(0, lane ? 0 : -0.4, -380);
 		g.receiveShadow = true;
@@ -721,6 +724,7 @@ function stepMG(dt) {
 		animTruck(e.tr, dt, e.falling || e.fly ? 0 : Math.hypot(e.vx, e.vz));
 		if (def.render) def.render(W, e, dt);
 	}
+	if (W.autoTrk) autoTrkStep(W, dt);
 	if (W.t > -8) netSend();
 	// camera
 	const cam = W.cam,
