@@ -1072,20 +1072,85 @@ const MG = {
 			});
 			W.smoke = puffs(W, "#5A6272");
 		},
+		inlay(W) {
+			// mosaic compass in the middle of the plaza, a soft lighter band in the paving
+			const t = canvasTex(256, 256, (x, w, h) => {
+				const c = w / 2;
+				x.fillStyle = "rgba(214,204,190,.85)";
+				x.beginPath();
+				x.arc(c, c, 120, 0, 6.283);
+				x.fill();
+				x.strokeStyle = "rgba(140,120,100,.5)";
+				x.lineWidth = 5;
+				x.beginPath();
+				x.arc(c, c, 112, 0, 6.283);
+				x.stroke();
+				for (let k = 0; k < 8; k++) {
+					const a = (k / 8) * 6.283,
+						l = k % 2 ? 62 : 100;
+					x.fillStyle = k % 2 ? "rgba(160,120,90,.55)" : "rgba(196,72,60,.6)";
+					x.beginPath();
+					x.moveTo(c + Math.cos(a) * l, c + Math.sin(a) * l);
+					x.lineTo(c + Math.cos(a + 0.35) * 16, c + Math.sin(a + 0.35) * 16);
+					x.lineTo(c + Math.cos(a - 0.35) * 16, c + Math.sin(a - 0.35) * 16);
+					x.fill();
+				}
+				x.fillStyle = "rgba(240,232,220,.9)";
+				x.beginPath();
+				x.arc(c, c, 14, 0, 6.283);
+				x.fill();
+			});
+			const m = new THREE.Mesh(
+				new THREE.PlaneGeometry(3.6, 3.6),
+				new THREE.MeshStandardMaterial({
+					map: t,
+					transparent: true,
+					depthWrite: false,
+					polygonOffset: true,
+					polygonOffsetFactor: -2,
+				}),
+			);
+			m.rotation.x = -Math.PI / 2;
+			m.position.y = 0.055;
+			m.receiveShadow = true;
+			W.sc.add(m);
+		},
+		lamp(s, a) {
+			// old-fashioned street lamp in a gap between the planters
+			const x = Math.cos(a) * 13.4,
+				z = Math.sin(a) * 13.4;
+			s.add(
+				Cy(0.2, 0.26, 0.3, 10, "#2A2F3A", x, 0.15, z),
+				Cy(0.07, 0.09, 3.4, 8, "#2A2F3A", x, 1.9, z),
+				Cy(0.22, 0.14, 0.12, 8, "#2A2F3A", x, 3.62, z),
+				Cy(0.18, 0.2, 0.42, 8, "#FFF1C4", x, 3.89, z, { emissive: "#FFE08A", emissiveIntensity: 0.6 }),
+				Cy(0.02, 0.26, 0.2, 8, "#2A2F3A", x, 4.2, z),
+			);
+		},
 		square(W) {
 			// town square: cobbled plaza, planters on the edge, hydrants, shops and Blaze's fire station
 			const s = W.sc,
-				g0 = B(220, 0.4, 220, "#7CC66A", 0, -0.25, 0);
-			g0.castShadow = false;
-			s.add(g0);
-			const pl = Cy(13, 13, 0.5, 48, "#B8A99A", 0, -0.2, 0);
-			pl.castShadow = false;
-			s.add(pl);
+				rim = M("#8F8174");
+			s.add(texBox(220, 0.4, 220, grassTex(), 10, 0, -0.25, 0));
+			{
+				const pl = new THREE.Mesh(new THREE.CylinderGeometry(13, 13, 0.5, 48), [
+					rim,
+					groundMat(cobbleTex(), 26, 26, 3),
+					rim,
+				]);
+				pl.position.y = -0.2;
+				pl.receiveShadow = true;
+				s.add(pl);
+			}
+			this.inlay(W);
+			autoTracks(W, "#BDB4A8", 0.065);
 			for (let r = 3; r < 13; r += 3) {
 				const c = new THREE.Mesh(
-					new THREE.RingGeometry(r - 0.06, r + 0.06, 48),
+					new THREE.RingGeometry(r - 0.12, r + 0.12, 64),
 					new THREE.MeshBasicMaterial({
-						color: "#9C8E80",
+						color: "#CFC3B5",
+						transparent: true,
+						opacity: 0.55,
 						depthWrite: false,
 						polygonOffset: true,
 						polygonOffsetFactor: -2,
@@ -1098,6 +1163,18 @@ const MG = {
 			}
 			for (let i = 0; i < 20; i++) {
 				const a = (i / 20) * 6.283;
+				if (i % 2) this.lamp(s, a + Math.PI / 20);
+				for (let k = 0; k < 5; k++) {
+					const fa = a + (k - 2) * 0.035,
+						fr = 13.4 + (((k * 37) % 5) - 2) * 0.12,
+						f = mesh(
+							new THREE.IcosahedronGeometry(0.13, 0),
+							["#FF6FAE", "#FFE066", "#FFFFFF", "#B9A3FF", "#FF8A5C"][(i + k) % 5],
+						);
+					f.position.set(Math.cos(fa) * fr, 1.42 + (k % 2) * 0.08, Math.sin(fa) * fr);
+					f.castShadow = false;
+					s.add(f);
+				}
 				s.add(
 					B(0.9, 0.7, 2.4, "#8C95A5", Math.cos(a) * 13.4, 0.35, Math.sin(a) * 13.4).rotateY(-a),
 					(() => {
@@ -1911,15 +1988,7 @@ const MG = {
 		slab(pg) {
 			// steel deck with hazard-striped sides, weld seams and lifting lugs on crane cables
 			pg.add(B(20.4, 1.2, 20.4, "#4A5261", 0, -0.6, 0));
-			const top = B(20, 0.12, 20, "#737C8A", 0, 0.04, 0);
-			top.castShadow = false;
-			pg.add(top);
-			for (let i = -1; i <= 1; i++) {
-				const a = B(0.1, 0.04, 19.6, "#6F7888", i * 5, 0.11, 0),
-					b = B(19.6, 0.04, 0.1, "#6F7888", 0, 0.11, i * 5);
-				a.castShadow = b.castShadow = false;
-				pg.add(a, b);
-			}
+			pg.add(texBox(20, 0.12, 20, treadTex(), 5, 0, 0.04, 0, { roughness: 0.7, metalness: 0.15 }));
 			const st = stripeTex();
 			st.wrapS = THREE.RepeatWrapping;
 			st.repeat.set(8, 1);
@@ -2359,22 +2428,13 @@ const MG = {
 			const out = B(2 * S + 120, 1, 2 * S + 120, "#767C85", 0, -0.5, 0);
 			out.castShadow = false;
 			s.add(out);
-			const fl = B(2 * S + 2, 0.2, 2 * S + 2, "#A7ACB3", 0, -0.08, 0);
-			fl.castShadow = false;
-			s.add(fl);
-			for (let i = -S + 4; i < S; i += 4) {
-				decal(s, new THREE.PlaneGeometry(0.06, 2 * S), "#8A9097", i, 0.04, 0, 0.7);
-				decal(s, new THREE.PlaneGeometry(2 * S, 0.06), "#8A9097", 0, 0.04, i, 0.7);
-			} /* expansion joints */
+			s.add(texBox(2 * S + 2, 0.2, 2 * S + 2, concreteTex(), 8, 0, -0.08, 0, { color: "#F4F5F7" }));
+			roadWear(s, -S, S, S, -S, 0.024, 2.5, 0.4);
+			autoTracks(W, "#B4B8BE", 0.03);
 			[-1, 1].forEach((sd) => {
 				decal(s, new THREE.PlaneGeometry(0.16, 2 * S - 1), YE, sd * (S - 0.6), 0.045, 0, 0.9);
 				decal(s, new THREE.PlaneGeometry(2 * S - 1, 0.16), YE, 0, 0.045, sd * (S - 0.6), 0.9);
 			}); /* forklift lane lines */
-			for (let i = 0; i < 9; i++) {
-				const g = new THREE.CircleGeometry(0.5 + W.rng() * 1.1, 16);
-				g.scale(1, 0.55 + W.rng() * 0.45, 1);
-				decal(s, g, "#5E636B", (W.rng() - 0.5) * 2 * (S - 2), 0.05, (W.rng() - 0.5) * 2 * (S - 2), 0.22);
-			} /* oil stains */
 			W.beac = [0, 1].map(
 				() => new THREE.MeshStandardMaterial({ color: "#FFB000", emissive: "#FF9500", emissiveIntensity: 1.5 }),
 			);
