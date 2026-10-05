@@ -24227,7 +24227,7 @@ function specks(x, w, h, n, cols, s0, s1) {
 		x.fillRect(scnR() * w, scnR() * h, z, z);
 	}
 }
-/* 8 x 8 m of worn asphalt: aggregate grit, soft wear patches, a few sealed cracks */
+/* 8 x 8 m of worn asphalt: aggregate grit and soft wear patches (cracks are scattered decals, see roadWear, so they never repeat) */
 const asphaltTex = () =>
 	scnTex("asphalt", 256, (x, w, h) => {
 		x.fillStyle = "#4A4F59";
@@ -24243,22 +24243,7 @@ const asphaltTex = () =>
 				scnR() < 0.5 ? "rgba(30,33,40,.28)" : "rgba(120,124,132,.16)",
 				"rgba(0,0,0,0)",
 			);
-		specks(x, w, h, 5200, ["rgba(20,22,28,.32)", "rgba(150,152,158,.25)", "rgba(95,98,106,.35)"], 0.6, 1.6);
-		x.lineCap = "round";
-		for (let i = 0; i < 4; i++) {
-			let px = scnR() * w,
-				py = scnR() * h;
-			x.strokeStyle = i % 2 ? "rgba(28,30,36,.53)" : "rgba(22,24,28,.35)";
-			x.lineWidth = i % 2 ? 1 : 2.4;
-			x.beginPath();
-			x.moveTo(px, py);
-			for (let k = 0; k < 7; k++) {
-				px += (scnR() - 0.5) * 30;
-				py += scnR() * 14;
-				x.lineTo(px, py);
-			}
-			x.stroke();
-		}
+		specks(x, w, h, 5200, ["rgba(20,22,28,.2)", "rgba(150,152,158,.16)", "rgba(95,98,106,.22)"], 0.6, 1.6);
 	});
 /* 10 x 10 m of lawn: mowing stripes, blade specks, a few tiny flowers */
 const grassTex = () =>
@@ -24414,6 +24399,44 @@ const wearSheet = () =>
 			for (let k = 0; k < 7; k++) x.fillRect(156 + k * 11, 166, 6, 48);
 		}
 	}));
+/* four different cracks (one per quadrant): a wandering main line with a couple of branches */
+const crackSheet = () =>
+	SCN_TEX.crack ||
+	(SCN_TEX.crack = canvasTex(256, 256, (x) => {
+		x.lineCap = x.lineJoin = "round";
+		for (let q = 0; q < 4; q++) {
+			const ox = (q % 2) * 128,
+				oy = (q >> 1) * 128,
+				line = (px, py, a, n, wd, al) => {
+					x.strokeStyle = `rgba(22,24,28,${al})`;
+					x.lineWidth = wd;
+					x.beginPath();
+					x.moveTo(ox + px, oy + py);
+					const pts = [];
+					for (let k = 0; k < n; k++) {
+						a += (scnR() - 0.5) * 0.9;
+						px = Math.max(4, Math.min(124, px + Math.cos(a) * (6 + scnR() * 8)));
+						py = Math.max(4, Math.min(124, py + Math.sin(a) * (6 + scnR() * 8)));
+						x.lineTo(ox + px, oy + py);
+						pts.push([px, py, a]);
+					}
+					x.stroke();
+					return pts;
+				};
+			const main = line(
+				10 + scnR() * 20,
+				30 + scnR() * 68,
+				(scnR() - 0.5) * 0.8,
+				9 + Math.floor(scnR() * 5),
+				1.2 + scnR() * 0.8,
+				0.32,
+			);
+			for (let b = 0; b < 1 + Math.floor(scnR() * 3); b++) {
+				const [px, py, a] = main[Math.floor(scnR() * main.length)];
+				line(px, py, a + (scnR() < 0.5 ? -1 : 1) * (0.6 + scnR() * 0.8), 2 + Math.floor(scnR() * 4), 0.8, 0.24);
+			}
+		}
+	}));
 /* scatter road wear over a strip: manholes, patches, oil stains, drains along the edges (one instanced mesh per kind) */
 function roadWear(s, x0, x1, z0, z1, y, density = 1) {
 	const sheet = wearSheet(),
@@ -24424,6 +24447,7 @@ function roadWear(s, x0, x1, z0, z1, y, density = 1) {
 			{ u: 1, v: 1, n: L / 16, sz: [1.4, 3.2], edge: false, rnd: true },
 			{ u: 0, v: 0, n: L / 9, sz: [1.2, 2.2], edge: false, rnd: true },
 			{ u: 1, v: 0, n: L / 10, sz: [0.7, 0.5], edge: true },
+			...[0, 1, 2, 3].map((q) => ({ u: q % 2, v: 1 - (q >> 1), n: L / 30, sz: [3, 3], crack: true })),
 		];
 	kinds.forEach((k, ki) => {
 		const n = Math.max(1, Math.round(k.n * density)),
@@ -24433,11 +24457,11 @@ function roadWear(s, x0, x1, z0, z1, y, density = 1) {
 		const im = new THREE.InstancedMesh(
 				geo,
 				new THREE.MeshBasicMaterial({
-					map: sheet,
+					map: k.crack ? crackSheet() : sheet,
 					transparent: true,
 					depthWrite: false,
 					polygonOffset: true,
-					polygonOffsetFactor: -1 - ki * 0.5,
+					polygonOffsetFactor: k.crack ? -0.5 : -1 - ki * 0.5,
 					polygonOffsetUnits: -2,
 				}),
 				n,
@@ -24447,9 +24471,9 @@ function roadWear(s, x0, x1, z0, z1, y, density = 1) {
 			const z = zs + scnR() * L,
 				sd = scnR() < 0.5 ? -1 : 1,
 				x = k.edge ? (sd < 0 ? x0 + 0.45 : x1 - 0.45) : x0 + 0.8 + scnR() * (x1 - x0 - 1.6),
-				a = k.rnd ? scnR() * 0.6 - 0.3 : 0,
-				sc = k.rnd ? 0.7 + scnR() * 0.6 : 1;
-			o.position.set(x, y + 0.002 * ki, z);
+				a = k.crack ? scnR() * 6.283 : k.rnd ? scnR() * 0.6 - 0.3 : 0,
+				sc = k.crack ? 0.45 + scnR() * 1.1 : k.rnd ? 0.7 + scnR() * 0.6 : 1;
+			o.position.set(x, y + (k.crack ? 0 : 0.002 * ki), z);
 			o.rotation.set(-Math.PI / 2, 0, a + (k.edge ? Math.PI / 2 : 0));
 			o.scale.set(k.sz[0] * sc, k.sz[1] * sc, 1);
 			o.updateMatrix();
