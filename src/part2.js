@@ -61,7 +61,7 @@ function Cy(rt, rb, h, s, c, x, y, z, o) { const m = mesh(new THREE.CylinderGeom
 function lights(scene, shadow) {
   scene.add(new THREE.HemisphereLight("#DDF0FF", "#5C7F45", .78));
   const d = new THREE.DirectionalLight("#FFF1D6", 1.05); d.position.set(14, 26, 12);
-  if (shadow) { d.castShadow = true; d.shadow.mapSize.set(2048, 2048); const s = d.shadow.camera; s.left = -26; s.right = 26; s.top = 26; s.bottom = -26; s.near = 1; s.far = 80; d.shadow.bias = -.0005; d.shadow.normalBias = .04; }
+  if (shadow) { d.castShadow = true; const ms = GFX.touch ? 1024 : 2048; d.shadow.mapSize.set(ms, ms); const s = d.shadow.camera; s.left = -26; s.right = 26; s.top = 26; s.bottom = -26; s.near = 1; s.far = 80; d.shadow.bias = -.0005; d.shadow.normalBias = .04; }
   scene.add(d); return d;
 }
 function makeThumbs() {
@@ -246,8 +246,10 @@ function frame(t) {
 function gfxInit() {
   if (typeof THREE === "undefined") return;
   try {
-    const r = new THREE.WebGLRenderer({ canvas: $("#gl"), antialias: true, powerPreference: "high-performance", logarithmicDepthBuffer: true });
-    r.setPixelRatio(Math.min(devicePixelRatio || 1, 1.5)); r.shadowMap.enabled = true; r.shadowMap.type = THREE.PCFSoftShadowMap;
+    /* phones: no logarithmic depth buffer (it turns off early depth rejection on mobile GPUs and its precision fallback made specks shimmer through the lava) */
+    const touch = !(typeof matchMedia === "function" && matchMedia("(pointer: fine)").matches); GFX.touch = touch;
+    const r = new THREE.WebGLRenderer({ canvas: $("#gl"), antialias: true, powerPreference: "high-performance", logarithmicDepthBuffer: !touch });
+    r.setPixelRatio(Math.min(devicePixelRatio || 1, 2.5)); r.shadowMap.enabled = true; r.shadowMap.type = THREE.PCFSoftShadowMap;
     GFX.r = r; GFX.cam = new THREE.PerspectiveCamera(40, 1, .5, 240); GFX.ok = true;
     makeThumbs(); buildShowroom(); buildPodium();
     gfxResize(); addEventListener("resize", gfxResize); requestAnimationFrame(frame);

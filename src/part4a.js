@@ -206,7 +206,7 @@ function stepMG(dt) {
   else if (def.kind === "arena") { const a = me.al || me.y > -3 ? me : { x: 0, z: 0 }; tgt = new THREE.Vector3(a.x * .85, 0, a.z * .85); const zm = def.camZoom || 1; pos = tgt.clone().add(new THREE.Vector3(0, 23 * far * zm, 17 * far * zm)); if (def.cam) [tgt, pos] = def.cam(W, tgt, pos, far); }
   else { const lx = me.x * .6; tgt = new THREE.Vector3(lx, -2.2, me.z - 7); pos = new THREE.Vector3(lx, 8.5 * far, me.z + 12.5 * far); if (def.cam) [tgt, pos] = def.cam(W, tgt, pos, far); }
   if (W.camOv && GFX.mgCam) { [tgt, pos] = lpCamPose(W.camOv); GFX.mgCam.p.lerp(pos, .5); GFX.mgCam.t.lerp(tgt, .5); }
-  if (!GFX.mgCam) GFX.mgCam = { p: pos.clone(), t: tgt.clone() };
+  if (!GFX.mgCam) { GFX.mgCam = { p: pos.clone(), t: tgt.clone() }; if (GFX.trDrop) { GFX.trDrop = false; GFX.mgCam.p.y += 38; GFX.mgCam.t.y += 22; } }
   const k = 1 - Math.exp(-dt * 4); GFX.mgCam.p.lerp(pos, k); GFX.mgCam.t.lerp(tgt, k);
   cam.position.copy(GFX.mgCam.p); if (W.shake > 0) { W.shake -= dt; cam.position.x += (Math.random() - .5) * .5; cam.position.y += (Math.random() - .5) * .5; }
   if (W.jit) { cam.position.x += (Math.random() - .5) * W.jit; cam.position.y += (Math.random() - .5) * W.jit; }
@@ -215,6 +215,14 @@ function stepMG(dt) {
   swayStep(W.sc); stepParts(W.sc, dt); hud3(dt); if (!W.tv) ctlUpdate();
 }
 
+/* ---------- board → minigame transition: the board HUD slides away, the camera climbs into the clouds, then the minigame starts with its camera dropping down through them and its HUD sliding in ---------- */
+let trNonce = null;
+function enterMg(mg, p) {
+  if (!GFX.ok || mg.tv || GFX.mode !== "board" || trNonce === mg.nonce || document.body.classList.contains("tvphone")) { openMg(mg, p); return; }
+  trNonce = mg.nonce; mgBusy = true; const c = trClouds(); document.body.classList.add("trout"); GFX.rise = performance.now(); c.classList.add("on");
+  setTimeout(() => { mgBusy = false; GFX.rise = 0; GFX.trDrop = true; openMg(mg, p); document.body.classList.remove("trout"); document.body.classList.add("trin"); setTimeout(() => { c.classList.remove("on"); }, 150); setTimeout(() => document.body.classList.remove("trin"), 1300); }, 1300);
+}
+function trClouds() { let c = document.getElementById("trc"); if (!c) { c = document.createElement("div"); c.id = "trc"; c.innerHTML = "<i></i><i></i><i></i><i></i><i></i>"; document.body.appendChild(c); } return c; }
 /* ---------- minigame HUD ---------- */
 function openMg(mg, p) {
   if (mg.tv) { openTvCtl(mg, p); return; }
