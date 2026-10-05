@@ -8,7 +8,9 @@ three.js r128 (UMD from cdnjs) + ConvexHull/ConvexGeometry (jsdelivr), no build 
 - `dist/index.html`: the **web version**. Multiplayer via PeerJS (the host's browser is the hub). Deploy anywhere (Netlify).
 - Deploy the web version: `npx wrangler deploy` (wrangler.toml, worker `bigrigrumble`, serves `dist/` minus `.assetsignore`).
 - `dist/claude-artifact.html`: the **Claude artifact version**. Multiplayer via Claude's `window.claude.use("room")`.
-Both share almost all code. Always edit files in `src/`, then rebuild. All parts go into ONE `<script>` (the parts after part1 are plain JS continuing that script; part4c/part4cn close it).
+Both share almost all code. Always edit files in `src/`, then rebuild. All parts go into ONE `<script>` (the parts after part1 are plain JS continuing that script; `partend.html` closes it).
+- **Formatting**: the JS parts are formatted with Prettier (`.prettierrc`: tabs, width 120; `.prettierignore` skips the HTML/CSS parts and `partart.js`). After editing JS run `prettier --write "src/*.js"` before building. Keep CSS in part1 one rule per line.
+- `.ignore` keeps ripgrep/Grep out of `dist/` and `src/partart.js` (huge one-line files); search `src/` and pass the path explicitly if you really need those.
 
 ## Source map (src/)
 - `part1.html` / `part1n.html`: head, all CSS, opening `<script>`. `n` = web version (adds PeerJS script tag).
@@ -30,7 +32,7 @@ Both share almost all code. Always edit files in `src/`, then rebuild. All parts
 - `part4b.js`: the 12 original minigames (`MG` object). Some keys kept their old id but were reworked: `hill` = Fire Brigade, `light` = Red Light Green Light (lorry), `hop` = Rush Hour, `park` = Dump Run, `tiles` = Concrete Crumble (wet cement), `bumper` = Mud Brawl, `rocks` = crane slab over a quarry. Also shared helpers `grandstands()` / `crowdMeshes()` / `crowdStep()` (instanced cheering crowd) and `engineSnd()`.
 - `partmg2.js`: truck-special minigames: Scoop Stack, Sort It Out, Taco Tower, Tow Rescue, Drift King (Zoomer, `drift`) (`Object.assign(MG, ...)`), plus the regular arena game Drift Race (`race`: one ~820 m lap on a 3D Catmull-Rom spline `PTS [x,z,y]` with a flyover roundabout (bridge over its own entry road), hill tunnel, hairpin and crest; hold-DRIFT Mario Kart-style mini-turbos with blue/orange/purple charge; bridge deck and tunnel hill fade see-through when your truck is underneath. Slipstream: 1.2 s within 9 m behind a truck gives a white boost (`e.f.bl = 4`). Ram tuning per game via `ramK` / `ramSelf` / `ramSlide` / `ramKeep` / `canRam(e)` (race: drift boosts ram softly, slipstream boosts never ram). Samples carry `over`/`under`/`tun` flags; trucks at different heights skip collisions; `e.pitch` tilts trucks on slopes). Shared `driftPhys()` handling for both drift games.
 - `partedit.js`: PC map editor (home button "🛠 Map editor", `FINE` pointer only; `GFX.mode = "edit"`, own camera + OrbitControls/TransformControls lazy-loaded from jsdelivr). Edits per map `{p: shape params, n: {space: {x,y,z,r,s}}, o: {prop: {p,r,s}}}` live in localStorage `trp_mapedit`; `buildBoardFor` calls `applyMapEdits(map)` (merges `map.bake` + localStorage, moves nodes, sets `LAVA_Y`), shape params via `ep(key)` (table `ED_PARAMS` in partmap), selectable props via `edReg(obj, id)`. To bake the user's "Copy edits" JSON: set `MAPS.<id>.bake = {p, n, o}` in partmap (node edits are absolute positions; `r` = extra yaw on top of the automatic road-following yaw from `tileGroup`).
-- `part4c.js` / `part4cn.js`: click handlers, boot, closes the script.
+- `part4c.js` / `part4cn.js`: click handlers, boot. `partend.html`: closes the script and page.
 
 ## Architecture notes
 - Host-authoritative: the host holds `HG` (game state) and broadcasts it as presence `game`. Clients send actions via presence `act` (`{t, seq, id,...}`), host applies in `handleAct`. `G` = the state being viewed (host: `G === HG`).
@@ -49,7 +51,7 @@ Both share almost all code. Always edit files in `src/`, then rebuild. All parts
 - Published Claude artifacts can only load scripts from cdnjs/jsdelivr/unpkg-free list; no remote images/fetch.
 - Frame-rate independence: timing uses real time (physics substeps, podium/intro use `performance.now()`).
 - Reduced motion: infinite CSS animations must also get `animation-iteration-count:1`.
-- **Never put a `//` comment mid-line**: much of the code is long one-line statements, and a `//` comments out the rest of the line (this broke the build three times). Syntax-check the built script after every build, e.g. `new Function(<script contents>)` in node.
+- **Never put a `//` comment mid-line**: a `//` comments out the rest of the line (this broke the build three times, back when much of the code was long one-line statements). Syntax-check the built script after every build, e.g. `new Function(<script contents>)` in node.
 - `obj.add(x)` returns `obj`, not `x`: `s.add(mesh).position.set(...)` moves the whole scene.
 - On Windows `python` may be the Microsoft Store stub and hang; use node for scripts.
 

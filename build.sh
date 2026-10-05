@@ -3,7 +3,7 @@
 set -e
 cd "$(dirname "$0")/src"
 # Web version (PeerJS multiplayer, host anywhere e.g. Netlify)
-cat part1n.html part2.js partart.js parttruck.js partmap.js partfx.js partnet.js part3n.js partgame.js part4a.js part4b.js partmg2.js partedit.js part4cn.js > ../dist/index.html
+cat part1n.html part2.js partart.js parttruck.js partmap.js partfx.js partnet.js part3n.js partgame.js part4a.js part4b.js partmg2.js partedit.js part4cn.js partend.html > ../dist/index.html
 # Claude artifact version (Claude "room" multiplayer)
-cat part1.html part2.js partart.js parttruck.js partmap.js partfx.js part3.js partgame.js part4a.js part4b.js partmg2.js partedit.js part4c.js > ../dist/claude-artifact.html
+cat part1.html part2.js partart.js parttruck.js partmap.js partfx.js part3.js partgame.js part4a.js part4b.js partmg2.js partedit.js part4c.js partend.html > ../dist/claude-artifact.html
 echo "Built dist/index.html and dist/claude-artifact.html"
