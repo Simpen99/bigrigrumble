@@ -227,7 +227,9 @@ function frame(t) {
   if (mgOpen && !mgRes) return;
   if (GFX.ctl && !GFX.peek) return;
   const time = t / 1000;
-  if (GFX.mode === "board" && G && GFX.board) { stepBoard(dt, time); stepDie(dt); renderMG(GFX.board.scene, GFX.cam); }
+  /* board: shadows are only re-rendered on frames where something that casts one moved (shadowNeeded, set by stepBoard); everything else renders shadows every frame */
+  GFX.r.shadowMap.autoUpdate = !(GFX.mode === "board" && G && GFX.board);
+  if (GFX.mode === "board" && G && GFX.board) { stepBoard(dt, time); stepDie(dt); if (GFX.board.shadowDirty !== false) { GFX.r.shadowMap.needsUpdate = true; } renderMG(GFX.board.scene, GFX.cam); }
   else if (GFX.mode === "podium" && GFX.pod) { stepPodium(dt); swayStep(GFX.pod.scene); renderMG(GFX.pod.scene, GFX.cam); }
   else if (GFX.show) {
     const S = GFX.show; { const dim = ["lobby", "home", "join", "practice"].includes(view), kk = Math.min(1, dt * 3); if (GFX.showSun) GFX.showSun.intensity += ((dim ? .72 : 1.05) - GFX.showSun.intensity) * kk; if (GFX.showHemi) GFX.showHemi.intensity += ((dim ? .6 : .78) - GFX.showHemi.intensity) * kk; }
@@ -245,7 +247,7 @@ function gfxInit() {
   if (typeof THREE === "undefined") return;
   try {
     const r = new THREE.WebGLRenderer({ canvas: $("#gl"), antialias: true, powerPreference: "high-performance", logarithmicDepthBuffer: true });
-    r.setPixelRatio(Math.min(devicePixelRatio || 1, 2.5)); r.shadowMap.enabled = true; r.shadowMap.type = THREE.PCFSoftShadowMap;
+    r.setPixelRatio(Math.min(devicePixelRatio || 1, 1.5)); r.shadowMap.enabled = true; r.shadowMap.type = THREE.PCFSoftShadowMap;
     GFX.r = r; GFX.cam = new THREE.PerspectiveCamera(40, 1, .5, 240); GFX.ok = true;
     makeThumbs(); buildShowroom(); buildPodium();
     gfxResize(); addEventListener("resize", gfxResize); requestAnimationFrame(frame);

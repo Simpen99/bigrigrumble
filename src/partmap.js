@@ -651,7 +651,7 @@ function buildBoardFor(map) {
     const nb = nd[j], a = [na.x, na.z], b = [nb.x, nb.z], dx = b[0] - a[0], dz = b[1] - a[1], L = Math.hypot(dx, dz), ang = Math.atan2(dz, dx);
     /* each road piece lives in a group along the segment, pitched for ramps (local x runs from a to b) */
     const dy = Y(nb) - Y(na), L3 = Math.hypot(L, dy), k3 = L3 / L, g = new THREE.Group(), gi = new THREE.Group(), bridge = na.br || nb.br;
-    g.position.set((a[0] + b[0]) / 2, (Y(na) + Y(nb)) / 2, (a[1] + b[1]) / 2); g.rotation.y = -ang; gi.rotation.z = Math.atan2(dy, L); g.add(gi); s.add(g);
+    g.position.set((a[0] + b[0]) / 2, (Y(na) + Y(nb)) / 2, (a[1] + b[1]) / 2); g.rotation.y = -ang; gi.rotation.z = Math.atan2(dy, L); g.add(gi); s.add(g); g.userData.st = 1;
     /* volcano: each ledge is a rock causeway standing in the lava lake; gravel track with tyre ruts and loose stones instead of tarmac */
     if (vol && !bridge) {
       const rim = na.rim && nb.rim, ws = rim ? ep("rimW") : ep("ledgeW"), ux = dx / L, uz = dz / L;
@@ -683,7 +683,7 @@ function buildBoardFor(map) {
     const ng = new THREE.Group(); ng.position.y = Y(n); s.add(ng);
     const cf = Cy(rw / 2 + .05, rw / 2 + .05, H + .005, 16, vol && n.br ? "#7A5234" : road, n.x, H / 2, n.z); cf.castShadow = false; ng.add(cf);
     if (vol && !n.br) { const h = Y(n) + 1.58, pr = (n.rim ? ep("rimW") : ep("ledgeW")) * .98 * ep("pillarR"), pc = pillarMesh(pr, h, ep("pillarSides"), ep("edgeRound"), n.rim ? "#5E4C42" : "#4A3C36", n.x, n.z, tileGroup(nd, n).rotation.y); pc.castShadow = false; ng.add(pc); }
-    const t = n.t, x = n.x, z = n.z, tl = tileGroup(nd, n), ne = EDC.n[i] || {}, sides = ep("tileSides"); ng.add(tl); ng.userData = { node: i, tl }; nodeG[i] = ng;
+    const t = n.t, x = n.x, z = n.z, tl = tileGroup(nd, n), ne = EDC.n[i] || {}, sides = ep("tileSides"); ng.add(tl); ng.userData = { st: 1, node: i, tl }; nodeG[i] = ng;
     tl.userData.auto = tl.rotation.y; tl.rotation.y += ne.r || 0; tl.scale.setScalar(ep("tileR") * (ne.s || 1));
     const base = Cy(1.22, 1.3, .22, sides, "#1E2530", 0, .2, 0); base.rotation.y = Math.PI / sides; tl.add(base);
     tl.add(tileFace(t, sides));
@@ -691,9 +691,9 @@ function buildBoardFor(map) {
       const g = new THREE.Group(); g.position.set(0, .515, 0); g.rotation.y = tileAim(tl, n, tgt); const p = new THREE.Mesh(new THREE.PlaneGeometry(1.25, 1.6), new THREE.MeshBasicMaterial({ map: tex })); p.rotation.x = -Math.PI / 2; g.add(p);
       g.add(B(.12, .18, 1.7, "#FFC83D", -.68, .05, 0), B(.12, .18, 1.7, "#FFC83D", .68, .05, 0)); tl.add(g); belts.push(tex); }
     if (t === "CR") { const g = new THREE.Group(); g.position.set(x, 0, z); g.add(B(.22, 3.6, .22, "#6A717E", -1.1, 1.8, 0), B(.22, 3.6, .22, "#6A717E", 1.1, 1.8, 0), B(2.6, .3, .4, "#FFC83D", 0, 3.6, 0));
-      const blk = B(1.5, .6, 1.5, "#3A4150", 0, 3, 0); g.add(blk); const st = B(1.52, .14, 1.52, "#FFC83D", 0, 2.72, 0); g.add(st); ng.add(g); crushers.push({ blk, st, ph: i * .7 }); }
+      const blk = B(1.5, .6, 1.5, "#3A4150", 0, 3, 0); g.add(blk); const st = B(1.52, .14, 1.52, "#FFC83D", 0, 2.72, 0); g.add(st); blk.userData.dyn = st.userData.dyn = 1; ng.add(g); crushers.push({ blk, st, ph: i * .7 }); }
     if (t === "SH") { const sp = textSprite("SHOP", "#1FB5A8", "#fff", 1.7); sp.position.set(x, 2.3, z); ng.add(sp); }
-    if (t === "OB") { const c = obsidianMesh(.7); c.position.set(x + .85, .45, z - .55); ng.add(c); obCr[i] = c; }
+    if (t === "OB") { const c = obsidianMesh(.7); c.position.set(x + .85, .45, z - .55); ng.add(c); obCr[i] = c; c.userData.dyn = 1; }
     /* geyser: chevron on the tile edge pointing at the landing space (turns with the tile), a dotted steam arc to it and a pulsing ring round it; re-aimed when the target changes each round */
     if (t === "GY" && n.gy !== undefined) {
       const ch = new THREE.Mesh(new THREE.PlaneGeometry(.62, .62), new THREE.MeshBasicMaterial({ map: chevTex(), transparent: true, opacity: .5, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -8 })); tl.add(ch);
@@ -730,7 +730,7 @@ function setBoardMap(id) {
   const map = MAPS[id] || CLASSIC; if (GFX.board && GFX.board.map === map) return;
   if (GFX.board) Object.values(GFX.tok).forEach(t => GFX.board.scene.remove(t.g));
   GFX.tok = {}; GFX.boards = GFX.boards || {};
-  const bd = GFX.boards[map.id] || (GFX.boards[map.id] = buildBoardFor(map));
+  const bd = GFX.boards[map.id] || (GFX.boards[map.id] = mergeStatic(buildBoardFor(map)));
   GFX.board = bd; bd.scene.add(GFX.cam);
   if (!GFX.camLight) { GFX.camLight = new THREE.PointLight("#ffffff", .6, 20); GFX.cam.add(GFX.camLight); }
   GFX.camPos = null; initCamInput();
@@ -864,7 +864,7 @@ function stepBoard(dt, time) {
   const steam = (ps, o) => ps.forEach(p => { p.userData.t = (p.userData.t + dt * .35) % 1; const u = p.userData.t; p.position.set(o[0] + u * .6, o[1] + u * 2.2, o[2]); p.scale.setScalar(.6 + u * 1.4); p.material.opacity = .85 * (1 - u); });
   stepGrind(bd, dt, time);
   steam(bd.puffs, bd.bld.userData.puff); bd.refs.forEach((r, k) => { steam(r.userData.puffs, r.userData.puff); r.userData.tick(time); });
-  swayStep(bd.scene); boardFx(bd, dt);
+  swayStep(bd.scene); boardFx(bd, dt); shadowCheck(bd);
   bd.clouds.forEach((c, i) => { c.position.x += dt * (.4 + i * .05); if (c.position.x > 64) c.position.x = -64; });
   const cam = GFX.cam, aspect = GFX.w / GFX.h;
   let tgt, pos;
@@ -971,8 +971,36 @@ function stepBadgeFor(bd, ct, time) {
   const pk = time - b.popT, pop = pk < .25 ? 1 + Math.sin(pk / .25 * Math.PI) * .35 : 1;
   b.g.position.set(ct.g.position.x, ct.g.position.y + 3.35 + Math.sin(time * 3) * .08, ct.g.position.z); b.g.lookAt(GFX.cam.position); b.g.scale.setScalar(pop); b.disc.rotation.y = Math.sin(time * 2.2) * .35;
 }
-/* test mode: which board space is under this screen point (-1 if none) */
+/* ---------- performance: the game board's static road segments and spaces (userData.st subtrees, minus userData.dyn parts) are baked into one mesh per material.
+   Only plain vertex-coloured meshes (position + normal + color, shared M() material, no texture) are merged, at their exact world transform, so the board looks identical.
+   The editor builds its own unmerged board. ---------- */
+function mergeStatic(bd) {
+  const s = bd.scene, groups = new Map(), drop = []; s.updateMatrixWorld(true);
+  const ok = m => m.isMesh && !m.isInstancedMesh && m.geometry && !m.geometry.index && !Array.isArray(m.material) && m.material.vertexColors && !m.material.map && !m.material.transparent && m.matrixWorld.determinant() > 0 && ["position", "normal", "color"].every(k => m.geometry.attributes[k]);
+  const walk = (o, inDyn) => { if (o.userData && o.userData.dyn) return; if (o.visible === false) return; if (ok(o)) { const k = o.material.uuid, L = groups.get(k) || (groups.set(k, { mat: o.material, parts: [] }), groups.get(k)); L.parts.push(o); drop.push(o); } o.children.forEach(c => walk(c)); };
+  s.children.filter(o => o.userData && o.userData.st).forEach(o => walk(o));
+  groups.forEach(({ mat, parts }) => { let n = 0; parts.forEach(m => { n += m.geometry.attributes.position.count; });
+    const P = new Float32Array(n * 3), N = new Float32Array(n * 3), C = new Float32Array(n * 3), v = new THREE.Vector3(), nm = new THREE.Matrix3(); let o = 0;
+    parts.forEach(m => { const g = m.geometry.attributes, mw = m.matrixWorld; nm.getNormalMatrix(mw);
+      for (let i = 0; i < g.position.count; i++, o++) { v.fromBufferAttribute(g.position, i).applyMatrix4(mw); P.set([v.x, v.y, v.z], o * 3); v.fromBufferAttribute(g.normal, i).applyMatrix3(nm).normalize(); N.set([v.x, v.y, v.z], o * 3); C.set([g.color.getX(i), g.color.getY(i), g.color.getZ(i)], o * 3); } });
+    const geo = new THREE.BufferGeometry(); geo.setAttribute("position", new THREE.BufferAttribute(P, 3)); geo.setAttribute("normal", new THREE.BufferAttribute(N, 3)); geo.setAttribute("color", new THREE.BufferAttribute(C, 3)); geo.computeBoundingSphere();
+    const mm = new THREE.Mesh(geo, mat); mm.castShadow = parts.some(m => m.castShadow); mm.receiveShadow = true; s.add(mm); });
+  drop.forEach(m => m.parent && m.parent.remove(m)); bd.merged = drop.length; return bd;
+}
+/* shadows only need re-rendering when something that casts one moved: trucks, the factory, carts, the giant crystal, the rival, refinery shakes, crushers */
+function shadowCheck(bd) {
+  let h = 0; const add = o => { if (o && o.visible !== false) { const p = o.position; h += p.x * 1.3 + p.y * 7.1 + p.z * 3.7 + o.rotation.y * 11 + o.scale.x * 5; } };
+  Object.values(GFX.tok).forEach(t => { add(t.g); add(t.tr); }); add(bd.fac); add(bd.bld); if (bd.cart) add(bd.cart.cart); add(bd.rideCart); add(bd.crys); add(bd.rival); (bd.refs || []).forEach(add); (bd.sink || []).forEach(add); if (bd.pil) add(bd.pil);
+  Object.values(bd.loose || {}).forEach(add); if (GFX.bseq && GFX.bseq.m) add(GFX.bseq.m);
+  const moving = bd.crushers.length > 0 || Math.abs(h - (bd.shH || 0)) > 1e-4 || (bd.shN = (bd.shN || 0) + 1) < 3; bd.shH = h; bd.shadowDirty = moving;
+}
+/* test mode: which board space is under this screen point (-1 if none): the space whose centre lands closest on screen, within ~40 px */
 function pickNodeAt(cx, cy) {
+  const cv = $("#gl"); if (!cv || !GFX.board) return -1; const r = cv.getBoundingClientRect(), v = new THREE.Vector3(); let best = -1, bd2 = 1600;
+  MAP.nodes.forEach((n, i) => { v.set(n.x, (n.y || 0) + .5, n.z).project(GFX.cam); if (v.z > 1) return; const sx = (v.x + 1) / 2 * r.width + r.left, sy = (1 - v.y) / 2 * r.height + r.top, d = (sx - cx) ** 2 + (sy - cy) ** 2; if (d < bd2) { bd2 = d; best = i; } });
+  return best;
+}
+function pickNodeAtOld(cx, cy) {
   const bd = GFX.board, cv = $("#gl"); if (!bd || !cv) return -1; const r = cv.getBoundingClientRect(), rc = new THREE.Raycaster();
   rc.setFromCamera(new THREE.Vector2((cx - r.left) / r.width * 2 - 1, -((cy - r.top) / r.height) * 2 + 1), GFX.cam);
   const hit = rc.intersectObjects(bd.nodeG.filter(Boolean), true)[0]; let o = hit && hit.object; while (o && !(o.userData && o.userData.node !== undefined)) o = o.parent; return o ? o.userData.node : -1;
