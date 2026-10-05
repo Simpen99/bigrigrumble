@@ -789,7 +789,7 @@ function syncBoard() {
   /* loose shards from rising lava: a glowing crystal hovering over the space, popping in and out */
   const loose = G.loose || {}, LC = ["#7A3CFF", "#B78CFF", "#FFFFFF"];
   Object.keys(bd.loose).forEach(k => { if (loose[k]) return; const m = bd.loose[k]; burst(bd.scene, m.position.x, m.position.y, m.position.z, { n: 10, shape: "ico", cols: LC, spd: 2.5, up: 3, grav: 8, life: .7 }); bd.scene.remove(m); delete bd.loose[k]; });
-  Object.keys(loose).forEach(k => { const n = MAP.nodes[k]; if (bd.loose[k] || !n) return; const c = new THREE.Group(), x1 = mesh(xtalGeo(), "#5B2BB5", { emissive: "#7A3CFF", emissiveIntensity: .5, roughness: .25 }); x1.scale.set(1.1, 1.25, 1.1); x1.position.y = .62; c.add(x1); c.position.set(n.x, (n.y || 0) + .5, n.z); c.userData.ph = +k; bd.scene.add(c); bd.loose[k] = c; burst(bd.scene, n.x, (n.y || 0) + 1, n.z, { n: 12, shape: "ico", cols: ["#FF7A2A", "#FFD24A", "#7A3CFF"], spd: 3, up: 5, grav: 9, life: .9 }); });
+  Object.keys(loose).forEach(k => { const n = MAP.nodes[k]; if (bd.loose[k] || !n) return; const c = new THREE.Group(), x1 = mesh(xtalGeo(), "#5B2BB5", { emissive: "#7A3CFF", emissiveIntensity: .5, roughness: .25 }); x1.scale.set(1.1, 1.25, 1.1); x1.position.y = .62; c.add(x1); c.position.set(n.x, (n.y || 0) + .5, n.z); c.userData.ph = +k; bd.scene.add(c); bd.loose[k] = c; burst(bd.scene, n.x, (n.y || 0) + 1, n.z, { n: 9, shape: "ico", cols: ["#FF7A2A", "#FFD24A", "#7A3CFF"], spd: 2.4, up: 4, grav: 9, life: .8, size: .6, vary: 1, op: .55 }); });
   ps.forEach(p => {
     let t = GFX.tok[p.key];
     if (!t || t.truck !== p.truck) {

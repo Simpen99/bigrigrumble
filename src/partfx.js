@@ -17,7 +17,7 @@ const pmat = (c, op = 1) => { const k = c + op; return PMAT[k] || (PMAT[k] = new
 function burst(scene, x, y, z, o = {}) {
   if (!scene || !GFX.ok) return; const L = scene.userData.parts || (scene.userData.parts = []); const cols = o.cols || ["#FFC83D"], n = Math.min(o.n || 10, 40);
   for (let i = 0; i < n; i++) { const m = new THREE.Mesh(pgeo(o.shape || "cube"), pmat(cols[i % cols.length], o.op)); const a = Math.random() * 6.28, sp = (o.spd || 3) * (.4 + Math.random() * .8);
-    m.position.set(x, y, z); m.scale.setScalar(o.size || 1); scene.add(m);
+    m.position.set(x, y, z); m.scale.setScalar((o.size || 1) * (o.vary ? .45 + Math.random() * o.vary : 1)); scene.add(m);
     L.push({ m, vx: Math.cos(a) * sp, vz: Math.sin(a) * sp, vy: (o.up || 4) * (.6 + Math.random() * .7), g: o.grav === undefined ? 12 : o.grav, life: (o.life || .9) * (.7 + Math.random() * .6), t: 0, s: o.size || 1, sx: (Math.random() - .5) * 12, sy: (Math.random() - .5) * 12, floor: o.floor }); }
 }
 function stepParts(scene, dt) {
