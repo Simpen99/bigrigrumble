@@ -842,12 +842,14 @@ function stepBoard(dt, time) {
   ps.forEach(p => {
     const t = GFX.tok[p.key]; if (!t) return;
     if (t.carried && rv && G.rival && G.rival.carry === p.key) { rv.userData.mag.getWorldPosition(V3); t.g.position.lerp(V3.clone().add(new THREE.Vector3(0, -1.05, 0)), Math.min(1, dt * 10)); t.yaw += dt * 2; t.tr.rotation.y = t.yaw; return; }
-    if (!t.anim && t.q.length) { const s = t.q.shift(); t.anim = { from: t.g.position.clone(), fromIdx: t.shown, toIdx: s.to, jump: s.jump, t: 0, dur: s.jump ? .8 : G.ride && G.ride.pid === p.key || t.rideQ ? .22 : .34 }; t.shownT = s.to; const a = nd[t.shown], b = nd[s.to]; if (!s.jump && a && b) t.yawT = Math.atan2(-(b.z - a.z), b.x - a.x); }
+    /* cart rides zip along at a constant speed: no ease or hop, each step carries on from the last one's overshoot, and it speeds up when steps are queued so it never lags the host's 0.24 s pace */
+    const zip = !!(G.ride && G.ride.pid === p.key || t.rideQ);
+    if (!t.anim && t.q.length) { const s = t.q.shift(), cv = zip && !s.jump ? t.carry || 0 : 0; t.carry = 0; t.anim = { from: t.g.position.clone(), fromIdx: t.shown, toIdx: s.to, jump: s.jump, t: 0, zip: zip && !s.jump, dur: s.jump ? .8 : zip ? (t.q.length ? .18 : .24) : .34 }; t.anim.t = cv / t.anim.dur; t.shownT = s.to; const a = nd[t.shown], b = nd[s.to]; if (!s.jump && a && b) t.yawT = Math.atan2(-(b.z - a.z), b.x - a.x); }
     const off = offsetsFor(p.key);
-    if (t.anim) { const a = t.anim; a.t += dt / a.dur; const k = Math.min(1, a.t), e = k < .5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+    if (t.anim) { const a = t.anim; a.t += dt / a.dur; const k = Math.min(1, a.t), e = a.zip ? k : k < .5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
       t.g.position.lerpVectors(a.from, tilePos(a.toIdx, off), e);
       if (MAP.lava && !a.jump) { const to = tilePos(a.toIdx, off), rd = (MAP.rampD || {})[a.fromIdx + "-" + a.toIdx] || (r => r && [r[1], r[0], r[2]])((MAP.rampD || {})[a.toIdx + "-" + a.fromIdx]), Lh = rd ? rd[2] : Math.hypot(to.x - a.from.x, to.z - a.from.z); t.g.position.y = a.from.y + (to.y - a.from.y) * (rd ? rampF(e, Lh, rd[0], rd[1]) : rampF(e, Lh)); }
-      t.g.position.y += Math.sin(k * Math.PI) * (a.jump ? 2.4 + Math.abs(a.from.y - t.g.position.y) * .5 : G.ride && G.ride.pid === p.key ? .08 : .7); if (k >= 1) { t.anim = null; t.shown = a.toIdx; } }
+      t.g.position.y += Math.sin(k * Math.PI) * (a.jump ? 2.4 + Math.abs(a.from.y - t.g.position.y) * .5 : a.zip ? 0 : .7); if (k >= 1) { t.anim = null; t.shown = a.toIdx; t.carry = a.zip ? (a.t - 1) * a.dur : 0; } }
     else { t.g.position.lerp(tilePos(t.shown, off), Math.min(1, dt * 8)); const c = nd[t.shown], nx = c && nd[c.next[0]]; if (t.yawT === undefined && c && nx) t.yawT = Math.atan2(-(nx.z - c.z), nx.x - c.x); }
     t.yaw = lerpA(t.yaw, t.yawT || 0, Math.min(1, dt * 10)); t.tr.rotation.y = t.yaw;
     { const pp = t.g.position, sp = t.lp && dt > 0 ? Math.hypot(pp.x - t.lp.x, pp.z - t.lp.z) / dt : 0; t.lp = pp.clone(); animTruck(t.tr, dt, Math.min(sp, 14)); }
