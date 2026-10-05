@@ -770,6 +770,8 @@ function frame(t) {
 			f.t = t;
 		}
 	}
+	/* board: shadows are only re-rendered on frames where something that casts one moved (shadowNeeded, set by stepBoard); every other mode (minigames, editor, podium) renders shadows every frame */
+	GFX.r.shadowMap.autoUpdate = !(GFX.mode === "board" && G && GFX.board);
 	if (GFX.mode === "edit") {
 		if (ED)
 			try {
@@ -805,8 +807,6 @@ function frame(t) {
 	if (mgOpen && !mgRes) return;
 	if (GFX.ctl && !GFX.peek) return;
 	const time = t / 1000;
-	/* board: shadows are only re-rendered on frames where something that casts one moved (shadowNeeded, set by stepBoard); everything else renders shadows every frame */
-	GFX.r.shadowMap.autoUpdate = !(GFX.mode === "board" && G && GFX.board);
 	if (GFX.mode === "board" && G && GFX.board) {
 		stepBoard(dt, time);
 		stepDie(dt);

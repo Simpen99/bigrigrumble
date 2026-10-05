@@ -24,6 +24,7 @@ three.js r128 (UMD from cdnjs) + ConvexHull/ConvexGeometry (jsdelivr), no build 
 - `part4a.js`: 3D minigame engine (`start3D`, `stepMG`, arena physics, ramming, minigame networking, HUD, ready screen, tap controls), board→minigame transition (`enterMg`), TV-mode minigames (`openTvCtl` / `openTvSplit` / `tvsFrame`), light/effects panel (`wireLightPanel`, `renderMG`).
 - `part4b.js`: the 12 original minigames (`MG`). Old ids, new games: `hill` Fire Brigade, `light` Red Light Green Light, `hop` Rush Hour, `park` Dump Run, `tiles` Concrete Crumble, `bumper` Mud Brawl, `rocks` crane slab. Shared `grandstands()` / `crowdMeshes()` / `crowdStep()`, `engineSnd()`.
 - `partmg2.js`: truck-special minigames (Scoop Stack, Sort It Out, Taco Tower, Tow Rescue, Drift King `drift`) and Drift Race (`race`, spline `PTS [x,z,y]`). Shared `driftPhys()`; ram tuning `ramK` / `ramSelf` / `ramSlide` / `ramKeep` / `canRam(e)`.
+- `partmg3.js`: newer minigames. Hot Load (`hotload`): dynamite passed by touching; rounds/fuses from the seed (`W.R`), the holder's device decides passes via `e.f.gv = [round, seq, key]` (highest seq wins), no passing in the last `LOCK` s.
 - `partedit.js`: PC map editor (`GFX.mode = "edit"`). Edits `{p, n, o}` live in localStorage `trp_mapedit`; `applyMapEdits(map)` merges `map.bake` + localStorage. To bake the user's "Copy edits" JSON, set `MAPS.<id>.bake = {p, n, o}` in partmap.
 - `part4c.js`: click handlers, boot.
 
