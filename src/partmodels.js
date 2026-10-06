@@ -912,13 +912,55 @@ function placeShadows(s, w, d, op, list) {
 /* ---------- port ---------- */
 /* 20 ft shipping container: 2.4 x 2.5 x 6, length along z, cargo doors at +z, base at y 0. Steel frame (corner posts,
    rails, castings) in a darker shade, corrugated walls and roof, two cargo doors with locking bars, handles, hinges
-   and a data plate, forklift pockets. lod 1 (distant stacks) drops the small door hardware and thins the ribs. */
+   and a data plate, forklift pockets. lod 1 (distant stacks) drops the small door hardware and paints the corrugation
+   on as a soft stripe texture: thin geometric ribs far away are under a pixel wide and alias into dashed lines. */
+var CONT_MAT = {};
+function corrugatedMat(col) {
+	if (!CONT_MAT.tex) {
+		CONT_MAT.tex = canvasTex(64, 8, (x, w, h) => {
+			const gr = x.createLinearGradient(0, 0, w, 0);
+			gr.addColorStop(0, "#FFFFFF");
+			gr.addColorStop(0.45, "#FFFFFF");
+			gr.addColorStop(0.7, "#C8C8C8");
+			gr.addColorStop(1, "#FFFFFF");
+			x.fillStyle = gr;
+			x.fillRect(0, 0, w, h);
+		});
+		CONT_MAT.tex.wrapS = CONT_MAT.tex.wrapT = THREE.RepeatWrapping;
+	}
+	return (
+		CONT_MAT[col] ||
+		(CONT_MAT[col] = new THREE.MeshStandardMaterial({
+			color: col,
+			map: CONT_MAT.tex,
+			flatShading: true,
+			roughness: 0.78,
+			metalness: 0.04,
+		}))
+	);
+}
+/* box with UVs in rib periods: stripes run up the walls (one per 0.42 m) and across the roof (one per 0.6 m) */
+function corrugatedBox(w, h, d, col, x, y, z) {
+	const geo = new THREE.BoxGeometry(w, h, d),
+		P = geo.attributes.position,
+		N = geo.attributes.normal,
+		uv = geo.attributes.uv;
+	for (let i = 0; i < P.count; i++) {
+		const nx = Math.abs(N.getX(i)),
+			ny = Math.abs(N.getY(i));
+		uv.setXY(i, (nx > 0.5 ? P.getZ(i) : ny > 0.5 ? P.getZ(i) * 0.7 : P.getX(i)) / 0.42, 0);
+	}
+	const m = new THREE.Mesh(geo, corrugatedMat(col));
+	m.position.set(x, y, z);
+	m.castShadow = m.receiveShadow = true;
+	return m;
+}
 function containerModel(col, lod = 0) {
 	const g = new THREE.Group(),
 		fr = "#" + new THREE.Color(col).multiplyScalar(0.72).getHexString(),
 		cast = "#3A3F48",
 		dark = "#23272F";
-	g.add(B(2.3, 2.28, 5.68, col, 0, 1.25, 0));
+	g.add(lod ? corrugatedBox(2.3, 2.28, 5.68, col, 0, 1.25, 0) : B(2.3, 2.28, 5.68, col, 0, 1.25, 0));
 	[-1, 1].forEach((sx) => {
 		[0.1, 2.4].forEach((y) => {
 			[-1, 1].forEach((sz) => g.add(B(0.2, 0.2, 0.22, cast, sx * 1.1, y, sz * 2.89)));
@@ -926,10 +968,10 @@ function containerModel(col, lod = 0) {
 		});
 		[-1, 1].forEach((sz) => g.add(B(0.16, 2.1, 0.16, fr, sx * 1.12, 1.25, sz * 2.92)));
 		/* corrugated side walls */
-		const st = lod ? 0.84 : 0.42;
-		for (let z = -2.52; z <= 2.53; z += st) g.add(B(0.03, 2.04, 0.2, col, sx * 1.165, 1.25, z));
+		if (!lod) for (let z = -2.52; z <= 2.53; z += 0.42) g.add(B(0.03, 2.04, 0.2, col, sx * 1.165, 1.25, z));
 		/* the two cargo doors (and a vertical rib on each) over a dark seam */
-		g.add(B(0.98, 2.06, 0.05, col, sx * 0.505, 1.25, 2.885), B(0.12, 1.9, 0.03, col, sx * 0.5, 1.25, 2.925));
+		g.add(B(0.98, 2.06, 0.05, col, sx * 0.505, 1.25, 2.885));
+		if (!lod) g.add(B(0.12, 1.9, 0.03, col, sx * 0.5, 1.25, 2.925));
 	});
 	g.add(B(2.0, 2.1, 0.02, dark, 0, 1.25, 2.85));
 	if (!lod) {
