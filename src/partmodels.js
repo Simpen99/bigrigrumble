@@ -309,8 +309,23 @@ function carModel(type, col) {
 	if (type === "van") {
 		const [, , , a, b] = S.body;
 		slopePane(a[0], a[1], b[0], b[1], W - 0.3, 0.1);
+		/* cab door windows follow the windscreen slope, so their front edge stays inside the body */
+		const fx = (y) => a[0] + ((b[0] - a[0]) * (y - a[1])) / (b[1] - a[1]) - 0.12,
+			lo = 1.24,
+			hi = 1.76,
+			win = new THREE.ExtrudeGeometry(
+				new THREE.Shape([
+					new THREE.Vector2(0.72, lo),
+					new THREE.Vector2(fx(lo), lo),
+					new THREE.Vector2(fx(hi), hi),
+					new THREE.Vector2(0.72, hi),
+				]),
+				{ depth: 0.03, bevelEnabled: false },
+			);
 		[-1, 1].forEach((sd) => {
-			pg.add(B(0.85, 0.52, 0.03, glass, 1.15, 1.5, sd * (W / 2 + 0.015), gm));
+			const wm = mesh(win, glass, gm);
+			wm.position.z = sd > 0 ? W / 2 + 0.002 : -W / 2 - 0.032;
+			pg.add(wm);
 			pg.add(B(0.05, 0.6, 0.03, dark, 0.65, 1.5, sd * (W / 2 + 0.02)));
 		});
 		const stripe = col === "#F4F6F9" || col === "#FFC83D" ? "#2F7DE1" : "#F4F6F9";
