@@ -9,8 +9,8 @@
 1. Lane races (Drag Race, Green Light, Rush Hour, Ramp Jump, Crate Drop): done, shared `partscene.js`.
 2. Arenas: Cone Smash, Fire Brigade, Rock Fall: done.
 3. Coin Rush retheme (casino rooftop car park at dusk).
-4. Touch-ups: Dump Run and the rest.
-5. Detailed models (partmodels.js kits) instead of plain boxes: houses and traffic cars (Rush Hour), city blocks with shop fronts (Green Light), shops and fire station (Fire Brigade) done; next candidates: Crate Drop containers and ship, Coin Rush / Cone Smash buildings.
+4. Touch-ups: done for Dump Run, Concrete Crumble, Mud Brawl, Sort It Out, Taco Tower, Drift King, Drift Race (Tow Rescue, Scoop Stack, Hot Load already had their own textures).
+5. Detailed models (partmodels.js kits) instead of plain boxes: houses and traffic cars (Rush Hour), city blocks with shop fronts (Green Light), shops and fire station (Fire Brigade) done; Crate Drop port, Cone Smash yard (containers, office, gatehouse, town skyline) done; next candidate: Coin Rush (with its retheme).
 
 ## Minigames picked (to build)
 - Done: Hot Load (`hotload`, partmg3).

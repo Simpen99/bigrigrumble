@@ -1266,11 +1266,7 @@ Object.assign(MG, {
 			// Garbo's recycling plant; the camera looks almost straight down, so the details sit around the bins
 			const Z = -10.5,
 				G = "#2E9E5B";
-			const fl = B(46, 0.4, 38, "#6E757F", 0, -0.2, -2);
-			fl.castShadow = false;
-			s.add(fl);
-			for (let x = -21; x <= 21; x += 3) decal(s, new THREE.PlaneGeometry(0.05, 34), "#5B616B", x + 1.5, 0.005, -2);
-			for (let z = -19; z <= 15; z += 3) decal(s, new THREE.PlaneGeometry(44, 0.05), "#5B616B", 0, 0.005, z + 0.5);
+			s.add(texBox(46, 0.4, 38, concreteTex(), 6, 0, -0.2, -2, { color: "#B0B5BD" }));
 			[-4.2, 4.2].forEach((x) => decal(s, new THREE.PlaneGeometry(0.2, 26), "#FFC83D", x, 0.012, 0));
 			[
 				[-2.6, 2.6, 0.55],
@@ -1614,9 +1610,7 @@ Object.assign(MG, {
 			const s = W.sc,
 				T = "#1FB5A8",
 				glow = (c) => M(c, { emissive: c, emissiveIntensity: 0.9 });
-			const st = B(60, 0.4, 50, "#2B2F3A", 0, -0.2, -18);
-			st.castShadow = false;
-			s.add(st);
+			s.add(texBox(60, 0.4, 50, asphaltTex(), 8, 0, -0.2, -18, { color: "#9EA3AD" }));
 			s.add(B(7.4, 0.3, 4, "#4A5060", 0, -0.12, 0.4));
 			s.add(
 				B(0.5, 6, 0.8, T, -3.55, 3, -1.9),
@@ -3248,12 +3242,8 @@ Object.assign(MG, {
 			const s = W.sc,
 				r = mulberry((W.mg.seed || 1) + 31),
 				H = this.H;
-			const g0 = B(240, 0.4, 240, "#2C3038", 0, -0.25, 0);
-			g0.castShadow = false;
-			s.add(g0);
-			const pad = B(2 * H + 2, 0.4, 2 * H + 2, "#5A6170", 0, -0.2, 0);
-			pad.castShadow = false;
-			s.add(pad);
+			s.add(texBox(240, 0.4, 240, asphaltTex(), 8, 0, -0.25, 0, { color: "#A2A6B0" }));
+			s.add(texBox(2 * H + 2, 0.4, 2 * H + 2, concreteTex(), 8, 0, -0.2, 0, { color: "#8F95A5" }));
 			this.STK.forEach(([x, z], k) => {
 				decal(s, new THREE.RingGeometry(this.ZR[0], this.ZR[1], 48), "#FF8A1F", x, 0.016, z, 0.16);
 				[this.ZR[0], this.ZR[1]].forEach((rr) => {
@@ -3821,9 +3811,7 @@ Object.assign(MG, {
 			s.children.slice().forEach((o) => {
 				if (o.isGroup && o.position.y > 12) s.remove(o);
 			});
-			const g0 = B(520, 0.4, 520, "#6DBE5A", 0, -0.25, 0);
-			g0.castShadow = false;
-			s.add(g0);
+			s.add(texBox(520, 0.4, 520, grassTex(), 10, 0, -0.25, 0, { color: "#EEF4EA" }));
 			W.fadeOver = [];
 			W.fadeTun = [];
 			const mk = (pos, col, fade) => {

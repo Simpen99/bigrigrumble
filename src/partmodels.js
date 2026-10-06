@@ -1543,3 +1543,198 @@ function mountHoseRig(tr) {
 	tr.add(r);
 	return r.userData;
 }
+
+/* ---------- building site and yard ---------- */
+/* a bar from a to b ([x, y, z]), t thick: lattice masts, jibs, braces, rails. round = a six-sided tube for lattice braces
+   (round 2 = turned 30 degrees, so tubes meeting at a joint never line up a flat face and can't z-fight) */
+function strut(g, a, b, t, col, round) {
+	const A = new THREE.Vector3(...a),
+		D = new THREE.Vector3(...b).sub(A),
+		L = D.length(),
+		m = round
+			? Cy(t / 2, t / 2, L, 6, col, A.x + D.x / 2, A.y + D.y / 2, A.z + D.z / 2)
+			: B(t, t, L, col, A.x + D.x / 2, A.y + D.y / 2, A.z + D.z / 2);
+	m.quaternion.setFromUnitVectors(new THREE.Vector3(0, round ? 1 : 0, round ? 0 : 1), D.normalize());
+	if (round === 2) m.rotateY(Math.PI / 6);
+	g.add(m);
+	return m;
+}
+/* portable site cabin, front at +z, 6 x 2.4 on sleeper blocks (floor at 0.3): corrugated walls in a coloured steel frame,
+   two barred windows and a door with a step on the front, a name plate, roof cap with lifting lugs, AC unit on the side */
+function siteCabinModel(col = "#F4F6F9", acc = "#FF8A1F", txt = "SITE OFFICE") {
+	const g = new THREE.Group(),
+		fz = 1.15,
+		bar = "#5A6272";
+	[-2.4, 0, 2.4].forEach((x) => g.add(B(0.34, 0.3, 2.2, "#8C8F96", x, 0.15, 0)));
+	g.add(corrugatedBox(5.9, 2.5, 2.3, col, 0, 1.55, 0));
+	g.add(B(6, 0.18, 2.4, acc, 0, 0.37, 0), B(6, 0.18, 2.4, acc, 0, 2.76, 0));
+	g.add(B(6.12, 0.08, 2.52, "#5A6272", 0, 2.88, 0));
+	[-1, 1].forEach((sx) =>
+		[-1, 1].forEach((sz) => {
+			g.add(B(0.16, 2.24, 0.16, acc, sx * 2.97, 1.57, sz * 1.17));
+			g.add(B(0.22, 0.12, 0.22, "#3A3F48", sx * 2.75, 2.98, sz * 1.0));
+		}),
+	);
+	/* front: two windows with security bars, a door with a frame and handle, a steel step with yellow handrails */
+	[-1.9, -0.4].forEach((x) => {
+		wallWindow(g, x, 1.85, fz, 0, 1.1, 0.85, "#FFFFFF", null);
+		[-0.3, 0, 0.3].forEach((o) => g.add(B(0.035, 0.9, 0.035, bar, x + o, 1.85, fz + 0.2)));
+		g.add(B(1.2, 0.05, 0.05, bar, x, 1.4, fz + 0.2), B(1.2, 0.05, 0.05, bar, x, 2.3, fz + 0.2));
+	});
+	g.add(B(1.06, 2.12, 0.06, "#FFFFFF", 1.75, 1.4, fz + 0.03), B(0.9, 2.0, 0.08, bar, 1.75, 1.34, fz + 0.05));
+	g.add(B(0.06, 0.2, 0.06, "#C9CED8", 2.08, 1.3, fz + 0.12));
+	g.add(B(1.3, 0.06, 0.8, "#8E96A3", 1.75, 0.27, fz + 0.45), B(1.3, 0.06, 0.4, "#8E96A3", 1.75, 0.12, fz + 0.95));
+	[-1, 1].forEach((sd) => {
+		const x = 1.75 + sd * 0.62;
+		g.add(B(0.06, 0.24, 0.06, "#3A3F48", 1.75 + sd * 0.58, 0.12, fz + 0.85));
+		strut(g, [x, 0.3, fz + 0.14], [x, 1.2, fz + 0.14], 0.05, "#FFC83D");
+		strut(g, [x, 1.2, fz + 0.14], [x, 0.9, fz + 1.05], 0.04, "#FFC83D");
+		strut(g, [x, 0.9, fz + 1.05], [x, 0.15, fz + 1.05], 0.05, "#FFC83D");
+	});
+	const sg = texturedBox(1.9, 0.36, 0.04, "#FFFFFF", signTexture(txt, "#FFFFFF", "#2A2F3A"), 4);
+	sg.position.set(-1.15, 2.47, fz + 0.04);
+	g.add(sg);
+	/* back window, AC unit and a pipe on the right end */
+	wallWindow(g, 0.8, 1.85, -fz, Math.PI, 1.1, 0.85, "#FFFFFF", null);
+	g.add(B(0.42, 0.62, 0.82, "#C9CED8", 3.15, 1.95, -0.2));
+	g.add(Cy(0.24, 0.24, 0.05, 12, "#3A3F48", 3.37, 1.95, -0.2).rotateZ(Math.PI / 2));
+	g.add(Cy(0.05, 0.05, 1.5, 6, "#8E96A3", 3.0, 1.0, 0.6));
+	return g;
+}
+/* mobile light tower: trailer with a generator housing, drawbar, wheels and four outrigger legs, a telescopic mast and a
+   bar of four lamp heads aimed at +z */
+function lightTowerModel() {
+	const g = new THREE.Group(),
+		Y = "#FFC83D",
+		D = "#3A3F48";
+	g.add(B(0.9, 0.12, 2.5, D, 0, 0.5, 0), B(1.2, 0.9, 1.9, Y, 0, 1.01, 0), B(1.26, 0.08, 1.96, "#E0A82A", 0, 1.5, 0));
+	[-1, 1].forEach((sd) => {
+		for (let k = 0; k < 5; k++) g.add(B(0.03, 0.05, 0.9, D, sd * 0.615, 0.8 + k * 0.1, -0.3));
+		g.add(B(0.03, 0.5, 0.5, "#C9CED8", sd * 0.615, 1.05, 0.55));
+		const w = Cy(0.3, 0.3, 0.2, 12, "#1D2230", sd * 0.72, 0.3, 0.1);
+		w.rotation.z = Math.PI / 2;
+		g.add(w, B(0.26, 0.05, 0.8, D, sd * 0.72, 0.66, 0.1));
+		[-1, 1].forEach((sz) => {
+			strut(g, [sd * 0.45, 0.6, sz * 1.1], [sd * 1.25, 0.12, sz * 1.25], 0.1, D);
+			g.add(B(0.3, 0.06, 0.3, D, sd * 1.25, 0.03, sz * 1.25));
+		});
+	});
+	strut(g, [0, 0.5, -1.2], [0, 0.42, -2.1], 0.12, D);
+	g.add(Cy(0.07, 0.07, 0.05, 8, "#8E96A3", 0, 0.45, -2.15));
+	g.add(Cy(0.11, 0.13, 3.4, 8, "#C9CED8", 0, 3.2, -0.6), Cy(0.08, 0.09, 3.4, 8, "#C9CED8", 0, 6.4, -0.6));
+	g.add(Cy(0.15, 0.15, 0.14, 8, D, 0, 4.9, -0.6));
+	g.add(B(1.9, 0.1, 0.1, D, 0, 8.15, -0.6), B(0.08, 0.9, 0.08, D, 0, 8.6, -0.6), B(1.9, 0.1, 0.1, D, 0, 9.05, -0.6));
+	[
+		[-0.5, 8.4],
+		[0.5, 8.4],
+		[-0.5, 8.85],
+		[0.5, 8.85],
+	].forEach(([x, y]) => {
+		const h = new THREE.Group();
+		h.position.set(x, y, -0.5);
+		h.rotation.x = 0.3;
+		h.add(B(0.62, 0.42, 0.2, D, 0, 0, 0));
+		h.add(B(0.52, 0.32, 0.04, "#FFF4D6", 0, 0, 0.11, { emissive: "#FFF1C2", emissiveIntensity: 0.9 }));
+		g.add(h);
+	});
+	return g;
+}
+/* tower crane: lattice mast on a ballasted footing, slewing ring and cab, an A-frame top with tie bars, the jib along +z
+   (trolley and hook block) and the counter-jib with concrete counterweights along -z. h = mast height, jl = jib length */
+function towerCraneModel(h = 30, jl = 26) {
+	const g = new THREE.Group(),
+		Y = "#FFC83D",
+		gr = "#8E96A3",
+		a = 0.8,
+		t = 0.18,
+		bt = 0.09;
+	g.add(B(4.4, 0.6, 4.4, "#A2A6AD", 0, 0.3, 0));
+	[-1, 1].forEach((sx) => [-1, 1].forEach((sz) => g.add(B(1.3, 0.7, 1.3, "#C4C8CE", sx * 1.4, 0.95, sz * 1.4))));
+	/* mast: four chords, a zig-zag brace on each face and a ring of bars every section */
+	const C = [
+		[-a, -a],
+		[a, -a],
+		[a, a],
+		[-a, a],
+	];
+	C.forEach(([x, z]) => g.add(B(t, h - 0.6, t, Y, x, 0.6 + (h - 0.6) / 2, z)));
+	const sec = 2.4;
+	for (let y = 0.6, k = 0; y + sec <= h + 0.01; y += sec, k++)
+		for (let f = 0; f < 4; f++) {
+			const [x0, z0] = C[f],
+				[x1, z1] = C[(f + 1) % 4];
+			strut(g, [x0, k % 2 ? y + sec : y, z0], [x1, k % 2 ? y : y + sec, z1], bt, Y, k % 2 ? 2 : 1);
+			strut(g, [x0, y + sec, z0], [x1, y + sec, z1], bt * 0.8, Y, 1);
+		}
+	/* slewing ring, cab on the side, A-frame */
+	g.add(Cy(1.25, 1.25, 0.5, 16, gr, 0, h + 0.25, 0), B(2.2, 0.4, 2.2, Y, 0, h + 0.7, 0));
+	g.add(B(1.3, 1.5, 1.6, Y, 1.55, h + 1.45, 1.2));
+	g.add(B(1.32, 0.8, 0.06, "#4A5566", 1.55, h + 1.65, 2.01, { roughness: 0.2, metalness: 0.3 }));
+	g.add(B(0.06, 0.8, 1.2, "#4A5566", 2.21, h + 1.65, 1.2, { roughness: 0.2, metalness: 0.3 }));
+	const top = [0, h + 6, 0];
+	C.forEach(([x, z]) => strut(g, [x, h + 0.9, z], top, t, Y));
+	/* jib: triangular lattice, two bottom chords and a top chord, braced every 2 m */
+	const jy = h + 0.95,
+		jw = 0.6,
+		jt = jy + 1.5;
+	[-1, 1].forEach((sd) => strut(g, [sd * jw, jy, 0], [sd * jw, jy, jl], t, Y));
+	strut(g, [0, jt, 0], [0, jt, jl - 1], t, Y);
+	strut(g, [0, jt, jl - 1], [0, jy, jl], t, Y);
+	for (let z = 0; z < jl - 1; z += 2) {
+		[-1, 1].forEach((sd) => {
+			strut(g, [sd * jw, jy, z], [0, jt, z + 1], bt, Y, 1);
+			strut(g, [0, jt, z + 1], [sd * jw, jy, z + 2], bt, Y, 2);
+		});
+		strut(g, [-jw, jy, z + 2], [jw, jy, z + 2], bt * 0.8, Y, 1);
+	}
+	/* counter-jib: flat frame with a walkway, a handrail, the hoist winch and the counterweight blocks at the end */
+	const cl = 9;
+	[-1, 1].forEach((sd) => strut(g, [sd * 0.75, jy, 0], [sd * 0.75, jy, -cl], t, Y));
+	for (let z = 1.5; z <= cl; z += 1.5) strut(g, [-0.75, jy, -z], [0.75, jy, -z], bt, Y, 1);
+	g.add(B(1.2, 0.05, cl - 3, gr, 0, jy + 0.12, -(cl - 3) / 2 - 0.5));
+	[-1, 1].forEach((sd) => strut(g, [sd * 0.75, jy + 0.9, -0.5], [sd * 0.75, jy + 0.9, -(cl - 3)], 0.04, Y));
+	[0, 1, 2].forEach((k) => g.add(B(2.1, 1.6, 0.66, "#B9BEC6", 0, jy - 0.4, -cl + 0.4 + k * 0.72)));
+	g.add(B(1.3, 0.9, 1.2, gr, 0, jy + 0.6, -cl + 3.4));
+	/* tie bars from the top to the jib and the counter-jib */
+	strut(g, top, [0, jt + 0.05, jl * 0.62], 0.08, gr);
+	[-1, 1].forEach((sd) => strut(g, top, [sd * 0.7, jy + 0.1, -cl + 0.1], 0.06, gr));
+	/* trolley, hoist cables and hook block */
+	const tz = jl * 0.72;
+	g.add(B(1.4, 0.4, 1.2, gr, 0, jy - 0.3, tz));
+	[-0.25, 0.25].forEach((x) => g.add(Cy(0.02, 0.02, 8, 4, "#2A2F3A", x, jy - 4.5, tz)));
+	g.add(B(0.8, 0.7, 0.4, Y, 0, jy - 8.8, tz), B(0.84, 0.16, 0.44, "#2A2F3A", 0, jy - 8.62, tz));
+	g.add(Cy(0.05, 0.05, 0.4, 6, "#3A3F48", 0, jy - 9.35, tz));
+	return g;
+}
+/* gatehouse, front at +z: a security booth with ribbon windows all round, corner posts, flat roof with a deep overhang,
+   SECURITY plate, a serving sill, door on the right, AC unit at the back and a lamp on the roof */
+function gatehouseModel(acc = "#FF7A1A") {
+	const g = new THREE.Group(),
+		wall = "#F4F6F9",
+		gm = { roughness: 0.2, metalness: 0.3, emissive: "#22324A", emissiveIntensity: 0.35 };
+	g.add(B(3.5, 0.3, 2.9, "#A2A6AD", 0, 0.15, 0), B(3.2, 1.0, 2.6, wall, 0, 0.8, 0));
+	g.add(B(3.04, 1.3, 2.44, "#3E4E63", 0, 1.95, 0, gm), B(3.2, 0.32, 2.6, wall, 0, 2.76, 0));
+	[-1, 1].forEach((sx) => [-1, 1].forEach((sz) => g.add(B(0.16, 1.3, 0.16, wall, sx * 1.52, 1.95, sz * 1.22))));
+	[-0.5, 0.5].forEach((x) => [-1, 1].forEach((sz) => g.add(B(0.06, 1.3, 0.06, wall, x, 1.95, sz * 1.24))));
+	[-1, 1].forEach((sx) => g.add(B(0.06, 1.3, 0.06, wall, sx * 1.54, 1.95, -0.3)));
+	g.add(B(3.3, 0.08, 0.14, wall, 0, 1.34, 1.29), B(1.4, 0.06, 0.36, "#C9CED8", 0, 1.41, 1.46));
+	g.add(B(3.9, 0.22, 3.3, acc, 0, 3.03, 0), B(3.7, 0.06, 3.1, "#5A6272", 0, 3.16, 0));
+	const sg = texturedBox(2.2, 0.26, 0.05, "#2A2F3A", signTexture("SECURITY", "#2A2F3A", "#FFC83D"), 4);
+	sg.position.set(0, 2.76, 1.33);
+	g.add(sg);
+	g.add(B(0.06, 2.1, 0.86, "#5A6272", 1.63, 1.35, 0.5), B(0.04, 0.18, 0.06, "#C9CED8", 1.68, 1.3, 0.2));
+	g.add(B(0.9, 0.3, 0.6, "#9A9DA4", 2.06, 0.15, 0.5));
+	g.add(B(0.8, 0.5, 0.36, "#C9CED8", 0.6, 2.1, -1.48));
+	g.add(Cy(0.18, 0.18, 0.04, 10, "#3A3F48", 0.6, 2.1, -1.68).rotateX(Math.PI / 2));
+	g.add(Cy(0.04, 0.04, 0.5, 6, "#3A3F48", -1.4, 3.43, 1.2), B(0.3, 0.14, 0.4, "#2A2F3A", -1.4, 3.74, 1.3));
+	g.add(B(0.24, 0.04, 0.3, "#FFF4D6", -1.4, 3.66, 1.32, { emissive: "#FFF1C2", emissiveIntensity: 0.8 }));
+	return g;
+}
+/* crushed car for scrap piles: a carModel squashed flat and slightly shortened */
+function crushedCarModel(type, col) {
+	const g = new THREE.Group(),
+		c = carModel(type, col);
+	c.scale.set(0.66, 0.34, 0.72);
+	g.add(c);
+	return g;
+}
