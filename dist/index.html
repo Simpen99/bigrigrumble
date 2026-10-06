@@ -18689,7 +18689,10 @@ const MG = {
 		fmt: (W, e) => `${e.tot} pts, crate ${Math.min(10, e.used + 1)}/10`,
 		tap(W, e) {
 			if (e.fall || e.used >= 10) return;
-			e.fall = { x: W.laneX(e.i) + this.hookX(W, e, e.cr), y: this.dropY(e.cr), vy: 0 };
+			/* start from where the hook is now (it eases up after each crate, like Scoop Stack's scoop) */
+			const h = W.hooks && W.hooks[e.k],
+				y = h && h.userData.cy != null ? h.userData.cy - 0.4 : this.dropY(e.cr);
+			e.fall = { x: W.laneX(e.i) + this.hookX(W, e, e.cr), y: Math.max(y, this.top(e.cr) + 0.5), vy: 0 };
 			e.last = W.t;
 		},
 		rules(W, e, dt) {
@@ -18753,7 +18756,7 @@ const MG = {
 			}
 			e.sc = e.tot;
 		},
-		render(W, e) {
+		render(W, e, dt) {
 			if (W.gullT !== W.t) {
 				W.gullT = W.t;
 				const t = Math.max(0, W.t) + 10;
@@ -18856,7 +18859,8 @@ const MG = {
 			if (h) {
 				/* trolley follows the hook along the gantry, the spreader holds the next crate, ropes reach up to the sheaves */
 				const u = h.userData,
-					cy = this.dropY(Math.min(cr, 9)) + 0.4,
+					tcy = this.dropY(Math.min(cr, 9)) + 0.4,
+					cy = (u.cy = u.cy == null ? tcy : u.cy + (tcy - u.cy) * (1 - Math.exp(-(dt || 0.016) * 7))),
 					rb = cy + 0.4 + 0.39,
 					RL = Math.max(0.1, 15.83 - rb),
 					show = (e.local ? e.used : e.f.u || 0) < 10 && !(e.local && e.fall),
