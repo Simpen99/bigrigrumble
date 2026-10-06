@@ -40,6 +40,13 @@ export async function openGame(browser, { width = 390, height = 844, mobile = fa
 	await serve(/three\.min\.js/, "build/three.min.js");
 	await serve(/ConvexHull\.js/, "examples/js/math/ConvexHull.js");
 	await serve(/ConvexGeometry\.js/, "examples/js/geometries/ConvexGeometry.js");
+	/* post-processing and RoomEnvironment scripts, loaded on demand */
+	await p.route(/three@0\.128\.0\/examples\/js\//, (r) =>
+		r.fulfill({
+			body: fs.readFileSync(THREE_DIR + "examples/js/" + r.request().url().split("/examples/js/")[1]),
+			contentType: "text/javascript",
+		}),
+	);
 	await p.route(/peerjs|qrcode/, (r) => r.fulfill({ body: "", contentType: "text/javascript" }));
 	await p.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
 	await p.goto("file://" + path.join(ROOT, "dist/index.html"));

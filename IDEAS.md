@@ -12,6 +12,12 @@
 4. Touch-ups: done for Dump Run, Concrete Crumble, Mud Brawl, Sort It Out, Taco Tower, Drift King, Drift Race (Tow Rescue, Scoop Stack, Hot Load already had their own textures).
 5. Detailed models (partmodels.js kits) instead of plain boxes: houses and traffic cars (Rush Hour), city blocks with shop fronts (Green Light), shops and fire station (Fire Brigade) done; Crate Drop port, Cone Smash yard (containers, office, gatehouse, town skyline) done; next candidate: Coin Rush (with its retheme).
 
+## Lighting upgrade (new look)
+- Trial on Cone Smash, Dump Run, Sort It Out via `def.look` (sRGB + ACES, cool fill, RoomEnvironment reflections, emissive-only bloom). Roll out to the other games, the board and the showroom once approved.
+- Night games later: 2-4 point / spot lights without shadows (street lamps, headlights, site floodlights) plus fake light cones
+  (additive transparent cones, `depthWrite:false`) and emissive lamp heads so the bloom picks them up. No extra shadow-casting lights (phones).
+- Ambient occlusion: SSAO is too heavy for phones; if wanted, try a cheap baked per-vertex AO in `bakeKit` instead.
+
 ## Minigames picked (to build)
 - Done: Hot Load (`hotload`, partmg3).
 - **Paint the Lot** (free-for-all or teams, arena): trucks leave a trail in their colour; most of the car park covered wins.
