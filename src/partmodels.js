@@ -1226,3 +1226,203 @@ function shipModel() {
 	g.userData.deckY = deckY;
 	return g;
 }
+
+/* ---------- cargo crates (Crate Drop): 1 x 0.8 x 1, centred on the origin ----------
+   faint plank texture (tinted by the material colour), UVs in metres so planks stay 0.2 m wide on every face */
+var WOOD = {};
+function plankMat(col) {
+	if (!WOOD.tex) {
+		WOOD.tex = canvasTex(64, 64, (x, w, h) => {
+			for (let j = 0; j < 4; j++) {
+				const v = 236 + ((j * 7) % 4) * 6;
+				x.fillStyle = `rgb(${v},${v},${v})`;
+				x.fillRect(0, j * 16, w, 16);
+				x.globalAlpha = 0.07;
+				x.fillStyle = "#000";
+				for (let k = 0; k < 3; k++) x.fillRect(0, j * 16 + 3 + k * 4 + (j % 2), w, 1);
+				x.globalAlpha = 0.4;
+				x.fillRect(0, j * 16, w, 1);
+				x.globalAlpha = 1;
+			}
+		});
+		WOOD.tex.wrapS = WOOD.tex.wrapT = THREE.RepeatWrapping;
+	}
+	return (
+		WOOD[col] ||
+		(WOOD[col] = new THREE.MeshStandardMaterial({ color: col, map: WOOD.tex, flatShading: true, roughness: 0.85 }))
+	);
+}
+function plankBox(w, h, d, col, x, y, z) {
+	const geo = new THREE.BoxGeometry(w, h, d),
+		P = geo.attributes.position,
+		N = geo.attributes.normal,
+		uv = geo.attributes.uv;
+	for (let i = 0; i < P.count; i++) {
+		const nx = Math.abs(N.getX(i)),
+			ny = Math.abs(N.getY(i));
+		uv.setXY(i, (nx > 0.5 ? P.getZ(i) : P.getX(i)) / 0.8, (ny > 0.5 ? P.getZ(i) : P.getY(i)) / 0.8 + 0.5);
+	}
+	const m = new THREE.Mesh(geo, plankMat(col));
+	m.position.set(x, y, z);
+	m.castShadow = m.receiveShadow = true;
+	return m;
+}
+/* stencil decal: text on a transparent plane, facing +z (rotate it onto other faces) */
+function stencil(txt, w, h, col, op) {
+	const k = "st" + txt + col;
+	if (!WOOD[k]) {
+		const tex = canvasTex(256, Math.round((256 * h) / w), (x, cw, ch) => {
+			x.font = `${Math.round(ch * 0.62)}px Bungee, 'Arial Black', Impact, sans-serif`;
+			x.textAlign = "center";
+			x.textBaseline = "middle";
+			x.fillStyle = col;
+			x.fillText(txt, cw / 2, ch / 2 + 1);
+		});
+		WOOD[k] = new THREE.MeshStandardMaterial({
+			map: tex,
+			transparent: true,
+			opacity: op,
+			depthWrite: false,
+			polygonOffset: true,
+			polygonOffsetFactor: -2,
+			polygonOffsetUnits: -4,
+			roughness: 0.9,
+		});
+	}
+	return new THREE.Mesh(new THREE.PlaneGeometry(w, h), WOOD[k]);
+}
+/* v 0 pine crate (edge battens, X braces, FRAGILE stamp), 1 dark crate (straps, steel corners, rope handles),
+   2 painted steel case (ribs, rims, label), 3 carton on a pallet (taped, labelled) */
+function crateModel(v) {
+	const g = new THREE.Group(),
+		put = (m, x, y, z, ry) => {
+			m.position.set(x, y, z);
+			m.rotation.y = ry || 0;
+			g.add(m);
+		};
+	if (v === 0) {
+		const fr = "#A8743F";
+		g.add(plankBox(0.9, 0.7, 0.9, "#E2B07A", 0, 0, 0));
+		[-1, 1].forEach((a) =>
+			[-1, 1].forEach((b) => {
+				g.add(B(1.0, 0.1, 0.1, fr, 0, a * 0.35, b * 0.45), B(0.1, 0.1, 0.8, fr, a * 0.45, b * 0.35, 0));
+				g.add(B(0.1, 0.6, 0.1, fr, a * 0.45, 0, b * 0.45));
+			}),
+		);
+		[-1, 1].forEach((sd) => {
+			const br = B(0.96, 0.09, 0.04, fr, 0, 0, sd * 0.47);
+			br.rotation.z = sd * Math.atan2(0.6, 0.8);
+			g.add(br, B(0.04, 0.09, 0.8, fr, sd * 0.47, 0, 0));
+			put(stencil("FRAGILE", 0.62, 0.17, "#B5262B", 0.8), sd * 0.452, 0.16, 0, (sd * Math.PI) / 2);
+		});
+	} else if (v === 1) {
+		g.add(plankBox(0.94, 0.74, 0.94, "#B98352", 0, 0, 0));
+		[-0.22, 0.22].forEach((y) => g.add(B(0.98, 0.07, 0.98, "#5A3A22", 0, y, 0)));
+		[-1, 1].forEach((a) =>
+			[-1, 1].forEach((b) =>
+				[-1, 1].forEach((c) => g.add(B(0.14, 0.14, 0.14, "#8E96A3", a * 0.43, b * 0.33, c * 0.43))),
+			),
+		);
+		[-1, 1].forEach((sd) => {
+			g.add(B(0.04, 0.05, 0.34, "#3A3F48", sd * 0.51, 0.05, 0));
+			[-0.13, 0.13].forEach((z) => g.add(B(0.04, 0.09, 0.04, "#3A3F48", sd * 0.49, 0.05, z)));
+		});
+		put(stencil("THIS SIDE UP", 0.7, 0.16, "#2A1A0E", 0.6), 0, 0, 0.472);
+	} else if (v === 2) {
+		const col = "#3E7CB1",
+			rib = "#2B5C86",
+			rim = "#2A4A6B";
+		g.add(B(0.92, 0.72, 0.92, col, 0, 0, 0));
+		[-0.38, 0.38].forEach((y) => g.add(B(1.0, 0.04, 1.0, rim, 0, y, 0)));
+		[-1, 1].forEach((sd) =>
+			[-0.22, 0.22].forEach((o) => {
+				g.add(B(0.06, 0.66, 0.03, rib, o, 0, sd * 0.475), B(0.03, 0.66, 0.06, rib, sd * 0.475, 0, o));
+			}),
+		);
+		g.add(B(0.3, 0.2, 0.02, "#F4F6F9", 0, 0.05, 0.47));
+		put(stencil("BRR", 0.26, 0.14, "#2A2F3A", 0.85), 0, 0.05, 0.481);
+		g.add(B(0.38, 0.06, 0.02, "#FFC83D", 0, -0.2, 0.47));
+	} else {
+		[-0.43, 0, 0.43].forEach((z) => g.add(plankBox(1.0, 0.1, 0.14, "#C49A68", 0, -0.35, z)));
+		[-0.42, -0.21, 0, 0.21, 0.42].forEach((x) => g.add(plankBox(0.16, 0.03, 1.0, "#D2A874", x, -0.285, 0)));
+		g.add(B(0.94, 0.67, 0.94, "#C9A26B", 0, 0.065, 0));
+		g.add(B(0.18, 0.02, 0.96, "#E6CFA0", 0, 0.405, 0));
+		[-1, 1].forEach((sd) => g.add(B(0.17, 0.24, 0.02, "#E6CFA0", 0, 0.28, sd * 0.48)));
+		g.add(B(0.26, 0.18, 0.02, "#F4F6F9", 0.24, -0.06, 0.475));
+		[0.17, 0.2, 0.22, 0.26, 0.29, 0.31].forEach((x) => g.add(B(0.012, 0.08, 0.01, "#23272F", x, -0.09, 0.489)));
+	}
+	return g;
+}
+var CRATE_KITS;
+const crateKits = () => CRATE_KITS || (CRATE_KITS = [0, 1, 2, 3].map((v) => bakeKit(crateModel(v))));
+
+/* ---------- rubber-tyred gantry crane spanning lanes along x (legs at x = +-span/2, z centred), girders at y ~15:
+   tyre bogies on sill beams with hazard stripes, legs with a diagonal brace and a ladder, portal beams, two girders
+   with trolley rails and a name board, a generator house and a beacon */
+function rtgModel(span) {
+	const g = new THREE.Group(),
+		Y = "#E0A800",
+		dark = "#23272F",
+		hz = stripeTexture("#FFC83D", "#23272F");
+	hz.wrapS = THREE.RepeatWrapping;
+	[-1, 1].forEach((sd) => {
+		const lx = (sd * span) / 2;
+		g.add(B(0.9, 0.7, 6.4, Y, lx, 1.05, 0));
+		const st = texturedBox(0.02, 0.36, 5.6, Y, hz, sd > 0 ? 0 : 1, 7, 1);
+		st.position.set(lx + sd * 0.46, 1.05, 0);
+		g.add(st);
+		[-2.85, -2.0, 2.0, 2.85].forEach((z) => {
+			const w = Cy(0.42, 0.42, 0.36, 12, "#1D2230", lx, 0.42, z),
+				hb = Cy(0.2, 0.2, 0.38, 8, "#C9CED8", lx, 0.42, z);
+			w.rotation.z = hb.rotation.z = Math.PI / 2;
+			g.add(w, hb);
+		});
+		[-2.5, 2.5].forEach((z) => g.add(B(0.6, 13.2, 0.6, Y, lx, 8.0, z)));
+		const br = B(0.25, Math.hypot(4.4, 10), 0.25, Y, lx, 7.5, 0);
+		br.rotation.x = Math.atan2(4.4, 10);
+		g.add(br, B(0.3, 0.3, 4.4, Y, lx, 8.5, 0));
+		g.add(B(1.0, 1.2, 6.2, Y, lx, 15.0, 0));
+	});
+	[-1.1, 1.1].forEach((z) => {
+		g.add(B(span + 0.6, 1.0, 0.55, Y, 0, 15.15, z));
+		g.add(B(span - 1.0, 0.08, 0.12, dark, 0, 15.69, z));
+	});
+	const nb = texturedBox(5, 0.66, 0.04, Y, signTexture("RUMBLE PORT", "#E0A800", "#23272F"), 4);
+	nb.position.set(0, 15.15, 1.395);
+	g.add(nb);
+	/* generator house on the left portal, beacon on the right */
+	const gx = -span / 2;
+	g.add(B(1.6, 1.5, 3.0, "#F4F6F9", gx, 16.35, 0), B(0.02, 0.5, 1.4, "#3A3F48", gx - 0.81, 16.35, 0));
+	g.add(B(1.7, 0.1, 3.1, Y, gx, 17.15, 0), Cy(0.1, 0.1, 0.8, 8, "#3A3F48", gx + 0.4, 17.6, 0.8));
+	g.add(Cy(0.13, 0.15, 0.24, 8, "#FF8A1F", span / 2, 15.72, 2.2, { emissive: "#FF6A00", emissiveIntensity: 0.7 }));
+	/* ladder up the front right leg */
+	const lx = span / 2 + 0.38;
+	[-0.2, 0.2].forEach((dz) => g.add(B(0.04, 12.4, 0.04, dark, lx, 7.9, 2.5 + dz)));
+	for (let y = 2.0; y < 14; y += 0.4) g.add(B(0.03, 0.03, 0.4, dark, lx, y, 2.5));
+	[3, 8, 13].forEach((y) => g.add(B(0.1, 0.04, 0.04, dark, lx - 0.06, y, 2.5)));
+	return g;
+}
+/* the trolley riding the gantry's rails (absolute heights, centred on its lane): wheels, platform, hoist house with
+   roof, rope sheaves underneath and the operator cab hanging off the back */
+function trolleyModel() {
+	const g = new THREE.Group(),
+		Y = "#E0A800",
+		dark = "#23272F",
+		glass = "#2E3F55",
+		gm = { roughness: 0.25, metalness: 0.3, emissive: "#1A2636", emissiveIntensity: 0.4 };
+	[-0.6, 0.6].forEach((x) =>
+		[-1.1, 1.1].forEach((z) => {
+			const w = Cy(0.13, 0.13, 0.08, 10, dark, x, 15.86, z);
+			w.rotation.x = Math.PI / 2;
+			g.add(w);
+		}),
+	);
+	g.add(B(1.7, 0.26, 3.9, Y, 0, 16.1, -0.35));
+	g.add(B(1.3, 0.8, 1.6, "#F4F6F9", 0, 16.63, 0), B(1.4, 0.08, 1.7, Y, 0, 17.07, 0));
+	g.add(B(0.6, 0.3, 0.02, "#3A3F48", 0, 16.65, 0.81));
+	[-0.2, 0.2].forEach((x) => [-0.2, 0.2].forEach((z) => g.add(B(0.16, 0.14, 0.16, dark, x, 15.9, z))));
+	g.add(B(0.3, 0.55, 0.3, dark, 0, 15.7, -2.0), B(1.0, 1.1, 1.0, "#F4F6F9", 0, 14.87, -2.0));
+	g.add(B(0.7, 0.5, 0.02, glass, 0, 14.95, -1.49, gm), B(0.7, 0.5, 0.02, glass, 0, 14.95, -2.51, gm));
+	[-1, 1].forEach((sd) => g.add(B(0.02, 0.5, 0.7, glass, sd * 0.51, 14.95, -2.0, gm)));
+	return g;
+}

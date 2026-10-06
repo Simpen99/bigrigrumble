@@ -78,7 +78,7 @@ function botRam(W, e, inp, r = 3.2) {
 function laneWorld(W, len, extra) {
 	const s = W.sc,
 		n = W.plist.length,
-		LW = 3.6;
+		LW = (extra && extra.lw) || 3.6;
 	W.laneX = (i) => (i - (n - 1) / 2) * LW;
 	W.len = len;
 	const wid = n * LW;
@@ -5046,29 +5046,50 @@ const MG = {
 		tapHint: "Tap to drop the crate onto your stack.",
 		how: "Drop 10 crates onto your truck. Centre each one on the crate below: overhang too far and it tips off, lean the stack and it topples.",
 		build(W) {
-			const wid = laneWorld(W, 30, { noTrees: true });
+			/* wide lanes: a swinging crate reaches 1.85 m from the lane centre, so neighbours can't overlap */
+			const wid = laneWorld(W, 30, { noTrees: true, lw: 4.6 }),
+				span = wid + 2;
 			this.port(W, wid);
+			/* one gantry crane over all lanes, legs outside the road; a trolley per lane carries the hoist */
+			const rtg = kitGroup(bakeKit(rtgModel(span)), 0);
+			rtg.position.z = -11;
+			W.sc.add(rtg);
+			placeShadows(W.sc, 1.3, 6.8, 0.3, [
+				{ x: -span / 2, z: -11 },
+				{ x: span / 2, z: -11 },
+			]);
+			const tk = bakeKit(trolleyModel());
 			W.hooks = {};
-			const posts = [];
 			W.plist.forEach((p, i) => {
-				const x = W.laneX(i);
-				W.sc.add(
-					B(0.3, 15, 0.3, "#E0A800", x - 1.6, 7.5, -11),
-					B(0.3, 15, 0.3, "#E0A800", x + 1.6, 7.5, -11),
-					B(3.6, 0.35, 0.35, "#E0A800", x, 15, -11),
-				);
-				posts.push({ x: x - 1.6, z: -11 }, { x: x + 1.6, z: -11 });
 				const h = new THREE.Group(),
-					cab = B(0.05, 1, 0.05, "#2A2F3A", 0, 0, 0),
-					cr = B(1, 0.8, 1, "#C98A4B", 0, 0, 0);
-				h.add(cab, cr);
-				h.userData.cr = cr;
-				h.userData.cab = cab;
-				h.position.set(x, 12, -11);
+					sp = new THREE.Group(),
+					ropes = [];
+				h.add(kitGroup(tk, 0), sp);
+				sp.add(B(1.1, 0.14, 1.1, "#E0A800", 0, 0.07, 0), B(0.5, 0.25, 0.5, "#B58A00", 0, 0.265, 0));
+				[-1, 1].forEach((a) =>
+					[-1, 1].forEach((b) => sp.add(B(0.12, 0.08, 0.12, "#23272F", a * 0.48, 0.18, b * 0.48))),
+				);
+				[-0.2, 0.2].forEach((x) =>
+					[-0.2, 0.2].forEach((z) => {
+						const r = Cy(0.025, 0.025, 1, 5, "#3A3F48", x, 0, z);
+						ropes.push(r);
+						h.add(r);
+					}),
+				);
+				const crates = crateKits().map((k) => {
+					const c = kitGroup(k, 0);
+					h.add(c);
+					return c;
+				});
+				Object.assign(h.userData, { sp, ropes, crates });
+				h.position.set(W.laneX(i), 0, -11);
 				W.sc.add(h);
 				W.hooks[p.key] = h;
 			});
-			placeShadows(W.sc, 0.45, 0.45, 0.25, posts);
+		},
+		/* crate model for stack layer n: the four kinds take turns, offset per player */
+		crate(e, n) {
+			return kitGroup(crateKits()[(n + e.i) % 4], 0);
 		},
 		port(W, wid) {
 			// container terminal: quay, container stacks, a docked cargo ship, quay cranes and the sea
@@ -5268,12 +5289,30 @@ const MG = {
 			const top = this.top(Math.min(W.me.cr, 9)),
 				fy = top + 0.6;
 			return [
-				new THREE.Vector3(W.me.x * 0.7, fy, -11),
-				new THREE.Vector3(W.me.x * 0.7, fy + 3.2 * far, -11 + 13 * far),
+				new THREE.Vector3(W.me.x * 0.85, fy, -11),
+				new THREE.Vector3(W.me.x * 0.85, fy + 3.2 * far, -11 + 13 * far),
 			];
 		},
-		hookX: (W, e, cr) => Math.sin(W.t * (1.3 + cr * 0.2) + e.i * 0.9) * 1.35,
-		truckX: (W, e, cr) => W.laneX(e.i) + (cr >= 3 ? Math.sin(W.t * (0.8 + cr * 0.05) + e.i) * 0.8 : 0),
+		/* a wobble whose speed grows with the stack: the phase is integrated over time (not W.t * speed), so a new
+		   speed never makes the hook or truck jump */
+		osc(W, e, key, rate) {
+			const o = (e.osc = e.osc || {}),
+				q = o[key] || (o[key] = { ph: 0, t: W.t, a: 0, dt: 0 });
+			q.dt = Math.max(0, W.t - q.t);
+			q.ph += q.dt * rate;
+			q.t = W.t;
+			return q;
+		},
+		hookX(W, e, cr) {
+			return Math.sin(this.osc(W, e, "h", 1.3 + cr * 0.2).ph + e.i * 0.9) * 1.35;
+		},
+		/* the truck starts swaying from 3 crates up, easing in (and out after a topple) instead of switching on */
+		truckX(W, e, cr) {
+			const q = this.osc(W, e, "t", 0.8 + cr * 0.05),
+				dA = (cr >= 3 ? 0.8 : 0) - q.a;
+			q.a += Math.max(-q.dt * 0.4, Math.min(q.dt * 0.4, dA));
+			return W.laneX(e.i) + Math.sin(q.ph + e.i) * q.a;
+		},
 		fmt: (W, e) => `${e.tot} pts, crate ${Math.min(10, e.used + 1)}/10`,
 		tap(W, e) {
 			if (e.fall || e.used >= 10) return;
@@ -5424,7 +5463,8 @@ const MG = {
 			}
 			while (e.stack.length < cr) {
 				const i = e.stack.length,
-					b = B(1, 0.8, 1, i % 2 ? "#D99A5B" : "#C98A4B", L[i], this.top(i) + 0.4, 0);
+					b = this.crate(e, i);
+				b.position.set(L[i], this.top(i) + 0.4, 0);
 				b.rotation.z = Math.max(-0.12, Math.min(0.12, -(L[i] - (i ? L[i - 1] : 0)) * 0.25));
 				e.g.add(b);
 				e.stack.push(b);
@@ -5436,37 +5476,43 @@ const MG = {
 				const tp = e.local ? (e.tip ? [e.tip.x, e.tip.dir, e.tip.n, e.tip.y] : null) : e.f.tip;
 				if (tp && tp[2] !== e.tipSeen) {
 					e.tipSeen = tp[2];
-					const m = B(1, 0.8, 1, "#C98A4B", 0, 0, 0);
+					const m = this.crate(e, cr);
 					tumble(m, tp[0], tp[3] ?? this.top(cr) + 0.4, tp[1]);
 				}
 			}
 			if (h) {
-				const cy = this.dropY(Math.min(cr, 9)) + 0.4,
-					L = Math.max(0.1, 15 - (cy + 0.4));
-				h.position.set(W.laneX(e.i) + this.hookX(W, e, cr), cy, -11);
-				h.userData.cab.scale.y = L;
-				h.userData.cab.position.y = 0.4 + L / 2;
-				h.userData.cr.visible = (e.local ? e.used : e.f.u || 0) < 10 && !(e.local && e.fall);
+				/* trolley follows the hook along the gantry, the spreader holds the next crate, ropes reach up to the sheaves */
+				const u = h.userData,
+					cy = this.dropY(Math.min(cr, 9)) + 0.4,
+					rb = cy + 0.4 + 0.39,
+					RL = Math.max(0.1, 15.83 - rb),
+					show = (e.local ? e.used : e.f.u || 0) < 10 && !(e.local && e.fall),
+					v = (cr + e.i) % 4;
+				h.position.x = W.laneX(e.i) + this.hookX(W, e, cr);
+				u.sp.position.y = cy + 0.4;
+				u.ropes.forEach((r) => {
+					r.scale.y = RL;
+					r.position.y = rb + RL / 2;
+				});
+				u.crates.forEach((c, k) => {
+					c.visible = show && k === v;
+					c.position.y = cy;
+				});
 			}
 			while (e.stack.length < cr) {
-				const b = B(
-					1,
-					0.8,
-					1,
-					e.stack.length % 2 ? "#D99A5B" : "#C98A4B",
-					e.f.lo || 0,
-					this.top(e.stack.length) + 0.4,
-					0,
-				);
+				const b = this.crate(e, e.stack.length);
+				b.position.set(e.f.lo || 0, this.top(e.stack.length) + 0.4, 0);
 				e.g.add(b);
 				e.stack.push(b);
 			}
 			if (e.fall) {
 				if (!e.fm) {
-					e.fm = B(1, 0.8, 1, "#C98A4B", 0, 0, 0);
+					e.fm = new THREE.Group();
+					crateKits().forEach((k) => e.fm.add(kitGroup(k, 0)));
 					W.sc.add(e.fm);
 				}
 				e.fm.visible = true;
+				e.fm.children.forEach((c, k) => (c.visible = k === (e.cr + e.i) % 4));
 				e.fm.position.set(e.fall.x, e.fall.y + 0.4, -11);
 			} else if (e.fm) e.fm.visible = false;
 		},
