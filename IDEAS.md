@@ -7,7 +7,7 @@
 
 ## Minigame visual upgrade (one PR each)
 1. Lane races (Drag Race, Green Light, Rush Hour, Ramp Jump, Crate Drop): done, shared `partscene.js`.
-2. Arenas: Cone Smash, Fire Brigade, Rock Fall.
+2. Arenas: Cone Smash, Fire Brigade, Rock Fall: done.
 3. Coin Rush retheme (casino rooftop car park at dusk).
 4. Touch-ups: Dump Run and the rest.
 
