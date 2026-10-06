@@ -1228,6 +1228,20 @@ Object.assign(MG, {
 		unit: "pts",
 		dur: 35,
 		bare: true,
+		sun: [-13, 15, 11],
+		/* new look trial: fresh cool morning at the recycling plant */
+		look: {
+			exp: 1.1,
+			amb: 0.32,
+			sun: 1.8,
+			warm: 0.35,
+			env: 0.12,
+			haze: 55,
+			glow: 0.98,
+			bloom: 0.4,
+			fill: ["#CFE4FF", "#6E8A70"],
+			sky: ["#4A8BD6", "#A0D2F0", "#E2F2F4"],
+		},
 		how: "Send each piece of trash to the right bin. Wrong bin costs points.",
 		tapHint: "Tap a bin, or use the arrow keys / WASD.",
 		CATS: [

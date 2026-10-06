@@ -902,6 +902,93 @@ function Cy(rt, rb, h, s, c, x, y, z, o) {
 	m.position.set(x, y, z);
 	return m;
 }
+/* new look (trial, games with def.look): sRGB output + ACES tone mapping. The renderer switches per scene (scene.userData.lk = the look),
+   and these shader patches read material colours, vertex / instance colours and textures as sRGB only when TONE_MAPPING is defined,
+   so every other scene renders exactly as before. Opaque emissive surfaces write their glow into alpha (1 - glow) for the emissive-only bloom.
+   The sky background skips tone mapping so it matches the fog colour. */
+function lookShaders() {
+	const C = THREE.ShaderChunk,
+		L = THREE.ShaderLib,
+		lin = (v) => `\n#ifdef TONE_MAPPING\n\t${v} = pow( max( ${v}, vec3( 0.0 ) ), vec3( 2.2 ) );\n#endif\n`;
+	C.color_fragment =
+		"#if defined( USE_COLOR_ALPHA )\n\tvec4 lkCol = vColor;\n#elif defined( USE_COLOR )\n\tvec4 lkCol = vec4( vColor, 1.0 );\n#endif\n#if defined( USE_COLOR_ALPHA ) || defined( USE_COLOR )\n" +
+		lin("lkCol.rgb") +
+		"\tdiffuseColor *= lkCol;\n#endif";
+	C.map_fragment = C.map_fragment.replace(
+		"texelColor = mapTexelToLinear( texelColor );",
+		"texelColor = mapTexelToLinear( texelColor );" + lin("texelColor.rgb"),
+	);
+	C.map_particle_fragment = C.map_particle_fragment.replace(
+		"diffuseColor *= mapTexelToLinear( mapTexel );",
+		"mapTexel = mapTexelToLinear( mapTexel );" + lin("mapTexel.rgb") + "diffuseColor *= mapTexel;",
+	);
+	C.emissivemap_fragment = C.emissivemap_fragment.replace(
+		"emissiveColor.rgb = emissiveMapTexelToLinear( emissiveColor ).rgb;",
+		"emissiveColor.rgb = emissiveMapTexelToLinear( emissiveColor ).rgb;" + lin("emissiveColor.rgb"),
+	);
+	const glow =
+		"gl_FragColor = vec4( outgoingLight, diffuseColor.a );\n#ifdef TONE_MAPPING\n\tif ( opacity > 0.999 && diffuseColor.a > 0.999 ) gl_FragColor.a = 1.0 - smoothstep( 0.12, 0.7, max( max( totalEmissiveRadiance.r, totalEmissiveRadiance.g ), totalEmissiveRadiance.b ) );\n#endif";
+	Object.values(L).forEach((sh) => {
+		let f = sh.fragmentShader;
+		if (!f) return;
+		f = f.replace(
+			"vec4 diffuseColor = vec4( diffuse, opacity );",
+			"vec4 diffuseColor = vec4( diffuse, opacity );" + lin("diffuseColor.rgb"),
+		);
+		if (f.includes("vec3 totalEmissiveRadiance = emissive;"))
+			f = f
+				.replace(
+					"vec3 totalEmissiveRadiance = emissive;",
+					"vec3 totalEmissiveRadiance = emissive;" + lin("totalEmissiveRadiance"),
+				)
+				.replace("gl_FragColor = vec4( outgoingLight, diffuseColor.a );", glow);
+		sh.fragmentShader = f;
+	});
+	/* sprites are labels (name tags, text): keep their exact colours, no tone mapping */
+	L.sprite.fragmentShader = L.sprite.fragmentShader.replace("#include <tonemapping_fragment>", "");
+	L.background.fragmentShader = L.background.fragmentShader.replace(
+		"#include <tonemapping_fragment>\n\t#include <encodings_fragment>",
+		"#ifndef TONE_MAPPING\n\t#include <encodings_fragment>\n\t#endif",
+	);
+}
+function gfxLook(s) {
+	const r = GFX.r,
+		L = s && s.userData.lk;
+	r.outputEncoding = L ? THREE.sRGBEncoding : THREE.LinearEncoding;
+	r.toneMapping = L ? THREE.ACESFilmicToneMapping : THREE.NoToneMapping;
+	if (L) r.toneMappingExposure = L.exp;
+}
+/* RoomEnvironment reflections for new-look scenes (PMREM, loaded on first use); intensity per material from the look's env */
+function lookEnvTex() {
+	if (GFX.envLoad) return GFX.envLoad;
+	GFX.envLoad = new Promise((res, rej) => {
+		const s = document.createElement("script");
+		s.src = "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/environments/RoomEnvironment.js";
+		s.onload = res;
+		s.onerror = () => rej(new Error("load RoomEnvironment"));
+		document.head.appendChild(s);
+	}).then(
+		() => {
+			const pm = new THREE.PMREMGenerator(GFX.r),
+				t = pm.fromScene(new THREE.RoomEnvironment(), 0.04).texture;
+			pm.dispose();
+			return (GFX.envTex = t);
+		},
+		(e) => {
+			GFX.envLoad = null;
+			throw e;
+		},
+	);
+	return GFX.envLoad;
+}
+function lookEnv(s) {
+	const L = s.userData.lk;
+	if (!L) return;
+	s.traverse((o) => {
+		const m = o.material;
+		if (m) (Array.isArray(m) ? m : [m]).forEach((q) => q.isMeshStandardMaterial && (q.envMapIntensity = L.env));
+	});
+}
 function lights(scene, shadow) {
 	scene.add(new THREE.HemisphereLight("#DDF0FF", "#5C7F45", 0.78));
 	const d = new THREE.DirectionalLight("#FFF1D6", 1.05);
@@ -1553,6 +1640,15 @@ function gfxInit() {
 		r.shadowMap.enabled = true;
 		r.shadowMap.type = THREE.PCFSoftShadowMap;
 		GFX.r = r;
+		lookShaders();
+		{
+			/* every scene render picks its colour pipeline (new look or classic); quads and meshes rendered by post passes keep the current one */
+			const rr = r.render.bind(r);
+			r.render = (s, c) => {
+				if (s && s.isScene) gfxLook(s);
+				rr(s, c);
+			};
+		}
 		GFX.cam = new THREE.PerspectiveCamera(40, 1, 0.5, 240);
 		GFX.ok = true;
 		makeThumbs();
@@ -10951,6 +11047,50 @@ function mgEnv(s, water, lane, bare, night, storm, dusk) {
 	}
 	return sun;
 }
+/* new look (trial): def.look = {exp, amb, sun, warm, env, haze, glow, bloom, fill: [sky, ground], sky: [top, mid, horizon]}.
+   Sets the scene's colour mood; the renderer switches to sRGB + ACES for scenes with userData.lk (gfxLook). Light colours go in as linear. */
+const LOOK0 = { exp: 1, amb: 0.3, sun: 1.8, warm: 0.6, env: 0.1, haze: 55, glow: 0.98, bloom: 0.4 };
+const lkWarm = (c, w) => c.set("#E4EEFF").lerp(new THREE.Color("#FFC27A"), w).convertSRGBToLinear();
+function applyLook(W) {
+	const s = W.sc,
+		L = (s.userData.lk = Object.assign({}, LOOK0, W.def.look)),
+		h = s.children.find((o) => o.isHemisphereLight);
+	if (L.sky) {
+		SKY.lk = L.sky;
+		applySky(s, "lk");
+	}
+	if (h) {
+		h.intensity = L.amb;
+		if (L.fill) {
+			h.color.set(L.fill[0]).convertSRGBToLinear();
+			h.groundColor.set(L.fill[1]).convertSRGBToLinear();
+		} else {
+			h.color.convertSRGBToLinear();
+			h.groundColor.convertSRGBToLinear();
+		}
+	}
+	W.sun.intensity = L.sun;
+	lkWarm(W.sun.color, L.warm);
+	W.lpWarm = L.warm;
+	if (GFX.touch) W.sun.shadow.mapSize.set(1024, 1024);
+	if (s.fog) {
+		s.fog.near = L.haze;
+		s.fog.far = L.haze * 3.8;
+	}
+	const F = GFX.fx;
+	F.bloom.on = L.bloom > 0;
+	F.bloom.v = L.bloom;
+	F.bloom.th = L.glow;
+	F.aa.on = true;
+	loadPost().catch(() => {});
+	lookEnv(s);
+	lookEnvTex().then(
+		(t) => {
+			s.environment = t;
+		},
+		() => {},
+	);
+}
 function mkEnt(p, isMe, named, mode) {
 	const g = new THREE.Group(),
 		tr = buildTruck(p.truck, mode);
@@ -11263,6 +11403,7 @@ function camFov(f) {
 function start3D(mg, p, localOnly, startAt, split) {
 	const def = MG[mg.g],
 		s = new THREE.Scene();
+	GFX.fx.bloom.th = 0.9;
 	["ao", "bloom", "tilt", "vig", "col", "aa"].forEach((k) => {
 		const v = def.fx && def.fx[k];
 		GFX.fx[k].on = !!v;
@@ -11350,6 +11491,7 @@ function start3D(mg, p, localOnly, startAt, split) {
 			s.fog.far = L.haze * 3.8;
 		}
 	}
+	if (def.look) applyLook(W);
 	const n = plist.length;
 	plist.forEach((q, i) => {
 		const e = mkEnt(q, !tv && q.key === p.key, !!split, def.truckMode);
@@ -11961,6 +12103,21 @@ function buildPost(scene, cam) {
 	}
 	const bloom = new THREE.UnrealBloomPass(new THREE.Vector2(w, h), 0.35, 0.45, 0.82);
 	comp.addPass(bloom);
+	if (scene.userData.lk) {
+		/* new look: buffers hold sRGB colour (tone mapped), and the bloom also picks up the emissive glow the shaders write into alpha */
+		[comp.renderTarget1, comp.renderTarget2, ao.beautyRenderTarget].forEach((t) => {
+			if (t) t.texture.encoding = THREE.sRGBEncoding;
+		});
+		const hp = bloom.materialHighPassFilter,
+			a = "float alpha = smoothstep( luminosityThreshold, luminosityThreshold + smoothWidth, v );",
+			b = "gl_FragColor = mix( outputColor, texel, alpha );";
+		if (hp && hp.fragmentShader.includes(a) && hp.fragmentShader.includes(b)) {
+			hp.fragmentShader = hp.fragmentShader
+				.replace(a, a + " alpha = max( alpha, 1.0 - texel.a );")
+				.replace(b, "gl_FragColor = mix( outputColor, vec4( texel.rgb, 1.0 ), alpha );");
+			hp.needsUpdate = true;
+		}
+	}
 	const col = new THREE.ShaderPass(THREE.HueSaturationShader),
 		bc = new THREE.ShaderPass(THREE.BrightnessContrastShader);
 	comp.addPass(col);
@@ -11978,6 +12135,13 @@ function buildPost(scene, cam) {
 }
 function renderMG(scene, cam) {
 	const F = GFX.fx;
+	if (scene.userData.lk) {
+		const t = performance.now();
+		if (!(t - (scene.userData.lkT || 0) < 1000)) {
+			scene.userData.lkT = t;
+			lookEnv(scene);
+		}
+	}
 	if (!GFX.postReady || !fxAny()) {
 		GFX.r.render(scene, cam);
 		return;
@@ -12032,7 +12196,8 @@ function wireLightPanel() {
 			sun = W.sun,
 			so = (W.def.sun || [14, 26, 12]).slice(),
 			fog = W.sc.fog,
-			F = GFX.fx;
+			F = GFX.fx,
+			LK = W.sc.userData.lk;
 		const st = {
 			amb: hemi ? hemi.intensity : 0,
 			sun: sun.intensity,
@@ -12042,13 +12207,24 @@ function wireLightPanel() {
 			warm: W.lpWarm ?? 0.5,
 			haze: fog ? fog.near : 60,
 		};
+		if (LK) Object.assign(st, { exp: LK.exp, env: LK.env, glow: LK.glow });
 		const LIGHT = [
 			["amb", "Ambient", 0, 2.5, 0.02],
-			["sun", "Sun", 0, 2.5, 0.02],
+			["sun", "Sun", 0, LK ? 4 : 2.5, 0.02],
 			["h", "Height", 2, 45, 1],
 			["ang", "Angle", 0, 359, 1],
 			["warm", "Warmth", 0, 1, 0.02],
-		].concat(fog ? [["haze", "Haze", 5, 200, 1]] : []);
+		]
+			.concat(fog ? [["haze", "Haze", 5, 200, 1]] : [])
+			.concat(
+				LK
+					? [
+							["exp", "Exposure", 0.4, 3, 0.02],
+							["env", "Reflect", 0, 1.5, 0.02],
+							["glow", "Glow cut", 0.8, 1.05, 0.005],
+						]
+					: [],
+			);
 		const FX = [
 			["ao", "Shading AO"],
 			["bloom", "Bloom"],
@@ -12082,13 +12258,32 @@ function wireLightPanel() {
 			cool = new THREE.Color("#E4EEFF"),
 			hot = new THREE.Color("#FFC27A");
 		const fmt = (k, v) =>
-				k === "ang" ? Math.round(v) + "°" : k === "h" || k === "haze" ? String(Math.round(v)) : (+v).toFixed(2),
+				k === "ang"
+					? Math.round(v) + "°"
+					: k === "h" || k === "haze"
+						? String(Math.round(v))
+						: (+v).toFixed(k === "glow" ? 3 : 2),
 			fxs = (k) => (F[k].on ? (k === "aa" ? "on" : fxv(k).toFixed(2)) : "off");
 		const apply = () => {
 			if (!W) return;
 			if (hemi) hemi.intensity = st.amb;
 			sun.intensity = st.sun;
 			sun.color.copy(cool).lerp(hot, st.warm);
+			if (LK) {
+				sun.color.convertSRGBToLinear();
+				const envCh = LK.env !== st.env;
+				Object.assign(LK, {
+					amb: st.amb,
+					sun: st.sun,
+					warm: st.warm,
+					haze: st.haze,
+					exp: st.exp,
+					env: st.env,
+					glow: st.glow,
+				});
+				F.bloom.th = st.glow;
+				if (envCh) lookEnv(W.sc);
+			}
 			W.lpWarm = st.warm;
 			const a = (st.ang * Math.PI) / 180;
 			W.def.sun = [Math.round(Math.cos(a) * st.dist * 10) / 10, st.h, Math.round(Math.sin(a) * st.dist * 10) / 10];
@@ -12106,6 +12301,9 @@ function wireLightPanel() {
 			document.getElementById("lpout").textContent =
 				`${W.mg.g}: ambient ${fmt("amb", st.amb)} · sun ${fmt("sun", st.sun)} · height ${fmt("h", st.h)} · angle ${fmt("ang", st.ang)} · warmth ${fmt("warm", st.warm)}` +
 				(fog ? ` · haze ${fmt("haze", st.haze)}` : "") +
+				(LK
+					? ` · exposure ${fmt("exp", st.exp)} · reflect ${fmt("env", st.env)} · glow cut ${fmt("glow", st.glow)}`
+					: "") +
 				` · effects: ${on || "none"}`;
 		};
 		const showTog = () => {
@@ -13358,6 +13556,7 @@ function tvsDyn(fw, fh, dt) {
 		T.qs.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), T.qm));
 		T.qc = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 	}
+	T.rt.texture.encoding = B.W.sc.userData.lk ? THREE.sRGBEncoding : THREE.LinearEncoding;
 	r.setRenderTarget(T.rt);
 	r.render(B.W.sc, B.cam);
 	r.setRenderTarget(null);
@@ -16141,7 +16340,20 @@ const MG = {
 		bound: { t: "sq", h: 16 },
 		water: false,
 		bare: true,
-		sun: [13.9, 26, 12.1],
+		sun: [13.9, 16, 12.1],
+		/* new look trial: golden late afternoon over the depot */
+		look: {
+			exp: 0.95,
+			amb: 0.3,
+			sun: 1.8,
+			warm: 0.78,
+			env: 0.1,
+			haze: 50,
+			glow: 0.98,
+			bloom: 0.4,
+			fill: ["#B9D2EE", "#8C7358"],
+			sky: ["#5A8FD0", "#A6C9E6", "#F3D9B5"],
+		},
 		how: "Grab cones (gold = 3) and park on your pad to drop them into your giant cone. First to fill it wins! Ram rivals to knock loose the cones on their roof.",
 		dropY: 0,
 		S: 16,
@@ -17606,6 +17818,20 @@ const MG = {
 		unit: "pts",
 		dur: 50,
 		bare: true,
+		sun: [12.5, 17.5, 12.5],
+		/* new look trial: dusty bright midday at the tip */
+		look: {
+			exp: 1.05,
+			amb: 0.3,
+			sun: 1.8,
+			warm: 0.55,
+			env: 0.1,
+			haze: 60,
+			glow: 0.98,
+			bloom: 0.4,
+			fill: ["#C8DDF2", "#7F6A50"],
+			sky: ["#4E8ED6", "#9FCBEA", "#EEE6D2"],
+		},
 		EDGE: -24,
 		HOME: 4,
 		ZONE: 2.5,
@@ -20493,6 +20719,20 @@ Object.assign(MG, {
 		unit: "pts",
 		dur: 35,
 		bare: true,
+		sun: [-13, 15, 11],
+		/* new look trial: fresh cool morning at the recycling plant */
+		look: {
+			exp: 1.1,
+			amb: 0.32,
+			sun: 1.8,
+			warm: 0.35,
+			env: 0.12,
+			haze: 55,
+			glow: 0.98,
+			bloom: 0.4,
+			fill: ["#CFE4FF", "#6E8A70"],
+			sky: ["#4A8BD6", "#A0D2F0", "#E2F2F4"],
+		},
 		how: "Send each piece of trash to the right bin. Wrong bin costs points.",
 		tapHint: "Tap a bin, or use the arrow keys / WASD.",
 		CATS: [

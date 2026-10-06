@@ -119,6 +119,50 @@ function mgEnv(s, water, lane, bare, night, storm, dusk) {
 	}
 	return sun;
 }
+/* new look (trial): def.look = {exp, amb, sun, warm, env, haze, glow, bloom, fill: [sky, ground], sky: [top, mid, horizon]}.
+   Sets the scene's colour mood; the renderer switches to sRGB + ACES for scenes with userData.lk (gfxLook). Light colours go in as linear. */
+const LOOK0 = { exp: 1, amb: 0.3, sun: 1.8, warm: 0.6, env: 0.1, haze: 55, glow: 0.98, bloom: 0.4 };
+const lkWarm = (c, w) => c.set("#E4EEFF").lerp(new THREE.Color("#FFC27A"), w).convertSRGBToLinear();
+function applyLook(W) {
+	const s = W.sc,
+		L = (s.userData.lk = Object.assign({}, LOOK0, W.def.look)),
+		h = s.children.find((o) => o.isHemisphereLight);
+	if (L.sky) {
+		SKY.lk = L.sky;
+		applySky(s, "lk");
+	}
+	if (h) {
+		h.intensity = L.amb;
+		if (L.fill) {
+			h.color.set(L.fill[0]).convertSRGBToLinear();
+			h.groundColor.set(L.fill[1]).convertSRGBToLinear();
+		} else {
+			h.color.convertSRGBToLinear();
+			h.groundColor.convertSRGBToLinear();
+		}
+	}
+	W.sun.intensity = L.sun;
+	lkWarm(W.sun.color, L.warm);
+	W.lpWarm = L.warm;
+	if (GFX.touch) W.sun.shadow.mapSize.set(1024, 1024);
+	if (s.fog) {
+		s.fog.near = L.haze;
+		s.fog.far = L.haze * 3.8;
+	}
+	const F = GFX.fx;
+	F.bloom.on = L.bloom > 0;
+	F.bloom.v = L.bloom;
+	F.bloom.th = L.glow;
+	F.aa.on = true;
+	loadPost().catch(() => {});
+	lookEnv(s);
+	lookEnvTex().then(
+		(t) => {
+			s.environment = t;
+		},
+		() => {},
+	);
+}
 function mkEnt(p, isMe, named, mode) {
 	const g = new THREE.Group(),
 		tr = buildTruck(p.truck, mode);
@@ -431,6 +475,7 @@ function camFov(f) {
 function start3D(mg, p, localOnly, startAt, split) {
 	const def = MG[mg.g],
 		s = new THREE.Scene();
+	GFX.fx.bloom.th = 0.9;
 	["ao", "bloom", "tilt", "vig", "col", "aa"].forEach((k) => {
 		const v = def.fx && def.fx[k];
 		GFX.fx[k].on = !!v;
@@ -518,6 +563,7 @@ function start3D(mg, p, localOnly, startAt, split) {
 			s.fog.far = L.haze * 3.8;
 		}
 	}
+	if (def.look) applyLook(W);
 	const n = plist.length;
 	plist.forEach((q, i) => {
 		const e = mkEnt(q, !tv && q.key === p.key, !!split, def.truckMode);
@@ -1129,6 +1175,21 @@ function buildPost(scene, cam) {
 	}
 	const bloom = new THREE.UnrealBloomPass(new THREE.Vector2(w, h), 0.35, 0.45, 0.82);
 	comp.addPass(bloom);
+	if (scene.userData.lk) {
+		/* new look: buffers hold sRGB colour (tone mapped), and the bloom also picks up the emissive glow the shaders write into alpha */
+		[comp.renderTarget1, comp.renderTarget2, ao.beautyRenderTarget].forEach((t) => {
+			if (t) t.texture.encoding = THREE.sRGBEncoding;
+		});
+		const hp = bloom.materialHighPassFilter,
+			a = "float alpha = smoothstep( luminosityThreshold, luminosityThreshold + smoothWidth, v );",
+			b = "gl_FragColor = mix( outputColor, texel, alpha );";
+		if (hp && hp.fragmentShader.includes(a) && hp.fragmentShader.includes(b)) {
+			hp.fragmentShader = hp.fragmentShader
+				.replace(a, a + " alpha = max( alpha, 1.0 - texel.a );")
+				.replace(b, "gl_FragColor = mix( outputColor, vec4( texel.rgb, 1.0 ), alpha );");
+			hp.needsUpdate = true;
+		}
+	}
 	const col = new THREE.ShaderPass(THREE.HueSaturationShader),
 		bc = new THREE.ShaderPass(THREE.BrightnessContrastShader);
 	comp.addPass(col);
@@ -1146,6 +1207,13 @@ function buildPost(scene, cam) {
 }
 function renderMG(scene, cam) {
 	const F = GFX.fx;
+	if (scene.userData.lk) {
+		const t = performance.now();
+		if (!(t - (scene.userData.lkT || 0) < 1000)) {
+			scene.userData.lkT = t;
+			lookEnv(scene);
+		}
+	}
 	if (!GFX.postReady || !fxAny()) {
 		GFX.r.render(scene, cam);
 		return;
@@ -1200,7 +1268,8 @@ function wireLightPanel() {
 			sun = W.sun,
 			so = (W.def.sun || [14, 26, 12]).slice(),
 			fog = W.sc.fog,
-			F = GFX.fx;
+			F = GFX.fx,
+			LK = W.sc.userData.lk;
 		const st = {
 			amb: hemi ? hemi.intensity : 0,
 			sun: sun.intensity,
@@ -1210,13 +1279,24 @@ function wireLightPanel() {
 			warm: W.lpWarm ?? 0.5,
 			haze: fog ? fog.near : 60,
 		};
+		if (LK) Object.assign(st, { exp: LK.exp, env: LK.env, glow: LK.glow });
 		const LIGHT = [
 			["amb", "Ambient", 0, 2.5, 0.02],
-			["sun", "Sun", 0, 2.5, 0.02],
+			["sun", "Sun", 0, LK ? 4 : 2.5, 0.02],
 			["h", "Height", 2, 45, 1],
 			["ang", "Angle", 0, 359, 1],
 			["warm", "Warmth", 0, 1, 0.02],
-		].concat(fog ? [["haze", "Haze", 5, 200, 1]] : []);
+		]
+			.concat(fog ? [["haze", "Haze", 5, 200, 1]] : [])
+			.concat(
+				LK
+					? [
+							["exp", "Exposure", 0.4, 3, 0.02],
+							["env", "Reflect", 0, 1.5, 0.02],
+							["glow", "Glow cut", 0.8, 1.05, 0.005],
+						]
+					: [],
+			);
 		const FX = [
 			["ao", "Shading AO"],
 			["bloom", "Bloom"],
@@ -1250,13 +1330,32 @@ function wireLightPanel() {
 			cool = new THREE.Color("#E4EEFF"),
 			hot = new THREE.Color("#FFC27A");
 		const fmt = (k, v) =>
-				k === "ang" ? Math.round(v) + "°" : k === "h" || k === "haze" ? String(Math.round(v)) : (+v).toFixed(2),
+				k === "ang"
+					? Math.round(v) + "°"
+					: k === "h" || k === "haze"
+						? String(Math.round(v))
+						: (+v).toFixed(k === "glow" ? 3 : 2),
 			fxs = (k) => (F[k].on ? (k === "aa" ? "on" : fxv(k).toFixed(2)) : "off");
 		const apply = () => {
 			if (!W) return;
 			if (hemi) hemi.intensity = st.amb;
 			sun.intensity = st.sun;
 			sun.color.copy(cool).lerp(hot, st.warm);
+			if (LK) {
+				sun.color.convertSRGBToLinear();
+				const envCh = LK.env !== st.env;
+				Object.assign(LK, {
+					amb: st.amb,
+					sun: st.sun,
+					warm: st.warm,
+					haze: st.haze,
+					exp: st.exp,
+					env: st.env,
+					glow: st.glow,
+				});
+				F.bloom.th = st.glow;
+				if (envCh) lookEnv(W.sc);
+			}
 			W.lpWarm = st.warm;
 			const a = (st.ang * Math.PI) / 180;
 			W.def.sun = [Math.round(Math.cos(a) * st.dist * 10) / 10, st.h, Math.round(Math.sin(a) * st.dist * 10) / 10];
@@ -1274,6 +1373,9 @@ function wireLightPanel() {
 			document.getElementById("lpout").textContent =
 				`${W.mg.g}: ambient ${fmt("amb", st.amb)} · sun ${fmt("sun", st.sun)} · height ${fmt("h", st.h)} · angle ${fmt("ang", st.ang)} · warmth ${fmt("warm", st.warm)}` +
 				(fog ? ` · haze ${fmt("haze", st.haze)}` : "") +
+				(LK
+					? ` · exposure ${fmt("exp", st.exp)} · reflect ${fmt("env", st.env)} · glow cut ${fmt("glow", st.glow)}`
+					: "") +
 				` · effects: ${on || "none"}`;
 		};
 		const showTog = () => {
@@ -2526,6 +2628,7 @@ function tvsDyn(fw, fh, dt) {
 		T.qs.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), T.qm));
 		T.qc = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 	}
+	T.rt.texture.encoding = B.W.sc.userData.lk ? THREE.sRGBEncoding : THREE.LinearEncoding;
 	r.setRenderTarget(T.rt);
 	r.render(B.W.sc, B.cam);
 	r.setRenderTarget(null);

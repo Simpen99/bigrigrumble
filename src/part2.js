@@ -218,6 +218,93 @@ function Cy(rt, rb, h, s, c, x, y, z, o) {
 	m.position.set(x, y, z);
 	return m;
 }
+/* new look (trial, games with def.look): sRGB output + ACES tone mapping. The renderer switches per scene (scene.userData.lk = the look),
+   and these shader patches read material colours, vertex / instance colours and textures as sRGB only when TONE_MAPPING is defined,
+   so every other scene renders exactly as before. Opaque emissive surfaces write their glow into alpha (1 - glow) for the emissive-only bloom.
+   The sky background skips tone mapping so it matches the fog colour. */
+function lookShaders() {
+	const C = THREE.ShaderChunk,
+		L = THREE.ShaderLib,
+		lin = (v) => `\n#ifdef TONE_MAPPING\n\t${v} = pow( max( ${v}, vec3( 0.0 ) ), vec3( 2.2 ) );\n#endif\n`;
+	C.color_fragment =
+		"#if defined( USE_COLOR_ALPHA )\n\tvec4 lkCol = vColor;\n#elif defined( USE_COLOR )\n\tvec4 lkCol = vec4( vColor, 1.0 );\n#endif\n#if defined( USE_COLOR_ALPHA ) || defined( USE_COLOR )\n" +
+		lin("lkCol.rgb") +
+		"\tdiffuseColor *= lkCol;\n#endif";
+	C.map_fragment = C.map_fragment.replace(
+		"texelColor = mapTexelToLinear( texelColor );",
+		"texelColor = mapTexelToLinear( texelColor );" + lin("texelColor.rgb"),
+	);
+	C.map_particle_fragment = C.map_particle_fragment.replace(
+		"diffuseColor *= mapTexelToLinear( mapTexel );",
+		"mapTexel = mapTexelToLinear( mapTexel );" + lin("mapTexel.rgb") + "diffuseColor *= mapTexel;",
+	);
+	C.emissivemap_fragment = C.emissivemap_fragment.replace(
+		"emissiveColor.rgb = emissiveMapTexelToLinear( emissiveColor ).rgb;",
+		"emissiveColor.rgb = emissiveMapTexelToLinear( emissiveColor ).rgb;" + lin("emissiveColor.rgb"),
+	);
+	const glow =
+		"gl_FragColor = vec4( outgoingLight, diffuseColor.a );\n#ifdef TONE_MAPPING\n\tif ( opacity > 0.999 && diffuseColor.a > 0.999 ) gl_FragColor.a = 1.0 - smoothstep( 0.12, 0.7, max( max( totalEmissiveRadiance.r, totalEmissiveRadiance.g ), totalEmissiveRadiance.b ) );\n#endif";
+	Object.values(L).forEach((sh) => {
+		let f = sh.fragmentShader;
+		if (!f) return;
+		f = f.replace(
+			"vec4 diffuseColor = vec4( diffuse, opacity );",
+			"vec4 diffuseColor = vec4( diffuse, opacity );" + lin("diffuseColor.rgb"),
+		);
+		if (f.includes("vec3 totalEmissiveRadiance = emissive;"))
+			f = f
+				.replace(
+					"vec3 totalEmissiveRadiance = emissive;",
+					"vec3 totalEmissiveRadiance = emissive;" + lin("totalEmissiveRadiance"),
+				)
+				.replace("gl_FragColor = vec4( outgoingLight, diffuseColor.a );", glow);
+		sh.fragmentShader = f;
+	});
+	/* sprites are labels (name tags, text): keep their exact colours, no tone mapping */
+	L.sprite.fragmentShader = L.sprite.fragmentShader.replace("#include <tonemapping_fragment>", "");
+	L.background.fragmentShader = L.background.fragmentShader.replace(
+		"#include <tonemapping_fragment>\n\t#include <encodings_fragment>",
+		"#ifndef TONE_MAPPING\n\t#include <encodings_fragment>\n\t#endif",
+	);
+}
+function gfxLook(s) {
+	const r = GFX.r,
+		L = s && s.userData.lk;
+	r.outputEncoding = L ? THREE.sRGBEncoding : THREE.LinearEncoding;
+	r.toneMapping = L ? THREE.ACESFilmicToneMapping : THREE.NoToneMapping;
+	if (L) r.toneMappingExposure = L.exp;
+}
+/* RoomEnvironment reflections for new-look scenes (PMREM, loaded on first use); intensity per material from the look's env */
+function lookEnvTex() {
+	if (GFX.envLoad) return GFX.envLoad;
+	GFX.envLoad = new Promise((res, rej) => {
+		const s = document.createElement("script");
+		s.src = "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/environments/RoomEnvironment.js";
+		s.onload = res;
+		s.onerror = () => rej(new Error("load RoomEnvironment"));
+		document.head.appendChild(s);
+	}).then(
+		() => {
+			const pm = new THREE.PMREMGenerator(GFX.r),
+				t = pm.fromScene(new THREE.RoomEnvironment(), 0.04).texture;
+			pm.dispose();
+			return (GFX.envTex = t);
+		},
+		(e) => {
+			GFX.envLoad = null;
+			throw e;
+		},
+	);
+	return GFX.envLoad;
+}
+function lookEnv(s) {
+	const L = s.userData.lk;
+	if (!L) return;
+	s.traverse((o) => {
+		const m = o.material;
+		if (m) (Array.isArray(m) ? m : [m]).forEach((q) => q.isMeshStandardMaterial && (q.envMapIntensity = L.env));
+	});
+}
 function lights(scene, shadow) {
 	scene.add(new THREE.HemisphereLight("#DDF0FF", "#5C7F45", 0.78));
 	const d = new THREE.DirectionalLight("#FFF1D6", 1.05);
@@ -869,6 +956,15 @@ function gfxInit() {
 		r.shadowMap.enabled = true;
 		r.shadowMap.type = THREE.PCFSoftShadowMap;
 		GFX.r = r;
+		lookShaders();
+		{
+			/* every scene render picks its colour pipeline (new look or classic); quads and meshes rendered by post passes keep the current one */
+			const rr = r.render.bind(r);
+			r.render = (s, c) => {
+				if (s && s.isScene) gfxLook(s);
+				rr(s, c);
+			};
+		}
 		GFX.cam = new THREE.PerspectiveCamera(40, 1, 0.5, 240);
 		GFX.ok = true;
 		makeThumbs();
