@@ -4739,9 +4739,10 @@ function initCamInput() {
 /* ---------- keyboard (PC): WASD / arrows ---------- */
 const KEYS = new Set(),
 	FINE = typeof matchMedia === "function" && matchMedia("(pointer: fine)").matches;
-function kbAxis() {
-	const x = (KEYS.has("d") || KEYS.has("arrowright") ? 1 : 0) - (KEYS.has("a") || KEYS.has("arrowleft") ? 1 : 0),
-		y = (KEYS.has("s") || KEYS.has("arrowdown") ? 1 : 0) - (KEYS.has("w") || KEYS.has("arrowup") ? 1 : 0);
+function kbAxis(only) {
+	const k = (c, ar) => (only !== "arrows" && KEYS.has(c)) || (only !== "wasd" && KEYS.has(ar)),
+		x = (k("d", "arrowright") ? 1 : 0) - (k("a", "arrowleft") ? 1 : 0),
+		y = (k("s", "arrowdown") ? 1 : 0) - (k("w", "arrowup") ? 1 : 0);
 	return { x, y };
 }
 addEventListener("keydown", (e) => {

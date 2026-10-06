@@ -1000,9 +1000,17 @@ const MG = {
 		bound: { t: "circ", r: 14.4 },
 		water: false,
 		bare: true,
+		/* twin sticks: drive on the left, aim the roof water cannon on the right (no ramming) */
+		aim: true,
+		aimHint: "Aim the hose",
+		stickHint: (fine) =>
+			fine
+				? "WASD to drive, arrow keys to aim and spray the hose."
+				: "Left side drives. Drag on the right side to aim and spray the hose.",
 		NEED: 2,
-		RANGE: 3.2,
-		how: "Park next to a fire to hose it out. Refill at hydrants. Most fires wins.",
+		RANGE: 1.5,
+		HOSE: 6,
+		how: "Aim your roof hose at the fires to put them out (it reaches about 6 m). Refill the tank at the hydrants. Most fires wins.",
 		HYD: [
 			[0, -12.7],
 			[11, 6.35],
@@ -1075,6 +1083,72 @@ const MG = {
 				f.glow = gl;
 			});
 			W.smoke = puffs(W, "#5A6272");
+			W.steam = puffs(W, "#F4F6F9");
+			/* one instanced pool for every water droplet (hose streams and hydrant refills) */
+			const dm = new THREE.InstancedMesh(
+				new THREE.IcosahedronGeometry(0.075, 0),
+				new THREE.MeshStandardMaterial({
+					color: "#A8DCFF",
+					emissive: "#3A8FD0",
+					emissiveIntensity: 0.4,
+					roughness: 0.2,
+				}),
+				700,
+			);
+			dm.count = 0;
+			dm.frustumCulled = false;
+			s.add(dm);
+			W.drop = { im: dm, L: [], o: new THREE.Object3D() };
+		},
+		/* droplet: position, velocity, life (s) */
+		addDrop(W, x, y, z, vx, vy, vz, life) {
+			const L = W.drop.L;
+			if (L.length < 700) L.push({ x, y, z, vx, vy, vz, life, t: 0 });
+		},
+		stepDrops(W, dt) {
+			const D = W.drop,
+				o = D.o;
+			let n = 0;
+			for (let i = D.L.length - 1; i >= 0; i--) {
+				const p = D.L[i];
+				p.t += dt;
+				p.vy -= 9.8 * dt;
+				p.x += p.vx * dt;
+				p.y += p.vy * dt;
+				p.z += p.vz * dt;
+				if (p.t > p.life || p.y < 0.06) {
+					D.L.splice(i, 1);
+					continue;
+				}
+			}
+			D.L.forEach((p) => {
+				o.position.set(p.x, p.y, p.z);
+				o.scale.setScalar(0.8 + Math.min(1, p.t / p.life) * 1.4);
+				o.updateMatrix();
+				D.im.setMatrixAt(n++, o.matrix);
+			});
+			D.im.count = n;
+			D.im.instanceMatrix.needsUpdate = true;
+		},
+		/* the burning fire a hose at (x, z) aimed at angle a (x/z plane) is hitting: nearest one inside its reach and cone */
+		target(W, x, z, a) {
+			let best = null,
+				bd = 1e9;
+			W.fires.forEach((f) => {
+				if (!this.live(W, f)) return;
+				const dx = f.x - x,
+					dz = f.z - z,
+					d = Math.hypot(dx, dz);
+				if (d > this.HOSE + 0.9 || d < 0.4) return;
+				let da = Math.atan2(dz, dx) - a;
+				while (da > Math.PI) da -= Math.PI * 2;
+				while (da < -Math.PI) da += Math.PI * 2;
+				if (Math.abs(da) < Math.atan2(1.1, d) + 0.08 && d < bd) {
+					best = f;
+					bd = d;
+				}
+			});
+			return best;
 		},
 		inlay(W) {
 			// mosaic compass in the middle of the plaza, a soft lighter band in the paving
@@ -1250,21 +1324,32 @@ const MG = {
 		initEnt(W, e) {
 			e.water = 100;
 			e.pr = {};
+			e.aa = 0;
 		},
 		live(W, f) {
 			return W.t >= f.t && !W.claimed.has(f.id) && W.t < f.t + 22;
 		},
 		fmt: (W, e) => `${e.sc} fire${e.sc === 1 ? "" : "s"} · water ${Math.round(e.water)}%`,
+		/* keep the aim stick (input ax/ay) on the truck for the rules, then drive as usual */
+		phys(W, e, inp, dt) {
+			if (inp) {
+				e.ax = inp.ax || 0;
+				e.ay = inp.ay || 0;
+			}
+			arenaPhys(W, e, inp, dt);
+		},
 		rules(W, e, dt) {
 			if (e.d) return;
-			if (this.HYD.some((h) => Math.hypot(h[0] - e.x, h[1] - e.z) < 2)) e.water = Math.min(100, e.water + 70 * dt);
-			const f = W.fires
-				.filter((f) => this.live(W, f) && Math.hypot(f.x - e.x, f.z - e.z) < this.RANGE)
-				.sort((a, b) => Math.hypot(a.x - e.x, a.z - e.z) - Math.hypot(b.x - e.x, b.z - e.z))[0];
-			e.spray = f && e.water > 0 ? f.id : 0;
+			const fill = e.water < 100 && this.HYD.some((h) => Math.hypot(h[0] - e.x, h[1] - e.z) < 2.2);
+			if (fill) e.water = Math.min(100, e.water + 45 * dt);
+			const am = Math.hypot(e.ax || 0, e.ay || 0);
+			if (am > 0.3) e.aa = Math.atan2(e.ay, e.ax);
+			const on = am > 0.3 && e.water > 0,
+				f = on ? this.target(W, e.x, e.z, e.aa) : null;
+			if (on) e.water = Math.max(0, e.water - 18 * dt);
+			e.spray = f ? f.id : 0;
 			for (const id in e.pr) if (+id !== e.spray) e.pr[id] = Math.max(0, e.pr[id] - dt * 0.6);
 			if (e.spray) {
-				e.water = Math.max(0, e.water - 22 * dt);
 				e.pr[f.id] = (e.pr[f.id] || 0) + dt;
 				if (e.pr[f.id] >= this.NEED && W.claim(f.id)) {
 					e.c.push(f.id);
@@ -1276,22 +1361,31 @@ const MG = {
 					}
 				}
 			}
+			/* what other devices need to draw this truck's hose: aim angle, spraying, fire hit, refilling */
 			e.f.sp = e.spray ? Math.round(Math.min(1, (e.pr[e.spray] || 0) / this.NEED) * 100) / 100 : 0;
 			e.f.wt = Math.round(e.water);
+			e.f.aa = Math.round(e.aa * 100) / 100;
+			e.f.on = on ? 1 : 0;
+			e.f.hf = e.spray;
+			e.f.fl = fill ? 1 : 0;
 		},
 		prompt: (W, e) =>
 			e.msg && W.t - e.msgT < 1.2
 				? e.msg
 				: e.water < 1
 					? "Tank empty! Refill at a hydrant"
-					: e.spray
-						? "Hosing it down! Stay close"
-						: "",
+					: e.f.fl && e.water < 98
+						? "Filling up…"
+						: e.spray
+							? "On target! Keep the water on it"
+							: "",
 		render(W, e, dt) {
 			this.bar(W, e);
+			this.hose(W, e, dt);
 			if (W.fireT !== W.t) {
 				W.fireT = W.t;
 				puffStep(W, dt);
+				this.stepDrops(W, dt);
 				W.fires.forEach((f) => {
 					const on = this.live(W, f),
 						was = f.on;
@@ -1330,25 +1424,129 @@ const MG = {
 					}
 				});
 			}
-			// hose spray: a stream of droplets from the truck to the fire it is working on
-			const f = e.spray && W.fires[e.spray - 1];
-			if (f && Math.random() < dt * 30) {
-				const d = Math.hypot(f.x - e.x, f.z - e.z) || 1;
-				burst(W.sc, e.x, 1.6, e.z, {
-					n: 1,
-					shape: "ico",
-					cols: ["#8FD3FF", "#FFFFFF"],
-					spd: 0,
-					up: 2.5,
-					grav: 9,
-					life: 0.45,
-					size: 0.5,
+		},
+		/* the roof rig: built on the first frame on top of whatever the truck has above its middle, then the cannon turns
+		   to the aim, the tank shows the water level (sloshing a little), and droplets stream from the nozzle (or from
+		   the hydrant into the filler neck) */
+		hose(W, e, dt) {
+			const V = THREE.Vector3;
+			if (!e.rig) {
+				const r = hoseRigModel(),
+					tr = e.tr,
+					v = new V(),
+					m4 = new THREE.Matrix4();
+				tr.updateMatrixWorld(true);
+				const inv = tr.matrixWorld.clone().invert();
+				let top = 0.8;
+				tr.traverse((o) => {
+					if (!o.isMesh || !o.visible || !o.geometry.attributes.position) return;
+					m4.multiplyMatrices(inv, o.matrixWorld);
+					const p = o.geometry.attributes.position;
+					for (let i = 0; i < p.count; i++) {
+						v.fromBufferAttribute(p, i).applyMatrix4(m4);
+						if (Math.abs(v.x + 0.1) < 0.8 && Math.abs(v.z) < 0.5 && v.y > top) top = v.y;
+					}
 				});
-				const p = W.sc.userData.parts[W.sc.userData.parts.length - 1];
-				if (p) {
-					p.vx = ((f.x - e.x) / d) * 7;
-					p.vz = ((f.z - e.z) / d) * 7;
+				r.position.set(-0.1, top - 0.01, 0);
+				tr.add(r);
+				e.rig = r.userData;
+				e.rig.tp = new V();
+				e.rig.fp = new V();
+				e.rig.em = 0;
+				e.rig.fe = 0;
+			}
+			const u = e.rig,
+				f = e.f,
+				aa = e.local ? e.aa : (f.aa ?? 0),
+				k = 1 - Math.exp(-dt * 14);
+			u.head.rotation.y = lerpA(u.head.rotation.y, -aa - e.yaw, k);
+			/* tank level eases to the water left, sloshing while the truck moves */
+			const wt = e.d ? 100 : e.local ? e.water : (f.wt ?? 100);
+			u.lv += (wt / 100 - u.lv) * (1 - Math.exp(-dt * 5));
+			const sp = Math.min(1, Math.hypot(e.vx || 0, e.vz || 0) / 10),
+				h = Math.max(0.02, u.lv) * u.H;
+			u.water.scale.y = h;
+			u.water.position.y = u.y0 + h / 2;
+			u.water.rotation.z = Math.sin(W.t * 9 + e.i) * 0.05 * sp;
+			u.water.rotation.x = Math.cos(W.t * 7 + e.i) * 0.04 * sp;
+			if (W.t < 0 || e.d) return;
+			/* hose stream: ballistic droplets from the nozzle to the fire it hits, or to full reach */
+			if (f.on) {
+				u.em += dt * 45;
+				u.tip.getWorldPosition(u.tp);
+				const fr = f.hf && W.fires[f.hf - 1],
+					d = fr ? Math.max(1, Math.hypot(fr.x - e.x, fr.z - e.z) - 0.3) : this.HOSE,
+					ty = fr ? 1.3 : 0.06,
+					tx = e.x + Math.cos(aa) * d,
+					tz = e.z + Math.sin(aa) * d,
+					vy0 = 2.6,
+					T = (vy0 + Math.sqrt(vy0 * vy0 + 2 * 9.8 * Math.max(0.05, u.tp.y - ty))) / 9.8;
+				while (u.em >= 1) {
+					u.em--;
+					const j = 0.95 + Math.random() * 0.1;
+					this.addDrop(
+						W,
+						u.tp.x,
+						u.tp.y,
+						u.tp.z,
+						((tx - u.tp.x) / T) * j + (Math.random() - 0.5) * 0.3,
+						vy0 * (0.96 + Math.random() * 0.08),
+						((tz - u.tp.z) / T) * j + (Math.random() - 0.5) * 0.3,
+						T * 1.05,
+					);
 				}
+				if (fr && Math.random() < dt * 6) W.steam(fr.x, 2, fr.z, 1.4 + Math.random() * 0.8, 2.4, 1.4);
+			} else u.em = 0;
+			/* refilling: water arcs from the hydrant's outlet into the filler neck */
+			if (f.fl) {
+				const hy = this.HYD.reduce((a, b) =>
+					Math.hypot(a[0] - e.x, a[1] - e.z) < Math.hypot(b[0] - e.x, b[1] - e.z) ? a : b,
+				);
+				u.fill.getWorldPosition(u.fp);
+				u.fe += dt * 30;
+				const dx = u.fp.x - hy[0],
+					dz = u.fp.z - hy[1],
+					l = Math.hypot(dx, dz) || 1,
+					sx = hy[0] + (dx / l) * 0.42,
+					sz = hy[1] + (dz / l) * 0.42,
+					T = 0.45;
+				while (u.fe >= 1) {
+					u.fe--;
+					this.addDrop(
+						W,
+						sx,
+						0.72,
+						sz,
+						(u.fp.x - sx) / T + (Math.random() - 0.5) * 0.2,
+						(u.fp.y - 0.72) / T + 4.9 * T,
+						(u.fp.z - sz) / T + (Math.random() - 0.5) * 0.2,
+						T,
+					);
+				}
+				if (e.isMe && !u.wasFl) sfx("splash");
+			} else u.fe = 0;
+			u.wasFl = !!f.fl;
+			/* aim guide for you: reach ring around the truck and a splash marker where the water lands */
+			if (e.isMe && !W.tv) {
+				if (!W.aimR) {
+					W.aimR = decal(
+						W.sc,
+						new THREE.RingGeometry(this.HOSE - 0.07, this.HOSE + 0.05, 56),
+						"#8FD3FF",
+						0,
+						0.045,
+						0,
+						0.35,
+					);
+					W.aimD = decal(W.sc, new THREE.CircleGeometry(0.55, 18), "#8FD3FF", 0, 0.046, 0, 0.45);
+				}
+				const show = !!f.on || Math.hypot(e.ax || 0, e.ay || 0) > 0.3,
+					fr = f.hf && W.fires[f.hf - 1],
+					d = fr ? Math.hypot(fr.x - e.x, fr.z - e.z) : this.HOSE;
+				W.aimR.visible = W.aimD.visible = show;
+				W.aimR.position.set(e.x, 0.045, e.z);
+				W.aimD.position.set(e.x + Math.cos(aa) * d, 0.046, e.z + Math.sin(aa) * d);
+				W.aimD.material.color.set(fr ? "#3FD07A" : "#8FD3FF");
 			}
 		},
 		bar(W, e) {
@@ -1370,8 +1568,7 @@ const MG = {
 			b.sc = e.sc;
 			const ok = W.t - b.okT < 0.7,
 				p = ok ? 1 : e.d ? 0 : e.f.sp || 0,
-				wt = e.d ? 100 : (e.f.wt ?? 100),
-				key = [Math.round(p * 40), Math.round(wt / 4), ok ? 1 : 0].join();
+				key = [Math.round(p * 40), ok ? 1 : 0].join();
 			if (key === b.key) return;
 			b.key = key;
 			const x = b.cv.getContext("2d"),
@@ -1408,15 +1605,6 @@ const MG = {
 				rr(14, 10, Math.max(8, w - 8), 6, 3);
 				x.fill();
 			}
-			if (wt < 99) {
-				any = true;
-				rr(40, 40, 112, 16, 8);
-				x.fillStyle = "#151B24";
-				x.fill();
-				rr(43, 43, Math.max(10, (106 * wt) / 100), 10, 5);
-				x.fillStyle = wt < 15 ? "#E5484D" : "#4FB3FF";
-				x.fill();
-			}
 			b.tx.needsUpdate = true;
 			b.sp.visible = any;
 		},
@@ -1433,8 +1621,15 @@ const MG = {
 				.filter((f) => this.live(W, f))
 				.sort((a, b) => Math.hypot(a.x - e.x, a.z - e.z) - Math.hypot(b.x - e.x, b.z - e.z))[0];
 			if (!f) return wander(W, e, 0.016, 6);
-			const d = Math.hypot(f.x - e.x, f.z - e.z);
-			return botRam(W, e, d < 2.2 ? { x: 0, y: 0 } : steer(e, f.x, f.z, 0.85), 3.5);
+			/* drive within hose reach, then aim at it with a wandering error (sometimes off target) */
+			const d = Math.hypot(f.x - e.x, f.z - e.z),
+				inp = d < 3.8 ? { x: 0, y: 0 } : steer(e, f.x, f.z, 0.85);
+			if (d < this.HOSE + 0.4) {
+				const a = Math.atan2(f.z - e.z, f.x - e.x) + Math.sin(W.t * 1.3 + e.i * 2.1) * 0.3;
+				inp.ax = Math.cos(a);
+				inp.ay = Math.sin(a);
+			}
+			return inp;
 		},
 		botScore: () => 2 + rnd(6),
 	},
