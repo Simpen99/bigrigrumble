@@ -1002,13 +1002,13 @@ const MG = {
 		bare: true,
 		/* twin sticks: drive on the left, aim the roof water cannon on the right (no ramming) */
 		aim: true,
+		truckMode: "hose",
 		aimHint: "Aim the hose",
 		stickHint: (fine) =>
 			fine
 				? "WASD to drive, arrow keys to aim and spray the hose."
 				: "Left side drives. Drag on the right side to aim and spray the hose.",
 		NEED: 2,
-		RANGE: 1.5,
 		HOSE: 6,
 		how: "Aim your roof hose at the fires to put them out (it reaches about 6 m). Refill the tank at the hydrants. Most fires wins.",
 		HYD: [
@@ -1034,7 +1034,7 @@ const MG = {
 				} while (
 					n++ < 20 &&
 					(this.HYD.some((h) => Math.hypot(h[0] - x, h[1] - z) < 3.5) ||
-						W.fires.some((f) => f.t > t - 12 && Math.hypot(f.x - x, f.z - z) < 4))
+						W.fires.some((f) => f.t > t - 27 && Math.hypot(f.x - x, f.z - z) < 4))
 				);
 				W.fires.push({ id: W.fires.length + 1, t, x, z, kind: Math.floor(W.rng() * 3) });
 				t += 1.4 + W.rng() * 1.6;
@@ -1048,40 +1048,32 @@ const MG = {
 				f.g = g;
 				/* what is burning: garden shed, news kiosk or a parked car (detailed baked models with a contact shadow) */
 				const ck = f.kind === 2 ? 2 + (f.id % 3) : f.kind,
-					kit = kits[ck] || (kits[ck] = bakeKit(firePropModel(f.kind, ["#8E96A3", "#6FA8D6", "#C9A27A"][f.id % 3]))),
-					fy = [1.95, 2.05, 1.3][f.kind];
+					kit = kits[ck] || (kits[ck] = bakeKit(firePropModel(f.kind, ["#8E96A3", "#6FA8D6", "#C9A27A"][f.id % 3])));
 				g.add(kitGroup(kit));
 				g.rotation.y = (f.id * 2.4) % 6.28;
-				const fl = [];
-				for (let k = 0; k < 3; k++) {
-					const m = new THREE.Mesh(
-						new THREE.ConeGeometry(0.45 - k * 0.08, 1.3 - k * 0.2, 7),
-						new THREE.MeshStandardMaterial({
-							color: ["#FF8A1F", "#FFC83D", "#E5484D"][k],
-							emissive: ["#FF6A00", "#FFB000", "#D42A22"][k],
-							emissiveIntensity: 1,
-						}),
-					);
-					m.position.set((k - 1) * 0.45, fy, (k % 2) * 0.3 - 0.15);
-					g.add(m);
-					fl.push(m);
-				}
-				f.fl = fl;
-				const ring = decal(
-					s,
-					new THREE.RingGeometry(this.RANGE - 0.15, this.RANGE, 32),
-					"#FF8A1F",
-					f.x,
-					0.03,
-					f.z,
-					0.5,
-				);
-				ring.visible = false;
-				f.ring = ring;
-				const gl = decal(s, new THREE.CircleGeometry(2, 20), "#FF8A1F", f.x, 0.035, f.z, 0.4);
-				gl.visible = false;
-				f.glow = gl;
+				/* where flames come out of this prop (roof, window, hatch, bonnet), in world space */
+				g.updateMatrixWorld(true);
+				f.em = this.FLAME_AT[f.kind].map((p) => new THREE.Vector3(...p).applyMatrix4(g.matrixWorld));
 			});
+			/* one instanced pool of flame tongues for every fire (colour per instance, fading yellow to red) */
+			const fp = [
+					[0, 0],
+					[0.16, 0.08],
+					[0.22, 0.25],
+					[0.17, 0.48],
+					[0.09, 0.7],
+					[0, 0.9],
+				].map(([x, y]) => new THREE.Vector2(x, y)),
+				fm = new THREE.InstancedMesh(
+					new THREE.LatheGeometry(fp, 6),
+					new THREE.MeshBasicMaterial({ color: "#FFFFFF" }),
+					400,
+				);
+			fm.count = 0;
+			fm.frustumCulled = false;
+			fm.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(400 * 3), 3);
+			s.add(fm);
+			W.flame = { im: fm, L: [], o: new THREE.Object3D(), c: new THREE.Color() };
 			W.smoke = puffs(W, "#5A6272");
 			W.steam = puffs(W, "#F4F6F9");
 			/* one instanced pool for every water droplet (hose streams and hydrant refills) */
@@ -1099,6 +1091,87 @@ const MG = {
 			dm.frustumCulled = false;
 			s.add(dm);
 			W.drop = { im: dm, L: [], o: new THREE.Object3D() };
+		},
+		/* flame emitters per burning prop (local coords before its turn): shed roof + side window, kiosk roof + hatch,
+		   car cabin + bonnet */
+		FLAME_AT: [
+			[
+				[-0.5, 1.3, 0],
+				[0, 1.48, 0],
+				[0.5, 1.3, 0],
+				[0.84, 0.66, 0],
+			],
+			[
+				[-0.32, 1.5, -0.28],
+				[0.3, 1.5, 0.22],
+				[0, 1.55, -0.05],
+				[0, 1.0, 0.64],
+			],
+			[
+				[0, 0.88, -0.15],
+				[0, 0.86, 0.42],
+				[0, 0.66, -0.9],
+			],
+		],
+		FLAME_COL: ["#FFF2A8", "#FFC83D", "#FF8A1F", "#E5484D", "#7A2A22"].map((c) => new THREE.Color(c)),
+		/* spawn flame tongues for every burning fire (fewer and smaller as it is hosed: f.k), then move, swell, shrink
+		   and recolour all of them; about one in eight is a spark */
+		stepFlames(W, dt) {
+			const F = W.flame,
+				C = this.FLAME_COL;
+			W.fires.forEach((f) => {
+				if (!f.on) return;
+				f.fa = (f.fa || 0) + dt * 30 * f.k;
+				while (f.fa >= 1 && F.L.length < 400) {
+					f.fa--;
+					const p = f.em[Math.floor(Math.random() * f.em.length)],
+						sp = Math.random() < 0.12;
+					F.L.push({
+						x: p.x + (Math.random() - 0.5) * 0.45,
+						y: p.y,
+						z: p.z + (Math.random() - 0.5) * 0.45,
+						vx: (Math.random() - 0.5) * (sp ? 1.2 : 0.4),
+						vy: sp ? 2.6 + Math.random() : 1.2 + Math.random() * 0.8,
+						vz: (Math.random() - 0.5) * (sp ? 1.2 : 0.4),
+						life: sp ? 0.9 : 0.5 + Math.random() * 0.35,
+						s: sp ? 0.16 : (0.7 + Math.random() * 0.55) * (0.5 + f.k * 0.5),
+						ry: Math.random() * 6.28,
+						sp,
+						t: 0,
+						ph: Math.random() * 6.28,
+					});
+				}
+			});
+			const o = F.o,
+				c = F.c;
+			let n = 0;
+			for (let i = F.L.length - 1; i >= 0; i--) {
+				const p = F.L[i];
+				p.t += dt;
+				if (p.t > p.life) {
+					F.L.splice(i, 1);
+					continue;
+				}
+				p.x += (p.vx + Math.sin(p.t * 9 + p.ph) * 0.3) * dt;
+				p.y += p.vy * dt;
+				p.z += p.vz * dt;
+			}
+			F.L.forEach((p) => {
+				const k = p.t / p.life,
+					sc = p.s * (k < 0.25 ? 0.5 + k * 2 : (1 - k) * 1.33);
+				o.position.set(p.x, p.y, p.z);
+				o.rotation.set(0, p.ry + p.t * 2, 0);
+				o.scale.set(sc * 0.9, sc * (1 + k * 0.7), sc * 0.9);
+				o.updateMatrix();
+				F.im.setMatrixAt(n, o.matrix);
+				const q = Math.min(3.999, k * (p.sp ? 1.5 : 4)),
+					j = Math.floor(q);
+				c.copy(C[j]).lerp(C[j + 1], q - j);
+				F.im.setColorAt(n++, c);
+			});
+			F.im.count = n;
+			F.im.instanceMatrix.needsUpdate = true;
+			if (F.im.instanceColor) F.im.instanceColor.needsUpdate = true;
 		},
 		/* droplet: position, velocity, life (s) */
 		addDrop(W, x, y, z, vx, vy, vz, life) {
@@ -1386,19 +1459,26 @@ const MG = {
 				W.fireT = W.t;
 				puffStep(W, dt);
 				this.stepDrops(W, dt);
+				this.stepFlames(W, dt);
 				W.fires.forEach((f) => {
 					const on = this.live(W, f),
 						was = f.on;
 					f.on = on;
 					f.g.visible = W.t >= f.t && W.t < f.t + 26;
-					f.ring.visible = on;
-					f.glow.visible = on;
-					if (on) f.glow.material.opacity = 0.32 + Math.sin(W.t * 11 + f.id) * 0.12;
-					f.fl.forEach((m, k) => {
-						m.visible = on;
-						m.scale.set(1, 0.8 + Math.sin(W.t * 13 + k * 2 + f.id) * 0.25, 1);
+					/* strength: full, dropping to a quarter as the best hose on it gets close to putting it out */
+					let pr = 0;
+					W.list.forEach((q) => {
+						const v = q.local
+							? q.spray === f.id
+								? (q.pr[f.id] || 0) / this.NEED
+								: 0
+							: q.f.hf === f.id
+								? q.f.sp || 0
+								: 0;
+						pr = Math.max(pr, v);
 					});
-					if (on && Math.random() < dt * 7)
+					f.k = 1 - Math.min(1, pr) * 0.75;
+					if (on && Math.random() < dt * 7 * f.k)
 						W.smoke(f.x + (Math.random() - 0.5), 2.4, f.z + (Math.random() - 0.5), 2.2 + Math.random(), 2.6, 2.4);
 					if (was && !on) {
 						decal(W.sc, new THREE.CircleGeometry(1.7, 16), "#2A2F3A", f.x, 0.037, f.z, 0.55);
@@ -1431,25 +1511,7 @@ const MG = {
 		hose(W, e, dt) {
 			const V = THREE.Vector3;
 			if (!e.rig) {
-				const r = hoseRigModel(),
-					tr = e.tr,
-					v = new V(),
-					m4 = new THREE.Matrix4();
-				tr.updateMatrixWorld(true);
-				const inv = tr.matrixWorld.clone().invert();
-				let top = 0.8;
-				tr.traverse((o) => {
-					if (!o.isMesh || !o.visible || !o.geometry.attributes.position) return;
-					m4.multiplyMatrices(inv, o.matrixWorld);
-					const p = o.geometry.attributes.position;
-					for (let i = 0; i < p.count; i++) {
-						v.fromBufferAttribute(p, i).applyMatrix4(m4);
-						if (Math.abs(v.x + 0.1) < 0.8 && Math.abs(v.z) < 0.5 && v.y > top) top = v.y;
-					}
-				});
-				r.position.set(-0.1, top - 0.01, 0);
-				tr.add(r);
-				e.rig = r.userData;
+				e.rig = mountHoseRig(e.tr);
 				e.rig.tp = new V();
 				e.rig.fp = new V();
 				e.rig.em = 0;

@@ -119,9 +119,9 @@ function mgEnv(s, water, lane, bare, night, storm, dusk) {
 	}
 	return sun;
 }
-function mkEnt(p, isMe, named) {
+function mkEnt(p, isMe, named, mode) {
 	const g = new THREE.Group(),
-		tr = buildTruck(p.truck);
+		tr = buildTruck(p.truck, mode);
 	tr.scale.setScalar(0.8);
 	g.add(tr);
 	const disc = Cy(0.95, 0.95, 0.05, 20, pcol(p), 0, 0.03, 0, { transparent: true, opacity: 0.4, depthWrite: false });
@@ -505,7 +505,7 @@ function start3D(mg, p, localOnly, startAt, split) {
 	def.build(W);
 	const n = plist.length;
 	plist.forEach((q, i) => {
-		const e = mkEnt(q, !tv && q.key === p.key, !!split);
+		const e = mkEnt(q, !tv && q.key === p.key, !!split, def.truckMode);
 		e.i = i;
 		if (tv && !q.bot) {
 			e.isMe = true;
