@@ -25,7 +25,7 @@ export async function launch() {
 	const exe = ["/opt/pw-browsers/chromium", process.env.CHROMIUM].find((p) => p && fs.existsSync(p));
 	return chromium.launch({
 		executablePath: exe,
-		args: ["--use-gl=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"],
+		args: ["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"],
 	});
 }
 
@@ -105,7 +105,8 @@ export const PRESETS = {
 	houses: [0, 1, 2, 3].map((v) => `turn(houseModel(${v}))`),
 	/* street buildings face +z like houses; turn() spins them so the rig's front view shows the facade */
 	buildings: [0, 1, 2, 3, 4, 5, 6, 7].map(
-		(i) => `turn(buildingModel({ floors: BLD_LOOK[${i}][1], style: BLD_LOOK[${i}][2], wall: BLD_LOOK[${i}][3], trim: BLD_LOOK[${i}][4], shop: SHOPS[BLD_LOOK[${i}][0]], roofBits: ${i} }))`,
+		(i) =>
+			`turn(buildingModel({ floors: BLD_LOOK[${i}][1], style: BLD_LOOK[${i}][2], wall: BLD_LOOK[${i}][3], trim: BLD_LOOK[${i}][4], shop: SHOPS[BLD_LOOK[${i}][0]], roofBits: ${i} }))`,
 	),
 	/* the playable trucks face +x; faceZ() turns them so the rig's "front" view (from -z) shows their front */
 	trucks: Array.from({ length: 12 }, (_, i) => `faceZ(buildTruck(${i}))`),

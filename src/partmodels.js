@@ -191,6 +191,8 @@ function placeKits(s, kits, list, shadow = 0.3) {
 			});
 			im.castShadow = im.receiveShadow = !sh;
 			if (sh) im.renderOrder = 1;
+			/* r128 culls an InstancedMesh by the base geometry at the origin, not by where the copies are */
+			im.frustumCulled = false;
 			s.add(im);
 		});
 	});
@@ -883,5 +885,302 @@ function firePropModel(kind, col) {
 		c.scale.setScalar(0.6);
 		g.add(c);
 	}
+	return g;
+}
+
+/* ---------- contact shadows for many copies of one footprint (stacks, crane legs, posts): one InstancedMesh.
+   list: [{x, y, z, ry}], y = the surface they stand on */
+function placeShadows(s, w, d, op, list) {
+	if (!list.length) return;
+	const im = new THREE.InstancedMesh(
+			shadowGeo(w, d, Math.min(1.1, 0.2 + 0.12 * Math.min(w, d))),
+			shadowMat(op),
+			list.length,
+		),
+		o = new THREE.Object3D();
+	list.forEach((q, i) => {
+		o.position.set(q.x, q.y || 0, q.z);
+		o.rotation.set(0, q.ry || 0, 0);
+		o.updateMatrix();
+		im.setMatrixAt(i, o.matrix);
+	});
+	im.renderOrder = 1;
+	im.frustumCulled = false;
+	s.add(im);
+}
+
+/* ---------- port ---------- */
+/* 20 ft shipping container: 2.4 x 2.5 x 6, length along z, cargo doors at +z, base at y 0. Steel frame (corner posts,
+   rails, castings) in a darker shade, corrugated walls and roof, two cargo doors with locking bars, handles, hinges
+   and a data plate, forklift pockets. lod 1 (distant stacks) drops the small door hardware and thins the ribs. */
+function containerModel(col, lod = 0) {
+	const g = new THREE.Group(),
+		fr = "#" + new THREE.Color(col).multiplyScalar(0.72).getHexString(),
+		cast = "#3A3F48",
+		dark = "#23272F";
+	g.add(B(2.3, 2.28, 5.68, col, 0, 1.25, 0));
+	[-1, 1].forEach((sx) => {
+		[0.1, 2.4].forEach((y) => {
+			[-1, 1].forEach((sz) => g.add(B(0.2, 0.2, 0.22, cast, sx * 1.1, y, sz * 2.89)));
+			g.add(B(0.14, 0.2, 5.56, fr, sx * 1.13, y, 0), B(2.0, 0.2, 0.14, fr, 0, y, sx * 2.93));
+		});
+		[-1, 1].forEach((sz) => g.add(B(0.16, 2.1, 0.16, fr, sx * 1.12, 1.25, sz * 2.92)));
+		/* corrugated side walls */
+		const st = lod ? 0.84 : 0.42;
+		for (let z = -2.52; z <= 2.53; z += st) g.add(B(0.03, 2.04, 0.2, col, sx * 1.165, 1.25, z));
+		/* the two cargo doors (and a vertical rib on each) over a dark seam */
+		g.add(B(0.98, 2.06, 0.05, col, sx * 0.505, 1.25, 2.885), B(0.12, 1.9, 0.03, col, sx * 0.5, 1.25, 2.925));
+	});
+	g.add(B(2.0, 2.1, 0.02, dark, 0, 1.25, 2.85));
+	if (!lod) {
+		[-1, 1].forEach((sx) => {
+			[-1, 1].forEach((sz) => g.add(B(0.02, 0.12, 0.34, dark, sx * 1.21, 0.1, sz * 1.0)));
+			[0.5, 1.25, 2.0].forEach((y) => g.add(B(0.06, 0.14, 0.06, cast, sx * 1.01, y, 2.93)));
+		});
+		/* locking bars with keepers and handles */
+		[-0.8, -0.2, 0.2, 0.8].forEach((x) => {
+			g.add(Cy(0.025, 0.025, 2.0, 6, cast, x, 1.25, 2.955));
+			[0.4, 2.1].forEach((y) => g.add(B(0.1, 0.08, 0.06, cast, x, y, 2.94)));
+			g.add(B(0.3, 0.05, 0.04, cast, x + (Math.abs(x) > 0.5 ? -0.15 : 0.15) * Math.sign(x), 1.1, 2.99));
+		});
+		g.add(B(0.2, 0.16, 0.02, "#C9CED8", 0.65, 1.75, 2.92));
+		/* horizontal ribs on the front wall, shallow ribs across the roof */
+		[0.55, 0.95, 1.35, 1.75, 2.15].forEach((y) => g.add(B(2.0, 0.12, 0.04, col, 0, y, -2.86)));
+		for (let z = -2.4; z <= 2.41; z += 0.6) g.add(B(2.1, 0.03, 0.18, col, 0, 2.405, z));
+	}
+	return g;
+}
+const containerKits = (cols, lod) => cols.map((c) => bakeKit(containerModel(c, lod)));
+/* container ship, ~120 m, bow at -x, keel at y 0, main deck at y 6.12 (sits at the waterline when placed at y -1.6).
+   Low-poly hull from convex slices (red bottom, white boot-top stripe, navy topsides, raised forecastle) with a flared,
+   raked bow; deck with hatch covers, lashing bridges and railings; accommodation block aft with window rows, a bridge
+   with wings and a radar mast, a slanted funnel, lifeboats on davits, anchors, mooring winches and the line's name.
+   userData.bays = [{x, rows}]: container bays on the hatch covers (y = userData.deckY), rows across the beam 2.55 apart. */
+function shipModel() {
+	const g = new THREE.Group(),
+		navy = "#1D3557",
+		white = "#F4F6F9",
+		deck = "#6E7A72",
+		grey = "#C9CED8",
+		dark = "#23272F",
+		glass = "#2E3F55",
+		gm = { roughness: 0.25, metalness: 0.3, emissive: "#1A2636", emissiveIntensity: 0.4 },
+		V = (x, y, z) => new THREE.Vector3(x, y, z),
+		/* hull plan at height y (o = grow outward): transom stern at +x, parallel midbody, bow tapering to -x */
+		ring = (y, o = 0) => {
+			const hb = (y < 1.8 ? 6.2 + y * 0.44 : 7) + o,
+				sx = 55 + y * 0.8 + o,
+				tip = -53 - y * 1.15 - o,
+				mx = -50 - y * 0.5;
+			return [
+				[sx, -hb + 1.6],
+				[sx, hb - 1.6],
+				[sx - 1.6, hb],
+				[-38, hb],
+				[mx, hb * 0.7],
+				[tip, 0.6 + o],
+				[tip, -0.6 - o],
+				[mx, -hb * 0.7],
+				[-38, -hb],
+				[sx - 1.6, -hb],
+			];
+		},
+		/* keep the part of a convex plan polygon with x < xc (keep = -1) or x > xc (keep = 1) */
+		clip = (P, xc, keep) => {
+			const out = [],
+				ins = (p) => (p[0] - xc) * keep >= 0;
+			P.forEach((p, i) => {
+				const q = P[(i + 1) % P.length];
+				if (ins(p)) out.push(p);
+				if (ins(p) !== ins(q)) {
+					const t = (xc - p[0]) / (q[0] - p[0]);
+					out.push([xc, p[1] + (q[1] - p[1]) * t]);
+				}
+			});
+			return out;
+		},
+		slice = (y0, y1, o, col, xc, keep) => {
+			const pts = [];
+			[y0, y1].forEach((y) => {
+				let P = ring(y, o);
+				if (xc !== undefined) P = clip(P, xc, keep);
+				P.forEach(([x, z]) => pts.push(V(x, y, z)));
+			});
+			const m = mesh(new THREE.ConvexGeometry(pts), col);
+			g.add(m);
+			return m;
+		};
+	/* hull */
+	slice(0, 1.8, 0, "#B5313A");
+	slice(1.8, 2.2, 0.04, white);
+	slice(2.2, 6, 0, navy);
+	slice(6, 8.4, 0, navy, -45, -1);
+	slice(6, 6.12, -0.4, deck, -45, 1);
+	slice(8.4, 8.52, -0.35, deck, -45.35, -1);
+	const nameTex = canvasTex(512, 48, (x, w, h) => {
+		x.fillStyle = navy;
+		x.fillRect(0, 0, w, h);
+		x.font = "34px Bungee, 'Arial Black', Impact, sans-serif";
+		x.textAlign = "center";
+		x.textBaseline = "middle";
+		x.fillStyle = white;
+		x.fillText("RUMBLE LINES", w / 2, h / 2 + 2);
+	});
+	[-1, 1].forEach((sd) => {
+		const nb = texturedBox(20, 1.9, 0.06, navy, nameTex, sd > 0 ? 4 : 5);
+		nb.position.set(-26, 4.1, sd * 7.03);
+		g.add(nb);
+	});
+	/* hatch covers (two panels per bay) and lashing bridges between the bays */
+	const bays = [],
+		deckY = 6.6;
+	for (let k = 0; k < 12; k++) {
+		const x = -40 + k * 6.4,
+			rows = k ? 5 : 3,
+			hw = (rows * 2.55) / 2 + 0.2;
+		bays.push({ x, rows });
+		[-1, 1].forEach((sd) => g.add(B(6.2, 0.48, hw - 0.06, deck, x, 6.36, (sd * (hw + 0.06)) / 2)));
+		[-1, 1].forEach((sd) => g.add(B(6.0, 0.06, 0.12, "#5A655E", x, 6.63, sd * (hw - 0.12))));
+		if (k < 11) {
+			const lx = x + 3.2;
+			[-5.1, -2.55, 0, 2.55, 5.1].forEach((z) => g.add(B(0.2, 2.5, 0.2, grey, lx, 7.37, z)));
+			g.add(B(0.36, 0.1, 10.6, grey, lx, 8.67, 0), B(0.06, 0.06, 10.6, "#FFC83D", lx, 9.6, 0));
+			[-5.1, 0, 5.1].forEach((z) => g.add(B(0.04, 0.9, 0.04, "#FFC83D", lx, 9.17, z)));
+		}
+	}
+	/* deck railings along the midbody */
+	[-1, 1].forEach((sd) => {
+		g.add(B(73, 0.07, 0.07, white, -1.5, 7.15, sd * 6.75));
+		for (let x = -37.5; x <= 35; x += 2.5) g.add(B(0.05, 1.03, 0.05, white, x, 6.635, sd * 6.75));
+	});
+	/* forecastle: windlasses, bollards, foremast with a masthead light */
+	g.add(Cy(0.16, 0.2, 7, 8, grey, -52, 12, 0), B(0.16, 0.16, 3, grey, -52, 14.4, 0));
+	g.add(Cy(0.22, 0.22, 0.3, 8, "#FFF6D8", -52, 15.65, 0, { emissive: "#FFE9B0", emissiveIntensity: 0.8 }));
+	[-1, 1].forEach((sd) => {
+		const w = Cy(0.5, 0.5, 1.4, 10, "#5E636D", -48.5, 9.0, sd * 2.2);
+		w.rotation.x = Math.PI / 2;
+		g.add(w, B(1.2, 0.5, 0.5, "#3A3F48", -48.5, 8.77, sd * 3.0));
+		[-0.5, 0.5].forEach((dx) => g.add(Cy(0.18, 0.2, 0.6, 8, dark, -50 + dx, 8.82, sd * 2.9)));
+	});
+	/* anchors in their pockets either side of the bow */
+	{
+		const R = ring(5),
+			[mx, mz] = R[4],
+			[tx, tz] = R[5],
+			t = 0.24,
+			px = mx + (tx - mx) * t,
+			pz = mz + (tz - mz) * t,
+			a = Math.atan2(mz - tz, mx - tx);
+		[-1, 1].forEach((sd) => {
+			const an = new THREE.Group();
+			an.position.set(px, 0, sd * pz);
+			an.rotation.y = -sd * a;
+			an.add(B(1.6, 1.6, 0.3, "#151B24", 0, 5, sd * 0.02));
+			an.add(B(0.26, 1.5, 0.22, dark, 0, 4.9, sd * 0.2), B(1.2, 0.26, 0.22, dark, 0, 4.2, sd * 0.2));
+			g.add(an);
+		});
+	}
+	/* accommodation block: deck bands, window rows on every side */
+	const ax = 40.8;
+	g.add(B(10, 13.9, 12, white, ax, 13.07, 0));
+	for (let k = 1; k <= 4; k++) g.add(B(10.1, 0.12, 12.1, "#D9DEE6", ax, 6.12 + k * 2.8, 0));
+	for (let k = 0; k < 5; k++) {
+		const y = 6.12 + k * 2.8 + 1.5;
+		[-3.5, -1.2, 1.2, 3.5].forEach((dx) =>
+			[-1, 1].forEach((sd) => g.add(B(1.3, 0.8, 0.04, glass, ax + dx, y, sd * 6.02, gm))),
+		);
+		[-4.5, -2.25, 0, 2.25, 4.5].forEach((z) => g.add(B(0.04, 0.8, 1.3, glass, ax - 5.02, y, z, gm)));
+		[-3, 3].forEach((z) => g.add(B(0.04, 0.8, 1.3, glass, ax + 5.02, y, z, gm)));
+	}
+	/* bridge with wings, window band and a visor roof */
+	g.add(B(9, 3, 13, white, ax, 21.5, 0), B(3, 0.3, 16.6, white, ax - 3.1, 20.15, 0));
+	[-1, 1].forEach((sd) => {
+		g.add(B(3, 1.0, 0.08, white, ax - 3.1, 20.8, sd * 8.26), B(0.08, 1.0, 1.72, white, ax - 4.56, 20.8, sd * 7.36));
+		g.add(B(0.9, 1.0, 0.7, grey, ax - 3, 20.8, sd * 7.6));
+	});
+	g.add(B(0.04, 1.3, 12.4, glass, ax - 4.52, 21.8, 0, gm));
+	for (let z = -6; z <= 6.01; z += 1.2) g.add(B(0.06, 1.36, 0.12, white, ax - 4.55, 21.8, z));
+	[-1, 1].forEach((sd) => g.add(B(7.4, 1.3, 0.04, glass, ax, 21.8, sd * 6.52, gm)));
+	g.add(B(9.4, 0.3, 13.4, "#D9DEE6", ax, 23.15, 0));
+	/* radar mast, scanners, navigation lights, satcom domes */
+	g.add(B(0.5, 4, 0.5, grey, ax + 2, 25.3, 0), B(0.22, 0.22, 4.4, grey, ax + 2, 26.8, 0));
+	g.add(B(2.0, 0.16, 3.2, grey, ax + 1.6, 24.6, 0));
+	g.add(B(0.26, 0.24, 3.4, dark, ax + 1.4, 25.25, -0.2), B(0.3, 0.46, 0.3, dark, ax + 1.4, 24.91, -0.2));
+	g.add(Cy(0.12, 0.12, 0.3, 6, "#E5484D", ax + 2, 27.06, -2, { emissive: "#B5121B", emissiveIntensity: 0.8 }));
+	g.add(Cy(0.12, 0.12, 0.3, 6, "#3BD16F", ax + 2, 27.06, 2, { emissive: "#1A8A3C", emissiveIntensity: 0.8 }));
+	[-1, 1].forEach((sd) => {
+		const dm = mesh(new THREE.SphereGeometry(0.6, 10, 6), white);
+		dm.position.set(ax + 3.4, 24.25, sd * 4.5);
+		g.add(dm, Cy(0.2, 0.25, 0.6, 8, grey, ax + 3.4, 23.6, sd * 4.5));
+	});
+	/* funnel casing and a slanted funnel: red band, black top */
+	g.add(B(5, 13, 5, white, 48.9, 12.62, 0));
+	const fP = (y0, y1, o) => {
+		const xl = (y) => -2.2 + (1.1 * y) / 8,
+			xr = (y) => 2.2 + (0.7 * y) / 8;
+		return [
+			[xl(y0) - o, y0],
+			[xr(y0) + o, y0],
+			[xr(y1) + o, y1],
+			[xl(y1) - o, y1],
+		];
+	};
+	[
+		[0, 8, 0, white, 4],
+		[4.6, 6.2, 0.04, "#E5484D", 4.08],
+		[7.2, 8.06, 0.04, "#151B24", 4.08],
+	].forEach(([y0, y1, o, c, d]) => {
+		const f = mesh(chamferPrism(fP(y0, y1, o), d, 0.08, []), c);
+		f.position.set(48.9, 19.1, 0);
+		g.add(f);
+	});
+	/* lifeboats on davits either side of the accommodation */
+	[-1, 1].forEach((sd) => {
+		const lb = new THREE.Group();
+		lb.position.set(ax + 1, 12.4, sd * 7.05);
+		lb.add(
+			mesh(
+				chamferPrism(
+					[
+						[-2.1, 0],
+						[2.1, 0],
+						[2.6, 0.8],
+						[-2.6, 0.8],
+					],
+					1.7,
+					0.08,
+					[0.3, 0.3],
+				),
+				"#FF8A1F",
+			),
+			mesh(
+				chamferPrism(
+					[
+						[-2.4, 0.78],
+						[2.4, 0.78],
+						[1.9, 1.5],
+						[-2.0, 1.5],
+					],
+					1.5,
+					0.1,
+					[0, 0, 0.3, 0.3],
+				),
+				"#FF8A1F",
+			),
+		);
+		[-1.2, 0, 1.2].forEach((x) => lb.add(B(0.6, 0.26, 0.04, glass, x, 1.12, sd * 0.74, gm)));
+		g.add(lb);
+		[-1.8, 1.8].forEach((dx) => g.add(B(0.25, 3.0, 0.9, grey, ax + 1 + dx, 13.4, sd * 6.4)));
+	});
+	/* stern mooring deck: winches, bollards, ensign staff */
+	[-1, 1].forEach((sd) => {
+		const w = Cy(0.5, 0.5, 1.4, 10, "#5E636D", 54.5, 6.6, sd * 2.5);
+		w.rotation.x = Math.PI / 2;
+		g.add(w, B(1.2, 0.5, 0.5, "#3A3F48", 54.5, 6.37, sd * 3.3));
+		[-0.5, 0.5].forEach((dx) => g.add(Cy(0.18, 0.2, 0.6, 8, dark, 57 + dx, 6.42, sd * 4.8)));
+	});
+	g.add(Cy(0.08, 0.08, 4, 6, grey, 59.5, 8.1, 0));
+	g.userData.bays = bays;
+	g.userData.deckY = deckY;
 	return g;
 }

@@ -5049,6 +5049,7 @@ const MG = {
 			const wid = laneWorld(W, 30, { noTrees: true });
 			this.port(W, wid);
 			W.hooks = {};
+			const posts = [];
 			W.plist.forEach((p, i) => {
 				const x = W.laneX(i);
 				W.sc.add(
@@ -5056,6 +5057,7 @@ const MG = {
 					B(0.3, 15, 0.3, "#E0A800", x + 1.6, 7.5, -11),
 					B(3.6, 0.35, 0.35, "#E0A800", x, 15, -11),
 				);
+				posts.push({ x: x - 1.6, z: -11 }, { x: x + 1.6, z: -11 });
 				const h = new THREE.Group(),
 					cab = B(0.05, 1, 0.05, "#2A2F3A", 0, 0, 0),
 					cr = B(1, 0.8, 1, "#C98A4B", 0, 0, 0);
@@ -5066,12 +5068,13 @@ const MG = {
 				W.sc.add(h);
 				W.hooks[p.key] = h;
 			});
+			placeShadows(W.sc, 0.45, 0.45, 0.25, posts);
 		},
 		port(W, wid) {
 			// container terminal: quay, container stacks, a docked cargo ship, quay cranes and the sea
 			const s = W.sc,
 				CC = ["#E5484D", "#2F7DE1", "#FF8A1F", "#1FA35C", "#FFC83D", "#8E96A3", "#1FB5A8", "#B5622F"],
-				rc = () => CC[Math.floor(W.rng() * CC.length)];
+				rc = () => Math.floor(W.rng() * CC.length);
 			s.add(texBox(260, 0.4, 70, concreteTex(), 8, 0, -0.2, -2));
 			roadWear(s, -60, 60, 30, -34, 0.002, 0.5);
 			// painted bay lines and crane rails on the quay
@@ -5101,45 +5104,72 @@ const MG = {
 			sea.position.set(0, -1.6, -237);
 			s.add(sea);
 			s.add(B(260, 1.8, 0.6, "#6F7680", 0, -0.9, -37.2));
-			const box = (x, y, z, c, rot) => {
-				const g = new THREE.Group();
-				g.position.set(x, y, z);
-				g.rotation.y = rot || 0;
-				g.add(B(2.4, 2.5, 6, c, 0, 1.25, 0));
-				for (let k = -2.6; k <= 2.6; k += 0.52) g.add(B(2.46, 2.3, 0.1, c, 0, 1.25, k));
-				g.add(B(2.3, 2.3, 0.05, "#2A2F3A", 0, 1.25, 3.01));
-				s.add(g);
-			};
+			/* container stacks on the quay (detailed kits, one instanced mesh per colour and material) */
+			const quay = [],
+				foot = [];
 			[-1, 1].forEach((sd) => {
 				for (let r = 0; r < 3; r++)
 					for (let c = 0; c < 4; c++) {
-						const h = 1 + Math.floor(W.rng() * (1.4 + c * 0.6));
-						for (let k = 0; k < h; k++) box(sd * (wid / 2 + 6 + c * 2.7), k * 2.55, -4 - r * 7.4, rc());
+						const h = 1 + Math.floor(W.rng() * (1.4 + c * 0.6)),
+							x = sd * (wid / 2 + 6 + c * 2.7),
+							z = -4 - r * 7.4;
+						foot.push({ x, z });
+						for (let k = 0; k < h; k++) quay.push({ k: rc(), x, y: k * 2.5, z });
 					}
 			});
-			// cargo ship alongside the quay
-			const ship = new THREE.Group();
+			placeKits(s, containerKits(CC, 0), quay, 0);
+			placeShadows(s, 2.4, 6, 0.3, foot);
+			/* cargo ship alongside the quay, loaded with containers (simpler kits: it's far away). Containers boxed in
+			   on every side the camera could see (above, the quay side, both neighbouring bays) are left out. The ship
+			   lies outside the shadow camera, so it casts no shadows. */
+			const sm = shipModel(),
+				ship = kitGroup(bakeKit(sm), 0),
+				bays = sm.userData.bays,
+				dy = sm.userData.deckY,
+				deck = [],
+				dfoot = [],
+				H = {};
 			ship.position.set(0, -1.6, -46);
 			s.add(ship);
-			ship.add(
-				B(120, 6, 14, "#1D3557", 0, 3, 0),
-				B(120.2, 1.4, 14.2, "#B5313A", 0, 0.7, 0),
-				B(120.3, 0.3, 14.3, "#F4F6F9", 0, 5.9, 0),
-			);
-			ship.add(
-				B(9, 9, 11, "#F4F6F9", 44, 10.5, 0),
-				B(9.2, 1, 11.2, "#2A2F3A", 44, 13.2, 0),
-				Cy(1.2, 1.4, 5, 10, "#E5484D", 44, 17, 2),
-			);
-			for (let bx = -50; bx <= 34; bx += 6.5)
-				for (let bz = -1; bz <= 1; bz++) {
-					const h = 1 + Math.floor(W.rng() * 4);
+			bays.forEach((b, bi) => {
+				for (let r = 0; r < b.rows; r++) {
+					const z = (r - (b.rows - 1) / 2) * 2.55;
+					H[bi + "," + z] = 1 + Math.floor(W.rng() * (Math.abs(z) < 3 ? 4.6 : 3.6));
+				}
+			});
+			bays.forEach((b, bi) => {
+				for (let r = 0; r < b.rows; r++) {
+					const z = (r - (b.rows - 1) / 2) * 2.55,
+						h = H[bi + "," + z],
+						hh = (i, zz) => H[i + "," + zz] || 0;
+					dfoot.push({ x: b.x, y: dy, z, ry: Math.PI / 2 });
 					for (let k = 0; k < h; k++) {
-						const g = B(6, 2.5, 4.2, rc(), bx, 7.25 + k * 2.55, bz * 4.4);
-						ship.add(g);
+						const c = rc();
+						if (k < h - 1 && hh(bi, z + 2.55) > k && hh(bi - 1, z) > k && hh(bi + 1, z) > k) continue;
+						deck.push({ k: c, x: b.x, y: dy + k * 2.5, z, ry: Math.PI / 2 });
 					}
 				}
+			});
+			placeKits(ship, containerKits(CC, 1), deck, 0);
+			placeShadows(ship, 2.4, 6, 0.22, dfoot);
+			ship.traverse((o) => (o.castShadow = false));
+			/* mooring lines from the bow and stern to the quay bollards */
+			[
+				[-47, 6.9, -52],
+				[-46, 6.9, -44],
+				[55, 5.1, 52],
+				[56, 5.1, 60],
+			].forEach(([sx, sy, bx]) => {
+				const a = new THREE.Vector3(sx, sy, -39.5),
+					b = new THREE.Vector3(bx, 0.5, -36),
+					d = b.clone().sub(a),
+					ln = Cy(0.05, 0.05, d.length(), 5, "#E8DCC0", 0, 0, 0);
+				ln.position.copy(a).addScaledVector(d, 0.5);
+				ln.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize());
+				s.add(ln);
+			});
 			// ship-to-shore cranes on the quay edge
+			const legs = [];
 			[-30, 26].forEach((x) => {
 				const g = new THREE.Group();
 				g.position.set(x, 0, -34);
@@ -5149,7 +5179,10 @@ const MG = {
 					[3, -2],
 					[-3, 2],
 					[3, 2],
-				].forEach(([a, b]) => g.add(B(0.8, 26, 0.8, "#2F7DE1", a, 13, b)));
+				].forEach(([a, b]) => {
+					g.add(B(0.8, 26, 0.8, "#2F7DE1", a, 13, b));
+					legs.push({ x: x + a, z: -34 + b });
+				});
 				g.add(
 					B(7, 1.4, 1.2, "#2F7DE1", 0, 24, -2),
 					B(7, 1.4, 1.2, "#2F7DE1", 0, 24, 2),
@@ -5158,7 +5191,13 @@ const MG = {
 					B(2.4, 1.8, 2.4, "#FFC83D", 0, 25.4, -20),
 				);
 			});
-			for (let x = -60; x <= 60; x += 8) s.add(Cy(0.35, 0.45, 0.6, 8, "#2A2F3A", x, 0.3, -36));
+			placeShadows(s, 1.1, 1.1, 0.3, legs);
+			const bol = [];
+			for (let x = -60; x <= 60; x += 8) {
+				s.add(Cy(0.35, 0.45, 0.6, 8, "#2A2F3A", x, 0.3, -36));
+				bol.push({ x, z: -36 });
+			}
+			placeShadows(s, 0.8, 0.8, 0.25, bol);
 			W.sea = sea;
 			W.seaB = Float32Array.from(sp.array);
 			W.gulls = [];
