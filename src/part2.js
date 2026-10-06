@@ -260,6 +260,11 @@ function lookShaders() {
 				.replace("gl_FragColor = vec4( outgoingLight, diffuseColor.a );", glow);
 		sh.fragmentShader = f;
 	});
+	/* the room environment only adds reflections (no flat grey fill), so the hemisphere keeps the shade's colour */
+	C.lights_fragment_maps = C.lights_fragment_maps.replace(
+		"iblIrradiance += getLightProbeIndirectIrradiance( geometry, maxMipLevel );",
+		"#ifndef TONE_MAPPING\n\t\tiblIrradiance += getLightProbeIndirectIrradiance( geometry, maxMipLevel );\n\t#endif",
+	);
 	/* sprites are labels (name tags, text): keep their exact colours, no tone mapping */
 	L.sprite.fragmentShader = L.sprite.fragmentShader.replace("#include <tonemapping_fragment>", "");
 	L.background.fragmentShader = L.background.fragmentShader.replace(

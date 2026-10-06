@@ -944,6 +944,11 @@ function lookShaders() {
 				.replace("gl_FragColor = vec4( outgoingLight, diffuseColor.a );", glow);
 		sh.fragmentShader = f;
 	});
+	/* the room environment only adds reflections (no flat grey fill), so the hemisphere keeps the shade's colour */
+	C.lights_fragment_maps = C.lights_fragment_maps.replace(
+		"iblIrradiance += getLightProbeIndirectIrradiance( geometry, maxMipLevel );",
+		"#ifndef TONE_MAPPING\n\t\tiblIrradiance += getLightProbeIndirectIrradiance( geometry, maxMipLevel );\n\t#endif",
+	);
 	/* sprites are labels (name tags, text): keep their exact colours, no tone mapping */
 	L.sprite.fragmentShader = L.sprite.fragmentShader.replace("#include <tonemapping_fragment>", "");
 	L.background.fragmentShader = L.background.fragmentShader.replace(
@@ -11047,7 +11052,7 @@ function mgEnv(s, water, lane, bare, night, storm, dusk) {
 	}
 	return sun;
 }
-/* new look (trial): def.look = {exp, amb, sun, warm, env, haze, glow, bloom, fill: [sky, ground], sky: [top, mid, horizon]}.
+/* new look (trial): def.look = {exp, amb, sun, warm, env, haze, glow, bloom, vig, sat, fill: [sky, ground], sky: [top, mid, horizon]}.
    Sets the scene's colour mood; the renderer switches to sRGB + ACES for scenes with userData.lk (gfxLook). Light colours go in as linear. */
 const LOOK0 = { exp: 1, amb: 0.3, sun: 1.8, warm: 0.6, env: 0.1, haze: 55, glow: 0.98, bloom: 0.4 };
 const lkWarm = (c, w) => c.set("#E4EEFF").lerp(new THREE.Color("#FFC27A"), w).convertSRGBToLinear();
@@ -11082,6 +11087,14 @@ function applyLook(W) {
 	F.bloom.v = L.bloom;
 	F.bloom.th = L.glow;
 	F.aa.on = true;
+	/* optional grade: vig = vignette, sat = colour boost (the Effects tab's Vignette / Colour) */
+	F.vig.on = L.vig > 0;
+	if (L.vig) F.vig.v = L.vig;
+	F.col.on = L.sat > 0;
+	if (L.sat) {
+		F.col.sat = L.sat * 0.6;
+		F.col.con = L.sat * 0.2;
+	}
 	loadPost().catch(() => {});
 	lookEnv(s);
 	lookEnvTex().then(
@@ -16349,19 +16362,21 @@ const MG = {
 		bound: { t: "sq", h: 16 },
 		water: false,
 		bare: true,
-		sun: [13.9, 16, 12.1],
-		/* new look trial: golden late afternoon over the depot */
+		sun: [13.9, 10.6, 12.1],
+		/* new look trial, strong version: golden hour over the depot, low sun with long shadows, blue shade, glowing beacons and pads */
 		look: {
-			exp: 0.95,
-			amb: 0.3,
-			sun: 1.8,
-			warm: 0.78,
-			env: 0.1,
-			haze: 50,
+			exp: 1,
+			amb: 0.5,
+			sun: 2.2,
+			warm: 0.92,
+			env: 0.2,
+			haze: 42,
 			glow: 0.98,
-			bloom: 0.4,
-			fill: ["#B9D2EE", "#8C7358"],
-			sky: ["#5A8FD0", "#A6C9E6", "#F3D9B5"],
+			bloom: 0.7,
+			vig: 0.3,
+			sat: 0.25,
+			fill: ["#7FA8E8", "#9A7A55"],
+			sky: ["#3F72BE", "#93B9DE", "#F8C98F"],
 		},
 		how: "Grab cones (gold = 3) and park on your pad to drop them into your giant cone. First to fill it wins! Ram rivals to knock loose the cones on their roof.",
 		dropY: 0,
@@ -16662,11 +16677,18 @@ const MG = {
 			].forEach(([a, b]) => {
 				const x = a * (S + 6),
 					z = b * (S + 6);
-				s.add(
-					Cy(0.18, 0.26, 11, 8, "#5A6272", x, 5.5, z),
-					B(1.6, 0.5, 0.8, "#2A2F3A", x, 11.1, z),
-					B(1.4, 0.06, 0.6, "#FFF4D6", x, 10.83, z, { emissive: "#FFF1C2", emissiveIntensity: 0.8 }),
+				/* floodlight heads tilted toward the yard so the camera sees the lit lens */
+				const yaw = new THREE.Group(),
+					tilt = new THREE.Group();
+				yaw.position.set(x, 11.1, z);
+				yaw.rotation.y = Math.atan2(-a, -b);
+				tilt.rotation.x = -0.6;
+				tilt.add(
+					B(1.6, 0.5, 0.8, "#2A2F3A", 0, 0, 0),
+					B(1.4, 0.06, 0.6, "#FFF4D6", 0, -0.27, 0, { emissive: "#FFF1C2", emissiveIntensity: 1.6 }),
 				);
+				yaw.add(tilt);
+				s.add(Cy(0.18, 0.26, 11, 8, "#5A6272", x, 5.5, z), yaw);
 			});
 			for (let i = 0; i < 12; i++) {
 				const u = (W.rng() - 0.5) * 80,
@@ -16841,7 +16863,7 @@ const MG = {
 				mesh(
 					new THREE.ConeGeometry(0.38, 1, 8),
 					gold ? "#FFC83D" : "#FF7A1A",
-					gold ? { emissive: "#B8860B", emissiveIntensity: 0.5, metalness: 0.4 } : undefined,
+					gold ? { emissive: "#B8860B", emissiveIntensity: 0.9, metalness: 0.4 } : undefined,
 				),
 			);
 			g.children[0].position.y = 0.5;

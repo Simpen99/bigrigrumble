@@ -119,7 +119,7 @@ function mgEnv(s, water, lane, bare, night, storm, dusk) {
 	}
 	return sun;
 }
-/* new look (trial): def.look = {exp, amb, sun, warm, env, haze, glow, bloom, fill: [sky, ground], sky: [top, mid, horizon]}.
+/* new look (trial): def.look = {exp, amb, sun, warm, env, haze, glow, bloom, vig, sat, fill: [sky, ground], sky: [top, mid, horizon]}.
    Sets the scene's colour mood; the renderer switches to sRGB + ACES for scenes with userData.lk (gfxLook). Light colours go in as linear. */
 const LOOK0 = { exp: 1, amb: 0.3, sun: 1.8, warm: 0.6, env: 0.1, haze: 55, glow: 0.98, bloom: 0.4 };
 const lkWarm = (c, w) => c.set("#E4EEFF").lerp(new THREE.Color("#FFC27A"), w).convertSRGBToLinear();
@@ -154,6 +154,14 @@ function applyLook(W) {
 	F.bloom.v = L.bloom;
 	F.bloom.th = L.glow;
 	F.aa.on = true;
+	/* optional grade: vig = vignette, sat = colour boost (the Effects tab's Vignette / Colour) */
+	F.vig.on = L.vig > 0;
+	if (L.vig) F.vig.v = L.vig;
+	F.col.on = L.sat > 0;
+	if (L.sat) {
+		F.col.sat = L.sat * 0.6;
+		F.col.con = L.sat * 0.2;
+	}
 	loadPost().catch(() => {});
 	lookEnv(s);
 	lookEnvTex().then(
