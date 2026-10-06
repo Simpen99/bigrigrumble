@@ -4545,22 +4545,15 @@ const MG = {
 					for (let q = 0; q < 3; q++) W.parcels.push({ id: W.parcels.length, l, z: z + 3 - q * 2.2 });
 				}
 			}
+			const kits = {};
 			W.cars.forEach((c) => {
-				const g = new THREE.Group();
-				g.add(
-					B(2, 0.8, 4, c.c, 0, 0.7, 0),
-					B(1.7, 0.7, 2.2, c.c, 0, 1.45, 0.2),
-					B(1.72, 0.5, 2, "#2A3A4E", 0, 1.45, 0.2),
-				);
-				[
-					[-1, -1.3],
-					[1, -1.3],
-					[-1, 1.3],
-					[1, 1.3],
-				].forEach(([x, z]) => {
-					const w = Cy(0.38, 0.38, 0.3, 10, "#1D2230", x * 0.95, 0.38, z);
-					w.rotation.z = Math.PI / 2;
-					g.add(w);
+				const ty = CAR_TYPES[c.id % 4],
+					kit = kits[ty + c.c] || (kits[ty + c.c] = bakeKit(carModel(ty, c.c))),
+					g = new THREE.Group();
+				kit.forEach(({ geo, mat }) => {
+					const m = new THREE.Mesh(geo, mat);
+					m.castShadow = m.receiveShadow = true;
+					g.add(m);
 				});
 				g.position.set(this.lx(c.l), 0, c.z0);
 				s.add(g);
@@ -4641,26 +4634,20 @@ const MG = {
 				sg.position.set(0, 6.6, z + 0.25);
 				s.add(sg, B(wid + 4, 0.4, 0.3, "#5A6272", 0, 6.6, z - 0.1));
 			}
-			const HC = ["#E6D8BE", "#B8C4D6", "#E8B4A0", "#C9D6B8"];
+			const homes = [];
 			[-1, 1].forEach((sd) => {
 				for (let z = 10, k = 0; z > -L + 30; z -= 22, k++) {
-					const x = sd * (wid / 2 + 14 + (k % 3) * 5),
-						h = new THREE.Group();
-					h.position.set(x, 0, z);
-					h.add(B(6, 3.4, 5, HC[k % 4], 0, 1.7, 0));
-					[-1, 1].forEach((q) => {
-						const r = B(3.6, 0.25, 5.6, "#8C4A2F", q * 1.55, 4.1, 0);
-						r.rotation.z = -q * 0.6;
-						h.add(r);
+					homes.push({
+						k: (k + (sd > 0 ? 1 : 0) * 2) % 4,
+						x: sd * (wid / 2 + 16 + (k % 3) * 3),
+						y: -0.05,
+						z,
+						ry: (-sd * Math.PI) / 2,
 					});
-					s.add(h);
-					s.add(
-						tree(sd * (wid / 2 + 6 + (k % 2) * 2.5), z - 8, 1, k % 3),
-						B(0.12, 1, 0.12, "#5A6272", sd * (wid / 2 + 9.5), 0.5, z + 3),
-						B(0.5, 0.4, 0.7, "#2F5DE1", sd * (wid / 2 + 9.5), 1.1, z + 3),
-					);
+					s.add(tree(sd * (wid / 2 + 6 + (k % 2) * 2.5), z - 9, 1, k % 3));
 				}
 			});
+			placeKits(s, houseKits(), homes);
 		},
 		spawn: (W, i) => ({ x: MG.hop.lx(i % 4), z: 0, yaw: Math.PI / 2 }),
 		initEnt(W, e) {
