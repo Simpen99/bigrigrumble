@@ -100,7 +100,11 @@ function chamferPrism(P, d, r, cs) {
 	});
 	return new THREE.ConvexGeometry(pts);
 }
-function buildTruck(i) {
+/* mode "hose" (Fire Brigade): leaves off the extras that would clash with the roof hose rig (ladder, drum, crane,
+   catwalk, loads, roll bars, roof ornaments), stops parts that swing over the roof, and sets userData.mount =
+   {x, y, s, host}: where the rig sits (truck coords, front at +x), its scale, and the group to add it to */
+function buildTruck(i, mode) {
+	const hose = mode === "hose";
 	const B = (w, h, d, c, x, y, z, o) => {
 		let sq = null;
 		if (o && o.sq) {
@@ -136,7 +140,8 @@ function buildTruck(i) {
 		roof = [],
 		ph = Math.random() * 10;
 	let tailX = null,
-		tailY = 0.5;
+		tailY = 0.5,
+		mount = null;
 	const add = (...m) => m.forEach((x) => g.add(x));
 	const grp = (x = 0, y = 0, z = 0, ...kids) => {
 		const q = new THREE.Group();
@@ -198,6 +203,7 @@ function buildTruck(i) {
 			cab(0.68);
 			beacon(0.68, 1.34, "#FFB000");
 			wheels([-0.72, 0.7]);
+			mount = { x: -0.34, y: 1.66, s: 0.95 };
 			break;
 		case "monster": {
 			wheels([-0.72, 0.72], 0.52, 0.64);
@@ -221,10 +227,14 @@ function buildTruck(i) {
 				B(0.03, 0.15, W * 0.5, "#1D2230", 1.04, 0.72 + dy, 0),
 				B(0.04, 0.1, 0.18, "#FFF6C2", 1.04, 0.76 + dy, 0.36, lamp),
 				B(0.04, 0.1, 0.18, "#FFF6C2", 1.04, 0.76 + dy, -0.36, lamp),
-				B(0.06, 0.5, 0.06, D, -0.34, 0.9 + dy, 0.46),
-				B(0.06, 0.5, 0.06, D, -0.34, 0.9 + dy, -0.46),
-				B(0.07, 0.07, W * 0.9, D, -0.34, 1.16 + dy, 0),
 			);
+			if (!hose)
+				body.add(
+					B(0.06, 0.5, 0.06, D, -0.34, 0.9 + dy, 0.46),
+					B(0.06, 0.5, 0.06, D, -0.34, 0.9 + dy, -0.46),
+					B(0.07, 0.07, W * 0.9, D, -0.34, 1.16 + dy, 0),
+				);
+			mount = { x: -0.72, y: 0.61 + dy, s: 0.7, host: body };
 			const bar = uniq(B(0.12, 0.09, 0.7, "#FFF6C2", 0.05, 1.18 + dy, 0, lamp));
 			body.add(bar);
 			tailX = -1.08;
@@ -260,6 +270,7 @@ function buildTruck(i) {
 			ch.position.y = 0.58;
 			const top = grp(-0.1, 1.95, 0, cn, sc, ch);
 			roof.push(top);
+			mount = { x: -0.25, y: 1.675, s: 0.95 };
 			anims.push((tm) => {
 				top.rotation.y = tm * 1.4;
 				top.position.y = 1.95 + Math.sin(tm * 2.4) * 0.06;
@@ -271,20 +282,20 @@ function buildTruck(i) {
 		case "fire": {
 			chassis(2.2, -0.05);
 			add(B(1.45, 0.85, W, c, -0.38, 0.95, 0, NY), B(1.47, 0.12, W + 0.06, a, -0.38, 0.8, 0));
-			const lad = grp(
-				-0.8,
-				1.5,
-				0,
-				B(1.6, 0.06, 0.06, "#CFD4DC", 0.72, 0, 0.26),
-				B(1.6, 0.06, 0.06, "#CFD4DC", 0.72, 0, -0.26),
-			);
-			for (let k = 0; k < 7; k++) lad.add(B(0.05, 0.05, 0.52, "#CFD4DC", k * 0.24, 0, 0));
-			add(
-				Cy(0.2, 0.23, 0.08, 10, "#8E96A3", -0.8, 1.415, 0),
-				B(0.12, 0.12, 0.08, "#8E96A3", -0.8, 1.46, 0.26),
-				B(0.12, 0.12, 0.08, "#8E96A3", -0.8, 1.46, -0.26),
-				B(0.07, 0.09, 0.6, "#5A6272", 0.3, 1.42, 0),
-			);
+			const lad = new THREE.Group();
+			if (!hose) {
+				lad.position.set(-0.8, 1.5, 0);
+				lad.add(B(1.6, 0.06, 0.06, "#CFD4DC", 0.72, 0, 0.26), B(1.6, 0.06, 0.06, "#CFD4DC", 0.72, 0, -0.26));
+				for (let k = 0; k < 7; k++) lad.add(B(0.05, 0.05, 0.52, "#CFD4DC", k * 0.24, 0, 0));
+				g.add(lad);
+				add(
+					Cy(0.2, 0.23, 0.08, 10, "#8E96A3", -0.8, 1.415, 0),
+					B(0.12, 0.12, 0.08, "#8E96A3", -0.8, 1.46, 0.26),
+					B(0.12, 0.12, 0.08, "#8E96A3", -0.8, 1.46, -0.26),
+					B(0.07, 0.09, 0.6, "#5A6272", 0.3, 1.42, 0),
+				);
+			}
+			mount = { x: -0.42, y: 1.375, s: 0.95 };
 			cab(0.72, 0.62, 0.85);
 			const L1 = uniq(B(0.14, 0.1, 0.3, "#3D7BFF", 0.72, 1.42, 0.18, { emissive: "#3D7BFF", emissiveIntensity: 0.8 })),
 				L2 = uniq(B(0.14, 0.1, 0.3, "#FF3B3B", 0.72, 1.42, -0.18, { emissive: "#FF3B3B", emissiveIntensity: 0.8 }));
@@ -312,7 +323,8 @@ function buildTruck(i) {
 			dg.add(B(0.08, 1.1, 0.12, c, 0.5, 0, 0));
 			dg.rotation.z = Math.PI / 2 - 0.2;
 			dg.position.set(-0.38, 1.12, 0);
-			g.add(dg);
+			if (!hose) g.add(dg);
+			mount = { x: -0.4, y: 0.9, s: 1.0 };
 			const chute = grp(-1.05, 0.8, 0, B(0.4, 0.08, 0.2, "#8E96A3", -0.15, 0, 0));
 			chute.rotation.z = 0.5;
 			add(B(0.2, 0.4, 0.5, D, -0.9, 0.7, 0), B(0.2, 0.4, 0.5, D, 0.1, 0.7, 0));
@@ -329,15 +341,17 @@ function buildTruck(i) {
 			const bed = new THREE.Group();
 			bed.position.set(-1.0, 0.6, 0);
 			const bb = B(1.35, 0.75, W, c, 0.66, 0.38, 0);
-			bb.rotation.z = -0.06;
+			bb.rotation.z = hose ? 0 : -0.06;
 			bed.add(bb);
 			[-0.8, -0.34, 0.12].forEach((x) => bed.add(B(0.06, 0.78, W + 0.04, a, x + 1.0, 0.38, 0)));
-			bed.add(B(0.3, 0.25, 0.9, "#8C5A3C", 0.5, 0.85, 0), B(0.25, 0.2, 0.5, "#6F7682", 0.95, 0.82, 0.15));
+			if (!hose) bed.add(B(0.3, 0.25, 0.9, "#8C5A3C", 0.5, 0.85, 0), B(0.25, 0.2, 0.5, "#6F7682", 0.95, 0.82, 0.15));
+			mount = { x: -0.34, y: 1.37, s: 0.95 };
 			g.add(bed);
 			const ram = B(0.1, 0.5, 0.1, "#8E96A3", -0.1, 0.6, 0);
 			add(ram);
 			cab(0.72);
 			anims.push((tm) => {
+				if (hose) return;
 				const u = Math.max(0, Math.sin(tm * 0.7));
 				const e = u * u;
 				bed.rotation.z = e * 0.6;
@@ -388,33 +402,35 @@ function buildTruck(i) {
 				}),
 			);
 			wheels([-0.62, 0.62], 0.32);
+			mount = { x: -0.72, y: 0.61, s: 0.7 };
 			break;
 		}
 		case "tow": {
 			chassis();
 			add(B(1.3, 0.12, W, c, -0.36, 0.6, 0));
-			add(
-				Cy(0.26, 0.3, 0.1, 10, "#5A6272", -0.05, 0.72, 0),
-				B(0.36, 0.22, 0.48, D, -0.05, 0.9, 0),
-				B(0.07, 0.54, 0.07, "#8E96A3", -0.6, 0.95, 0.09),
-				B(0.07, 0.54, 0.07, "#8E96A3", -0.6, 0.95, -0.09),
-			);
-			{
+			const hook = new THREE.Group();
+			if (!hose) {
+				add(
+					Cy(0.26, 0.3, 0.1, 10, "#5A6272", -0.05, 0.72, 0),
+					B(0.36, 0.22, 0.48, D, -0.05, 0.9, 0),
+					B(0.07, 0.54, 0.07, "#8E96A3", -0.6, 0.95, 0.09),
+					B(0.07, 0.54, 0.07, "#8E96A3", -0.6, 0.95, -0.09),
+				);
 				const pin = Cy(0.065, 0.065, 0.58, 8, "#8E96A3", -0.05, 1.02, 0);
 				pin.rotation.x = Math.PI / 2;
 				add(pin);
+				const bm = B(1.2, 0.14, 0.14, a, -0.56, 1.21, 0);
+				bm.rotation.z = -0.55;
+				add(bm);
+				hook.position.set(-1.07, 1.52, 0);
+				hook.add(
+					B(0.03, 0.4, 0.03, D, 0, -0.2, 0),
+					B(0.14, 0.08, 0.08, "#888E99", 0, -0.4, 0),
+					B(0.05, 0.12, 0.05, "#888E99", 0.06, -0.47, 0),
+				);
+				g.add(hook);
 			}
-			const bm = B(1.2, 0.14, 0.14, a, -0.56, 1.21, 0);
-			bm.rotation.z = -0.55;
-			add(bm);
-			const hook = grp(
-				-1.07,
-				1.52,
-				0,
-				B(0.03, 0.4, 0.03, D, 0, -0.2, 0),
-				B(0.14, 0.08, 0.08, "#888E99", 0, -0.4, 0),
-				B(0.05, 0.12, 0.05, "#888E99", 0.06, -0.47, 0),
-			);
+			mount = { x: -0.4, y: 0.66, s: 0.95 };
 			cab(0.72);
 			beacon(0.72, 1.34, "#FFB000", 9);
 			anims.push((tm) => {
@@ -425,6 +441,7 @@ function buildTruck(i) {
 			break;
 		}
 		case "garbage": {
+			mount = { x: -0.32, y: 1.565, s: 0.95 };
 			chassis(2.3, -0.1);
 			add(B(1.25, 1.05, W, c, -0.3, 1.04, 0, NY), B(0.8, 0.4, W + 0.06, a, -0.3, 1.05, 0));
 			cab(0.72);
@@ -499,11 +516,19 @@ function buildTruck(i) {
 				b.rotation.z = Math.PI / 2;
 				add(b);
 			});
-			add(Cy(0.12, 0.12, 0.14, 8, "#AAB3C0", -0.35, 1.55, 0), B(1.3, 0.04, 0.04, "#8E96A3", -0.35, 1.56, 0.3));
-			[-0.94, -0.55, -0.15, 0.24].forEach((x) => add(B(0.03, 0.17, 0.03, "#8E96A3", x, 1.475, 0.3)));
-			const lid = grp(-0.47, 1.63, 0, Cy(0.14, 0.14, 0.04, 8, "#8E96A3", 0.12, 0, 0));
-			const drop = uniq(mesh(new THREE.IcosahedronGeometry(0.07, 0), "#4FB3E8", { transparent: true, opacity: 0.9 }));
-			add(drop);
+			const lid = new THREE.Group(),
+				drop = uniq(mesh(new THREE.IcosahedronGeometry(0.07, 0), "#4FB3E8", { transparent: true, opacity: 0.9 }));
+			if (hose) {
+				add(B(1.1, 0.26, 0.7, D, -0.35, 1.43, 0));
+				mount = { x: -0.35, y: 1.56, s: 0.95 };
+			} else {
+				add(Cy(0.12, 0.12, 0.14, 8, "#AAB3C0", -0.35, 1.55, 0), B(1.3, 0.04, 0.04, "#8E96A3", -0.35, 1.56, 0.3));
+				[-0.94, -0.55, -0.15, 0.24].forEach((x) => add(B(0.03, 0.17, 0.03, "#8E96A3", x, 1.475, 0.3)));
+				lid.position.set(-0.47, 1.63, 0);
+				lid.add(Cy(0.14, 0.14, 0.04, 8, "#8E96A3", 0.12, 0, 0));
+				g.add(lid);
+				add(drop);
+			}
 			cab(0.72, 0.62, 0.82, a);
 			anims.push((tm) => {
 				const u = Math.max(0, Math.sin(tm * 1.1));
@@ -569,9 +594,10 @@ function buildTruck(i) {
 				const v = (tm * 0.5) % 1;
 				env.position.set(-0.4 - v * 0.3, 1.6 + v * 1.2, 0);
 				env.rotation.set(v * 3, v * 5, v * 2);
-				env.visible = v < 0.85;
+				env.visible = v < 0.85 && !hose;
 			});
 			wheels([-0.7, 0.62]);
+			mount = { x: -0.32, y: 1.545, s: 0.95 };
 			break;
 		}
 		case "food": {
@@ -595,6 +621,7 @@ function buildTruck(i) {
 			});
 			tc.rotation.set(Math.PI / 2, 0, -Math.PI / 2, "ZYX");
 			tc.position.y = 0.34;
+			mount = { x: -0.25, y: 1.63, s: 0.95 };
 			const tg = grp(
 				-0.1,
 				1.66,
@@ -633,6 +660,10 @@ function buildTruck(i) {
 	g.userData.wheels = wheelsL;
 	g.userData.ph = ph;
 	g.userData.roof = roof; // roof ornaments a minigame can take off
+	if (hose) {
+		roof.forEach((o) => o.parent && o.parent.remove(o));
+		g.userData.mount = mount;
+	}
 	return g;
 }
 function animTruck(tr, dt, speed = 0) {

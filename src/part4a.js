@@ -119,9 +119,9 @@ function mgEnv(s, water, lane, bare, night, storm, dusk) {
 	}
 	return sun;
 }
-function mkEnt(p, isMe, named) {
+function mkEnt(p, isMe, named, mode) {
 	const g = new THREE.Group(),
-		tr = buildTruck(p.truck);
+		tr = buildTruck(p.truck, mode);
 	tr.scale.setScalar(0.8);
 	g.add(tr);
 	const disc = Cy(0.95, 0.95, 0.05, 20, pcol(p), 0, 0.03, 0, { transparent: true, opacity: 0.4, depthWrite: false });
@@ -180,7 +180,7 @@ function arenaPhys(W, e, inp, dt) {
 	if (e.al && !e.d && inp) {
 		e.vx += inp.x * 32 * dt;
 		e.vz += inp.y * 32 * dt;
-		if (inp.boost && e.bcd <= 0) {
+		if (inp.boost && e.bcd <= 0 && !def.aim) {
 			let dx = inp.x,
 				dz = inp.y,
 				l = Math.hypot(dx, dz);
@@ -431,7 +431,7 @@ function camFov(f) {
 function start3D(mg, p, localOnly, startAt, split) {
 	const def = MG[mg.g],
 		s = new THREE.Scene();
-	["ao", "bloom", "tilt", "vig", "col"].forEach((k) => {
+	["ao", "bloom", "tilt", "vig", "col", "aa"].forEach((k) => {
 		const v = def.fx && def.fx[k];
 		GFX.fx[k].on = !!v;
 		if (v) {
@@ -503,9 +503,24 @@ function start3D(mg, p, localOnly, startAt, split) {
 	);
 	camFov(40);
 	def.build(W);
+	/* baked light panel values: def.lt = {amb, sun, warm, haze} (the panel's "Copy" line), applied over the scene's own */
+	if (def.lt) {
+		const L = def.lt,
+			h = s.children.find((o) => o.isHemisphereLight);
+		if (h && L.amb !== undefined) h.intensity = L.amb;
+		if (L.sun !== undefined) W.sun.intensity = L.sun;
+		if (L.warm !== undefined) {
+			W.sun.color.set("#E4EEFF").lerp(new THREE.Color("#FFC27A"), L.warm);
+			W.lpWarm = L.warm;
+		}
+		if (L.haze && s.fog) {
+			s.fog.near = L.haze;
+			s.fog.far = L.haze * 3.8;
+		}
+	}
 	const n = plist.length;
 	plist.forEach((q, i) => {
-		const e = mkEnt(q, !tv && q.key === p.key, !!split);
+		const e = mkEnt(q, !tv && q.key === p.key, !!split, def.truckMode);
 		e.i = i;
 		if (tv && !q.bot) {
 			e.isMe = true;
@@ -571,7 +586,19 @@ function stepMG(dt) {
 	const def = W.def;
 	W.t = W.startAt ? ((W.paused || Date.now()) - W.startAt) / 1000 : -99;
 	if (def.ctrl === "stick" && !W.split) {
-		const ax = kbAxis();
+		if (def.aim) {
+			const am = kbAxis("arrows");
+			if (am.x || am.y) {
+				const l = Math.hypot(am.x, am.y);
+				W.inp.ax = am.x / l;
+				W.inp.ay = am.y / l;
+				W.kbA = true;
+			} else if (W.kbA) {
+				W.inp.ax = W.inp.ay = 0;
+				W.kbA = false;
+			}
+		}
+		const ax = kbAxis(def.aim ? "wasd" : "");
 		if (ax.x || ax.y) {
 			const l = Math.hypot(ax.x, ax.y);
 			W.inp.x = ax.x / l;
@@ -849,7 +876,7 @@ function openMg(mg, p) {
       <div class="m3lb${def.lbTop ? " top" : ""}" id="m3lb"></div><div class="m3intro" id="m3in"><h3>${esc(def.name)}</h3><p>${esc(def.how)}</p><p class="m3ctl">${def.ctrl === "stick" ? (def.stickHint ? def.stickHint(FINE) : FINE ? "WASD or arrow keys to drive, Space to ram." : "Drag anywhere to drive. Tap RAM to charge.") : esc(def.tapHint || "Tap the big button.") + (FINE ? " On a keyboard, press Space." : "")}</p>${!first ? `<p class="m3ctl">Practice run against CPU trucks. Your score still counts.</p>` : ""}</div>
       <div class="m3center${def.msgTop ? " hi" : ""}"><div class="m3big" id="m3c"></div><div class="m3msg" id="m3m" hidden></div></div>
       ${first ? `<div class="m3ready" id="m3r"><h3>Get ready</h3><div id="m3rl"></div><button class="btn go" id="m3rb">I'm ready${FINE ? " (Enter)" : ""}</button><button class="btn ghost" id="m3rs" hidden style="margin-top:8px">Start without the others</button></div>` : ""}
-      ${def.ctrl === "custom" ? def.ctlHTML() : def.ctrl === "stick" ? `<div class="m3pad" id="m3pad"><div class="knob" id="knob" hidden><i></i></div></div><button class="ram" id="ram"><i class="ramcd"></i><span>${def.ramLabel || "RAM"}</span></button>` : `${tapCtlHTML(mg.g, def)}`}`;
+      ${def.ctrl === "custom" ? def.ctlHTML() : def.ctrl === "stick" ? stickHTML(def, def.aim ? "Drive" : "") : `${tapCtlHTML(mg.g, def)}`}`;
 		wireControls(def);
 		const rb = $("#m3rb");
 		if (rb)
@@ -1346,6 +1373,13 @@ function wireLightPanel() {
 		});
 	});
 }
+/* stick controls: drive pad plus the RAM button, or (def.aim) a drive pad on the left and an aim pad on the right */
+function stickHTML(def, hint) {
+	const h = hint ? `<span class="tvchint">${hint}</span>` : "";
+	return def.aim
+		? `<div class="m3pad twin" id="m3pad">${h}<div class="knob" id="knob" hidden><i></i></div></div><div class="m3pad aim" id="m3aim">${hint ? `<span class="tvchint">${esc(def.aimHint || "Aim")}</span>` : ""}<div class="knob aim" id="knob2" hidden><i></i></div></div>`
+		: `<div class="m3pad" id="m3pad">${h}<div class="knob" id="knob" hidden><i></i></div></div><button class="ram" id="ram"><i class="ramcd"></i><span>${esc(def.ramLabel || "RAM")}</span></button>`;
+}
 function wireControls(def) {
 	wireLightPanel();
 	if (def.ctrl === "custom") {
@@ -1354,7 +1388,8 @@ function wireControls(def) {
 	}
 	if (def.ctrl === "stick") {
 		wireStick(() => W && W.inp);
-		{
+		if (def.aim) wireStick(() => W && W.inp, "#m3aim", "#knob2", "ax", "ay");
+		else {
 			const rb = $("#ram"),
 				up = () => {
 					if (W) W.inp.hold = false;
@@ -1379,9 +1414,9 @@ function wireTap(def) {
 		if (W && W.t >= 0 && !W.me.d && def.tap) def.tap(W, W.me);
 	});
 }
-function wireStick(get) {
-	const pad = $("#m3pad"),
-		knob = $("#knob");
+function wireStick(get, padSel = "#m3pad", knobSel = "#knob", kx = "x", ky = "y", onChange) {
+	const pad = $(padSel),
+		knob = $(knobSel);
 	let o = null,
 		pid = null;
 	const upd = (e) => {
@@ -1392,9 +1427,10 @@ function wireStick(get) {
 			s = l > 4 ? m / l : 0,
 			i = get();
 		if (i) {
-			i.x = dx * s;
-			i.y = dy * s;
+			i[kx] = dx * s;
+			i[ky] = dy * s;
 		}
+		if (onChange) onChange();
 		knob.firstChild.style.transform = `translate(${(dx / Math.max(1, l)) * Math.min(l, 50)}px,${(dy / Math.max(1, l)) * Math.min(l, 50)}px)`;
 	};
 	pad.addEventListener("pointerdown", (e) => {
@@ -1403,8 +1439,9 @@ function wireStick(get) {
 		o = [e.clientX, e.clientY];
 		pad.setPointerCapture(pid);
 		knob.hidden = false;
-		knob.style.left = e.clientX + "px";
-		knob.style.top = e.clientY - pad.getBoundingClientRect().top + "px";
+		const pr = pad.getBoundingClientRect();
+		knob.style.left = e.clientX - pr.left + "px";
+		knob.style.top = e.clientY - pr.top + "px";
 		upd(e);
 	});
 	pad.addEventListener("pointermove", (e) => {
@@ -1417,9 +1454,10 @@ function wireStick(get) {
 		knob.hidden = true;
 		const i = get();
 		if (i) {
-			i.x = 0;
-			i.y = 0;
+			i[kx] = 0;
+			i[ky] = 0;
 		}
+		if (onChange) onChange();
 	};
 	pad.addEventListener("pointerup", end);
 	pad.addEventListener("pointercancel", end);
@@ -1765,7 +1803,7 @@ function openTvMg(mg) {
 	rtJoin(mg.nonce);
 	start3D(mg, null, false, null);
 	box.innerHTML = `<div class="m3top"><span class="chip name">${esc(def.name)}</span><span class="chip" id="m3t"></span><span class="chip grow">📱 Play on your phones</span></div>
-    <div class="m3lb${def.lbTop ? " top" : ""}" id="m3lb"></div><div class="m3intro" id="m3in"><h3>${esc(def.name)}</h3><p>${esc(def.how)}</p><p class="m3ctl">Drag on your phone to drive. Tap ${esc(def.ramLabel || "RAM")} to ${def.ramLabel ? "use it" : "charge into someone"}.</p></div>
+    <div class="m3lb${def.lbTop ? " top" : ""}" id="m3lb"></div><div class="m3intro" id="m3in"><h3>${esc(def.name)}</h3><p>${esc(def.how)}</p><p class="m3ctl">${def.aim ? "Left side of your phone drives, right side aims." : `Drag on your phone to drive. Tap ${esc(def.ramLabel || "RAM")} to ${def.ramLabel ? "use it" : "charge into someone"}.`}</p></div>
     <div class="m3center${def.msgTop ? " hi" : ""}"><div class="m3big" id="m3c"></div><div class="m3msg" id="m3m" hidden></div></div>
     <div class="m3ready" id="m3r"><h3>Get ready</h3><div id="m3rl"></div><button class="btn ghost" id="m3rs" hidden style="margin-top:8px">Start without the others</button></div>`;
 	$("#m3rs").addEventListener("click", () => mgStartCountdown());
@@ -1822,6 +1860,8 @@ function tvRecv() {
 		}
 		i.x = x;
 		i.y = y;
+		i.ax = +r.ax || 0;
+		i.ay = +r.ay || 0;
 		i.hold = !!r.h;
 		if (e.lastB === undefined) e.lastB = r.b;
 		else if (r.b !== e.lastB) {
@@ -1923,10 +1963,11 @@ function openTvCtl(mg, p) {
 	box.innerHTML = `<div class="tvc${def.ctrl === "stick" ? " bare" : ""}" style="--c:${pcol(p)}"><div class="tvrot">🔄 Turn your phone sideways</div><div class="m3top"><span class="chip name">${esc(def.name)}</span><span class="chip" id="tvct">Waiting</span></div>
     <div class="tvcme"><img alt="" src="${thumb(p.truck)}"><div><b id="tvcs">0</b><small id="tvcr">${esc(p.name)}</small></div></div>
     <div class="tvcmsg" id="tvcm">📺 Watch the TV</div>
-    ${def.ctrl === "stick" ? `<div class="m3pad" id="m3pad"><span class="tvchint">Drag anywhere here to drive</span><div class="knob" id="knob" hidden><i></i></div></div><button class="ram" id="ram"><i class="ramcd"></i><span>${esc(def.ramLabel || "RAM")}</span></button>` : `<div class="tvcctl" id="tvcctl">${def.ctrl === "custom" ? def.ctlHTML() : tapCtlHTML(mg.g, def)}</div>`}
+    ${def.ctrl === "stick" ? stickHTML(def, def.aim ? "Drive" : "Drag anywhere here to drive") : `<div class="tvcctl" id="tvcctl">${def.ctrl === "custom" ? def.ctlHTML() : tapCtlHTML(mg.g, def)}</div>`}
     <div class="m3ready" id="m3r"><h3>${esc(def.name)}</h3><p style="font-size:14px;line-height:1.45;margin-bottom:10px">${esc(def.how)}</p><div id="m3rl"></div><button class="btn go" id="m3rb">I'm ready</button></div></div>`;
 	if (def.ctrl === "stick") {
 		wireStick(() => TVC && TVC.inp);
+		if (def.aim) wireStick(() => TVC && TVC.inp, "#m3aim", "#knob2", "ax", "ay", tvcTick);
 		const rb = $("#ram"),
 			up = () => {
 				if (TVC) {
@@ -1934,15 +1975,16 @@ function openTvCtl(mg, p) {
 					tvcTick();
 				}
 			};
-		rb.addEventListener("pointerdown", (e) => {
-			e.preventDefault();
-			if (TVC) {
-				TVC.b++;
-				TVC.inp.hold = true;
-				tvcTick();
-			}
-		});
-		["pointerup", "pointercancel", "pointerleave"].forEach((ev) => rb.addEventListener(ev, up));
+		if (rb)
+			rb.addEventListener("pointerdown", (e) => {
+				e.preventDefault();
+				if (TVC) {
+					TVC.b++;
+					TVC.inp.hold = true;
+					tvcTick();
+				}
+			});
+		if (rb) ["pointerup", "pointercancel", "pointerleave"].forEach((ev) => rb.addEventListener(ev, up));
 	} else {
 		const wrap = $("#tvcctl"),
 			downs = new Map(),
@@ -2014,13 +2056,23 @@ function tvcTick() {
 	if (!TVC || !G || !G.mg || G.mg.nonce !== TVC.mg.nonce) return;
 	const i = TVC.inp,
 		r = (v) => Math.round(v * 100) / 100,
-		key = [r(i.x), r(i.y), TVC.b, i.hold ? 1 : 0, TVC.seq].join(),
+		key = [r(i.x), r(i.y), r(i.ax || 0), r(i.ay || 0), TVC.b, i.hold ? 1 : 0, TVC.seq].join(),
 		now = performance.now();
 	if (RT && (key !== TVC.last || now - TVC.lastT > 600)) {
 		TVC.last = key;
 		TVC.lastT = now;
 		RT.presence({
-			rin: { n: TVC.mg.nonce, k: TVC.p.key, x: r(i.x), y: r(i.y), b: TVC.b, h: i.hold ? 1 : 0, ev: TVC.ev.slice() },
+			rin: {
+				n: TVC.mg.nonce,
+				k: TVC.p.key,
+				x: r(i.x),
+				y: r(i.y),
+				ax: r(i.ax || 0),
+				ay: r(i.ay || 0),
+				b: TVC.b,
+				h: i.hold ? 1 : 0,
+				ev: TVC.ev.slice(),
+			},
 		}).catch(() => {});
 	}
 	let st = null;

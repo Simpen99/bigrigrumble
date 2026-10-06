@@ -194,6 +194,11 @@ body.mglive .hudtop,body.mglive .hudbot,body.mglive #fx{display:none}
 .knob i{position:absolute;left:50%;top:50%;width:54px;height:54px;margin:-27px 0 0 -27px;border-radius:50%;background:rgba(255,255,255,.9);box-shadow:0 4px 12px rgba(0,0,0,.3)}
 .ram{position:absolute;right:18px;bottom:calc(env(safe-area-inset-bottom,0px) + 28px);width:100px;height:100px;border-radius:50%;border:0;background:radial-gradient(circle at 40% 35%,#ff8a8d,#E5484D);color:#fff;font-family:var(--display);font-size:20px;box-shadow:inset 0 -6px 0 rgba(0,0,0,.25),0 10px 24px rgba(0,0,0,.35);touch-action:manipulation;z-index:2}
 .ram.cd{opacity:.4}
+.m3pad.twin{right:50%}
+.m3pad.aim{left:50%;border-left:2px dashed rgba(255,255,255,.12)}
+.m3pad.twin .tvchint,.m3pad.aim .tvchint{top:auto;bottom:calc(env(safe-area-inset-bottom,0px) + 18px)}
+.knob.aim{border-color:rgba(143,211,255,.75)}
+.knob.aim i{background:rgba(143,211,255,.95)}
 .tapall{position:absolute;left:12px;right:12px;bottom:calc(env(safe-area-inset-bottom,0px) + 14px);height:21%;border-radius:26px;background:rgba(16,22,31,.28);color:#fff;font-family:var(--display);font-size:34px;border:2px solid rgba(255,255,255,.4);touch-action:manipulation}
 .tapall:active{background:rgba(255,200,61,.45)}
 #mg.res{background:rgba(8,20,14,.42);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);display:grid;place-items:center;padding:16px}
@@ -596,6 +601,8 @@ body.mglive #fxs,body.mgres #fxs{display:none}
 @media (orientation:landscape){
   .tvc .m3pad{left:0;right:auto;top:0;bottom:0;width:58%;height:100%!important;border-top:0;border-right:2px dashed rgba(255,255,255,.12)}
   .tvc .tvchint{top:46%}
+  .tvc .m3pad.twin{width:50%}
+  .tvc .m3pad.aim{left:50%;width:50%;border-right:0}
   .tvc .ram{left:calc(79% - 75px);right:auto;top:calc(50% - 75px);bottom:auto;width:150px;height:150px;font-size:26px!important}
   .tvc .tvcme{right:calc(56% + 8px);top:calc(env(safe-area-inset-top,0px) + 56px);padding:6px 12px 6px 6px}
   .tvc .tvcme img{width:70px;height:46px}.tvc .tvcme b{font-size:26px}
@@ -1702,7 +1709,11 @@ function chamferPrism(P, d, r, cs) {
 	});
 	return new THREE.ConvexGeometry(pts);
 }
-function buildTruck(i) {
+/* mode "hose" (Fire Brigade): leaves off the extras that would clash with the roof hose rig (ladder, drum, crane,
+   catwalk, loads, roll bars, roof ornaments), stops parts that swing over the roof, and sets userData.mount =
+   {x, y, s, host}: where the rig sits (truck coords, front at +x), its scale, and the group to add it to */
+function buildTruck(i, mode) {
+	const hose = mode === "hose";
 	const B = (w, h, d, c, x, y, z, o) => {
 		let sq = null;
 		if (o && o.sq) {
@@ -1738,7 +1749,8 @@ function buildTruck(i) {
 		roof = [],
 		ph = Math.random() * 10;
 	let tailX = null,
-		tailY = 0.5;
+		tailY = 0.5,
+		mount = null;
 	const add = (...m) => m.forEach((x) => g.add(x));
 	const grp = (x = 0, y = 0, z = 0, ...kids) => {
 		const q = new THREE.Group();
@@ -1800,6 +1812,7 @@ function buildTruck(i) {
 			cab(0.68);
 			beacon(0.68, 1.34, "#FFB000");
 			wheels([-0.72, 0.7]);
+			mount = { x: -0.34, y: 1.66, s: 0.95 };
 			break;
 		case "monster": {
 			wheels([-0.72, 0.72], 0.52, 0.64);
@@ -1823,10 +1836,14 @@ function buildTruck(i) {
 				B(0.03, 0.15, W * 0.5, "#1D2230", 1.04, 0.72 + dy, 0),
 				B(0.04, 0.1, 0.18, "#FFF6C2", 1.04, 0.76 + dy, 0.36, lamp),
 				B(0.04, 0.1, 0.18, "#FFF6C2", 1.04, 0.76 + dy, -0.36, lamp),
-				B(0.06, 0.5, 0.06, D, -0.34, 0.9 + dy, 0.46),
-				B(0.06, 0.5, 0.06, D, -0.34, 0.9 + dy, -0.46),
-				B(0.07, 0.07, W * 0.9, D, -0.34, 1.16 + dy, 0),
 			);
+			if (!hose)
+				body.add(
+					B(0.06, 0.5, 0.06, D, -0.34, 0.9 + dy, 0.46),
+					B(0.06, 0.5, 0.06, D, -0.34, 0.9 + dy, -0.46),
+					B(0.07, 0.07, W * 0.9, D, -0.34, 1.16 + dy, 0),
+				);
+			mount = { x: -0.72, y: 0.61 + dy, s: 0.7, host: body };
 			const bar = uniq(B(0.12, 0.09, 0.7, "#FFF6C2", 0.05, 1.18 + dy, 0, lamp));
 			body.add(bar);
 			tailX = -1.08;
@@ -1862,6 +1879,7 @@ function buildTruck(i) {
 			ch.position.y = 0.58;
 			const top = grp(-0.1, 1.95, 0, cn, sc, ch);
 			roof.push(top);
+			mount = { x: -0.25, y: 1.675, s: 0.95 };
 			anims.push((tm) => {
 				top.rotation.y = tm * 1.4;
 				top.position.y = 1.95 + Math.sin(tm * 2.4) * 0.06;
@@ -1873,20 +1891,20 @@ function buildTruck(i) {
 		case "fire": {
 			chassis(2.2, -0.05);
 			add(B(1.45, 0.85, W, c, -0.38, 0.95, 0, NY), B(1.47, 0.12, W + 0.06, a, -0.38, 0.8, 0));
-			const lad = grp(
-				-0.8,
-				1.5,
-				0,
-				B(1.6, 0.06, 0.06, "#CFD4DC", 0.72, 0, 0.26),
-				B(1.6, 0.06, 0.06, "#CFD4DC", 0.72, 0, -0.26),
-			);
-			for (let k = 0; k < 7; k++) lad.add(B(0.05, 0.05, 0.52, "#CFD4DC", k * 0.24, 0, 0));
-			add(
-				Cy(0.2, 0.23, 0.08, 10, "#8E96A3", -0.8, 1.415, 0),
-				B(0.12, 0.12, 0.08, "#8E96A3", -0.8, 1.46, 0.26),
-				B(0.12, 0.12, 0.08, "#8E96A3", -0.8, 1.46, -0.26),
-				B(0.07, 0.09, 0.6, "#5A6272", 0.3, 1.42, 0),
-			);
+			const lad = new THREE.Group();
+			if (!hose) {
+				lad.position.set(-0.8, 1.5, 0);
+				lad.add(B(1.6, 0.06, 0.06, "#CFD4DC", 0.72, 0, 0.26), B(1.6, 0.06, 0.06, "#CFD4DC", 0.72, 0, -0.26));
+				for (let k = 0; k < 7; k++) lad.add(B(0.05, 0.05, 0.52, "#CFD4DC", k * 0.24, 0, 0));
+				g.add(lad);
+				add(
+					Cy(0.2, 0.23, 0.08, 10, "#8E96A3", -0.8, 1.415, 0),
+					B(0.12, 0.12, 0.08, "#8E96A3", -0.8, 1.46, 0.26),
+					B(0.12, 0.12, 0.08, "#8E96A3", -0.8, 1.46, -0.26),
+					B(0.07, 0.09, 0.6, "#5A6272", 0.3, 1.42, 0),
+				);
+			}
+			mount = { x: -0.42, y: 1.375, s: 0.95 };
 			cab(0.72, 0.62, 0.85);
 			const L1 = uniq(B(0.14, 0.1, 0.3, "#3D7BFF", 0.72, 1.42, 0.18, { emissive: "#3D7BFF", emissiveIntensity: 0.8 })),
 				L2 = uniq(B(0.14, 0.1, 0.3, "#FF3B3B", 0.72, 1.42, -0.18, { emissive: "#FF3B3B", emissiveIntensity: 0.8 }));
@@ -1914,7 +1932,8 @@ function buildTruck(i) {
 			dg.add(B(0.08, 1.1, 0.12, c, 0.5, 0, 0));
 			dg.rotation.z = Math.PI / 2 - 0.2;
 			dg.position.set(-0.38, 1.12, 0);
-			g.add(dg);
+			if (!hose) g.add(dg);
+			mount = { x: -0.4, y: 0.9, s: 1.0 };
 			const chute = grp(-1.05, 0.8, 0, B(0.4, 0.08, 0.2, "#8E96A3", -0.15, 0, 0));
 			chute.rotation.z = 0.5;
 			add(B(0.2, 0.4, 0.5, D, -0.9, 0.7, 0), B(0.2, 0.4, 0.5, D, 0.1, 0.7, 0));
@@ -1931,15 +1950,17 @@ function buildTruck(i) {
 			const bed = new THREE.Group();
 			bed.position.set(-1.0, 0.6, 0);
 			const bb = B(1.35, 0.75, W, c, 0.66, 0.38, 0);
-			bb.rotation.z = -0.06;
+			bb.rotation.z = hose ? 0 : -0.06;
 			bed.add(bb);
 			[-0.8, -0.34, 0.12].forEach((x) => bed.add(B(0.06, 0.78, W + 0.04, a, x + 1.0, 0.38, 0)));
-			bed.add(B(0.3, 0.25, 0.9, "#8C5A3C", 0.5, 0.85, 0), B(0.25, 0.2, 0.5, "#6F7682", 0.95, 0.82, 0.15));
+			if (!hose) bed.add(B(0.3, 0.25, 0.9, "#8C5A3C", 0.5, 0.85, 0), B(0.25, 0.2, 0.5, "#6F7682", 0.95, 0.82, 0.15));
+			mount = { x: -0.34, y: 1.37, s: 0.95 };
 			g.add(bed);
 			const ram = B(0.1, 0.5, 0.1, "#8E96A3", -0.1, 0.6, 0);
 			add(ram);
 			cab(0.72);
 			anims.push((tm) => {
+				if (hose) return;
 				const u = Math.max(0, Math.sin(tm * 0.7));
 				const e = u * u;
 				bed.rotation.z = e * 0.6;
@@ -1990,33 +2011,35 @@ function buildTruck(i) {
 				}),
 			);
 			wheels([-0.62, 0.62], 0.32);
+			mount = { x: -0.72, y: 0.61, s: 0.7 };
 			break;
 		}
 		case "tow": {
 			chassis();
 			add(B(1.3, 0.12, W, c, -0.36, 0.6, 0));
-			add(
-				Cy(0.26, 0.3, 0.1, 10, "#5A6272", -0.05, 0.72, 0),
-				B(0.36, 0.22, 0.48, D, -0.05, 0.9, 0),
-				B(0.07, 0.54, 0.07, "#8E96A3", -0.6, 0.95, 0.09),
-				B(0.07, 0.54, 0.07, "#8E96A3", -0.6, 0.95, -0.09),
-			);
-			{
+			const hook = new THREE.Group();
+			if (!hose) {
+				add(
+					Cy(0.26, 0.3, 0.1, 10, "#5A6272", -0.05, 0.72, 0),
+					B(0.36, 0.22, 0.48, D, -0.05, 0.9, 0),
+					B(0.07, 0.54, 0.07, "#8E96A3", -0.6, 0.95, 0.09),
+					B(0.07, 0.54, 0.07, "#8E96A3", -0.6, 0.95, -0.09),
+				);
 				const pin = Cy(0.065, 0.065, 0.58, 8, "#8E96A3", -0.05, 1.02, 0);
 				pin.rotation.x = Math.PI / 2;
 				add(pin);
+				const bm = B(1.2, 0.14, 0.14, a, -0.56, 1.21, 0);
+				bm.rotation.z = -0.55;
+				add(bm);
+				hook.position.set(-1.07, 1.52, 0);
+				hook.add(
+					B(0.03, 0.4, 0.03, D, 0, -0.2, 0),
+					B(0.14, 0.08, 0.08, "#888E99", 0, -0.4, 0),
+					B(0.05, 0.12, 0.05, "#888E99", 0.06, -0.47, 0),
+				);
+				g.add(hook);
 			}
-			const bm = B(1.2, 0.14, 0.14, a, -0.56, 1.21, 0);
-			bm.rotation.z = -0.55;
-			add(bm);
-			const hook = grp(
-				-1.07,
-				1.52,
-				0,
-				B(0.03, 0.4, 0.03, D, 0, -0.2, 0),
-				B(0.14, 0.08, 0.08, "#888E99", 0, -0.4, 0),
-				B(0.05, 0.12, 0.05, "#888E99", 0.06, -0.47, 0),
-			);
+			mount = { x: -0.4, y: 0.66, s: 0.95 };
 			cab(0.72);
 			beacon(0.72, 1.34, "#FFB000", 9);
 			anims.push((tm) => {
@@ -2027,6 +2050,7 @@ function buildTruck(i) {
 			break;
 		}
 		case "garbage": {
+			mount = { x: -0.32, y: 1.565, s: 0.95 };
 			chassis(2.3, -0.1);
 			add(B(1.25, 1.05, W, c, -0.3, 1.04, 0, NY), B(0.8, 0.4, W + 0.06, a, -0.3, 1.05, 0));
 			cab(0.72);
@@ -2101,11 +2125,19 @@ function buildTruck(i) {
 				b.rotation.z = Math.PI / 2;
 				add(b);
 			});
-			add(Cy(0.12, 0.12, 0.14, 8, "#AAB3C0", -0.35, 1.55, 0), B(1.3, 0.04, 0.04, "#8E96A3", -0.35, 1.56, 0.3));
-			[-0.94, -0.55, -0.15, 0.24].forEach((x) => add(B(0.03, 0.17, 0.03, "#8E96A3", x, 1.475, 0.3)));
-			const lid = grp(-0.47, 1.63, 0, Cy(0.14, 0.14, 0.04, 8, "#8E96A3", 0.12, 0, 0));
-			const drop = uniq(mesh(new THREE.IcosahedronGeometry(0.07, 0), "#4FB3E8", { transparent: true, opacity: 0.9 }));
-			add(drop);
+			const lid = new THREE.Group(),
+				drop = uniq(mesh(new THREE.IcosahedronGeometry(0.07, 0), "#4FB3E8", { transparent: true, opacity: 0.9 }));
+			if (hose) {
+				add(B(1.1, 0.26, 0.7, D, -0.35, 1.43, 0));
+				mount = { x: -0.35, y: 1.56, s: 0.95 };
+			} else {
+				add(Cy(0.12, 0.12, 0.14, 8, "#AAB3C0", -0.35, 1.55, 0), B(1.3, 0.04, 0.04, "#8E96A3", -0.35, 1.56, 0.3));
+				[-0.94, -0.55, -0.15, 0.24].forEach((x) => add(B(0.03, 0.17, 0.03, "#8E96A3", x, 1.475, 0.3)));
+				lid.position.set(-0.47, 1.63, 0);
+				lid.add(Cy(0.14, 0.14, 0.04, 8, "#8E96A3", 0.12, 0, 0));
+				g.add(lid);
+				add(drop);
+			}
 			cab(0.72, 0.62, 0.82, a);
 			anims.push((tm) => {
 				const u = Math.max(0, Math.sin(tm * 1.1));
@@ -2171,9 +2203,10 @@ function buildTruck(i) {
 				const v = (tm * 0.5) % 1;
 				env.position.set(-0.4 - v * 0.3, 1.6 + v * 1.2, 0);
 				env.rotation.set(v * 3, v * 5, v * 2);
-				env.visible = v < 0.85;
+				env.visible = v < 0.85 && !hose;
 			});
 			wheels([-0.7, 0.62]);
+			mount = { x: -0.32, y: 1.545, s: 0.95 };
 			break;
 		}
 		case "food": {
@@ -2197,6 +2230,7 @@ function buildTruck(i) {
 			});
 			tc.rotation.set(Math.PI / 2, 0, -Math.PI / 2, "ZYX");
 			tc.position.y = 0.34;
+			mount = { x: -0.25, y: 1.63, s: 0.95 };
 			const tg = grp(
 				-0.1,
 				1.66,
@@ -2235,6 +2269,10 @@ function buildTruck(i) {
 	g.userData.wheels = wheelsL;
 	g.userData.ph = ph;
 	g.userData.roof = roof; // roof ornaments a minigame can take off
+	if (hose) {
+		roof.forEach((o) => o.parent && o.parent.remove(o));
+		g.userData.mount = mount;
+	}
 	return g;
 }
 function animTruck(tr, dt, speed = 0) {
@@ -7002,9 +7040,10 @@ function initCamInput() {
 /* ---------- keyboard (PC): WASD / arrows ---------- */
 const KEYS = new Set(),
 	FINE = typeof matchMedia === "function" && matchMedia("(pointer: fine)").matches;
-function kbAxis() {
-	const x = (KEYS.has("d") || KEYS.has("arrowright") ? 1 : 0) - (KEYS.has("a") || KEYS.has("arrowleft") ? 1 : 0),
-		y = (KEYS.has("s") || KEYS.has("arrowdown") ? 1 : 0) - (KEYS.has("w") || KEYS.has("arrowup") ? 1 : 0);
+function kbAxis(only) {
+	const k = (c, ar) => (only !== "arrows" && KEYS.has(c)) || (only !== "wasd" && KEYS.has(ar)),
+		x = (k("d", "arrowright") ? 1 : 0) - (k("a", "arrowleft") ? 1 : 0),
+		y = (k("s", "arrowdown") ? 1 : 0) - (k("w", "arrowup") ? 1 : 0);
 	return { x, y };
 }
 addEventListener("keydown", (e) => {
@@ -10912,9 +10951,9 @@ function mgEnv(s, water, lane, bare, night, storm, dusk) {
 	}
 	return sun;
 }
-function mkEnt(p, isMe, named) {
+function mkEnt(p, isMe, named, mode) {
 	const g = new THREE.Group(),
-		tr = buildTruck(p.truck);
+		tr = buildTruck(p.truck, mode);
 	tr.scale.setScalar(0.8);
 	g.add(tr);
 	const disc = Cy(0.95, 0.95, 0.05, 20, pcol(p), 0, 0.03, 0, { transparent: true, opacity: 0.4, depthWrite: false });
@@ -10973,7 +11012,7 @@ function arenaPhys(W, e, inp, dt) {
 	if (e.al && !e.d && inp) {
 		e.vx += inp.x * 32 * dt;
 		e.vz += inp.y * 32 * dt;
-		if (inp.boost && e.bcd <= 0) {
+		if (inp.boost && e.bcd <= 0 && !def.aim) {
 			let dx = inp.x,
 				dz = inp.y,
 				l = Math.hypot(dx, dz);
@@ -11224,7 +11263,7 @@ function camFov(f) {
 function start3D(mg, p, localOnly, startAt, split) {
 	const def = MG[mg.g],
 		s = new THREE.Scene();
-	["ao", "bloom", "tilt", "vig", "col"].forEach((k) => {
+	["ao", "bloom", "tilt", "vig", "col", "aa"].forEach((k) => {
 		const v = def.fx && def.fx[k];
 		GFX.fx[k].on = !!v;
 		if (v) {
@@ -11296,9 +11335,24 @@ function start3D(mg, p, localOnly, startAt, split) {
 	);
 	camFov(40);
 	def.build(W);
+	/* baked light panel values: def.lt = {amb, sun, warm, haze} (the panel's "Copy" line), applied over the scene's own */
+	if (def.lt) {
+		const L = def.lt,
+			h = s.children.find((o) => o.isHemisphereLight);
+		if (h && L.amb !== undefined) h.intensity = L.amb;
+		if (L.sun !== undefined) W.sun.intensity = L.sun;
+		if (L.warm !== undefined) {
+			W.sun.color.set("#E4EEFF").lerp(new THREE.Color("#FFC27A"), L.warm);
+			W.lpWarm = L.warm;
+		}
+		if (L.haze && s.fog) {
+			s.fog.near = L.haze;
+			s.fog.far = L.haze * 3.8;
+		}
+	}
 	const n = plist.length;
 	plist.forEach((q, i) => {
-		const e = mkEnt(q, !tv && q.key === p.key, !!split);
+		const e = mkEnt(q, !tv && q.key === p.key, !!split, def.truckMode);
 		e.i = i;
 		if (tv && !q.bot) {
 			e.isMe = true;
@@ -11364,7 +11418,19 @@ function stepMG(dt) {
 	const def = W.def;
 	W.t = W.startAt ? ((W.paused || Date.now()) - W.startAt) / 1000 : -99;
 	if (def.ctrl === "stick" && !W.split) {
-		const ax = kbAxis();
+		if (def.aim) {
+			const am = kbAxis("arrows");
+			if (am.x || am.y) {
+				const l = Math.hypot(am.x, am.y);
+				W.inp.ax = am.x / l;
+				W.inp.ay = am.y / l;
+				W.kbA = true;
+			} else if (W.kbA) {
+				W.inp.ax = W.inp.ay = 0;
+				W.kbA = false;
+			}
+		}
+		const ax = kbAxis(def.aim ? "wasd" : "");
 		if (ax.x || ax.y) {
 			const l = Math.hypot(ax.x, ax.y);
 			W.inp.x = ax.x / l;
@@ -11642,7 +11708,7 @@ function openMg(mg, p) {
       <div class="m3lb${def.lbTop ? " top" : ""}" id="m3lb"></div><div class="m3intro" id="m3in"><h3>${esc(def.name)}</h3><p>${esc(def.how)}</p><p class="m3ctl">${def.ctrl === "stick" ? (def.stickHint ? def.stickHint(FINE) : FINE ? "WASD or arrow keys to drive, Space to ram." : "Drag anywhere to drive. Tap RAM to charge.") : esc(def.tapHint || "Tap the big button.") + (FINE ? " On a keyboard, press Space." : "")}</p>${!first ? `<p class="m3ctl">Practice run against CPU trucks. Your score still counts.</p>` : ""}</div>
       <div class="m3center${def.msgTop ? " hi" : ""}"><div class="m3big" id="m3c"></div><div class="m3msg" id="m3m" hidden></div></div>
       ${first ? `<div class="m3ready" id="m3r"><h3>Get ready</h3><div id="m3rl"></div><button class="btn go" id="m3rb">I'm ready${FINE ? " (Enter)" : ""}</button><button class="btn ghost" id="m3rs" hidden style="margin-top:8px">Start without the others</button></div>` : ""}
-      ${def.ctrl === "custom" ? def.ctlHTML() : def.ctrl === "stick" ? `<div class="m3pad" id="m3pad"><div class="knob" id="knob" hidden><i></i></div></div><button class="ram" id="ram"><i class="ramcd"></i><span>${def.ramLabel || "RAM"}</span></button>` : `${tapCtlHTML(mg.g, def)}`}`;
+      ${def.ctrl === "custom" ? def.ctlHTML() : def.ctrl === "stick" ? stickHTML(def, def.aim ? "Drive" : "") : `${tapCtlHTML(mg.g, def)}`}`;
 		wireControls(def);
 		const rb = $("#m3rb");
 		if (rb)
@@ -12139,6 +12205,13 @@ function wireLightPanel() {
 		});
 	});
 }
+/* stick controls: drive pad plus the RAM button, or (def.aim) a drive pad on the left and an aim pad on the right */
+function stickHTML(def, hint) {
+	const h = hint ? `<span class="tvchint">${hint}</span>` : "";
+	return def.aim
+		? `<div class="m3pad twin" id="m3pad">${h}<div class="knob" id="knob" hidden><i></i></div></div><div class="m3pad aim" id="m3aim">${hint ? `<span class="tvchint">${esc(def.aimHint || "Aim")}</span>` : ""}<div class="knob aim" id="knob2" hidden><i></i></div></div>`
+		: `<div class="m3pad" id="m3pad">${h}<div class="knob" id="knob" hidden><i></i></div></div><button class="ram" id="ram"><i class="ramcd"></i><span>${esc(def.ramLabel || "RAM")}</span></button>`;
+}
 function wireControls(def) {
 	wireLightPanel();
 	if (def.ctrl === "custom") {
@@ -12147,7 +12220,8 @@ function wireControls(def) {
 	}
 	if (def.ctrl === "stick") {
 		wireStick(() => W && W.inp);
-		{
+		if (def.aim) wireStick(() => W && W.inp, "#m3aim", "#knob2", "ax", "ay");
+		else {
 			const rb = $("#ram"),
 				up = () => {
 					if (W) W.inp.hold = false;
@@ -12172,9 +12246,9 @@ function wireTap(def) {
 		if (W && W.t >= 0 && !W.me.d && def.tap) def.tap(W, W.me);
 	});
 }
-function wireStick(get) {
-	const pad = $("#m3pad"),
-		knob = $("#knob");
+function wireStick(get, padSel = "#m3pad", knobSel = "#knob", kx = "x", ky = "y", onChange) {
+	const pad = $(padSel),
+		knob = $(knobSel);
 	let o = null,
 		pid = null;
 	const upd = (e) => {
@@ -12185,9 +12259,10 @@ function wireStick(get) {
 			s = l > 4 ? m / l : 0,
 			i = get();
 		if (i) {
-			i.x = dx * s;
-			i.y = dy * s;
+			i[kx] = dx * s;
+			i[ky] = dy * s;
 		}
+		if (onChange) onChange();
 		knob.firstChild.style.transform = `translate(${(dx / Math.max(1, l)) * Math.min(l, 50)}px,${(dy / Math.max(1, l)) * Math.min(l, 50)}px)`;
 	};
 	pad.addEventListener("pointerdown", (e) => {
@@ -12196,8 +12271,9 @@ function wireStick(get) {
 		o = [e.clientX, e.clientY];
 		pad.setPointerCapture(pid);
 		knob.hidden = false;
-		knob.style.left = e.clientX + "px";
-		knob.style.top = e.clientY - pad.getBoundingClientRect().top + "px";
+		const pr = pad.getBoundingClientRect();
+		knob.style.left = e.clientX - pr.left + "px";
+		knob.style.top = e.clientY - pr.top + "px";
 		upd(e);
 	});
 	pad.addEventListener("pointermove", (e) => {
@@ -12210,9 +12286,10 @@ function wireStick(get) {
 		knob.hidden = true;
 		const i = get();
 		if (i) {
-			i.x = 0;
-			i.y = 0;
+			i[kx] = 0;
+			i[ky] = 0;
 		}
+		if (onChange) onChange();
 	};
 	pad.addEventListener("pointerup", end);
 	pad.addEventListener("pointercancel", end);
@@ -12558,7 +12635,7 @@ function openTvMg(mg) {
 	rtJoin(mg.nonce);
 	start3D(mg, null, false, null);
 	box.innerHTML = `<div class="m3top"><span class="chip name">${esc(def.name)}</span><span class="chip" id="m3t"></span><span class="chip grow">📱 Play on your phones</span></div>
-    <div class="m3lb${def.lbTop ? " top" : ""}" id="m3lb"></div><div class="m3intro" id="m3in"><h3>${esc(def.name)}</h3><p>${esc(def.how)}</p><p class="m3ctl">Drag on your phone to drive. Tap ${esc(def.ramLabel || "RAM")} to ${def.ramLabel ? "use it" : "charge into someone"}.</p></div>
+    <div class="m3lb${def.lbTop ? " top" : ""}" id="m3lb"></div><div class="m3intro" id="m3in"><h3>${esc(def.name)}</h3><p>${esc(def.how)}</p><p class="m3ctl">${def.aim ? "Left side of your phone drives, right side aims." : `Drag on your phone to drive. Tap ${esc(def.ramLabel || "RAM")} to ${def.ramLabel ? "use it" : "charge into someone"}.`}</p></div>
     <div class="m3center${def.msgTop ? " hi" : ""}"><div class="m3big" id="m3c"></div><div class="m3msg" id="m3m" hidden></div></div>
     <div class="m3ready" id="m3r"><h3>Get ready</h3><div id="m3rl"></div><button class="btn ghost" id="m3rs" hidden style="margin-top:8px">Start without the others</button></div>`;
 	$("#m3rs").addEventListener("click", () => mgStartCountdown());
@@ -12615,6 +12692,8 @@ function tvRecv() {
 		}
 		i.x = x;
 		i.y = y;
+		i.ax = +r.ax || 0;
+		i.ay = +r.ay || 0;
 		i.hold = !!r.h;
 		if (e.lastB === undefined) e.lastB = r.b;
 		else if (r.b !== e.lastB) {
@@ -12716,10 +12795,11 @@ function openTvCtl(mg, p) {
 	box.innerHTML = `<div class="tvc${def.ctrl === "stick" ? " bare" : ""}" style="--c:${pcol(p)}"><div class="tvrot">🔄 Turn your phone sideways</div><div class="m3top"><span class="chip name">${esc(def.name)}</span><span class="chip" id="tvct">Waiting</span></div>
     <div class="tvcme"><img alt="" src="${thumb(p.truck)}"><div><b id="tvcs">0</b><small id="tvcr">${esc(p.name)}</small></div></div>
     <div class="tvcmsg" id="tvcm">📺 Watch the TV</div>
-    ${def.ctrl === "stick" ? `<div class="m3pad" id="m3pad"><span class="tvchint">Drag anywhere here to drive</span><div class="knob" id="knob" hidden><i></i></div></div><button class="ram" id="ram"><i class="ramcd"></i><span>${esc(def.ramLabel || "RAM")}</span></button>` : `<div class="tvcctl" id="tvcctl">${def.ctrl === "custom" ? def.ctlHTML() : tapCtlHTML(mg.g, def)}</div>`}
+    ${def.ctrl === "stick" ? stickHTML(def, def.aim ? "Drive" : "Drag anywhere here to drive") : `<div class="tvcctl" id="tvcctl">${def.ctrl === "custom" ? def.ctlHTML() : tapCtlHTML(mg.g, def)}</div>`}
     <div class="m3ready" id="m3r"><h3>${esc(def.name)}</h3><p style="font-size:14px;line-height:1.45;margin-bottom:10px">${esc(def.how)}</p><div id="m3rl"></div><button class="btn go" id="m3rb">I'm ready</button></div></div>`;
 	if (def.ctrl === "stick") {
 		wireStick(() => TVC && TVC.inp);
+		if (def.aim) wireStick(() => TVC && TVC.inp, "#m3aim", "#knob2", "ax", "ay", tvcTick);
 		const rb = $("#ram"),
 			up = () => {
 				if (TVC) {
@@ -12727,15 +12807,16 @@ function openTvCtl(mg, p) {
 					tvcTick();
 				}
 			};
-		rb.addEventListener("pointerdown", (e) => {
-			e.preventDefault();
-			if (TVC) {
-				TVC.b++;
-				TVC.inp.hold = true;
-				tvcTick();
-			}
-		});
-		["pointerup", "pointercancel", "pointerleave"].forEach((ev) => rb.addEventListener(ev, up));
+		if (rb)
+			rb.addEventListener("pointerdown", (e) => {
+				e.preventDefault();
+				if (TVC) {
+					TVC.b++;
+					TVC.inp.hold = true;
+					tvcTick();
+				}
+			});
+		if (rb) ["pointerup", "pointercancel", "pointerleave"].forEach((ev) => rb.addEventListener(ev, up));
 	} else {
 		const wrap = $("#tvcctl"),
 			downs = new Map(),
@@ -12807,13 +12888,23 @@ function tvcTick() {
 	if (!TVC || !G || !G.mg || G.mg.nonce !== TVC.mg.nonce) return;
 	const i = TVC.inp,
 		r = (v) => Math.round(v * 100) / 100,
-		key = [r(i.x), r(i.y), TVC.b, i.hold ? 1 : 0, TVC.seq].join(),
+		key = [r(i.x), r(i.y), r(i.ax || 0), r(i.ay || 0), TVC.b, i.hold ? 1 : 0, TVC.seq].join(),
 		now = performance.now();
 	if (RT && (key !== TVC.last || now - TVC.lastT > 600)) {
 		TVC.last = key;
 		TVC.lastT = now;
 		RT.presence({
-			rin: { n: TVC.mg.nonce, k: TVC.p.key, x: r(i.x), y: r(i.y), b: TVC.b, h: i.hold ? 1 : 0, ev: TVC.ev.slice() },
+			rin: {
+				n: TVC.mg.nonce,
+				k: TVC.p.key,
+				x: r(i.x),
+				y: r(i.y),
+				ax: r(i.ax || 0),
+				ay: r(i.ay || 0),
+				b: TVC.b,
+				h: i.hold ? 1 : 0,
+				ev: TVC.ev.slice(),
+			},
 		}).catch(() => {});
 	}
 	let st = null;
@@ -14373,9 +14464,21 @@ const MG = {
 		bound: { t: "circ", r: 14.4 },
 		water: false,
 		bare: true,
+		/* light panel: ambient 0.54, sun 1.10, height 30, angle 41°, warmth 0.50, haze 50, smooth edges */
+		sun: [13.9, 30, 12.1],
+		lt: { amb: 0.54, sun: 1.1, warm: 0.5, haze: 50 },
+		fx: { aa: 1 },
+		/* twin sticks: drive on the left, aim the roof water cannon on the right (no ramming) */
+		aim: true,
+		truckMode: "hose",
+		aimHint: "Aim the hose",
+		stickHint: (fine) =>
+			fine
+				? "WASD to drive, arrow keys to aim and spray the hose."
+				: "Left side drives. Drag on the right side to aim and spray the hose.",
 		NEED: 2,
-		RANGE: 3.2,
-		how: "Park next to a fire to hose it out. Refill at hydrants. Most fires wins.",
+		HOSE: 6,
+		how: "Aim your roof hose at the fires to put them out (it reaches about 6 m). Refill the tank at the hydrants. Most fires wins.",
 		HYD: [
 			[0, -12.7],
 			[11, 6.35],
@@ -14399,7 +14502,7 @@ const MG = {
 				} while (
 					n++ < 20 &&
 					(this.HYD.some((h) => Math.hypot(h[0] - x, h[1] - z) < 3.5) ||
-						W.fires.some((f) => f.t > t - 12 && Math.hypot(f.x - x, f.z - z) < 4))
+						W.fires.some((f) => f.t > t - 27 && Math.hypot(f.x - x, f.z - z) < 4))
 				);
 				W.fires.push({ id: W.fires.length + 1, t, x, z, kind: Math.floor(W.rng() * 3) });
 				t += 1.4 + W.rng() * 1.6;
@@ -14413,41 +14516,180 @@ const MG = {
 				f.g = g;
 				/* what is burning: garden shed, news kiosk or a parked car (detailed baked models with a contact shadow) */
 				const ck = f.kind === 2 ? 2 + (f.id % 3) : f.kind,
-					kit = kits[ck] || (kits[ck] = bakeKit(firePropModel(f.kind, ["#8E96A3", "#6FA8D6", "#C9A27A"][f.id % 3]))),
-					fy = [1.95, 2.05, 1.3][f.kind];
+					kit = kits[ck] || (kits[ck] = bakeKit(firePropModel(f.kind, ["#8E96A3", "#6FA8D6", "#C9A27A"][f.id % 3])));
 				g.add(kitGroup(kit));
 				g.rotation.y = (f.id * 2.4) % 6.28;
-				const fl = [];
-				for (let k = 0; k < 3; k++) {
-					const m = new THREE.Mesh(
-						new THREE.ConeGeometry(0.45 - k * 0.08, 1.3 - k * 0.2, 7),
-						new THREE.MeshStandardMaterial({
-							color: ["#FF8A1F", "#FFC83D", "#E5484D"][k],
-							emissive: ["#FF6A00", "#FFB000", "#D42A22"][k],
-							emissiveIntensity: 1,
-						}),
-					);
-					m.position.set((k - 1) * 0.45, fy, (k % 2) * 0.3 - 0.15);
-					g.add(m);
-					fl.push(m);
-				}
-				f.fl = fl;
-				const ring = decal(
-					s,
-					new THREE.RingGeometry(this.RANGE - 0.15, this.RANGE, 32),
-					"#FF8A1F",
-					f.x,
-					0.03,
-					f.z,
-					0.5,
-				);
-				ring.visible = false;
-				f.ring = ring;
-				const gl = decal(s, new THREE.CircleGeometry(2, 20), "#FF8A1F", f.x, 0.035, f.z, 0.4);
-				gl.visible = false;
-				f.glow = gl;
+				/* where flames come out of this prop (roof, window, hatch, bonnet), in world space */
+				g.updateMatrixWorld(true);
+				f.em = this.FLAME_AT[f.kind].map((p) => new THREE.Vector3(...p).applyMatrix4(g.matrixWorld));
 			});
+			/* one instanced pool of flame tongues for every fire (colour per instance, fading yellow to red) */
+			const fp = [
+					[0, 0],
+					[0.16, 0.08],
+					[0.22, 0.25],
+					[0.17, 0.48],
+					[0.09, 0.7],
+					[0, 0.9],
+				].map(([x, y]) => new THREE.Vector2(x, y)),
+				fm = new THREE.InstancedMesh(
+					new THREE.LatheGeometry(fp, 6),
+					new THREE.MeshBasicMaterial({ color: "#FFFFFF" }),
+					400,
+				);
+			fm.count = 0;
+			fm.frustumCulled = false;
+			fm.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(400 * 3), 3);
+			s.add(fm);
+			W.flame = { im: fm, L: [], o: new THREE.Object3D(), c: new THREE.Color() };
 			W.smoke = puffs(W, "#5A6272");
+			W.steam = puffs(W, "#F4F6F9");
+			/* one instanced pool for every water droplet (hose streams and hydrant refills) */
+			const dm = new THREE.InstancedMesh(
+				new THREE.IcosahedronGeometry(0.075, 0),
+				new THREE.MeshStandardMaterial({
+					color: "#A8DCFF",
+					emissive: "#3A8FD0",
+					emissiveIntensity: 0.4,
+					roughness: 0.2,
+				}),
+				700,
+			);
+			dm.count = 0;
+			dm.frustumCulled = false;
+			s.add(dm);
+			W.drop = { im: dm, L: [], o: new THREE.Object3D() };
+		},
+		/* flame emitters per burning prop (local coords before its turn): shed roof + side window, kiosk roof + hatch,
+		   car cabin + bonnet */
+		FLAME_AT: [
+			[
+				[-0.5, 1.3, 0],
+				[0, 1.48, 0],
+				[0.5, 1.3, 0],
+				[0.84, 0.66, 0],
+			],
+			[
+				[-0.32, 1.5, -0.28],
+				[0.3, 1.5, 0.22],
+				[0, 1.55, -0.05],
+				[0, 1.0, 0.64],
+			],
+			[
+				[0, 0.88, -0.15],
+				[0, 0.86, 0.42],
+				[0, 0.66, -0.9],
+			],
+		],
+		FLAME_COL: ["#FFF2A8", "#FFC83D", "#FF8A1F", "#E5484D", "#7A2A22"].map((c) => new THREE.Color(c)),
+		/* spawn flame tongues for every burning fire (fewer and smaller as it is hosed: f.k), then move, swell, shrink
+		   and recolour all of them; about one in eight is a spark */
+		stepFlames(W, dt) {
+			const F = W.flame,
+				C = this.FLAME_COL;
+			W.fires.forEach((f) => {
+				if (!f.on) return;
+				f.fa = (f.fa || 0) + dt * 30 * f.k;
+				while (f.fa >= 1 && F.L.length < 400) {
+					f.fa--;
+					const p = f.em[Math.floor(Math.random() * f.em.length)],
+						sp = Math.random() < 0.12;
+					F.L.push({
+						x: p.x + (Math.random() - 0.5) * 0.45,
+						y: p.y,
+						z: p.z + (Math.random() - 0.5) * 0.45,
+						vx: (Math.random() - 0.5) * (sp ? 1.2 : 0.4),
+						vy: sp ? 2.6 + Math.random() : 1.2 + Math.random() * 0.8,
+						vz: (Math.random() - 0.5) * (sp ? 1.2 : 0.4),
+						life: sp ? 0.9 : 0.5 + Math.random() * 0.35,
+						s: sp ? 0.16 : (0.7 + Math.random() * 0.55) * (0.5 + f.k * 0.5),
+						ry: Math.random() * 6.28,
+						sp,
+						t: 0,
+						ph: Math.random() * 6.28,
+					});
+				}
+			});
+			const o = F.o,
+				c = F.c;
+			let n = 0;
+			for (let i = F.L.length - 1; i >= 0; i--) {
+				const p = F.L[i];
+				p.t += dt;
+				if (p.t > p.life) {
+					F.L.splice(i, 1);
+					continue;
+				}
+				p.x += (p.vx + Math.sin(p.t * 9 + p.ph) * 0.3) * dt;
+				p.y += p.vy * dt;
+				p.z += p.vz * dt;
+			}
+			F.L.forEach((p) => {
+				const k = p.t / p.life,
+					sc = p.s * (k < 0.25 ? 0.5 + k * 2 : (1 - k) * 1.33);
+				o.position.set(p.x, p.y, p.z);
+				o.rotation.set(0, p.ry + p.t * 2, 0);
+				o.scale.set(sc * 0.9, sc * (1 + k * 0.7), sc * 0.9);
+				o.updateMatrix();
+				F.im.setMatrixAt(n, o.matrix);
+				const q = Math.min(3.999, k * (p.sp ? 1.5 : 4)),
+					j = Math.floor(q);
+				c.copy(C[j]).lerp(C[j + 1], q - j);
+				F.im.setColorAt(n++, c);
+			});
+			F.im.count = n;
+			F.im.instanceMatrix.needsUpdate = true;
+			if (F.im.instanceColor) F.im.instanceColor.needsUpdate = true;
+		},
+		/* droplet: position, velocity, life (s) */
+		addDrop(W, x, y, z, vx, vy, vz, life) {
+			const L = W.drop.L;
+			if (L.length < 700) L.push({ x, y, z, vx, vy, vz, life, t: 0 });
+		},
+		stepDrops(W, dt) {
+			const D = W.drop,
+				o = D.o;
+			let n = 0;
+			for (let i = D.L.length - 1; i >= 0; i--) {
+				const p = D.L[i];
+				p.t += dt;
+				p.vy -= 9.8 * dt;
+				p.x += p.vx * dt;
+				p.y += p.vy * dt;
+				p.z += p.vz * dt;
+				if (p.t > p.life || p.y < 0.06) {
+					D.L.splice(i, 1);
+					continue;
+				}
+			}
+			D.L.forEach((p) => {
+				o.position.set(p.x, p.y, p.z);
+				o.scale.setScalar(0.8 + Math.min(1, p.t / p.life) * 1.4);
+				o.updateMatrix();
+				D.im.setMatrixAt(n++, o.matrix);
+			});
+			D.im.count = n;
+			D.im.instanceMatrix.needsUpdate = true;
+		},
+		/* the burning fire a hose at (x, z) aimed at angle a (x/z plane) is hitting: nearest one inside its reach and cone */
+		target(W, x, z, a) {
+			let best = null,
+				bd = 1e9;
+			W.fires.forEach((f) => {
+				if (!this.live(W, f)) return;
+				const dx = f.x - x,
+					dz = f.z - z,
+					d = Math.hypot(dx, dz);
+				if (d > this.HOSE + 0.9 || d < 0.4) return;
+				let da = Math.atan2(dz, dx) - a;
+				while (da > Math.PI) da -= Math.PI * 2;
+				while (da < -Math.PI) da += Math.PI * 2;
+				if (Math.abs(da) < Math.atan2(1.1, d) + 0.08 && d < bd) {
+					best = f;
+					bd = d;
+				}
+			});
+			return best;
 		},
 		inlay(W) {
 			// mosaic compass in the middle of the plaza, a soft lighter band in the paving
@@ -14623,21 +14865,32 @@ const MG = {
 		initEnt(W, e) {
 			e.water = 100;
 			e.pr = {};
+			e.aa = 0;
 		},
 		live(W, f) {
 			return W.t >= f.t && !W.claimed.has(f.id) && W.t < f.t + 22;
 		},
 		fmt: (W, e) => `${e.sc} fire${e.sc === 1 ? "" : "s"} · water ${Math.round(e.water)}%`,
+		/* keep the aim stick (input ax/ay) on the truck for the rules, then drive as usual */
+		phys(W, e, inp, dt) {
+			if (inp) {
+				e.ax = inp.ax || 0;
+				e.ay = inp.ay || 0;
+			}
+			arenaPhys(W, e, inp, dt);
+		},
 		rules(W, e, dt) {
 			if (e.d) return;
-			if (this.HYD.some((h) => Math.hypot(h[0] - e.x, h[1] - e.z) < 2)) e.water = Math.min(100, e.water + 70 * dt);
-			const f = W.fires
-				.filter((f) => this.live(W, f) && Math.hypot(f.x - e.x, f.z - e.z) < this.RANGE)
-				.sort((a, b) => Math.hypot(a.x - e.x, a.z - e.z) - Math.hypot(b.x - e.x, b.z - e.z))[0];
-			e.spray = f && e.water > 0 ? f.id : 0;
+			const fill = e.water < 100 && this.HYD.some((h) => Math.hypot(h[0] - e.x, h[1] - e.z) < 2.2);
+			if (fill) e.water = Math.min(100, e.water + 45 * dt);
+			const am = Math.hypot(e.ax || 0, e.ay || 0);
+			if (am > 0.3) e.aa = Math.atan2(e.ay, e.ax);
+			const on = am > 0.3 && e.water > 0,
+				f = on ? this.target(W, e.x, e.z, e.aa) : null;
+			if (on) e.water = Math.max(0, e.water - 18 * dt);
+			e.spray = f ? f.id : 0;
 			for (const id in e.pr) if (+id !== e.spray) e.pr[id] = Math.max(0, e.pr[id] - dt * 0.6);
 			if (e.spray) {
-				e.water = Math.max(0, e.water - 22 * dt);
 				e.pr[f.id] = (e.pr[f.id] || 0) + dt;
 				if (e.pr[f.id] >= this.NEED && W.claim(f.id)) {
 					e.c.push(f.id);
@@ -14649,35 +14902,51 @@ const MG = {
 					}
 				}
 			}
+			/* what other devices need to draw this truck's hose: aim angle, spraying, fire hit, refilling */
 			e.f.sp = e.spray ? Math.round(Math.min(1, (e.pr[e.spray] || 0) / this.NEED) * 100) / 100 : 0;
 			e.f.wt = Math.round(e.water);
+			e.f.aa = Math.round(e.aa * 100) / 100;
+			e.f.on = on ? 1 : 0;
+			e.f.hf = e.spray;
+			e.f.fl = fill ? 1 : 0;
 		},
 		prompt: (W, e) =>
 			e.msg && W.t - e.msgT < 1.2
 				? e.msg
 				: e.water < 1
 					? "Tank empty! Refill at a hydrant"
-					: e.spray
-						? "Hosing it down! Stay close"
-						: "",
+					: e.f.fl && e.water < 98
+						? "Filling up…"
+						: e.spray
+							? "On target! Keep the water on it"
+							: "",
 		render(W, e, dt) {
 			this.bar(W, e);
+			this.hose(W, e, dt);
 			if (W.fireT !== W.t) {
 				W.fireT = W.t;
 				puffStep(W, dt);
+				this.stepDrops(W, dt);
+				this.stepFlames(W, dt);
 				W.fires.forEach((f) => {
 					const on = this.live(W, f),
 						was = f.on;
 					f.on = on;
 					f.g.visible = W.t >= f.t && W.t < f.t + 26;
-					f.ring.visible = on;
-					f.glow.visible = on;
-					if (on) f.glow.material.opacity = 0.32 + Math.sin(W.t * 11 + f.id) * 0.12;
-					f.fl.forEach((m, k) => {
-						m.visible = on;
-						m.scale.set(1, 0.8 + Math.sin(W.t * 13 + k * 2 + f.id) * 0.25, 1);
+					/* strength: full, dropping to a quarter as the best hose on it gets close to putting it out */
+					let pr = 0;
+					W.list.forEach((q) => {
+						const v = q.local
+							? q.spray === f.id
+								? (q.pr[f.id] || 0) / this.NEED
+								: 0
+							: q.f.hf === f.id
+								? q.f.sp || 0
+								: 0;
+						pr = Math.max(pr, v);
 					});
-					if (on && Math.random() < dt * 7)
+					f.k = 1 - Math.min(1, pr) * 0.75;
+					if (on && Math.random() < dt * 7 * f.k)
 						W.smoke(f.x + (Math.random() - 0.5), 2.4, f.z + (Math.random() - 0.5), 2.2 + Math.random(), 2.6, 2.4);
 					if (was && !on) {
 						decal(W.sc, new THREE.CircleGeometry(1.7, 16), "#2A2F3A", f.x, 0.037, f.z, 0.55);
@@ -14703,25 +14972,111 @@ const MG = {
 					}
 				});
 			}
-			// hose spray: a stream of droplets from the truck to the fire it is working on
-			const f = e.spray && W.fires[e.spray - 1];
-			if (f && Math.random() < dt * 30) {
-				const d = Math.hypot(f.x - e.x, f.z - e.z) || 1;
-				burst(W.sc, e.x, 1.6, e.z, {
-					n: 1,
-					shape: "ico",
-					cols: ["#8FD3FF", "#FFFFFF"],
-					spd: 0,
-					up: 2.5,
-					grav: 9,
-					life: 0.45,
-					size: 0.5,
-				});
-				const p = W.sc.userData.parts[W.sc.userData.parts.length - 1];
-				if (p) {
-					p.vx = ((f.x - e.x) / d) * 7;
-					p.vz = ((f.z - e.z) / d) * 7;
+		},
+		/* the roof rig: built on the first frame on top of whatever the truck has above its middle, then the cannon turns
+		   to the aim, the tank shows the water level (sloshing a little), and droplets stream from the nozzle (or from
+		   the hydrant into the filler neck) */
+		hose(W, e, dt) {
+			const V = THREE.Vector3;
+			if (!e.rig) {
+				e.rig = mountHoseRig(e.tr);
+				e.rig.tp = new V();
+				e.rig.fp = new V();
+				e.rig.em = 0;
+				e.rig.fe = 0;
+			}
+			const u = e.rig,
+				f = e.f,
+				aa = e.local ? e.aa : (f.aa ?? 0),
+				k = 1 - Math.exp(-dt * 14);
+			u.head.rotation.y = lerpA(u.head.rotation.y, -aa - e.yaw, k);
+			/* tank level eases to the water left, sloshing while the truck moves */
+			const wt = e.d ? 100 : e.local ? e.water : (f.wt ?? 100);
+			u.lv += (wt / 100 - u.lv) * (1 - Math.exp(-dt * 5));
+			const sp = Math.min(1, Math.hypot(e.vx || 0, e.vz || 0) / 10),
+				h = Math.max(0.02, u.lv) * u.H;
+			u.water.scale.y = h;
+			u.water.position.y = u.y0 + h / 2;
+			u.water.rotation.z = Math.sin(W.t * 9 + e.i) * 0.05 * sp;
+			u.water.rotation.x = Math.cos(W.t * 7 + e.i) * 0.04 * sp;
+			if (W.t < 0 || e.d) return;
+			/* hose stream: ballistic droplets from the nozzle to the fire it hits, or to full reach */
+			if (f.on) {
+				u.em += dt * 45;
+				u.tip.getWorldPosition(u.tp);
+				const fr = f.hf && W.fires[f.hf - 1],
+					d = fr ? Math.max(1, Math.hypot(fr.x - e.x, fr.z - e.z) - 0.3) : this.HOSE,
+					ty = fr ? 1.3 : 0.06,
+					tx = e.x + Math.cos(aa) * d,
+					tz = e.z + Math.sin(aa) * d,
+					vy0 = 2.6,
+					T = (vy0 + Math.sqrt(vy0 * vy0 + 2 * 9.8 * Math.max(0.05, u.tp.y - ty))) / 9.8;
+				while (u.em >= 1) {
+					u.em--;
+					const j = 0.95 + Math.random() * 0.1;
+					this.addDrop(
+						W,
+						u.tp.x,
+						u.tp.y,
+						u.tp.z,
+						((tx - u.tp.x) / T) * j + (Math.random() - 0.5) * 0.3,
+						vy0 * (0.96 + Math.random() * 0.08),
+						((tz - u.tp.z) / T) * j + (Math.random() - 0.5) * 0.3,
+						T * 1.05,
+					);
 				}
+				if (fr && Math.random() < dt * 6) W.steam(fr.x, 2, fr.z, 1.4 + Math.random() * 0.8, 2.4, 1.4);
+			} else u.em = 0;
+			/* refilling: water arcs from the hydrant's outlet into the filler neck */
+			if (f.fl) {
+				const hy = this.HYD.reduce((a, b) =>
+					Math.hypot(a[0] - e.x, a[1] - e.z) < Math.hypot(b[0] - e.x, b[1] - e.z) ? a : b,
+				);
+				u.fill.getWorldPosition(u.fp);
+				u.fe += dt * 30;
+				const dx = u.fp.x - hy[0],
+					dz = u.fp.z - hy[1],
+					l = Math.hypot(dx, dz) || 1,
+					sx = hy[0] + (dx / l) * 0.42,
+					sz = hy[1] + (dz / l) * 0.42,
+					T = 0.45;
+				while (u.fe >= 1) {
+					u.fe--;
+					this.addDrop(
+						W,
+						sx,
+						0.72,
+						sz,
+						(u.fp.x - sx) / T + (Math.random() - 0.5) * 0.2,
+						(u.fp.y - 0.72) / T + 4.9 * T,
+						(u.fp.z - sz) / T + (Math.random() - 0.5) * 0.2,
+						T,
+					);
+				}
+				if (e.isMe && !u.wasFl) sfx("splash");
+			} else u.fe = 0;
+			u.wasFl = !!f.fl;
+			/* aim guide for you: reach ring around the truck and a splash marker where the water lands */
+			if (e.isMe && !W.tv) {
+				if (!W.aimR) {
+					W.aimR = decal(
+						W.sc,
+						new THREE.RingGeometry(this.HOSE - 0.07, this.HOSE + 0.05, 56),
+						"#8FD3FF",
+						0,
+						0.045,
+						0,
+						0.35,
+					);
+					W.aimD = decal(W.sc, new THREE.CircleGeometry(0.55, 18), "#8FD3FF", 0, 0.046, 0, 0.45);
+				}
+				const show = !!f.on || Math.hypot(e.ax || 0, e.ay || 0) > 0.3,
+					fr = f.hf && W.fires[f.hf - 1],
+					d = fr ? Math.hypot(fr.x - e.x, fr.z - e.z) : this.HOSE;
+				W.aimR.visible = W.aimD.visible = show;
+				W.aimR.position.set(e.x, 0.045, e.z);
+				W.aimD.position.set(e.x + Math.cos(aa) * d, 0.046, e.z + Math.sin(aa) * d);
+				W.aimD.material.color.set(fr ? "#3FD07A" : "#8FD3FF");
 			}
 		},
 		bar(W, e) {
@@ -14743,8 +15098,7 @@ const MG = {
 			b.sc = e.sc;
 			const ok = W.t - b.okT < 0.7,
 				p = ok ? 1 : e.d ? 0 : e.f.sp || 0,
-				wt = e.d ? 100 : (e.f.wt ?? 100),
-				key = [Math.round(p * 40), Math.round(wt / 4), ok ? 1 : 0].join();
+				key = [Math.round(p * 40), ok ? 1 : 0].join();
 			if (key === b.key) return;
 			b.key = key;
 			const x = b.cv.getContext("2d"),
@@ -14781,15 +15135,6 @@ const MG = {
 				rr(14, 10, Math.max(8, w - 8), 6, 3);
 				x.fill();
 			}
-			if (wt < 99) {
-				any = true;
-				rr(40, 40, 112, 16, 8);
-				x.fillStyle = "#151B24";
-				x.fill();
-				rr(43, 43, Math.max(10, (106 * wt) / 100), 10, 5);
-				x.fillStyle = wt < 15 ? "#E5484D" : "#4FB3FF";
-				x.fill();
-			}
 			b.tx.needsUpdate = true;
 			b.sp.visible = any;
 		},
@@ -14806,8 +15151,15 @@ const MG = {
 				.filter((f) => this.live(W, f))
 				.sort((a, b) => Math.hypot(a.x - e.x, a.z - e.z) - Math.hypot(b.x - e.x, b.z - e.z))[0];
 			if (!f) return wander(W, e, 0.016, 6);
-			const d = Math.hypot(f.x - e.x, f.z - e.z);
-			return botRam(W, e, d < 2.2 ? { x: 0, y: 0 } : steer(e, f.x, f.z, 0.85), 3.5);
+			/* drive within hose reach, then aim at it with a wandering error (sometimes off target) */
+			const d = Math.hypot(f.x - e.x, f.z - e.z),
+				inp = d < 3.8 ? { x: 0, y: 0 } : steer(e, f.x, f.z, 0.85);
+			if (d < this.HOSE + 0.4) {
+				const a = Math.atan2(f.z - e.z, f.x - e.x) + Math.sin(W.t * 1.3 + e.i * 2.1) * 0.3;
+				inp.ax = Math.cos(a);
+				inp.ay = Math.sin(a);
+			}
+			return inp;
 		},
 		botScore: () => 2 + rnd(6),
 	},
@@ -26260,6 +26612,123 @@ function trolleyModel() {
 	g.add(B(0.7, 0.5, 0.02, glass, 0, 14.95, -1.49, gm), B(0.7, 0.5, 0.02, glass, 0, 14.95, -2.51, gm));
 	[-1, 1].forEach((sd) => g.add(B(0.02, 0.5, 0.7, glass, sd * 0.51, 14.95, -2.0, gm)));
 	return g;
+}
+
+/* ---------- Fire Brigade's roof rig, front at +x, base at y 0: a glass water tank (steel caps, bands and guard rods,
+   a filler neck the hydrant fills through) piped to a water cannon on a turntable. userData: head (turns with the
+   aim), tip (nozzle end), fill (filler neck), water (unit-height column: scale.y = level * H, bottom at y0) */
+function hoseRigModel() {
+	const g = new THREE.Group(),
+		dark = "#3A3F48",
+		red = "#E5484D",
+		steel = "#C9CED8",
+		brass = "#C9A44A",
+		tx = -0.27,
+		R = 0.3,
+		H = 0.7,
+		y0 = 0.14;
+	g.add(B(1.2, 0.08, 0.84, dark, 0, 0.04, 0));
+	[-0.44, 0.44].forEach((x) => g.add(B(0.08, 0.06, 0.88, "#2A2F3A", x, 0.03, 0)));
+	/* tank */
+	g.add(
+		Cy(R + 0.04, R + 0.04, 0.06, 16, steel, tx, 0.11, 0),
+		Cy(R + 0.04, R + 0.04, 0.06, 16, steel, tx, y0 + H + 0.03, 0),
+	);
+	const gl = new THREE.Mesh(
+		new THREE.CylinderGeometry(R, R, H, 18, 1, true),
+		new THREE.MeshStandardMaterial({
+			color: "#DDF1FF",
+			transparent: true,
+			opacity: 0.3,
+			roughness: 0.08,
+			metalness: 0.2,
+			depthWrite: false,
+			side: THREE.DoubleSide,
+		}),
+	);
+	gl.position.set(tx, y0 + H / 2, 0);
+	gl.renderOrder = 2;
+	g.add(gl);
+	const water = Cy(R - 0.03, R - 0.03, 1, 16, "#2F8FE0", tx, y0 + 0.5, 0, {
+		emissive: "#1D5FA8",
+		emissiveIntensity: 0.35,
+		roughness: 0.2,
+	});
+	water.scale.y = H - 0.04;
+	water.position.y = y0 + 0.02 + (H - 0.04) / 2;
+	g.add(water);
+	[0.3, 0.62].forEach((k) => g.add(Cy(R + 0.025, R + 0.025, 0.04, 16, steel, tx, y0 + H * k, 0)));
+	for (let k = 0; k < 4; k++) {
+		const a = (k / 4) * 6.283 + 0.785;
+		g.add(Cy(0.016, 0.016, H, 5, steel, tx + Math.cos(a) * (R + 0.035), y0 + H / 2, Math.sin(a) * (R + 0.035)));
+	}
+	const fill = new THREE.Object3D();
+	g.add(
+		Cy(0.07, 0.08, 0.14, 10, steel, tx - 0.1, y0 + H + 0.13, 0.1),
+		Cy(0.09, 0.09, 0.04, 10, red, tx - 0.1, y0 + H + 0.22, 0.1),
+	);
+	fill.position.set(tx - 0.1, y0 + H + 0.26, 0.1);
+	g.add(fill);
+	/* pipe to the cannon */
+	const pipe = Cy(0.05, 0.05, 0.34, 8, red, 0.19, 0.2, 0);
+	pipe.rotation.z = Math.PI / 2;
+	g.add(pipe, Cy(0.08, 0.08, 0.06, 10, steel, 0.04, 0.2, 0).rotateZ(Math.PI / 2));
+	/* cannon on a standpipe riser (its barrel clears the tank whichever way it points): turntable head, pitched barrel
+	   with a brass nozzle */
+	g.add(Cy(0.13, 0.17, 0.2, 10, red, 0.36, 0.18, 0), Cy(0.08, 0.08, 0.66, 10, red, 0.36, 0.6, 0));
+	[0.32, 0.88].forEach((y) => g.add(Cy(0.11, 0.11, 0.04, 10, steel, 0.36, y, 0)));
+	const head = new THREE.Group();
+	head.position.set(0.36, 0.92, 0);
+	g.add(head);
+	head.add(Cy(0.16, 0.16, 0.08, 12, dark, 0, 0.04, 0), B(0.26, 0.2, 0.24, red, 0.02, 0.18, 0));
+	head.add(
+		B(0.04, 0.04, 0.3, dark, -0.04, 0.3, 0),
+		B(0.03, 0.06, 0.03, dark, -0.04, 0.27, 0.12),
+		B(0.03, 0.06, 0.03, dark, -0.04, 0.27, -0.12),
+	);
+	const pt = new THREE.Group();
+	pt.position.set(0.12, 0.2, 0);
+	pt.rotation.z = 0.32;
+	head.add(pt);
+	const bar = Cy(0.055, 0.075, 0.5, 10, red, 0.25, 0, 0),
+		nz = Cy(0.045, 0.065, 0.14, 10, brass, 0.56, 0, 0);
+	bar.rotation.z = nz.rotation.z = -Math.PI / 2;
+	pt.add(bar, nz);
+	const tip = new THREE.Object3D();
+	tip.position.set(0.64, 0, 0);
+	pt.add(tip);
+	g.userData = { head, tip, fill, water, H: H - 0.04, y0: y0 + 0.02, lv: 1 };
+	return g;
+}
+
+/* put the hose rig on a truck (a buildTruck group, front at +x): at its mount point (buildTruck(i, "hose")), otherwise
+   on top of whatever the truck has over its middle */
+function mountHoseRig(tr) {
+	const r = hoseRigModel(),
+		mt = tr.userData.mount;
+	if (mt) {
+		r.position.set(mt.x, mt.y, 0);
+		r.scale.setScalar(mt.s);
+		(mt.host || tr).add(r);
+		return r.userData;
+	}
+	const v = new THREE.Vector3(),
+		m4 = new THREE.Matrix4();
+	tr.updateMatrixWorld(true);
+	const inv = tr.matrixWorld.clone().invert();
+	let top = 0.8;
+	tr.traverse((o) => {
+		if (!o.isMesh || !o.visible || !o.geometry.attributes.position) return;
+		m4.multiplyMatrices(inv, o.matrixWorld);
+		const p = o.geometry.attributes.position;
+		for (let i = 0; i < p.count; i++) {
+			v.fromBufferAttribute(p, i).applyMatrix4(m4);
+			if (Math.abs(v.x + 0.1) < 0.8 && Math.abs(v.z) < 0.5 && v.y > top) top = v.y;
+		}
+	});
+	r.position.set(-0.1, top - 0.01, 0);
+	tr.add(r);
+	return r.userData;
 }
 /* ---------- map editor (PC): move / rotate / scale spaces and props, tune the map's shape. Edits are stored per map in localStorage (trp_mapedit) and applied by
    buildBoardFor (applyMapEdits / edReg in partmap); "Copy edits" gives JSON the user pastes to Claude, who bakes it into the map as `bake` ---------- */

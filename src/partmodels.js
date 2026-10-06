@@ -1426,3 +1426,120 @@ function trolleyModel() {
 	[-1, 1].forEach((sd) => g.add(B(0.02, 0.5, 0.7, glass, sd * 0.51, 14.95, -2.0, gm)));
 	return g;
 }
+
+/* ---------- Fire Brigade's roof rig, front at +x, base at y 0: a glass water tank (steel caps, bands and guard rods,
+   a filler neck the hydrant fills through) piped to a water cannon on a turntable. userData: head (turns with the
+   aim), tip (nozzle end), fill (filler neck), water (unit-height column: scale.y = level * H, bottom at y0) */
+function hoseRigModel() {
+	const g = new THREE.Group(),
+		dark = "#3A3F48",
+		red = "#E5484D",
+		steel = "#C9CED8",
+		brass = "#C9A44A",
+		tx = -0.27,
+		R = 0.3,
+		H = 0.7,
+		y0 = 0.14;
+	g.add(B(1.2, 0.08, 0.84, dark, 0, 0.04, 0));
+	[-0.44, 0.44].forEach((x) => g.add(B(0.08, 0.06, 0.88, "#2A2F3A", x, 0.03, 0)));
+	/* tank */
+	g.add(
+		Cy(R + 0.04, R + 0.04, 0.06, 16, steel, tx, 0.11, 0),
+		Cy(R + 0.04, R + 0.04, 0.06, 16, steel, tx, y0 + H + 0.03, 0),
+	);
+	const gl = new THREE.Mesh(
+		new THREE.CylinderGeometry(R, R, H, 18, 1, true),
+		new THREE.MeshStandardMaterial({
+			color: "#DDF1FF",
+			transparent: true,
+			opacity: 0.3,
+			roughness: 0.08,
+			metalness: 0.2,
+			depthWrite: false,
+			side: THREE.DoubleSide,
+		}),
+	);
+	gl.position.set(tx, y0 + H / 2, 0);
+	gl.renderOrder = 2;
+	g.add(gl);
+	const water = Cy(R - 0.03, R - 0.03, 1, 16, "#2F8FE0", tx, y0 + 0.5, 0, {
+		emissive: "#1D5FA8",
+		emissiveIntensity: 0.35,
+		roughness: 0.2,
+	});
+	water.scale.y = H - 0.04;
+	water.position.y = y0 + 0.02 + (H - 0.04) / 2;
+	g.add(water);
+	[0.3, 0.62].forEach((k) => g.add(Cy(R + 0.025, R + 0.025, 0.04, 16, steel, tx, y0 + H * k, 0)));
+	for (let k = 0; k < 4; k++) {
+		const a = (k / 4) * 6.283 + 0.785;
+		g.add(Cy(0.016, 0.016, H, 5, steel, tx + Math.cos(a) * (R + 0.035), y0 + H / 2, Math.sin(a) * (R + 0.035)));
+	}
+	const fill = new THREE.Object3D();
+	g.add(
+		Cy(0.07, 0.08, 0.14, 10, steel, tx - 0.1, y0 + H + 0.13, 0.1),
+		Cy(0.09, 0.09, 0.04, 10, red, tx - 0.1, y0 + H + 0.22, 0.1),
+	);
+	fill.position.set(tx - 0.1, y0 + H + 0.26, 0.1);
+	g.add(fill);
+	/* pipe to the cannon */
+	const pipe = Cy(0.05, 0.05, 0.34, 8, red, 0.19, 0.2, 0);
+	pipe.rotation.z = Math.PI / 2;
+	g.add(pipe, Cy(0.08, 0.08, 0.06, 10, steel, 0.04, 0.2, 0).rotateZ(Math.PI / 2));
+	/* cannon on a standpipe riser (its barrel clears the tank whichever way it points): turntable head, pitched barrel
+	   with a brass nozzle */
+	g.add(Cy(0.13, 0.17, 0.2, 10, red, 0.36, 0.18, 0), Cy(0.08, 0.08, 0.66, 10, red, 0.36, 0.6, 0));
+	[0.32, 0.88].forEach((y) => g.add(Cy(0.11, 0.11, 0.04, 10, steel, 0.36, y, 0)));
+	const head = new THREE.Group();
+	head.position.set(0.36, 0.92, 0);
+	g.add(head);
+	head.add(Cy(0.16, 0.16, 0.08, 12, dark, 0, 0.04, 0), B(0.26, 0.2, 0.24, red, 0.02, 0.18, 0));
+	head.add(
+		B(0.04, 0.04, 0.3, dark, -0.04, 0.3, 0),
+		B(0.03, 0.06, 0.03, dark, -0.04, 0.27, 0.12),
+		B(0.03, 0.06, 0.03, dark, -0.04, 0.27, -0.12),
+	);
+	const pt = new THREE.Group();
+	pt.position.set(0.12, 0.2, 0);
+	pt.rotation.z = 0.32;
+	head.add(pt);
+	const bar = Cy(0.055, 0.075, 0.5, 10, red, 0.25, 0, 0),
+		nz = Cy(0.045, 0.065, 0.14, 10, brass, 0.56, 0, 0);
+	bar.rotation.z = nz.rotation.z = -Math.PI / 2;
+	pt.add(bar, nz);
+	const tip = new THREE.Object3D();
+	tip.position.set(0.64, 0, 0);
+	pt.add(tip);
+	g.userData = { head, tip, fill, water, H: H - 0.04, y0: y0 + 0.02, lv: 1 };
+	return g;
+}
+
+/* put the hose rig on a truck (a buildTruck group, front at +x): at its mount point (buildTruck(i, "hose")), otherwise
+   on top of whatever the truck has over its middle */
+function mountHoseRig(tr) {
+	const r = hoseRigModel(),
+		mt = tr.userData.mount;
+	if (mt) {
+		r.position.set(mt.x, mt.y, 0);
+		r.scale.setScalar(mt.s);
+		(mt.host || tr).add(r);
+		return r.userData;
+	}
+	const v = new THREE.Vector3(),
+		m4 = new THREE.Matrix4();
+	tr.updateMatrixWorld(true);
+	const inv = tr.matrixWorld.clone().invert();
+	let top = 0.8;
+	tr.traverse((o) => {
+		if (!o.isMesh || !o.visible || !o.geometry.attributes.position) return;
+		m4.multiplyMatrices(inv, o.matrixWorld);
+		const p = o.geometry.attributes.position;
+		for (let i = 0; i < p.count; i++) {
+			v.fromBufferAttribute(p, i).applyMatrix4(m4);
+			if (Math.abs(v.x + 0.1) < 0.8 && Math.abs(v.z) < 0.5 && v.y > top) top = v.y;
+		}
+	});
+	r.position.set(-0.1, top - 0.01, 0);
+	tr.add(r);
+	return r.userData;
+}
