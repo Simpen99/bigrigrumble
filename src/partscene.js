@@ -214,6 +214,24 @@ const treadTex = () =>
 			x.fill();
 		});
 	});
+/* 8 x 8 m of packed dirt: soft damp and dry patches, faint grit, the odd small stone (tint it with the material colour) */
+const dirtTex = () =>
+	scnTex("dirt", 256, (x, w, h) => {
+		x.fillStyle = "#A8927A";
+		x.fillRect(0, 0, w, h);
+		for (let i = 0; i < 8; i++)
+			wrapBlob(
+				x,
+				w,
+				h,
+				scnR() * w,
+				scnR() * h,
+				40 + scnR() * 55,
+				i % 2 ? "rgba(110,86,60,.08)" : "rgba(200,184,160,.07)",
+				"rgba(0,0,0,0)",
+			);
+		grit(x, w, h, 3800, ["90,72,52", "210,196,176", "140,120,96"], 0.06);
+	});
 /* a material for a flat box/plane of w x d metres using one of the textures above (tile = metres per texture repeat) */
 function groundMat(tex, w, d, tile, o) {
 	return new THREE.MeshStandardMaterial(

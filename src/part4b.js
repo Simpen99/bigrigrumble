@@ -676,29 +676,36 @@ const MG = {
 				s.add(fl);
 			}
 			W.jets = [];
+			const wreck = [];
 			for (let i = 0; i < 4; i++) {
 				const a = (i / 4) * 6.283 + 0.79,
 					x = Math.cos(a) * (R0 - 1.3),
 					z = Math.sin(a) * (R0 - 1.3);
 				s.add(Cy(0.7, 0.9, 1.4, 10, "#2A2F3A", x, this.MUD + 0.9, z));
-				const pile = new THREE.Group();
-				pile.position.set(Math.cos(a + 0.35) * (R0 - 2), this.MUD, Math.sin(a + 0.35) * (R0 - 2));
-				for (let k = 0; k < 3; k++) {
-					const c = B(
-						2.6,
-						0.7,
-						1.4,
-						["#2F7DE1", "#8E96A3", "#1FA35C", "#FF8A1F"][(i + k) % 4],
-						(r() - 0.5) * 0.4,
-						0.35 + k * 0.72,
-						(r() - 0.5) * 0.4,
-					);
-					c.rotation.y = r() * 0.8;
-					pile.add(c);
-				}
-				s.add(pile);
+				const px = Math.cos(a + 0.35) * (R0 - 2),
+					pz = Math.sin(a + 0.35) * (R0 - 2);
+				for (let k = 0; k < 3; k++)
+					wreck.push({
+						k: (i + k) % 4,
+						x: px + (r() - 0.5) * 0.4,
+						y: this.MUD + k * 0.5,
+						z: pz + (r() - 0.5) * 0.4,
+						ry: r() * 0.8,
+					});
 				W.jets.push({ x, z, t: 1 + i * 1.7 });
 			}
+			/* crushed cars piled beside the fire jets */
+			placeKits(
+				s,
+				[
+					["sedan", "#2F7DE1"],
+					["hatch", "#8E96A3"],
+					["van", "#1FA35C"],
+					["pickup", "#FF8A1F"],
+				].map(([t, c]) => bakeKit(crushedCarModel(t, c))),
+				wreck,
+				0,
+			);
 			W.wob = { x: 0, z: 0, y: 0, vx: 0, vz: 0, vy: 0 };
 			W.bub = [];
 			for (let i = 0; i < 9; i++) {
@@ -1851,7 +1858,7 @@ const MG = {
 			});
 			const ring = new THREE.Mesh(
 				new THREE.RingGeometry(R + 0.8, 160, 40, 1),
-				M("#A58F72", { side: THREE.DoubleSide }),
+				new THREE.MeshStandardMaterial({ map: texRep(dirtTex(), 40, 40), roughness: 0.95, side: THREE.DoubleSide }),
 			);
 			ring.rotation.x = -Math.PI / 2;
 			ring.position.y = 0.5;
@@ -1889,15 +1896,17 @@ const MG = {
 				for (let k = 0; k < 5; k++)
 					s.add(B(0.6, 0.25, 0.9, "#E8E4DA", x - 0.32 + (k % 2) * 0.64, 0.82 + Math.floor(k / 2) * 0.26, z));
 			});
-			const tc = new THREE.Group();
-			tc.position.set(-25, 0.5, -25);
-			s.add(tc);
-			tc.add(
-				B(1.2, 30, 1.2, "#FFC83D", 0, 15, 0),
-				B(1.4, 1.4, 34, "#FFC83D", 0, 30.4, 10),
-				B(2.6, 2.2, 2.6, "#FFC83D", 0, 29, 0),
-				B(2, 2, 4, "#8E96A3", 0, 30.4, -8),
-			);
+			[
+				[towerCraneModel(30, 26), -25, -25, Math.PI / 4],
+				[siteCabinModel(), 27, -2, -Math.PI / 2],
+				[siteCabinModel("#FFC83D", "#5A6272", "MIXIE CO."), 2, -27, 0],
+				[lightTowerModel(), -27, 2, Math.PI / 2],
+			].forEach(([m, x, z, ry]) => {
+				const k = kitGroup(bakeKit(m));
+				k.position.set(x, 0.5, z);
+				k.rotation.y = ry;
+				s.add(k);
+			});
 			W.pours = [];
 			[
 				[0.6, R + 3.1],
@@ -2687,9 +2696,15 @@ const MG = {
 				S = this.S,
 				OR = "#FF7A1A",
 				YE = "#FFC83D";
-			const out = B(2 * S + 120, 1, 2 * S + 120, "#767C85", 0, -0.5, 0);
-			out.castShadow = false;
-			s.add(out);
+			/* asphalt apron round the yard, a pavement and a row of town buildings to the north, grass beyond */
+			s.add(texBox(84, 1, 84, asphaltTex(), 8, 0, -0.5, -1));
+			s.add(texBox(300, 1, 300, grassTex(), 10, 0, -0.56, 0));
+			s.add(texBox(100, 1, 4.6, pavingTex(), 4, 0, -0.42, -45.3));
+			placeKits(
+				s,
+				buildingKits(8.4, 7.8),
+				Array.from({ length: 11 }, (_, i) => ({ k: (i * 3) % 8, x: -44 + i * 8.8, z: -51.5 })),
+			);
 			s.add(texBox(2 * S + 2, 0.2, 2 * S + 2, concreteTex(), 8, 0, -0.08, 0, { color: "#F4F5F7" }));
 			roadWear(s, -S, S, S, -S, 0.024, 2.5, 0.4);
 			autoTracks(W, "#B4B8BE", 0.03);
@@ -2724,18 +2739,6 @@ const MG = {
 					});
 				}
 			}
-			const ribs = (rep, light, dark, horiz) => {
-				const t = canvasTex(32, 32, (x, w, h) => {
-					x.fillStyle = light;
-					x.fillRect(0, 0, w, h);
-					x.fillStyle = dark;
-					if (horiz) x.fillRect(0, h * 0.7, w, h * 0.3);
-					else x.fillRect(w * 0.7, 0, w * 0.3, h);
-				});
-				t.wrapS = t.wrapT = THREE.RepeatWrapping;
-				t.repeat.set(horiz ? 1 : rep, horiz ? rep : 1);
-				return t;
-			};
 			/* warehouse */
 			const WZ = -(S + 14),
 				WD = 14,
@@ -2849,25 +2852,43 @@ const MG = {
 			};
 			W.belt = { cn: cone(9), z: CZ };
 			/* west: stacked shipping containers */
-			const box = (x, y, z, col, ry) => {
-				const m = new THREE.Mesh(
-					new THREE.BoxGeometry(6, 2.6, 2.44),
-					new THREE.MeshStandardMaterial({ color: col, map: ribs(16, "#FFFFFF", "#C2C6CC"), roughness: 0.7 }),
+			{
+				const L = [
+					[-26, 0, -10, 0],
+					[-26, 1, -10, 1],
+					[-26, 0, -4, 2],
+					[-29, 0, 5, 3],
+					[-29, 1, 5, 0],
+					[-26, 0, 11, 4],
+					[-33, 0, -6, 1],
+				].map(([x, y, z, k]) => ({ k, x, y: y * 2.5, z }));
+				placeKits(s, containerKits(["#2F7DE1", "#E5484D", "#1FA35C", "#FFC83D", "#8E5BE0"]), L, 0);
+				placeShadows(
+					s,
+					2.4,
+					6,
+					0.3,
+					L.filter((q) => !q.y),
 				);
-				m.position.set(x, y + 1.3, z);
-				m.rotation.y = ry;
-				m.castShadow = m.receiveShadow = true;
-				s.add(m);
-			};
-			[
-				[-26, 0, -10, "#2F7DE1"],
-				[-26, 2.6, -10, "#E5484D"],
-				[-26, 0, -4, "#1FA35C"],
-				[-29, 0, 5, "#FFC83D"],
-				[-29, 2.6, 5, "#2F7DE1"],
-				[-26, 0, 11, "#8E5BE0"],
-				[-33, 0, -6, "#E5484D"],
-			].forEach(([x, y, z, c]) => box(x, y, z, c, Math.PI / 2));
+			}
+			/* east: the CONE CO. office and a staff car park */
+			{
+				const of = kitGroup(
+					bakeKit(
+						buildingModel({ w: 10, d: 8, floors: 3, style: "office", wall: "#E4E7EB", trim: "#F4F6F9", roofBits: 1 }),
+					),
+				);
+				of.position.set(38, 0, -27);
+				s.add(of);
+				const cars = CAR_TYPES.map((t, i) => bakeKit(carModel(t, ["#E5484D", "#2F7DE1", "#F4F6F9", "#3A3F48"][i]))),
+					L = [];
+				for (let i = 0; i < 11; i++) {
+					const z = -16 + i * 3;
+					decal(s, new THREE.PlaneGeometry(5, 0.1), "#E9EDF2", 38.5, 0.012, z - 1.5, 0.8);
+					if (W.rng() < 0.75) L.push({ k: i % 4, x: 38.5, z, ry: Math.PI / 2, sc: 0.8 });
+				}
+				placeKits(s, cars, L);
+			}
 			/* east: pallets of nested cone towers */
 			const pal = [];
 			for (let i = 0; i < 6; i++) {
@@ -2950,13 +2971,12 @@ const MG = {
 					s.add(f);
 				});
 			}
-			s.add(
-				B(3, 2.8, 2.6, "#F4F6F9", -18, 1.4, S + 9),
-				B(3.3, 0.25, 2.9, OR, -18, 2.9, S + 9),
-				B(1.6, 0.8, 0.06, "#9FD8FF", -18, 1.8, S + 7.67),
-				B(0.3, 1.1, 0.3, "#2A2F3A", -14.6, 0.55, S + 7),
-				B(6, 0.14, 0.14, "#F4F6F9", -11.6, 1.05, S + 7),
-			);
+			{
+				const gh = kitGroup(bakeKit(gatehouseModel(OR)));
+				gh.position.set(-18, 0, S + 9.4);
+				s.add(gh, B(0.45, 1.1, 0.45, OR, -14.6, 0.55, S + 7), B(0.5, 0.08, 0.5, "#2A2F3A", -14.6, 1.14, S + 7));
+				for (let k = 0; k < 6; k++) s.add(B(1, 0.14, 0.14, k % 2 ? "#E5484D" : "#F4F6F9", -13.85 + k, 0.95, S + 7));
+			}
 			/* yard lights in the corners */
 			[
 				[-1, -1],
@@ -2972,10 +2992,11 @@ const MG = {
 					B(1.4, 0.06, 0.6, "#FFF4D6", x, 10.83, z, { emissive: "#FFF1C2", emissiveIntensity: 0.8 }),
 				);
 			});
-			for (let i = 0; i < 10; i++) {
-				const a = W.rng() * 6.28,
-					d = 44 + W.rng() * 12;
-				s.add(tree(Math.cos(a) * d, Math.sin(a) * d, 1.2 + W.rng() * 0.8, 0));
+			for (let i = 0; i < 12; i++) {
+				const u = (W.rng() - 0.5) * 80,
+					d = 46 + W.rng() * 10,
+					[x, z] = i % 3 === 0 ? [-d, u] : i % 3 === 1 ? [d, u] : [u, d];
+				s.add(tree(x, z, 1.2 + W.rng() * 0.8, 0));
 			}
 		},
 		GOAL: 30,
@@ -4158,21 +4179,32 @@ const MG = {
 				H = this.HOME,
 				r = mulberry((W.mg.seed || 1) + 57);
 			// worked dirt: base, tyre ruts in every lane, pebbles
-			const g = B(220, 1, 50, "#A58F72", 0, -0.5, E + 25);
-			g.castShadow = false;
-			s.add(g);
+			s.add(texBox(220, 1, 50, dirtTex(), 8, 0, -0.5, E + 25));
 			s.add(B(220, 30, 1, "#8C7458", 0, -15.5, E - 0.5));
 			W.plist.forEach((p, i) =>
 				[-0.72, 0.72].forEach((o) =>
 					decal(s, new THREE.PlaneGeometry(0.34, H + 2 - E), "#8C7458", W.laneX(i) + o, 0.012, (H + 2 + E) / 2, 0.28),
 				),
 			);
-			for (let i = 0; i < 90; i++) {
-				const sz = 0.08 + r() * 0.16,
-					m = mesh(new THREE.DodecahedronGeometry(sz, 0), r() < 0.5 ? "#9BA3AE" : "#7E858F");
-				m.position.set((r() - 0.5) * (wid + 34), sz * 0.4, E + 0.8 + r() * 34);
-				m.castShadow = false;
-				s.add(m);
+			{
+				const pm = ["#9BA3AE", "#7E858F"].map(
+						(c) => new THREE.InstancedMesh(new THREE.DodecahedronGeometry(1, 0), M(c), 90),
+					),
+					n = [0, 0],
+					o = new THREE.Object3D();
+				for (let i = 0; i < 90; i++) {
+					const sz = 0.08 + r() * 0.16,
+						j = r() < 0.5 ? 0 : 1;
+					o.position.set((r() - 0.5) * (wid + 34), sz * 0.4, E + 0.8 + r() * 34);
+					o.scale.setScalar(sz);
+					o.updateMatrix();
+					pm[j].setMatrixAt(n[j]++, o.matrix);
+				}
+				pm.forEach((m, j) => {
+					m.count = n[j];
+					m.receiveShadow = true;
+					s.add(m);
+				});
 			}
 			const st = stripeTex();
 			st.wrapS = THREE.RepeatWrapping;
@@ -4229,12 +4261,15 @@ const MG = {
 					s.add(m);
 				}
 			});
-			s.add(
-				B(3.2, 2.6, 2.4, "#F4F6F9", -wid / 2 - 8, 1.3, H + 3),
-				B(3.3, 0.2, 2.5, "#FF8A1F", -wid / 2 - 8, 2.7, H + 3),
-				B(0.25, 6, 0.25, "#5A6272", wid / 2 + 7, 3, H + 2),
-				B(1.6, 0.9, 0.4, "#FFFFFF", wid / 2 + 7, 6.2, H + 2),
-			);
+			[
+				[siteCabinModel(), -wid / 2 - 8, H + 3, Math.PI / 2],
+				[lightTowerModel(), wid / 2 + 7, H + 2, -Math.PI / 2],
+			].forEach(([m, x, z, ry]) => {
+				const k = kitGroup(bakeKit(m));
+				k.position.set(x, 0, z);
+				k.rotation.y = ry;
+				s.add(k);
+			});
 			// the green scoring strip, then an excavator and a dirt pile behind every lane
 			W.exc = W.plist.map((p, i) => {
 				const x = W.laneX(i);

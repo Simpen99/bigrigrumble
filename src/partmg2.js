@@ -1243,20 +1243,17 @@ Object.assign(MG, {
 			s.add(Cy(0.75, 0.85, 0.5, 10, "#3A4150", 0, 0.25, 0));
 			const belt = B(1.6, 0.3, 6, "#23272F", 0, 0.45, -6.4);
 			s.add(belt, B(1.8, 0.5, 6, "#5A6272", 0, 0.1, -6.4));
-			this.CATS.forEach((c) => {
-				const g = new THREE.Group();
+			W.lids = this.CATS.map((c, i) => {
+				const g = wheelieBinModel(c.c, c.n, ["bottle", "can", "log", "leaf"][i]);
 				g.position.set(c.pos[0], 0, c.pos[1]);
-				g.add(
-					B(1.7, 1.3, 1.5, c.c, 0, 0.65, 0),
-					B(1.8, 0.12, 1.6, "#151B24", 0, 1.32, 0),
-					B(1.3, 0.02, 1.1, "#0B0E14", 0, 1.39, 0),
-				);
+				g.add(contactShadow(1.6, 1.4, 0.3));
 				const lab = textSprite(c.n.toUpperCase(), "#151B24", "#FFFFFF", 1.6);
-				lab.position.y = 2.1;
+				lab.position.y = 2.3;
 				g.add(lab);
 				s.add(g);
-				c.g = g;
+				return g.userData.lid;
 			});
+			W.lidT = [];
 			const r = mulberry((W.mg.seed || 1) + 5);
 			W.seq = [];
 			for (let i = 0; i < 220; i++) W.seq.push({ cat: this.CATS[Math.floor(r() * 4)].k, v: Math.floor(r() * 3) });
@@ -1266,11 +1263,7 @@ Object.assign(MG, {
 			// Garbo's recycling plant; the camera looks almost straight down, so the details sit around the bins
 			const Z = -10.5,
 				G = "#2E9E5B";
-			const fl = B(46, 0.4, 38, "#6E757F", 0, -0.2, -2);
-			fl.castShadow = false;
-			s.add(fl);
-			for (let x = -21; x <= 21; x += 3) decal(s, new THREE.PlaneGeometry(0.05, 34), "#5B616B", x + 1.5, 0.005, -2);
-			for (let z = -19; z <= 15; z += 3) decal(s, new THREE.PlaneGeometry(44, 0.05), "#5B616B", 0, 0.005, z + 0.5);
+			s.add(texBox(46, 0.4, 38, concreteTex(), 6, 0, -0.2, -2, { color: "#B0B5BD" }));
 			[-4.2, 4.2].forEach((x) => decal(s, new THREE.PlaneGeometry(0.2, 26), "#FFC83D", x, 0.012, 0));
 			[
 				[-2.6, 2.6, 0.55],
@@ -1365,120 +1358,8 @@ Object.assign(MG, {
 			e.gap = 0.8;
 		},
 		item(cat, v) {
-			const g = new THREE.Group(),
-				glass = { transparent: true, opacity: 0.8, roughness: 0.15 };
-			if (cat === "plastic") {
-				if (v === 0)
-					g.add(
-						Cy(0.22, 0.22, 0.78, 12, "#9FD8FF", 0, 0.45, 0, glass),
-						Cy(0.22, 0.12, 0.16, 12, "#9FD8FF", 0, 0.92, 0, glass),
-						Cy(0.08, 0.08, 0.14, 10, "#2F7DE1", 0, 1.07, 0),
-						Cy(0.225, 0.225, 0.26, 12, "#FFFFFF", 0, 0.45, 0),
-					);
-				else if (v === 1) {
-					g.add(B(0.62, 0.72, 0.46, "#F4F7FA", 0, 0.42, 0, glass), Cy(0.1, 0.1, 0.14, 10, "#2F7DE1", -0.14, 0.86, 0));
-					const h = mesh(new THREE.TorusGeometry(0.14, 0.045, 6, 10, Math.PI), "#F4F7FA");
-					h.position.set(0.14, 0.78, 0);
-					g.add(h);
-					g.add(B(0.64, 0.16, 0.48, "#2F7DE1", 0, 0.38, 0));
-				} else
-					g.add(
-						Cy(0.2, 0.22, 0.66, 10, "#35C0A0", 0, 0.36, 0),
-						B(0.14, 0.26, 0.14, "#FFFFFF", 0, 0.82, 0),
-						B(0.24, 0.08, 0.08, "#FFFFFF", 0.12, 0.92, 0),
-						B(0.08, 0.18, 0.08, "#FFFFFF", -0.02, 0.72, 0.1),
-					);
-			} else if (cat === "metal") {
-				if (v === 0) {
-					g.add(
-						Cy(0.22, 0.22, 0.6, 14, "#E5484D", 0, 0.32, 0, { metalness: 0.15, roughness: 0.45 }),
-						Cy(0.2, 0.22, 0.05, 14, "#EEF1F5", 0, 0.64, 0, { metalness: 0.15, roughness: 0.45 }),
-						Cy(0.22, 0.2, 0.05, 14, "#EEF1F5", 0, 0.01, 0, { metalness: 0.15, roughness: 0.45 }),
-						B(0.14, 0.02, 0.05, "#9AA3AE", 0.06, 0.675, 0),
-						B(0.46, 0.12, 0.01, "#FFFFFF", 0, 0.34, 0.225),
-					);
-				} else if (v === 1) {
-					g.add(
-						Cy(0.26, 0.26, 0.5, 14, "#DCE1E8", 0, 0.27, 0, { metalness: 0.15, roughness: 0.45 }),
-						Cy(0.265, 0.265, 0.26, 14, "#FFC83D", 0, 0.27, 0),
-					);
-					[0.06, 0.48].forEach((y) =>
-						g.add(Cy(0.27, 0.27, 0.03, 14, "#B8C0CB", 0, y, 0, { metalness: 0.15, roughness: 0.45 })),
-					);
-				} else {
-					const w = new THREE.Group();
-					w.add(
-						B(0.95, 0.1, 0.16, "#C3CAD4", 0, 0, 0, { metalness: 0.15, roughness: 0.45 }),
-						Cy(0.2, 0.2, 0.1, 6, "#C3CAD4", 0.52, 0, 0, { metalness: 0.15, roughness: 0.45 }),
-						B(0.18, 0.12, 0.1, "#5A6272", 0.62, 0, 0),
-						Cy(0.16, 0.16, 0.1, 6, "#C3CAD4", -0.52, 0, 0, { metalness: 0.15, roughness: 0.45 }),
-					);
-					w.children[1].rotation.x = Math.PI / 2;
-					w.children[3].rotation.x = Math.PI / 2;
-					w.position.y = 0.12;
-					w.rotation.y = 0.5;
-					g.add(w);
-				}
-			} else if (cat === "wood") {
-				if (v === 0) {
-					g.add(B(1.3, 0.16, 0.38, "#B8793F", 0, 0.12, 0));
-					[-0.45, 0.45].forEach((x) => g.add(Cy(0.04, 0.04, 0.05, 6, "#5A6272", x, 0.21, 0)));
-					[-0.1, 0.08].forEach((z) => g.add(B(1.3, 0.01, 0.02, "#8C5A2C", 0, 0.205, z)));
-				} else if (v === 1) {
-					for (let k = 0; k < 3; k++)
-						g.add(
-							B(0.8, 0.14, 0.06, "#C98A4B", 0, 0.15 + k * 0.22, 0.34),
-							B(0.8, 0.14, 0.06, "#C98A4B", 0, 0.15 + k * 0.22, -0.34),
-							B(0.06, 0.14, 0.68, "#C98A4B", 0.37, 0.15 + k * 0.22, 0),
-							B(0.06, 0.14, 0.68, "#C98A4B", -0.37, 0.15 + k * 0.22, 0),
-						);
-					g.add(B(0.8, 0.05, 0.74, "#A06A34", 0, 0.03, 0));
-				} else {
-					const l = Cy(0.24, 0.26, 1.1, 9, "#8C5A3C", 0, 0.26, 0);
-					l.rotation.z = Math.PI / 2;
-					const e1 = Cy(0.2, 0.2, 0.02, 9, "#E8C48E", 0.56, 0.26, 0),
-						e2 = Cy(0.2, 0.2, 0.02, 9, "#E8C48E", -0.56, 0.26, 0);
-					e1.rotation.z = e2.rotation.z = Math.PI / 2;
-					g.add(l, e1, e2, Cy(0.08, 0.08, 0.021, 8, "#B8793F", 0.565, 0.26, 0));
-					g.children[3].rotation.z = Math.PI / 2;
-				}
-			} else {
-				if (v === 0) {
-					for (let k = 0; k < 7; k++) {
-						const a = -0.9 + k * 0.3,
-							b = B(
-								0.2,
-								0.2,
-								0.22,
-								k === 0 || k === 6 ? "#6B4A2B" : "#FFD93D",
-								Math.sin(a) * 0.55,
-								0.2 + (1 - Math.cos(a)) * 0.55,
-								0,
-							);
-						b.rotation.z = a;
-						g.add(b);
-					}
-				} else if (v === 1) {
-					const a = mesh(new THREE.IcosahedronGeometry(0.34, 1), "#E5484D");
-					a.position.y = 0.36;
-					a.scale.y = 0.9;
-					g.add(a, B(0.05, 0.2, 0.05, "#6B4A2B", 0, 0.74, 0));
-					const lf = B(0.22, 0.03, 0.12, "#4CAF50", 0.12, 0.76, 0);
-					lf.rotation.z = -0.4;
-					g.add(lf);
-				} else {
-					const c = mesh(new THREE.ConeGeometry(0.18, 0.95, 8), "#FF8A1F");
-					c.rotation.z = Math.PI / 2;
-					c.position.set(-0.1, 0.2, 0);
-					g.add(c);
-					[-0.2, 0, 0.2].forEach((a) => {
-						const t = B(0.32, 0.05, 0.08, "#4CAF50", 0.5, 0.26 + a * 0.3, a * 0.3);
-						t.rotation.z = a;
-						g.add(t);
-					});
-				}
-			}
-			g.scale.setScalar(1.35);
+			const g = sortItemModel(cat, v);
+			g.scale.setScalar(1.5);
 			return g;
 		},
 		next(W, e) {
@@ -1503,6 +1384,7 @@ Object.assign(MG, {
 				const m = W.curM;
 				W.curM = null;
 				if (m) W.flyM.push({ m, from: m.position.clone(), to: new THREE.Vector3(c.pos[0], 1.5, c.pos[1]), t: 0, ok });
+				W.lidT[idx] = W.t; /* the bin's lid flaps open to catch it */
 				sfx(ok ? "coin" : "loss");
 				e.msg = ok ? "+10" : `Not ${c.n.toLowerCase()}! −5`;
 				e.msgT = W.t;
@@ -1540,6 +1422,10 @@ Object.assign(MG, {
 				W.curM.position.set(0, 0.5 + Math.sin(k * Math.PI) * 1.2, -4 + k * 4);
 				W.curM.rotation.y += dt * 1.5;
 			}
+			W.lids.forEach((l, i) => {
+				const k = W.lidT[i] === undefined ? 1 : (W.t - W.lidT[i]) / 0.45;
+				l.rotation.x = k < 1 ? -Math.sin(k * Math.PI) * 0.9 : 0;
+			});
 			W.flyM = W.flyM.filter((f) => {
 				f.t += dt * 3;
 				const k = Math.min(1, f.t);
@@ -1614,9 +1500,7 @@ Object.assign(MG, {
 			const s = W.sc,
 				T = "#1FB5A8",
 				glow = (c) => M(c, { emissive: c, emissiveIntensity: 0.9 });
-			const st = B(60, 0.4, 50, "#2B2F3A", 0, -0.2, -18);
-			st.castShadow = false;
-			s.add(st);
+			s.add(texBox(60, 0.4, 50, asphaltTex(), 8, 0, -0.2, -18, { color: "#9EA3AD" }));
 			s.add(B(7.4, 0.3, 4, "#4A5060", 0, -0.12, 0.4));
 			s.add(
 				B(0.5, 6, 0.8, T, -3.55, 3, -1.9),
@@ -3248,12 +3132,8 @@ Object.assign(MG, {
 			const s = W.sc,
 				r = mulberry((W.mg.seed || 1) + 31),
 				H = this.H;
-			const g0 = B(240, 0.4, 240, "#2C3038", 0, -0.25, 0);
-			g0.castShadow = false;
-			s.add(g0);
-			const pad = B(2 * H + 2, 0.4, 2 * H + 2, "#5A6170", 0, -0.2, 0);
-			pad.castShadow = false;
-			s.add(pad);
+			s.add(texBox(240, 0.4, 240, asphaltTex(), 8, 0, -0.25, 0, { color: "#A2A6B0" }));
+			s.add(texBox(2 * H + 2, 0.4, 2 * H + 2, concreteTex(), 8, 0, -0.2, 0, { color: "#8F95A5" }));
 			this.STK.forEach(([x, z], k) => {
 				decal(s, new THREE.RingGeometry(this.ZR[0], this.ZR[1], 48), "#FF8A1F", x, 0.016, z, 0.16);
 				[this.ZR[0], this.ZR[1]].forEach((rr) => {
@@ -3821,9 +3701,7 @@ Object.assign(MG, {
 			s.children.slice().forEach((o) => {
 				if (o.isGroup && o.position.y > 12) s.remove(o);
 			});
-			const g0 = B(520, 0.4, 520, "#6DBE5A", 0, -0.25, 0);
-			g0.castShadow = false;
-			s.add(g0);
+			s.add(texBox(520, 0.4, 520, grassTex(), 10, 0, -0.25, 0, { color: "#EEF4EA" }));
 			W.fadeOver = [];
 			W.fadeTun = [];
 			const mk = (pos, col, fade) => {
