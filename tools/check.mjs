@@ -1,6 +1,6 @@
 /* Automatic model checks. For each model (preset or JS expression) it reports:
    - zfight:   two parts with coplanar, same-facing, overlapping faces (will flicker)
-   - overhang: a thin panel (window, stripe, sign, trim) partly hanging past the edge of what it is mounted on
+   - overhang: a thin panel (window, stripe, sign, trim) lying flush on a bigger surface but partly hanging past its edge
    - floating: a part above the ground that touches no other part
    - buried:   a part completely inside another part (bounding boxes), so it can never be seen
    and renders the models that have problems with the offending parts in magenta (tools/out/check.png).
@@ -25,7 +25,11 @@ for (const ex of exprs) {
 			V = THREE.Vector3,
 			meshes = [];
 		root.updateMatrixWorld(true);
-		root.traverse((o) => o.isMesh && meshes.push(o));
+		root.traverse((o) => {
+			let v = true;
+			for (let q = o; q; q = q.parent) if (q.visible === false) v = false;
+			if (o.isMesh && v) meshes.push(o);
+		});
 		const desc = (mi) => {
 			const m = meshes[mi],
 				bb = new THREE.Box3().setFromObject(m),
@@ -115,10 +119,11 @@ for (const ex of exprs) {
 				dims = [sz.x, sz.y, sz.z],
 				ti = dims.indexOf(Math.min(...dims)),
 				others = dims.filter((_, i) => i !== ti);
-			if (dims[ti] > 0.07 || Math.min(...others) < 0.1) return;
+			if (dims[ti] > 0.045 || Math.min(...others) < 0.1) return;
 			const axis = new V().setComponent(ti, 1).transformDirection(m.matrixWorld),
 				rest = meshes.filter((q) => q !== m);
-			const ctr = boxes[mi].getCenter(new V());
+			const ctr = boxes[mi].getCenter(new V()),
+				pIn = others.slice().sort((x, y) => x - y);
 			if (boxes.some((bx, j) => j !== mi && bx.clone().expandByScalar(-0.005).containsPoint(ctr))) return;
 			const pa = g.attributes.position,
 				lo = bb.min.getComponent(ti),
@@ -143,8 +148,15 @@ for (const ex of exprs) {
 				let hit = 0;
 				pts.forEach((cw) => {
 					rc.set(cw, axis.clone().multiplyScalar(-s));
-					rc.far = dims[ti] + 0.15;
-					if (rc.intersectObjects(rest, false).length) hit++;
+					rc.far = dims[ti] + 0.025;
+					/* only a flush surface at least as big as the panel counts as its mount (a window on a body, not a flag on a pole) */
+					if (
+						rc.intersectObjects(rest, false).some((h) => {
+							const bs = boxes[meshes.indexOf(h.object)].getSize(new V()).toArray().sort((x, y) => y - x);
+							return bs[0] >= pIn[1] * 0.9 && bs[1] >= pIn[0] * 0.9;
+						})
+					)
+						hit++;
 				});
 				if (hit > best) {
 					best = hit;
