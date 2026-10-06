@@ -56,14 +56,130 @@ function bakeKit(g) {
 		if (UV) geo.setAttribute("uv", new THREE.BufferAttribute(UV, 2));
 		out.push({ geo, mat });
 	});
+	/* footprint for the contact shadow: x/z extent of the main mass (above 30% of the height, so aprons, yards and fences don't count) */
+	let y0 = 1e9,
+		y1 = -1e9;
+	out.forEach(({ geo }) => {
+		const p = geo.attributes.position;
+		for (let i = 0; i < p.count; i++) {
+			y0 = Math.min(y0, p.getY(i));
+			y1 = Math.max(y1, p.getY(i));
+		}
+	});
+	y0 = Math.max(0, y0);
+	const yc = y0 + Math.max(0.15, (y1 - y0) * 0.3);
+	const bb = new THREE.Box3();
+	out.forEach(({ geo }) => {
+		const p = geo.attributes.position;
+		for (let i = 0; i < p.count; i++) if (p.getY(i) > yc) bb.expandByPoint(v.fromBufferAttribute(p, i));
+	});
+	if (!bb.isEmpty()) out.foot = { x0: bb.min.x, x1: bb.max.x, z0: bb.min.z, z1: bb.max.z, y0 };
 	return out;
 }
-/* list: [{k: kit index, x, y, z, ry, sc}] */
-function placeKits(s, kits, list) {
+/* ---------- contact shadows: a soft dark footprint under props so they sit on the ground instead of looking pasted in.
+   9-slice quad: the dark core is the footprint, the fade runs m metres outward (same width whatever the prop's size). */
+var SHADOW_MAT = {};
+function shadowMat(op) {
+	if (SHADOW_MAT[op]) return SHADOW_MAT[op];
+	if (!SHADOW_MAT.tex) {
+		const n = 64,
+			c = document.createElement("canvas");
+		c.width = c.height = n;
+		const x = c.getContext("2d"),
+			im = x.createImageData(n, n);
+		for (let j = 0; j < n; j++)
+			for (let i = 0; i < n; i++) {
+				const u = Math.max(0, Math.abs((i + 0.5) / n - 0.5) * 4 - 1),
+					v = Math.max(0, Math.abs((j + 0.5) / n - 0.5) * 4 - 1),
+					t = Math.max(0, 1 - Math.hypot(u, v));
+				im.data[(j * n + i) * 4 + 3] = Math.round(t * t * 255);
+			}
+		x.putImageData(im, 0, 0);
+		SHADOW_MAT.tex = new THREE.CanvasTexture(c);
+	}
+	return (SHADOW_MAT[op] = new THREE.MeshBasicMaterial({
+		color: "#000000",
+		map: SHADOW_MAT.tex,
+		transparent: true,
+		opacity: op,
+		depthWrite: false,
+		polygonOffset: true,
+		polygonOffsetFactor: -1,
+		polygonOffsetUnits: -2,
+	}));
+}
+/* flat 9-slice shadow geometry: footprint w x d centred on (cx, cz) at height y, fading out over m (and slightly inward) */
+function shadowGeo(w, d, m, cx = 0, cz = 0, y = 0.03) {
+	const hw = Math.max(0, w / 2 - m * 0.3),
+		hd = Math.max(0, d / 2 - m * 0.3),
+		mm = m * 1.3,
+		xs = [-hw - mm, -hw, hw, hw + mm],
+		zs = [-hd - mm, -hd, hd, hd + mm],
+		uv = [0, 0.25, 0.75, 1],
+		P = [],
+		UV = [],
+		I = [];
+	for (let j = 0; j < 4; j++)
+		for (let i = 0; i < 4; i++) {
+			P.push(cx + xs[i], y, cz + zs[j]);
+			UV.push(uv[i], uv[j]);
+		}
+	for (let j = 0; j < 3; j++)
+		for (let i = 0; i < 3; i++) {
+			const a = j * 4 + i;
+			I.push(a, a + 4, a + 1, a + 1, a + 4, a + 5);
+		}
+	const g = new THREE.BufferGeometry();
+	g.setAttribute("position", new THREE.Float32BufferAttribute(P, 3));
+	g.setAttribute("uv", new THREE.Float32BufferAttribute(UV, 2));
+	g.setAttribute(
+		"normal",
+		new THREE.Float32BufferAttribute(
+			new Array(48).fill(0).map((_, k) => (k % 3 === 1 ? 1 : 0)),
+			3,
+		),
+	);
+	g.setIndex(I);
+	return g;
+}
+/* a contact shadow mesh: w x d footprint (round props: w = d = diameter, the fade makes it soft and round) */
+function contactShadow(w, d, op = 0.3, x = 0, z = 0, y = 0.03, m) {
+	const sh = new THREE.Mesh(shadowGeo(w, d, m || Math.min(1.1, 0.2 + 0.12 * Math.min(w, d)), x, z, y), shadowMat(op));
+	sh.renderOrder = 1;
+	sh.userData.shadow = true;
+	return sh;
+}
+function kitShadowGeo(kit) {
+	const f = kit.foot,
+		w = f.x1 - f.x0,
+		d = f.z1 - f.z0;
+	return shadowGeo(w, d, Math.min(1.1, 0.2 + 0.12 * Math.min(w, d)), (f.x0 + f.x1) / 2, (f.z0 + f.z1) / 2, f.y0 + 0.04);
+}
+/* a baked kit as a normal group (for things that move or toggle), with its contact shadow */
+function kitGroup(kit, shadow = 0.3) {
+	const g = new THREE.Group();
+	kit.forEach(({ geo, mat }) => {
+		const m = new THREE.Mesh(geo, mat);
+		m.castShadow = m.receiveShadow = true;
+		g.add(m);
+	});
+	if (shadow && kit.foot) {
+		const sh = new THREE.Mesh(kit.shGeo || (kit.shGeo = kitShadowGeo(kit)), shadowMat(shadow));
+		sh.renderOrder = 1;
+		sh.userData.shadow = true;
+		g.add(sh);
+	}
+	return g;
+}
+/* list: [{k: kit index, x, y, z, ry, sc}]; shadow = contact shadow opacity (0 = none) */
+function placeKits(s, kits, list, shadow = 0.3) {
 	kits.forEach((kit, ki) => {
 		const L = list.filter((q) => q.k === ki);
 		if (!L.length) return;
-		kit.forEach(({ geo, mat }) => {
+		const parts = kit.map(({ geo, mat }) => ({ geo, mat }));
+		if (shadow && kit.foot)
+			parts.push({ geo: kit.shGeo || (kit.shGeo = kitShadowGeo(kit)), mat: shadowMat(shadow), sh: 1 });
+		parts.forEach(({ geo, mat, sh }) => {
 			const im = new THREE.InstancedMesh(geo, mat, L.length),
 				o = new THREE.Object3D();
 			L.forEach((q, i) => {
@@ -73,7 +189,8 @@ function placeKits(s, kits, list) {
 				o.updateMatrix();
 				im.setMatrixAt(i, o.matrix);
 			});
-			im.castShadow = im.receiveShadow = true;
+			im.castShadow = im.receiveShadow = !sh;
+			if (sh) im.renderOrder = 1;
 			s.add(im);
 		});
 	});
@@ -689,7 +806,82 @@ function fireStationModel() {
 	py.position.set(tx, th + 0.9, tz);
 	g.add(py);
 	/* apron in front of the bays with a painted keep-clear box */
-	g.add(B(w + 0.4, 0.06, 4, "#A2A6AD", 0, 0.0, fz + 2));
+	g.add(B(w + 0.4, 0.06, 4.6, "#A2A6AD", 0, 0.0, fz + 2.3));
 	[-4, 0, 4].forEach((x) => g.add(B(3.0, 0.02, 0.12, "#F2C230", x, 0.035, fz + 3.6)));
+	return g;
+}
+/* ---------- Fire Brigade's burning props, front at +z (small, so only the details that read from above):
+   0 garden shed (plank battens, door with a Z brace, side window, pitched roof with a ridge cap),
+   1 news kiosk (counter, glass hatch, striped awning, overhanging roof, NEWS sign, posters),
+   2 parked car (carModel, scaled down to the trucks' size) */
+function firePropModel(kind, col) {
+	const g = new THREE.Group();
+	if (kind === 0) {
+		const W = 1.6,
+			D = 1.2,
+			y0 = 1.08,
+			RH = 0.45,
+			wood = "#9A6A44",
+			dark = "#6B4A2B";
+		g.add(B(W + 0.1, 0.08, D + 0.1, "#5A4A3A", 0, 0.04, 0), B(W, 1.0, D, wood, 0, 0.58, 0));
+		[-0.7, -0.42, 0.42, 0.7].forEach((x) => g.add(B(0.05, 0.96, 0.03, dark, x, 0.58, D / 2 + 0.015)));
+		[-0.55, -0.18, 0.18, 0.55].forEach((x) => g.add(B(0.05, 0.96, 0.03, dark, x, 0.58, -D / 2 - 0.015)));
+		[-0.45, 0, 0.45].forEach((z) => g.add(B(0.03, 0.96, 0.05, dark, -W / 2 - 0.015, 0.58, z)));
+		g.add(B(0.52, 0.86, 0.04, "#7A4E30", 0, 0.51, D / 2 + 0.02));
+		const br = B(0.06, 0.58, 0.03, dark, 0, 0.51, D / 2 + 0.055);
+		br.rotation.z = 0.5;
+		g.add(br, B(0.44, 0.06, 0.03, dark, 0, 0.82, D / 2 + 0.055), B(0.44, 0.06, 0.03, dark, 0, 0.2, D / 2 + 0.055));
+		g.add(Cy(0.03, 0.03, 0.05, 6, "#C9A44A", 0.18, 0.52, D / 2 + 0.065).rotateX(Math.PI / 2));
+		g.add(B(0.03, 0.36, 0.5, "#9FC6E0", W / 2 + 0.015, 0.68, 0, { emissive: "#FFD6A0", emissiveIntensity: 0.2 }));
+		g.add(B(0.06, 0.42, 0.06, dark, W / 2 + 0.035, 0.68, 0), B(0.04, 0.06, 0.56, dark, W / 2 + 0.035, 0.68, 0));
+		g.add(B(0.08, 0.05, 0.6, dark, W / 2 + 0.04, 0.47, 0));
+		const tri = new THREE.Shape([new THREE.Vector2(-D / 2, 0), new THREE.Vector2(D / 2, 0), new THREE.Vector2(0, RH)]),
+			at = mesh(new THREE.ExtrudeGeometry(tri, { depth: W, bevelEnabled: false }), wood);
+		at.rotation.y = Math.PI / 2;
+		at.position.set(-W / 2, y0, 0);
+		g.add(at);
+		const a = Math.atan2(RH, D / 2),
+			sl = Math.hypot(D / 2, RH) + 0.2;
+		[-1, 1].forEach((sd) => {
+			const p = B(W + (sd > 0 ? 0.24 : 0.27), 0.07, sl, "#3A4150", 0, 0, 0);
+			p.rotation.x = sd * a;
+			p.position.set(
+				0,
+				y0 + RH / 2 + 0.04 * Math.cos(a) - 0.08 * Math.sin(a),
+				sd * (D / 4 + 0.04 * Math.sin(a) + 0.08 * Math.cos(a)),
+			);
+			g.add(p);
+		});
+		g.add(B(W + 0.28, 0.07, 0.14, "#2A2F3A", 0, y0 + RH + 0.06, 0));
+	} else if (kind === 1) {
+		const W = 1.2,
+			gr = "#2E9E5B",
+			dg = "#1F7A45";
+		g.add(B(1.32, 0.12, 1.32, "#5A6272", 0, 0.06, 0), B(W, 1.2, W, gr, 0, 0.72, 0));
+		[-1, 1].forEach((sx) => [-1, 1].forEach((sz) => g.add(B(0.06, 1.24, 0.06, dg, sx * 0.6, 0.74, sz * 0.6))));
+		g.add(B(0.96, 0.44, 0.03, "#4A5566", 0, 1.02, W / 2 + 0.015, { emissive: "#FFD6A0", emissiveIntensity: 0.35 }));
+		g.add(B(0.04, 0.42, 0.05, dg, 0, 1.01, W / 2 + 0.025), B(1.04, 0.05, 0.05, dg, 0, 1.26, W / 2 + 0.025));
+		g.add(B(1.04, 0.06, 0.28, "#C9D1DC", 0, 0.77, W / 2 + 0.14));
+		[-0.4, 0.4].forEach((x) => g.add(B(0.04, 0.12, 0.22, "#8E96A3", x, 0.68, W / 2 + 0.11)));
+		[-0.28, 0, 0.28].forEach((x, k) =>
+			g.add(B(0.2, 0.05, 0.16, ["#F4F6F9", "#FFE7B0", "#DCE6F2"][k], x, 0.825, W / 2 + 0.14)),
+		);
+		const aw = texturedBox(1.16, 0.04, 0.42, "#E5484D", stripeTexture("#E5484D", "#FFFFFF"), 2, 0.75, 1);
+		aw.rotation.x = 0.42;
+		aw.position.set(0, 1.22, W / 2 + 0.19);
+		g.add(aw);
+		g.add(B(1.5, 0.1, 1.5, "#23272F", 0, 1.39, 0), B(1.36, 0.08, 1.36, dg, 0, 1.48, 0));
+		const sg = texturedBox(0.9, 0.24, 0.06, "#FFC83D", signTexture("NEWS", "#FFC83D", "#2A2F3A"), 4);
+		sg.position.set(0, 1.72, 0.25);
+		g.add(sg, B(0.06, 0.14, 0.04, "#2A2F3A", -0.3, 1.59, 0.25), B(0.06, 0.14, 0.04, "#2A2F3A", 0.3, 1.59, 0.25));
+		[-1, 1].forEach((sd) => {
+			g.add(B(0.03, 0.5, 0.4, sd > 0 ? "#E5484D" : "#2F7DE1", sd * (W / 2 + 0.015), 0.72, 0.1));
+			g.add(B(0.03, 0.3, 0.4, "#F4F6F9", sd * (W / 2 + 0.015), 0.72, -0.34));
+		});
+	} else {
+		const c = carModel("sedan", col || "#8E96A3");
+		c.scale.setScalar(0.6);
+		g.add(c);
+	}
 	return g;
 }
