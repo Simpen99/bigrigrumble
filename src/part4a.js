@@ -431,7 +431,7 @@ function camFov(f) {
 function start3D(mg, p, localOnly, startAt, split) {
 	const def = MG[mg.g],
 		s = new THREE.Scene();
-	["ao", "bloom", "tilt", "vig", "col"].forEach((k) => {
+	["ao", "bloom", "tilt", "vig", "col", "aa"].forEach((k) => {
 		const v = def.fx && def.fx[k];
 		GFX.fx[k].on = !!v;
 		if (v) {
@@ -503,6 +503,21 @@ function start3D(mg, p, localOnly, startAt, split) {
 	);
 	camFov(40);
 	def.build(W);
+	/* baked light panel values: def.lt = {amb, sun, warm, haze} (the panel's "Copy" line), applied over the scene's own */
+	if (def.lt) {
+		const L = def.lt,
+			h = s.children.find((o) => o.isHemisphereLight);
+		if (h && L.amb !== undefined) h.intensity = L.amb;
+		if (L.sun !== undefined) W.sun.intensity = L.sun;
+		if (L.warm !== undefined) {
+			W.sun.color.set("#E4EEFF").lerp(new THREE.Color("#FFC27A"), L.warm);
+			W.lpWarm = L.warm;
+		}
+		if (L.haze && s.fog) {
+			s.fog.near = L.haze;
+			s.fog.far = L.haze * 3.8;
+		}
+	}
 	const n = plist.length;
 	plist.forEach((q, i) => {
 		const e = mkEnt(q, !tv && q.key === p.key, !!split, def.truckMode);

@@ -1000,6 +1000,10 @@ const MG = {
 		bound: { t: "circ", r: 14.4 },
 		water: false,
 		bare: true,
+		/* light panel: ambient 0.54, sun 1.10, height 30, angle 41°, warmth 0.50, haze 50, smooth edges */
+		sun: [13.9, 30, 12.1],
+		lt: { amb: 0.54, sun: 1.1, warm: 0.5, haze: 50 },
+		fx: { aa: 1 },
 		/* twin sticks: drive on the left, aim the roof water cannon on the right (no ramming) */
 		aim: true,
 		truckMode: "hose",
