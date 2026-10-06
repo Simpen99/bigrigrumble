@@ -1,0 +1,10 @@
+{
+	"name": "bigrigrumble-tools",
+	"private": true,
+	"type": "module",
+	"description": "Headless helpers for Big Rig Rumble: model inspection and checks, minigame screenshots, smoke runs",
+	"dependencies": {
+		"playwright": "1.63.0",
+		"three": "0.128.0"
+	}
+}
