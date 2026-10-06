@@ -53,6 +53,11 @@ three.js r128 (UMD from cdnjs) + ConvexHull/ConvexGeometry (jsdelivr), no build 
 - On Windows use node for scripts, not `python`.
 
 ## Testing
-Headless Chromium + Playwright with `--use-gl=swiftshader`. Route the CDN three.js / ConvexHull / ConvexGeometry URLs to local copies from `npm i three@0.128.0`. Check every new or changed model alone in a neutral scene from four angles (front, back, side, 3/4 above) before shipping: render it with `GFX.r` into a small canvas per view and look at the sheet. Console hooks: `startPractice("taco")`, `W` (minigame world), `HG` (host state).
+Use the scripts in `tools/` (see `tools/README.md`; `cd tools && npm i` once, then `sh build.sh` before running):
+- `node tools/check.mjs <models>`: automatic model checks (z-fighting, overhanging panels, floating and buried parts), problem parts in magenta. **Run it on every new or changed model and fix what it finds.**
+- `node tools/rig.mjs <models>`: a model from front, back, side and 3/4 above; look at it before shipping.
+- `node tools/sheet.mjs <games>|all [--landscape]`: minigames at iPhone size on one contact sheet.
+- `node tools/run.mjs <games>|all`: play minigames to the end and report page errors.
+Models are presets (`cars`, `taxi`, `houses`, `trucks`) or JS expressions returning an Object3D, facing -z (`faceZ(m)` turns +x-facing ones). Console hooks: `startPractice("taco")`, `W` (minigame world), `HG` (host state).
 
 Backlog ideas live in `IDEAS.md`.
