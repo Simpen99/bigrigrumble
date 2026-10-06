@@ -1194,55 +1194,46 @@ const MG = {
 				s.children[s.children.length - 1].rotation.z = Math.PI / 2;
 				decal(s, new THREE.CircleGeometry(1.8, 24), "#2F7DE1", x, 0.04, z, 0.35);
 			});
-			const shop = (x, z, rot, c, aw, h) => {
-				const g = new THREE.Group();
-				g.position.set(x, 0, z);
-				g.rotation.y = rot;
-				s.add(g);
-				g.add(
-					B(8, h, 6, c, 0, h / 2, 0),
-					B(8.4, 0.3, 6.4, "#4A4F5A", 0, h + 0.15, 0),
-					B(6, 2, 0.1, "#FFE7B0", 0, 1.3, 3.02),
-				);
-				const a = B(7, 0.15, 1.6, aw, 0, 2.7, 3.6);
-				a.rotation.x = -0.35;
-				g.add(a);
-				for (let q = -1; q <= 1; q += 2) g.add(B(1.4, 1.3, 0.1, "#3E4A66", q * 2.2, h - 1.8, 3.02));
-			};
+			/* shops around the plaza (detailed buildings, partmodels) and Blaze's fire station with a truck in the open bay */
 			[
-				[6.1, "#E6D8BE", "#1FA35C"],
-				[5.5, "#B8C4D6", "#FFC83D"],
-				[3.9, "#E8B4A0", "#2F7DE1"],
-				[3.3, "#C9D6B8", "#8E5BE0"],
-				[0.15, "#D9C3A5", "#FF6FAE"],
-				[2.99, "#E6D8BE", "#FF8A1F"],
-			].forEach(([a, c, aw], k) =>
-				shop(Math.cos(a) * 24, Math.sin(a) * 24, -a - Math.PI / 2, c, aw, 5 + (k % 3) * 1.6),
+				[6.1, "#E6D8BE", 0],
+				[5.5, "#B8C4D6", 1],
+				[3.9, "#E8B4A0", 3],
+				[3.3, "#C9D6B8", 4],
+				[0.15, "#D9C3A5", 6],
+				[2.99, "#E6D8BE", 7],
+			].forEach(([a, c, si], k) =>
+				placeKits(
+					s,
+					[
+						bakeKit(
+							buildingModel({
+								w: 8,
+								d: 6,
+								floors: 2 + (k % 2),
+								style: ["brick", "plain", "apt"][k % 3],
+								wall: c,
+								shop: SHOPS[si],
+								roofBits: k,
+							}),
+						),
+					],
+					[{ k: 0, x: Math.cos(a) * 24, z: Math.sin(a) * 24, ry: -a - Math.PI / 2 }],
+				),
 			);
-			const st = new THREE.Group();
-			st.position.set(0, 0, -21);
-			s.add(st);
-			st.add(B(12, 7, 7, "#D42A22", 0, 3.5, 0), B(12.4, 0.4, 7.4, "#F2F2F2", 0, 7.2, 0));
-			[-3.4, 0, 3.4].forEach((x) => st.add(B(2.8, 3.6, 0.1, "#F2F2F2", x, 1.8, 3.52)));
-			const sg = new THREE.Mesh(
-				new THREE.PlaneGeometry(7, 1.2),
-				new THREE.MeshBasicMaterial({
-					map: canvasTex(280, 48, (x, w, h) => {
-						x.fillStyle = "#F2F2F2";
-						x.fillRect(0, 0, w, h);
-						x.font = "30px Bungee, 'Arial Black', Impact, sans-serif";
-						x.textAlign = "center";
-						x.textBaseline = "middle";
-						x.fillStyle = "#D42A22";
-						x.fillText("FIRE STATION", w / 2, h / 2 + 2);
-					}),
-				}),
-			);
-			sg.position.set(0, 5.4, 3.53);
-			st.add(sg);
+			placeKits(s, [bakeKit(fireStationModel())], [{ k: 0, x: 0, z: -21 }]);
+			{
+				const ft = buildTruck(2);
+				ft.rotation.y = -Math.PI / 2;
+				ft.scale.setScalar(1.25);
+				ft.position.set(0, 0, -17.9);
+				s.add(ft);
+			}
 			for (let i = 0; i < 10; i++) {
-				const a = (i / 10) * 6.283 + 0.31;
-				s.add(tree(Math.cos(a) * 16.5, Math.sin(a) * 16.5, 1.1, 0));
+				const a = (i / 10) * 6.283 + 0.31,
+					x = Math.cos(a) * 16.5,
+					z = Math.sin(a) * 16.5;
+				if (Math.abs(x) > 7 || z > 0) s.add(tree(x, z, 1.1, 0));
 			}
 		},
 		spawn: ringSpawn(9),
@@ -3663,32 +3654,24 @@ const MG = {
 			});
 		},
 		city(W, wid) {
-			// downtown street: sidewalks, shop fronts with awnings, apartment blocks, street lamps
+			// downtown street: sidewalks, kerbside furniture, street lamps and a row of detailed shop/apartment/office buildings (partmodels)
 			const s = W.sc,
-				C = ["#D9C3A5", "#B8C4D6", "#E8B4A0", "#C9D6B8", "#E6D8BE", "#A9B8C9"],
-				AW = ["#E5484D", "#2F7DE1", "#1FA35C", "#FFC83D", "#8E5BE0"];
+				blocks = [];
 			s.add(texBox(160, 0.4, 300, asphaltTex(), 8, 0, -0.2, -80, { color: "#C8CCD4" }));
 			kerbs(s, -wid / 2 - 0.3, wid / 2 + 0.3, 70, -230, "city");
 			this.furniture(W, wid);
 			[-1, 1].forEach((sd) => {
 				s.add(texBox(4, 0.25, 300, pavingTex(), 4, sd * (wid / 2 + 2.3), 0.12, -80));
-				for (let z = 12, k = 0; z > -this.LEN - 40; z -= 9, k++) {
-					const o = sd > 0 ? 2 : 0,
-						h = 7 + ((k * 7 + o) % 5) * 2.2,
-						x = sd * (wid / 2 + 8.3);
-					s.add(B(8, h, 8.6, C[(k + o) % C.length], x, h / 2, z));
-					for (let r = 0; r < Math.floor((h - 3) / 2.4); r++)
-						for (let q = -1; q <= 1; q++) s.add(B(0.1, 1.1, 1.3, "#3E4A66", x - sd * 4.02, 4 + r * 2.4, z + q * 2.5));
-					const aw = B(1.2, 0.14, 7, AW[(k + o) % AW.length], x - sd * 4.6, 2.9, z);
-					aw.rotation.z = sd * 0.35;
-					s.add(aw, B(0.1, 1.9, 5, "#FFE7B0", x - sd * 4.03, 1.3, z));
-				}
+				for (let z = 12, k = 0; z > -this.LEN - 40; z -= 9, k++)
+					blocks.push({ k: (k * 3 + (sd > 0 ? 5 : 0)) % 8, x: sd * (wid / 2 + 8.3), z, ry: (-sd * Math.PI) / 2 });
 				for (let z = 0; z > -this.LEN - 20; z -= 15)
 					s.add(
 						Cy(0.1, 0.12, 5, 6, "#2A2F3A", sd * (wid / 2 + 0.9), 2.5, z),
 						B(1.4, 0.14, 0.3, "#2A2F3A", sd * (wid / 2 + 0.3), 5, z),
 					);
 			});
+			/* shops below, flats and offices above: 8 detailed variants, one InstancedMesh per material */
+			placeKits(s, buildingKits(8.6, 8), blocks);
 		},
 		light(W, t) {
 			const c = W.cyc.find((c) => t < c.r) || W.cyc[W.cyc.length - 1];
