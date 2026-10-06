@@ -30,11 +30,18 @@ function wrapBlob(x, w, h, px, py, rad, col0, col1) {
 			x.restore();
 		}
 }
-function specks(x, w, h, n, cols, s0, s1) {
+/* faint grit: mostly tiny grains, now and then a bigger round stone; cols are "r,g,b" strings, a = base opacity */
+function grit(x, w, h, n, cols, a) {
 	for (let i = 0; i < n; i++) {
-		x.fillStyle = cols[i % cols.length];
-		const z = s0 + scnR() * (s1 - s0);
-		x.fillRect(scnR() * w, scnR() * h, z, z);
+		const r = scnR(),
+			z = 0.4 + 2.8 * r * r * r;
+		x.fillStyle = `rgba(${cols[i % cols.length]},${(a + scnR() * a - r * a * 0.6).toFixed(3)})`;
+		if (z < 1.2) x.fillRect(scnR() * w, scnR() * h, z, z);
+		else {
+			x.beginPath();
+			x.ellipse(scnR() * w, scnR() * h, z / 2, (z / 2) * (0.6 + scnR() * 0.4), scnR() * 3, 0, 6.283);
+			x.fill();
+		}
 	}
 }
 /* 8 x 8 m of worn asphalt: aggregate grit and soft wear patches (cracks are scattered decals, see roadWear, so they never repeat) */
@@ -53,53 +60,39 @@ const asphaltTex = () =>
 				i % 2 ? "rgba(34,37,44,.09)" : "rgba(120,124,132,.07)",
 				"rgba(0,0,0,0)",
 			);
-		for (let i = 0; i < 5200; i++) {
-			// grit: mostly tiny, now and then a bigger stone; faint so it reads as texture, not dots
-			const r = scnR(),
-				z = 0.4 + 2.8 * r * r * r;
-			x.fillStyle =
-				["rgba(20,22,28,", "rgba(150,152,158,", "rgba(95,98,106,"][i % 3] +
-				(0.06 + scnR() * 0.06 - r * 0.035).toFixed(3) +
-				")";
-			if (z < 1.2) x.fillRect(scnR() * w, scnR() * h, z, z);
-			else {
-				x.beginPath();
-				x.ellipse(scnR() * w, scnR() * h, z / 2, (z / 2) * (0.6 + scnR() * 0.4), scnR() * 3, 0, 6.283);
-				x.fill();
-			}
-		}
+		grit(x, w, h, 5200, ["20,22,28", "150,152,158", "95,98,106"], 0.06);
 	});
-/* 10 x 10 m of lawn: mowing stripes, blade specks, a few tiny flowers */
+/* 10 x 10 m of lawn: soft mowing stripes, faint blade grit, a few tiny flowers */
 const grassTex = () =>
 	scnTex("grass", 256, (x, w, h) => {
 		for (let i = 0; i < 5; i++) {
-			x.fillStyle = i % 2 ? "#78C266" : "#83CC70";
+			x.fillStyle = i % 2 ? "#7BC468" : "#81C96E";
 			x.fillRect((i * w) / 5, 0, w / 5, h);
 		}
-		for (let i = 0; i < 10; i++)
-			wrapBlob(x, w, h, scnR() * w, scnR() * h, 18 + scnR() * 30, "rgba(70,130,60,.22)", "rgba(70,130,60,0)");
-		specks(x, w, h, 4200, ["rgba(60,120,50,.45)", "rgba(170,220,140,.4)", "rgba(90,150,70,.5)"], 0.8, 1.8);
-		for (let i = 0; i < 70; i++) {
-			x.fillStyle = ["#FFFFFF", "#FFE066", "#F7B8D2"][i % 3];
+		for (let i = 0; i < 6; i++)
+			wrapBlob(x, w, h, scnR() * w, scnR() * h, 30 + scnR() * 40, "rgba(70,130,60,.08)", "rgba(70,130,60,0)");
+		grit(x, w, h, 4200, ["60,120,50", "170,220,140", "90,150,70"], 0.1);
+		for (let i = 0; i < 40; i++) {
+			x.fillStyle = ["rgba(255,255,255,.75)", "rgba(255,224,102,.75)", "rgba(247,184,210,.75)"][i % 3];
 			x.beginPath();
-			x.arc(scnR() * w, scnR() * h, 0.9 + scnR() * 0.6, 0, 6.283);
+			x.arc(scnR() * w, scnR() * h, 0.8 + scnR() * 0.5, 0, 6.283);
 			x.fill();
 		}
 	});
-/* 4 x 4 m of pavement: 0.5 m slabs with joints and slightly different tones */
+/* 4 x 4 m of pavement: 0.5 m slabs, gentle tone differences, light joints */
 const pavingTex = () =>
 	scnTex("paving", 256, (x, w, h) => {
 		const n = 8,
 			c = w / n;
 		for (let i = 0; i < n; i++)
 			for (let j = 0; j < n; j++) {
-				const v = 196 + Math.floor(scnR() * 18);
+				const v = 200 + Math.floor(scnR() * 8);
 				x.fillStyle = `rgb(${v},${v + 3},${v + 8})`;
 				x.fillRect(i * c, j * c, c, c);
 			}
-		specks(x, w, h, 2400, ["rgba(90,96,108,.25)", "rgba(255,255,255,.3)"], 0.6, 1.4);
-		x.strokeStyle = "rgba(110,116,128,.75)";
-		x.lineWidth = 1.4;
+		grit(x, w, h, 2400, ["90,96,108", "255,255,255"], 0.06);
+		x.strokeStyle = "rgba(110,116,128,.4)";
+		x.lineWidth = 1.2;
 		for (let i = 0; i <= n; i++) {
 			x.beginPath();
 			x.moveTo(i * c, 0);
@@ -108,28 +101,28 @@ const pavingTex = () =>
 			x.lineTo(w, i * c);
 			x.stroke();
 		}
-		for (let i = 0; i < 6; i++)
-			wrapBlob(x, w, h, scnR() * w, scnR() * h, 10 + scnR() * 16, "rgba(80,70,60,.18)", "rgba(80,70,60,0)");
+		for (let i = 0; i < 4; i++)
+			wrapBlob(x, w, h, scnR() * w, scnR() * h, 14 + scnR() * 20, "rgba(80,70,60,.06)", "rgba(80,70,60,0)");
 	});
-/* 8 x 8 m of quay concrete: big slabs, joints, rust and oil stains */
+/* 8 x 8 m of concrete: big slabs, light joints, a few very faint stains */
 const concreteTex = () =>
 	scnTex("concrete", 256, (x, w, h) => {
 		x.fillStyle = "#A2A7AE";
 		x.fillRect(0, 0, w, h);
-		for (let i = 0; i < 14; i++)
+		for (let i = 0; i < 6; i++)
 			wrapBlob(
 				x,
 				w,
 				h,
 				scnR() * w,
 				scnR() * h,
-				14 + scnR() * 40,
-				["rgba(120,90,60,.2)", "rgba(60,64,72,.22)", "rgba(220,224,230,.2)"][i % 3],
+				40 + scnR() * 50,
+				["rgba(120,90,60,.06)", "rgba(60,64,72,.07)", "rgba(220,224,230,.07)"][i % 3],
 				"rgba(0,0,0,0)",
 			);
-		specks(x, w, h, 3600, ["rgba(70,74,82,.3)", "rgba(240,242,246,.3)"], 0.6, 1.5);
-		x.strokeStyle = "rgba(70,74,82,.7)";
-		x.lineWidth = 1.5;
+		grit(x, w, h, 3600, ["70,74,82", "240,242,246"], 0.07);
+		x.strokeStyle = "rgba(70,74,82,.35)";
+		x.lineWidth = 1.2;
 		for (let i = 0; i <= 2; i++) {
 			x.beginPath();
 			x.moveTo((i * w) / 2, 0);
@@ -138,6 +131,88 @@ const concreteTex = () =>
 			x.lineTo(w, (i * h) / 2);
 			x.stroke();
 		}
+	});
+/* 3 x 3 m of cobbles: rounded setts in running bond, gentle tone changes, mortar only a little darker */
+const cobbleTex = () =>
+	scnTex("cobble", 256, (x, w, h) => {
+		x.fillStyle = "#A4968A";
+		x.fillRect(0, 0, w, h);
+		const rows = 12,
+			rh = h / rows,
+			sw = rh * 1.25;
+		for (let r = 0; r < rows; r++)
+			for (let c = -1; c < w / sw + 1; c++) {
+				const v = 176 + Math.floor(scnR() * 14),
+					px = c * sw + (r % 2 ? sw / 2 : 0) + 1,
+					py = r * rh + 1;
+				x.fillStyle = `rgb(${v},${v - 12},${v - 24})`;
+				rr(x, px, py, sw - 2.4, rh - 2.4, 4);
+				x.fill();
+				x.fillStyle = "rgba(255,255,255,.07)";
+				rr(x, px + 1.5, py + 1.2, sw - 6, (rh - 2.4) * 0.45, 3);
+				x.fill();
+			}
+		grit(x, w, h, 1800, ["90,76,64", "255,250,240"], 0.05);
+		for (let i = 0; i < 5; i++)
+			wrapBlob(x, w, h, scnR() * w, scnR() * h, 30 + scnR() * 40, "rgba(90,76,64,.05)", "rgba(90,76,64,0)");
+	});
+/* 5 x 5 m of steel tread plate: faint raised lozenges, a weld seam with beads along the edges, corner bolts, light scuffs */
+const treadTex = () =>
+	scnTex("tread", 256, (x, w, h) => {
+		x.fillStyle = "#737C8A";
+		x.fillRect(0, 0, w, h);
+		for (let i = 0; i < 6; i++)
+			wrapBlob(
+				x,
+				w,
+				h,
+				scnR() * w,
+				scnR() * h,
+				30 + scnR() * 40,
+				i % 2 ? "rgba(150,110,80,.06)" : "rgba(200,206,216,.07)",
+				"rgba(0,0,0,0)",
+			);
+		const g = 12;
+		for (let r = 0; r * g < h; r++)
+			for (let c = 0; c * g < w; c++) {
+				const cx = c * g + (r % 2 ? g / 2 : 0) + 3,
+					cy = r * g + 3,
+					a = (r + c) % 2 ? 0.785 : -0.785;
+				x.save();
+				x.translate(cx, cy);
+				x.rotate(a);
+				x.fillStyle = "rgba(30,34,42,.12)";
+				x.fillRect(-3.4, 0.4, 7, 2);
+				x.fillStyle = "rgba(220,226,236,.14)";
+				x.fillRect(-3.6, -1, 7, 2);
+				x.restore();
+			}
+		grit(x, w, h, 1500, ["40,44,52", "230,234,240"], 0.05);
+		x.strokeStyle = "rgba(40,44,52,.35)";
+		x.lineWidth = 2;
+		x.strokeRect(1, 1, w - 2, h - 2);
+		x.fillStyle = "rgba(140,148,160,.35)";
+		for (let k = 4; k < w; k += 5) {
+			x.beginPath();
+			x.ellipse(k, 3.2, 2.2, 1.4, 0, 0, 6.283);
+			x.ellipse(3.2, k, 1.4, 2.2, 0, 0, 6.283);
+			x.fill();
+		}
+		[
+			[10, 10],
+			[w - 10, 10],
+			[10, h - 10],
+			[w - 10, h - 10],
+		].forEach(([bx, by]) => {
+			x.fillStyle = "rgba(40,44,52,.35)";
+			x.beginPath();
+			x.arc(bx + 0.8, by + 0.8, 3.2, 0, 6.283);
+			x.fill();
+			x.fillStyle = "rgba(170,176,188,.6)";
+			x.beginPath();
+			x.arc(bx, by, 3, 0, 6.283);
+			x.fill();
+		});
 	});
 /* a material for a flat box/plane of w x d metres using one of the textures above (tile = metres per texture repeat) */
 function groundMat(tex, w, d, tile, o) {
@@ -301,7 +376,7 @@ function roadLines(s, xs, z0, z1, y, o = {}) {
 	s.add(im);
 }
 /* scatter road wear over a strip: oil stains and cracks (one instanced mesh per kind) */
-function roadWear(s, x0, x1, z0, z1, y, density = 1) {
+function roadWear(s, x0, x1, z0, z1, y, density = 1, crackOp = 1) {
 	const sheet = wearSheet(),
 		L = Math.abs(z1 - z0),
 		zs = Math.min(z0, z1),
@@ -319,6 +394,7 @@ function roadWear(s, x0, x1, z0, z1, y, density = 1) {
 				new THREE.MeshBasicMaterial({
 					map: k.crack ? crackSheet() : sheet,
 					transparent: true,
+					opacity: k.crack ? crackOp : 1,
 					depthWrite: false,
 					polygonOffset: true,
 					polygonOffsetFactor: k.crack ? -0.5 : -1 - ki * 0.5,
