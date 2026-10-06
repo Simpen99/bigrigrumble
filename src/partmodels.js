@@ -1738,3 +1738,316 @@ function crushedCarModel(type, col) {
 	g.add(c);
 	return g;
 }
+
+/* ---------- Sort It Out: wheelie bins and the trash ---------- */
+/* flat icon shapes for bin lids, drawn in a 0.6 x 0.6 box: bottle, can, log end, leaf */
+function binIconShape(icon) {
+	const V = (P) => new THREE.Shape(P.map(([x, y]) => new THREE.Vector2(x, y)));
+	if (icon === "bottle")
+		return V([
+			[-0.13, -0.28],
+			[0.13, -0.28],
+			[0.13, 0.08],
+			[0.06, 0.17],
+			[0.06, 0.28],
+			[-0.06, 0.28],
+			[-0.06, 0.17],
+			[-0.13, 0.08],
+		]);
+	if (icon === "can")
+		return V([
+			[-0.16, -0.22],
+			[-0.12, -0.27],
+			[0.12, -0.27],
+			[0.16, -0.22],
+			[0.16, 0.22],
+			[0.12, 0.27],
+			[-0.12, 0.27],
+			[-0.16, 0.22],
+		]);
+	if (icon === "log") {
+		const s = new THREE.Shape();
+		s.absarc(0, 0, 0.26, 0, Math.PI * 2, false);
+		const h = new THREE.Path();
+		h.absarc(0, 0, 0.13, 0, Math.PI * 2, true);
+		s.holes.push(h);
+		return s;
+	}
+	const s = new THREE.Shape();
+	s.moveTo(0, -0.28);
+	s.quadraticCurveTo(0.3, -0.02, 0, 0.3);
+	s.quadraticCurveTo(-0.3, -0.02, 0, -0.28);
+	return s;
+}
+/* wheelie bin, front at +z: tapered body, overhanging lid on a hinge at the back (userData.lid pivots there, rotate
+   x negative to open), a raised white icon on the lid, a name plate on the front, back handle, wheels and front feet */
+function wheelieBinModel(col, name, icon) {
+	const g = new THREE.Group(),
+		lidC = "#" + new THREE.Color(col).multiplyScalar(0.72).getHexString(),
+		D = "#23272F";
+	const bg = new THREE.CylinderGeometry(0.98, 0.86, 1.2, 4);
+	bg.rotateY(Math.PI / 4);
+	bg.scale(1.15, 1, 1);
+	const body = mesh(bg, col);
+	body.position.y = 0.7;
+	g.add(body);
+	[0.42, 0.98].forEach((y) => {
+		const rg = new THREE.CylinderGeometry(0.9 + (y - 0.1) * 0.1, 0.9 + (y - 0.18) * 0.1, 0.08, 4);
+		rg.rotateY(Math.PI / 4);
+		rg.scale(1.15, 1, 1);
+		const r = mesh(rg, lidC);
+		r.position.y = y;
+		g.add(r);
+	}); /* two moulded ribs round the body */
+	[-1, 1].forEach((sd) => {
+		const w = Cy(0.17, 0.17, 0.12, 10, D, sd * 0.62, 0.17, -0.72);
+		w.rotation.z = Math.PI / 2;
+		g.add(w, Cy(0.08, 0.08, 0.13, 8, "#8E96A3", sd * 0.62, 0.17, -0.72).rotateZ(Math.PI / 2));
+		g.add(B(0.2, 0.12, 0.16, D, sd * 0.5, 0.06, 0.48));
+	});
+	g.add(Cy(0.04, 0.04, 1.12, 6, "#5A6272", 0, 0.17, -0.72).rotateZ(Math.PI / 2), B(1.0, 0.16, 0.14, D, 0, 0.2, -0.64));
+	/* back handle on two brackets, hinge bar */
+	[-1, 1].forEach((sd) => g.add(B(0.1, 0.14, 0.2, lidC, sd * 0.5, 1.22, -0.76)));
+	g.add(Cy(0.045, 0.045, 1.16, 6, D, 0, 1.22, -0.88).rotateZ(Math.PI / 2));
+	/* lid: pivot at the hinge, so it can flap open */
+	const lid = new THREE.Group();
+	lid.position.set(0, 1.33, -0.72);
+	g.add(lid);
+	lid.add(B(1.72, 0.1, 1.5, lidC, 0, 0.02, 0.74), B(1.66, 0.14, 0.07, lidC, 0, -0.04, 1.5));
+	lid.add(Cy(0.05, 0.05, 1.6, 6, D, 0, 0, 0).rotateZ(Math.PI / 2));
+	const ic = new THREE.ExtrudeGeometry(binIconShape(icon), { depth: 0.04, bevelEnabled: false, curveSegments: 6 });
+	ic.rotateX(-Math.PI / 2);
+	ic.scale(1.6, 1, 1.6);
+	const im = mesh(ic, "#F4F6F9");
+	im.position.set(0, 0.07, 0.74);
+	lid.add(im);
+	g.userData.lid = lid;
+	/* name plate on the sloping front */
+	const pl = texturedBox(1.1, 0.3, 0.03, "#F4F6F9", signTexture(name.toUpperCase(), "#F4F6F9", "#23272F"), 4);
+	pl.position.set(0, 0.78, 0.67);
+	pl.rotation.x = 0.066;
+	g.add(pl);
+	return g;
+}
+/* the trash for Sort It Out, about 1 m across, built to read from above while it spins: long things lie on their side.
+   plastic: water bottle, takeaway cup with a straw, spray bottle; metal: soda can, opened food tin, spanner;
+   wood: broken plank with nails, slatted crate, log; compost: banana, apple core, carrot */
+function sortItemModel(cat, v) {
+	const g = new THREE.Group(),
+		glass = { transparent: true, opacity: 0.82, roughness: 0.15 },
+		met = { metalness: 0.25, roughness: 0.4 },
+		lathe = (P, col, o, seg = 8) =>
+			mesh(
+				new THREE.LatheGeometry(
+					P.map(([r, y]) => new THREE.Vector2(r, y)),
+					seg,
+				),
+				col,
+				o,
+			),
+		flat = (P, depth, col, o) => {
+			const s = new THREE.Shape(P.map(([x, y]) => new THREE.Vector2(x, y))),
+				geo = new THREE.ExtrudeGeometry(s, { depth, bevelEnabled: false });
+			geo.rotateX(-Math.PI / 2);
+			return mesh(geo, col, o);
+		},
+		side = (part, len, r) => {
+			/* lay an upright part (base at y 0, height len) on its side, centred */
+			const q = new THREE.Group();
+			part.rotation.z = Math.PI / 2;
+			part.position.set(len / 2, r, 0);
+			q.add(part);
+			return q;
+		};
+	if (cat === "plastic") {
+		if (v === 0) {
+			const b = new THREE.Group();
+			b.add(
+				lathe(
+					[
+						[0, 0],
+						[0.2, 0],
+						[0.24, 0.05],
+						[0.24, 0.6],
+						[0.2, 0.7],
+						[0.1, 0.82],
+						[0.09, 0.9],
+						[0, 0.9],
+					],
+					"#8FD3FF",
+					glass,
+				),
+			);
+			b.add(Cy(0.265, 0.265, 0.3, 8, "#FFFFFF", 0, 0.34, 0), Cy(0.29, 0.29, 0.1, 8, "#2F7DE1", 0, 0.34, 0));
+			b.add(Cy(0.12, 0.12, 0.14, 8, "#2F7DE1", 0, 0.95, 0));
+			g.add(side(b, 1.02, 0.29));
+		} else if (v === 1) {
+			g.add(Cy(0.3, 0.22, 0.72, 8, "#F4F7FA", 0, 0.36, 0, glass), Cy(0.26, 0.2, 0.5, 8, "#E5484D", 0, 0.29, 0));
+			g.add(Cy(0.34, 0.33, 0.08, 8, "#FFFFFF", 0, 0.74, 0), Cy(0.2, 0.31, 0.12, 8, "#FFFFFF", 0, 0.84, 0, glass));
+			g.add(Cy(0.315, 0.29, 0.18, 8, "#FFC83D", 0, 0.48, 0));
+			const st = new THREE.Group();
+			st.position.set(0.04, 0.8, 0);
+			st.rotation.z = -0.3;
+			st.add(Cy(0.04, 0.04, 0.62, 6, "#FFFFFF", 0, 0.31, 0));
+			[0.12, 0.3, 0.48].forEach((y) => st.add(Cy(0.052, 0.052, 0.09, 6, "#E5484D", 0, y, 0)));
+			g.add(st);
+		} else {
+			g.add(Cy(0.21, 0.25, 0.66, 8, "#35C0A0", 0, 0.33, 0), Cy(0.13, 0.21, 0.14, 8, "#35C0A0", 0, 0.73, 0));
+			g.add(Cy(0.275, 0.275, 0.24, 8, "#FFFFFF", 0, 0.32, 0));
+			g.add(Cy(0.1, 0.1, 0.14, 8, "#FFFFFF", 0, 0.86, 0), B(0.5, 0.2, 0.2, "#FFFFFF", 0.12, 1.02, 0));
+			g.add(B(0.1, 0.12, 0.12, "#E5484D", 0.4, 1.02, 0));
+			const tr = B(0.1, 0.3, 0.14, "#FFFFFF", 0.24, 0.84, 0);
+			tr.rotation.z = 0.35;
+			g.add(tr);
+		}
+	} else if (cat === "metal") {
+		if (v === 0) {
+			const c = new THREE.Group();
+			c.add(Cy(0.24, 0.24, 0.58, 12, "#E5484D", 0, 0.33, 0, met));
+			c.add(Cy(0.2, 0.24, 0.06, 12, "#D9DEE5", 0, 0.65, 0, met), Cy(0.24, 0.2, 0.06, 12, "#D9DEE5", 0, 0.01, 0, met));
+			c.add(Cy(0.265, 0.265, 0.16, 12, "#FFFFFF", 0, 0.36, 0), B(0.16, 0.03, 0.08, "#9AA3AE", 0.06, 0.69, 0));
+			g.add(side(c, 0.68, 0.265));
+		} else if (v === 1) {
+			g.add(Cy(0.28, 0.28, 0.5, 12, "#C9CED8", 0, 0.25, 0, met), Cy(0.305, 0.305, 0.26, 12, "#FFC83D", 0, 0.25, 0));
+			[0.06, 0.44].forEach((y) => g.add(Cy(0.305, 0.305, 0.04, 12, "#AEB5C0", 0, y, 0, met)));
+			g.add(
+				Cy(0.25, 0.25, 0.02, 12, "#5A6272", 0, 0.52, 0),
+				Cy(0.1, 0.1, 0.27, 8, "#E5484D", 0, 0.25, 0.25).rotateX(Math.PI / 2),
+			);
+			const lid = new THREE.Group();
+			lid.position.set(0, 0.52, -0.27);
+			lid.rotation.x = -1.15;
+			lid.add(Cy(0.27, 0.27, 0.03, 12, "#E3E7EC", 0, 0.015, 0.27, met));
+			g.add(lid);
+		} else {
+			const jaw = new THREE.Shape();
+			jaw.absarc(0, 0, 0.22, 0.75, Math.PI * 2 - 0.75, false);
+			jaw.absarc(0, 0, 0.1, Math.PI * 2 - 1.0, 1.0, true);
+			const ring = new THREE.Shape();
+			ring.absarc(0, 0, 0.18, 0, Math.PI * 2, false);
+			const h = new THREE.Path();
+			h.absarc(0, 0, 0.085, 0, Math.PI * 2, true);
+			ring.holes.push(h);
+			[
+				[jaw, 0.5],
+				[ring, -0.52],
+			].forEach(([sh, x]) => {
+				const geo = new THREE.ExtrudeGeometry(sh, { depth: 0.09, bevelEnabled: false, curveSegments: 5 });
+				geo.rotateX(-Math.PI / 2);
+				const m = mesh(geo, "#C3CAD4", met);
+				m.position.x = x;
+				g.add(m);
+			});
+			g.add(B(0.84, 0.04, 0.14, "#AEB5C0", 0, 0.045, 0, met));
+			g.rotation.y = 0.5;
+		}
+	} else if (cat === "wood") {
+		if (v === 0) {
+			g.add(
+				flat(
+					[
+						[-0.62, 0.16],
+						[0.42, 0.16],
+						[0.6, 0.07],
+						[0.47, 0.02],
+						[0.64, -0.06],
+						[0.48, -0.16],
+						[-0.62, -0.16],
+					],
+					0.12,
+					"#C98A4B",
+				),
+			);
+			[
+				[-0.08, 0.9],
+				[0.06, 0.7],
+			].forEach(([z, l]) => g.add(B(l, 0.025, 0.03, "#9C6433", -0.6 + l / 2 + 0.06, 0.13, z)));
+			[-0.4, 0.2].forEach((x, k) => {
+				const n = new THREE.Group();
+				n.position.set(x, 0.12, 0.02);
+				n.rotation.z = k ? 0.5 : 0;
+				n.add(Cy(0.02, 0.02, 0.22, 6, "#8E96A3", 0, 0.11, 0), Cy(0.05, 0.05, 0.02, 8, "#8E96A3", 0, 0.22, 0));
+				g.add(n);
+			});
+		} else if (v === 1) {
+			for (let k = 0; k < 3; k++) {
+				const y = 0.15 + k * 0.22;
+				g.add(B(0.8, 0.14, 0.06, "#C98A4B", 0, y, 0.34), B(0.8, 0.14, 0.06, "#C98A4B", 0, y, -0.34));
+				g.add(B(0.06, 0.14, 0.62, "#C98A4B", 0.37, y, 0), B(0.06, 0.14, 0.62, "#C98A4B", -0.37, y, 0));
+			}
+			[-1, 1].forEach((sx) =>
+				[-1, 1].forEach((sz) => g.add(B(0.16, 0.66, 0.16, "#8C5A2C", sx * 0.39, 0.37, sz * 0.36))),
+			);
+			g.add(B(0.62, 0.05, 0.62, "#A06A34", 0, 0.06, 0));
+		} else {
+			const lg = new THREE.Group();
+			lg.add(Cy(0.25, 0.27, 1.1, 9, "#8C5A3C", 0, 0.55, 0));
+			[0.3, 0.75].forEach((y) => lg.add(Cy(0.29, 0.29, 0.06, 9, "#6B4429", 0, y, 0)));
+			lg.add(Cy(0.21, 0.21, 0.03, 9, "#E8C48E", 0, 1.115, 0), Cy(0.1, 0.1, 0.03, 8, "#C9A06B", 0, 1.14, 0));
+			lg.add(Cy(0.21, 0.21, 0.03, 9, "#E8C48E", 0, -0.015, 0));
+			const br = Cy(0.06, 0.08, 0.26, 6, "#8C5A3C", 0.27, 0.45, 0);
+			br.rotation.z = -0.9;
+			lg.add(br);
+			g.add(side(lg, 1.1, 0.27));
+		}
+	} else {
+		if (v === 0) {
+			const cv = new THREE.QuadraticBezierCurve3(
+					new THREE.Vector3(-0.55, 0.42, 0),
+					new THREE.Vector3(0, -0.12, 0),
+					new THREE.Vector3(0.55, 0.42, 0),
+				),
+				TS = 10,
+				RS = 5,
+				geo = new THREE.TubeGeometry(cv, TS, 0.15, RS, false),
+				p = geo.attributes.position,
+				c = new THREE.Vector3(),
+				q = new THREE.Vector3();
+			for (let i = 0; i <= TS; i++) {
+				const t = i / TS,
+					f = 0.35 + 0.65 * Math.sin(Math.PI * t);
+				cv.getPointAt(t, c);
+				for (let j = 0; j <= RS; j++) {
+					const k = i * (RS + 1) + j;
+					q.fromBufferAttribute(p, k).sub(c).multiplyScalar(f).add(c);
+					p.setXYZ(k, q.x, q.y, q.z);
+				}
+			}
+			geo.computeVertexNormals();
+			g.add(mesh(geo, "#FFD93D"));
+			g.add(Cy(0.035, 0.05, 0.14, 6, "#6B4A2B", -0.58, 0.47, 0).rotateZ(0.7));
+			g.add(Cy(0.04, 0.04, 0.05, 6, "#3A2A1C", 0.56, 0.45, 0).rotateZ(-0.7));
+			g.position.y = 0.02;
+		} else if (v === 1) {
+			const red = "#E5484D",
+				cream = "#F6E7C1";
+			g.add(Cy(0.3, 0.22, 0.22, 8, red, 0, 0.11, 0), Cy(0.13, 0.27, 0.12, 8, cream, 0, 0.28, 0));
+			g.add(Cy(0.13, 0.13, 0.3, 8, cream, 0, 0.49, 0), Cy(0.27, 0.13, 0.12, 8, cream, 0, 0.7, 0));
+			g.add(Cy(0.22, 0.3, 0.24, 8, red, 0, 0.88, 0));
+			[-1, 1].forEach((sd) => g.add(B(0.05, 0.1, 0.04, "#3A2A1C", sd * 0.06, 0.5, 0.12)));
+			g.add(Cy(0.03, 0.03, 0.22, 6, "#6B4A2B", 0, 1.1, 0));
+			const lf = B(0.26, 0.03, 0.12, "#4CAF50", 0.12, 1.12, 0);
+			lf.rotation.z = -0.4;
+			g.add(lf);
+		} else {
+			const c = mesh(new THREE.ConeGeometry(0.22, 1.0, 8), "#FF8A1F");
+			c.rotation.z = Math.PI / 2;
+			c.position.set(-0.1, 0.22, 0);
+			g.add(c);
+			[-0.35, -0.05, 0.2].forEach((x, k) => {
+				g.add(
+					B(0.03, 0.03, 0.12, "#D96A12", x, 0.215 + 0.22 * (x + 0.6), (k - 1) * 0.04),
+				); /* ridges on the top surface */
+			});
+			[-0.45, 0, 0.45].forEach((a) => {
+				const l = mesh(new THREE.ConeGeometry(0.07, 0.5, 5), "#4CAF50");
+				l.position.set(0.4 + Math.cos(a) * 0.27, 0.22 + Math.sin(a) * 0.27, 0);
+				l.rotation.z = -Math.PI / 2 + a;
+				g.add(l);
+			});
+		}
+	}
+	const out = new THREE.Group();
+	out.add(g);
+	return out;
+}
