@@ -10,7 +10,7 @@
 2. Arenas: Cone Smash, Fire Brigade, Rock Fall: done.
 3. Coin Rush retheme (casino rooftop car park at dusk).
 4. Touch-ups: Dump Run and the rest.
-5. Detailed models (partmodels.js kits) instead of plain boxes: houses and traffic cars done (Rush Hour); next candidates: Green Light city blocks and shop fronts, Fire Brigade shops and fire station, Coin Rush / Cone Smash buildings, Crate Drop containers and ship.
+5. Detailed models (partmodels.js kits) instead of plain boxes: houses and traffic cars (Rush Hour), city blocks with shop fronts (Green Light), shops and fire station (Fire Brigade) done; next candidates: Crate Drop containers and ship, Coin Rush / Cone Smash buildings.
 
 ## Minigames picked (to build)
 - Done: Hot Load (`hotload`, partmg3).

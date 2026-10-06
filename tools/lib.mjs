@@ -45,6 +45,12 @@ export async function openGame(browser, { width = 390, height = 844, mobile = fa
 	await p.goto("file://" + path.join(ROOT, "dist/index.html"));
 	await p.waitForFunction(() => typeof GFX !== "undefined" && GFX.ok, null, { timeout: 30000 });
 	await p.evaluate(() => {
+		window.turn = (m, a = Math.PI) => {
+			const g = new THREE.Group();
+			m.rotation.y = a;
+			g.add(m);
+			return g;
+		};
 		window.faceZ = (m) => {
 			const g = new THREE.Group();
 			m.rotation.y = Math.PI / 2;
@@ -96,7 +102,11 @@ export async function contactSheet(browser, files, labels, cols, cellW, cellH, o
 export const PRESETS = {
 	cars: ["sedan", "hatch", "van", "pickup"].map((t) => `carModel("${t}", "#2F7DE1")`),
 	taxi: [`carModel("sedan", "#FFC83D")`],
-	houses: [0, 1, 2, 3].map((v) => `houseModel(${v})`),
+	houses: [0, 1, 2, 3].map((v) => `turn(houseModel(${v}))`),
+	/* street buildings face +z like houses; turn() spins them so the rig's front view shows the facade */
+	buildings: [0, 1, 2, 3, 4, 5, 6, 7].map(
+		(i) => `turn(buildingModel({ floors: BLD_LOOK[${i}][1], style: BLD_LOOK[${i}][2], wall: BLD_LOOK[${i}][3], trim: BLD_LOOK[${i}][4], shop: SHOPS[BLD_LOOK[${i}][0]], roofBits: ${i} }))`,
+	),
 	/* the playable trucks face +x; faceZ() turns them so the rig's "front" view (from -z) shows their front */
 	trucks: Array.from({ length: 12 }, (_, i) => `faceZ(buildTruck(${i}))`),
 };

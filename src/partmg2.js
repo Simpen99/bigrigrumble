@@ -549,6 +549,7 @@ Object.assign(MG, {
 				s.add(Cy(1, 1.1, 0.8, 12, "#C98A4B", x, 0.4, z));
 				const t = tree(x, z, 1.1, 1);
 				t.position.y = 0.5;
+				t.children[1].visible = false;
 				s.add(t);
 			});
 			// visitors milling around the plaza (reuse the cheering crowd)

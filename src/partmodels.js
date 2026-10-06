@@ -20,7 +20,8 @@ function bakeKit(g) {
 		geos.forEach((ge) => (n += ge.attributes.position.count));
 		const P = new Float32Array(n * 3),
 			N = new Float32Array(n * 3),
-			C = new Float32Array(n * 3).fill(1);
+			C = new Float32Array(n * 3).fill(1),
+			UV = mat.map ? new Float32Array(n * 2) : null;
 		let off = 0;
 		parts.forEach((m, pi) => {
 			const a = geos[pi].attributes;
@@ -41,6 +42,10 @@ function bakeKit(g) {
 					C[j + 1] = a.color.getY(i);
 					C[j + 2] = a.color.getZ(i);
 				}
+				if (UV && a.uv) {
+					UV[(off + i) * 2] = a.uv.getX(i);
+					UV[(off + i) * 2 + 1] = a.uv.getY(i);
+				}
 			}
 			off += a.position.count;
 		});
@@ -48,16 +53,133 @@ function bakeKit(g) {
 		geo.setAttribute("position", new THREE.BufferAttribute(P, 3));
 		geo.setAttribute("normal", new THREE.BufferAttribute(N, 3));
 		geo.setAttribute("color", new THREE.BufferAttribute(C, 3));
+		if (UV) geo.setAttribute("uv", new THREE.BufferAttribute(UV, 2));
 		out.push({ geo, mat });
 	});
+	/* footprint for the contact shadow: x/z extent of the main mass (above 30% of the height, so aprons, yards and fences don't count) */
+	let y0 = 1e9,
+		y1 = -1e9;
+	out.forEach(({ geo }) => {
+		const p = geo.attributes.position;
+		for (let i = 0; i < p.count; i++) {
+			y0 = Math.min(y0, p.getY(i));
+			y1 = Math.max(y1, p.getY(i));
+		}
+	});
+	y0 = Math.max(0, y0);
+	const yc = y0 + Math.max(0.15, (y1 - y0) * 0.3);
+	const bb = new THREE.Box3();
+	out.forEach(({ geo }) => {
+		const p = geo.attributes.position;
+		for (let i = 0; i < p.count; i++) if (p.getY(i) > yc) bb.expandByPoint(v.fromBufferAttribute(p, i));
+	});
+	if (!bb.isEmpty()) out.foot = { x0: bb.min.x, x1: bb.max.x, z0: bb.min.z, z1: bb.max.z, y0 };
 	return out;
 }
-/* list: [{k: kit index, x, y, z, ry, sc}] */
-function placeKits(s, kits, list) {
+/* ---------- contact shadows: a soft dark footprint under props so they sit on the ground instead of looking pasted in.
+   9-slice quad: the dark core is the footprint, the fade runs m metres outward (same width whatever the prop's size). */
+var SHADOW_MAT = {};
+function shadowMat(op) {
+	if (SHADOW_MAT[op]) return SHADOW_MAT[op];
+	if (!SHADOW_MAT.tex) {
+		const n = 64,
+			c = document.createElement("canvas");
+		c.width = c.height = n;
+		const x = c.getContext("2d"),
+			im = x.createImageData(n, n);
+		for (let j = 0; j < n; j++)
+			for (let i = 0; i < n; i++) {
+				const u = Math.max(0, Math.abs((i + 0.5) / n - 0.5) * 4 - 1),
+					v = Math.max(0, Math.abs((j + 0.5) / n - 0.5) * 4 - 1),
+					t = Math.max(0, 1 - Math.hypot(u, v));
+				im.data[(j * n + i) * 4 + 3] = Math.round(t * t * 255);
+			}
+		x.putImageData(im, 0, 0);
+		SHADOW_MAT.tex = new THREE.CanvasTexture(c);
+	}
+	return (SHADOW_MAT[op] = new THREE.MeshBasicMaterial({
+		color: "#000000",
+		map: SHADOW_MAT.tex,
+		transparent: true,
+		opacity: op,
+		depthWrite: false,
+		polygonOffset: true,
+		polygonOffsetFactor: -1,
+		polygonOffsetUnits: -2,
+	}));
+}
+/* flat 9-slice shadow geometry: footprint w x d centred on (cx, cz) at height y, fading out over m (and slightly inward) */
+function shadowGeo(w, d, m, cx = 0, cz = 0, y = 0.03) {
+	const hw = Math.max(0, w / 2 - m * 0.3),
+		hd = Math.max(0, d / 2 - m * 0.3),
+		mm = m * 1.3,
+		xs = [-hw - mm, -hw, hw, hw + mm],
+		zs = [-hd - mm, -hd, hd, hd + mm],
+		uv = [0, 0.25, 0.75, 1],
+		P = [],
+		UV = [],
+		I = [];
+	for (let j = 0; j < 4; j++)
+		for (let i = 0; i < 4; i++) {
+			P.push(cx + xs[i], y, cz + zs[j]);
+			UV.push(uv[i], uv[j]);
+		}
+	for (let j = 0; j < 3; j++)
+		for (let i = 0; i < 3; i++) {
+			const a = j * 4 + i;
+			I.push(a, a + 4, a + 1, a + 1, a + 4, a + 5);
+		}
+	const g = new THREE.BufferGeometry();
+	g.setAttribute("position", new THREE.Float32BufferAttribute(P, 3));
+	g.setAttribute("uv", new THREE.Float32BufferAttribute(UV, 2));
+	g.setAttribute(
+		"normal",
+		new THREE.Float32BufferAttribute(
+			new Array(48).fill(0).map((_, k) => (k % 3 === 1 ? 1 : 0)),
+			3,
+		),
+	);
+	g.setIndex(I);
+	return g;
+}
+/* a contact shadow mesh: w x d footprint (round props: w = d = diameter, the fade makes it soft and round) */
+function contactShadow(w, d, op = 0.3, x = 0, z = 0, y = 0.03, m) {
+	const sh = new THREE.Mesh(shadowGeo(w, d, m || Math.min(1.1, 0.2 + 0.12 * Math.min(w, d)), x, z, y), shadowMat(op));
+	sh.renderOrder = 1;
+	sh.userData.shadow = true;
+	return sh;
+}
+function kitShadowGeo(kit) {
+	const f = kit.foot,
+		w = f.x1 - f.x0,
+		d = f.z1 - f.z0;
+	return shadowGeo(w, d, Math.min(1.1, 0.2 + 0.12 * Math.min(w, d)), (f.x0 + f.x1) / 2, (f.z0 + f.z1) / 2, f.y0 + 0.04);
+}
+/* a baked kit as a normal group (for things that move or toggle), with its contact shadow */
+function kitGroup(kit, shadow = 0.3) {
+	const g = new THREE.Group();
+	kit.forEach(({ geo, mat }) => {
+		const m = new THREE.Mesh(geo, mat);
+		m.castShadow = m.receiveShadow = true;
+		g.add(m);
+	});
+	if (shadow && kit.foot) {
+		const sh = new THREE.Mesh(kit.shGeo || (kit.shGeo = kitShadowGeo(kit)), shadowMat(shadow));
+		sh.renderOrder = 1;
+		sh.userData.shadow = true;
+		g.add(sh);
+	}
+	return g;
+}
+/* list: [{k: kit index, x, y, z, ry, sc}]; shadow = contact shadow opacity (0 = none) */
+function placeKits(s, kits, list, shadow = 0.3) {
 	kits.forEach((kit, ki) => {
 		const L = list.filter((q) => q.k === ki);
 		if (!L.length) return;
-		kit.forEach(({ geo, mat }) => {
+		const parts = kit.map(({ geo, mat }) => ({ geo, mat }));
+		if (shadow && kit.foot)
+			parts.push({ geo: kit.shGeo || (kit.shGeo = kitShadowGeo(kit)), mat: shadowMat(shadow), sh: 1 });
+		parts.forEach(({ geo, mat, sh }) => {
 			const im = new THREE.InstancedMesh(geo, mat, L.length),
 				o = new THREE.Object3D();
 			L.forEach((q, i) => {
@@ -67,7 +189,8 @@ function placeKits(s, kits, list) {
 				o.updateMatrix();
 				im.setMatrixAt(i, o.matrix);
 			});
-			im.castShadow = im.receiveShadow = true;
+			im.castShadow = im.receiveShadow = !sh;
+			if (sh) im.renderOrder = 1;
 			s.add(im);
 		});
 	});
@@ -401,3 +524,364 @@ function carModel(type, col) {
 	return g;
 }
 const CAR_TYPES = ["sedan", "hatch", "van", "pickup"];
+
+/* ---------- buildings ---------- */
+/* canvas textures for shop signs and striped awnings (cached per text / colour pair) */
+const BLD_TEX = {};
+function signTexture(txt, bg, fg) {
+	const k = "s" + txt + bg + fg;
+	return (
+		BLD_TEX[k] ||
+		(BLD_TEX[k] = canvasTex(256, 48, (x, w, h) => {
+			x.fillStyle = bg;
+			x.fillRect(0, 0, w, h);
+			x.strokeStyle = fg;
+			x.globalAlpha = 0.5;
+			x.lineWidth = 2;
+			x.strokeRect(5, 5, w - 10, h - 10);
+			x.globalAlpha = 1;
+			x.font = "26px Bungee, 'Arial Black', Impact, sans-serif";
+			x.textAlign = "center";
+			x.textBaseline = "middle";
+			x.fillStyle = fg;
+			x.fillText(txt, w / 2, h / 2 + 2);
+		}))
+	);
+}
+function stripeTexture(a, b) {
+	const k = "a" + a + b;
+	return (
+		BLD_TEX[k] ||
+		(BLD_TEX[k] = canvasTex(64, 16, (x, w, h) => {
+			for (let i = 0; i < 8; i++) {
+				x.fillStyle = i % 2 ? b : a;
+				x.fillRect(i * 8, 0, 8, h);
+			}
+		}))
+	);
+}
+/* a textured box (sign boards, awnings): plain colour on the sides, the texture on the front/top */
+function texturedBox(w, h, d, col, tex, face, rx, ry) {
+	const mats = [0, 1, 2, 3, 4, 5].map(() => M(col));
+	const m = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.7 });
+	mats[face] = m;
+	const geo = new THREE.BoxGeometry(w, h, d);
+	if (rx || ry) {
+		const uv = geo.attributes.uv;
+		for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * (rx || 1), uv.getY(i) * (ry || 1));
+	}
+	const g = new THREE.Group();
+	/* split the multi-material box into one mesh per face so bakeKit can merge by material */
+	geo.groups.forEach((gr) => {
+		const part = new THREE.BufferGeometry(),
+			idx = geo.index.array.slice(gr.start, gr.start + gr.count),
+			pick = (att, n) => {
+				const out = new Float32Array(idx.length * n);
+				idx.forEach((v, i) => {
+					for (let c = 0; c < n; c++) out[i * n + c] = att.array[v * n + c];
+				});
+				return new THREE.BufferAttribute(out, n);
+			};
+		part.setAttribute("position", pick(geo.attributes.position, 3));
+		part.setAttribute("normal", pick(geo.attributes.normal, 3));
+		part.setAttribute("uv", pick(geo.attributes.uv, 2));
+		const mm = new THREE.Mesh(part, mats[gr.materialIndex]);
+		mm.castShadow = mm.receiveShadow = true;
+		g.add(mm);
+	});
+	return g;
+}
+const SHOPS = [
+	{ name: "BAKERY", sign: "#7A4A2A", fg: "#FFE7B0", aw: ["#E5484D", "#FFF3E0"], door: "#7A4A2A" },
+	{ name: "CAFE", sign: "#1F5D4A", fg: "#F4F1E8", aw: ["#1FA35C", "#F4F1E8"], door: "#1F5D4A" },
+	{ name: "BOOKS", sign: "#2B3A67", fg: "#FFD27A", aw: ["#2F7DE1", "#F4F1E8"], door: "#2B3A67" },
+	{ name: "PIZZA", sign: "#B5262B", fg: "#FFFFFF", aw: ["#B5262B", "#FFFFFF"], door: "#3A3F48" },
+	{ name: "FLOWERS", sign: "#8E5BE0", fg: "#FFFFFF", aw: ["#FF6FAE", "#FFFFFF"], door: "#5E3A9E" },
+	{ name: "HARDWARE", sign: "#FFC83D", fg: "#2A2F3A", aw: ["#FF8A1F", "#2A2F3A"], door: "#2A2F3A" },
+	{ name: "GROCER", sign: "#3E7B2C", fg: "#FFFFFF", aw: ["#3E7B2C", "#F4F1E8"], door: "#3E7B2C" },
+	{ name: "BARBER", sign: "#22252C", fg: "#FFFFFF", aw: ["#2F7DE1", "#E5484D"], door: "#22252C" },
+];
+/* a street building, front at +z: shop on the ground floor (or a plain entrance), upper floors in one of four styles,
+   floor bands, cornice, parapet roof with AC units, a water tank or a stair hut.
+   o: {w (along the street), d (depth), floors, wall, trim, style: "brick"|"apt"|"office"|"plain", shop: SHOPS[i] or null, roofBits} */
+function buildingModel(o) {
+	const g = new THREE.Group(),
+		w = o.w || 8.4,
+		d = o.d || 7.8,
+		gf = 3.4,
+		fh = 2.8,
+		H = gf + (o.floors - 1) * fh,
+		wall = o.wall,
+		trim = o.trim || "#E9E4DA",
+		glass = "#3E4E63",
+		gm = { roughness: 0.2, metalness: 0.3, emissive: "#22324A", emissiveIntensity: 0.35 },
+		fz = d / 2;
+	g.add(B(w, H, d, wall, 0, H / 2, 0));
+	/* ground floor */
+	[-1, 1].forEach((sd) => g.add(B(0.46, gf, 0.24, trim, sd * (w / 2 - 0.18), gf / 2, fz + 0.06)));
+	if (o.shop) {
+		const S = o.shop,
+			dx = w / 2 - 1.6,
+			lit = { roughness: 0.25, metalness: 0.2, emissive: "#FFD6A0", emissiveIntensity: 0.32 };
+		/* display windows either side of the door, stall risers, door with glass, sign fascia, striped awning */
+		[
+			[-w / 2 + 0.42, dx - 0.65],
+			[dx + 0.65, w / 2 - 0.42],
+		].forEach(([a, b]) => {
+			if (b - a < 0.4) return;
+			const cx = (a + b) / 2,
+				ww = b - a;
+			g.add(B(ww, 0.55, 0.16, trim, cx, 0.28, fz + 0.05));
+			g.add(B(ww - 0.1, 1.9, 0.06, "#4A5566", cx, 1.55, fz + 0.03, lit));
+			for (let k = 1; k < Math.round(ww / 1.4); k++)
+				g.add(B(0.07, 1.94, 0.1, trim, a + (k * ww) / Math.round(ww / 1.4), 1.55, fz + 0.05));
+			g.add(B(ww, 0.08, 0.12, trim, cx, 2.54, fz + 0.06));
+		});
+		g.add(B(1.3, 2.5, 0.12, trim, dx, 1.25, fz + 0.06), B(1.04, 2.3, 0.14, S.door, dx, 1.17, fz + 0.07));
+		g.add(
+			B(0.7, 1.1, 0.06, "#4A5566", dx, 1.55, fz + 0.15, lit),
+			B(0.06, 0.2, 0.06, "#C9A44A", dx + 0.42, 1.15, fz + 0.17),
+		);
+		const sg = texturedBox(w - 1.0, 0.62, 0.16, S.sign, signTexture(S.name, S.sign, S.fg), 4);
+		sg.position.set(0, gf - 0.36, fz + 0.1);
+		g.add(sg);
+		const aw = texturedBox(
+			w - 1.4,
+			0.06,
+			1.25,
+			S.aw[0],
+			stripeTexture(S.aw[0], S.aw[1]),
+			2,
+			Math.round((w - 1.4) / 0.6) / 8,
+			1,
+		);
+		aw.rotation.x = 0.38;
+		aw.position.set(0, gf - 1.02, fz + 0.62);
+		g.add(aw);
+		const lip = texturedBox(
+			w - 1.36,
+			0.26,
+			0.04,
+			S.aw[0],
+			stripeTexture(S.aw[0], S.aw[1]),
+			4,
+			Math.round((w - 1.4) / 0.6) / 8,
+			1,
+		);
+		lip.position.set(0, gf - 1.37, fz + 1.2);
+		g.add(lip);
+	} else {
+		/* residential entrance: double door under a small canopy, two ground-floor windows */
+		g.add(B(1.6, 2.6, 0.12, trim, 0, 1.3, fz + 0.06), B(1.3, 2.4, 0.14, "#5A3E2A", 0, 1.2, fz + 0.07));
+		g.add(B(0.05, 2.3, 0.16, "#3A2A1C", 0, 1.17, fz + 0.08), B(2.0, 0.12, 0.9, trim, 0, 2.75, fz + 0.45));
+		[-1, 1].forEach((sd) => window3(g, sd * (w / 4 + 0.4), 1.7, fz, 1.2, 1.4, trim, glass, gm));
+	}
+	/* upper floors */
+	const n = Math.max(2, Math.floor(w / 2.1)),
+		xs = Array.from({ length: n }, (_, i) => -w / 2 + (w / n) * (i + 0.5));
+	for (let f = 1; f < o.floors; f++) {
+		const y0 = gf + (f - 1) * fh;
+		g.add(B(w + 0.06, 0.16, d + 0.06, trim, 0, y0, 0));
+		if (o.style === "office") {
+			g.add(B(w - 0.5, 1.7, 0.06, glass, 0, y0 + 1.35, fz + 0.03, gm));
+			for (let k = 0; k <= n; k++)
+				g.add(B(0.1, 1.74, 0.1, trim, -w / 2 + 0.25 + (k * (w - 0.5)) / n, y0 + 1.35, fz + 0.05));
+			g.add(B(w - 0.36, 0.1, 0.14, trim, 0, y0 + 0.47, fz + 0.07));
+		} else
+			xs.forEach((x, k) => {
+				window3(g, x, y0 + 1.4, fz, 1.05, 1.45, trim, glass, gm);
+				if (o.style === "brick") g.add(B(1.3, 0.2, 0.14, "#8C4A35", x, y0 + 2.27, fz + 0.07));
+				if (o.style === "apt" && (k + f) % 2 === 0) {
+					/* balcony: slab, railing posts, top rail */
+					g.add(B(1.7, 0.12, 0.85, trim, x, y0 + 0.4, fz + 0.425));
+					for (let q = -3; q <= 3; q++) g.add(B(0.04, 0.6, 0.04, "#3A3F48", x + q * 0.27, y0 + 0.76, fz + 0.79));
+					[-1, 1].forEach((sd) => g.add(B(0.04, 0.6, 0.04, "#3A3F48", x + sd * 0.83, y0 + 0.76, fz + 0.45)));
+					g.add(B(1.74, 0.05, 0.06, "#3A3F48", x, y0 + 1.07, fz + 0.79));
+					[-1, 1].forEach((sd) => g.add(B(0.06, 0.04, 0.8, "#3A3F48", x + sd * 0.83, y0 + 1.07, fz + 0.43)));
+				}
+			});
+	}
+	/* cornice, parapet, roof */
+	g.add(B(w + 0.36, 0.32, d + 0.36, trim, 0, H + 0.16, 0));
+	g.add(B(w + 0.2, 0.5, 0.22, wall, 0, H + 0.57, fz - 0.01), B(w + 0.2, 0.5, 0.22, wall, 0, H + 0.57, -fz + 0.01));
+	[-1, 1].forEach((sd) => g.add(B(0.22, 0.5, d - 0.42, wall, sd * (w / 2 - 0.01), H + 0.57, 0)));
+	g.add(B(w + 0.26, 0.08, 0.28, trim, 0, H + 0.86, fz - 0.01), B(w + 0.26, 0.08, 0.28, trim, 0, H + 0.86, -fz + 0.01));
+	g.add(B(w - 0.2, 0.05, d - 0.4, "#6B7079", 0, H + 0.345, 0));
+	const rb = o.roofBits || 0;
+	g.add(B(1.0, 0.62, 0.8, "#C9CED8", -w / 4, H + 0.68, -d / 6));
+	g.add(Cy(0.3, 0.3, 0.06, 12, "#3A3F48", -w / 4, H + 1.02, -d / 6));
+	if (rb % 3 === 0) {
+		g.add(
+			Cy(0.75, 0.75, 1.3, 10, "#8C6A4A", w / 4, H + 1.6, d / 8),
+			Cy(0.82, 0.05, 0.5, 10, "#5A3E2A", w / 4, H + 2.5, d / 8),
+		);
+		[-1, 1].forEach((a) =>
+			[-1, 1].forEach((b) => g.add(B(0.1, 0.62, 0.1, "#3A3F48", w / 4 + a * 0.5, H + 0.66, d / 8 + b * 0.5))),
+		);
+	} else if (rb % 3 === 1) {
+		g.add(B(1.6, 1.4, 1.4, wall, w / 4, H + 1.06, -d / 5), B(1.8, 0.1, 1.6, trim, w / 4, H + 1.8, -d / 5));
+		g.add(B(0.8, 1.1, 0.06, "#5A6272", w / 4, H + 0.92, -d / 5 + 0.72));
+	} else
+		g.add(
+			B(1.0, 0.62, 0.8, "#C9CED8", w / 4, H + 0.68, d / 8),
+			Cy(0.3, 0.3, 0.06, 12, "#3A3F48", w / 4, H + 1.02, d / 8),
+		);
+	return g;
+}
+/* window: frame, glass with cross bar, sill */
+function window3(g, x, y, fz, w, h, trim, glass, gm) {
+	g.add(B(w + 0.18, h + 0.18, 0.1, trim, x, y, fz + 0.05));
+	g.add(B(w, h, 0.06, glass, x, y, fz + 0.08, gm));
+	g.add(B(0.06, h, 0.12, trim, x, y, fz + 0.1), B(w, 0.06, 0.14, trim, x, y + h * 0.15, fz + 0.1));
+	g.add(B(w + 0.34, 0.09, 0.24, trim, x, y - h / 2 - 0.13, fz + 0.12));
+}
+/* street building variants: [shop index, floors, style, wall, trim] */
+const BLD_LOOK = [
+	[0, 3, "brick", "#B5654A", "#EDE6D8"],
+	[1, 4, "apt", "#E6D8BE", "#FFFFFF"],
+	[2, 5, "office", "#9FB3C8", "#E9EDF2"],
+	[3, 2, "brick", "#A4523D", "#EDE6D8"],
+	[4, 3, "apt", "#E8B4A0", "#FFF7EE"],
+	[5, 4, "plain", "#C9D6B8", "#F4F6F0"],
+	[6, 3, "apt", "#D9C3A5", "#FFFFFF"],
+	[7, 4, "brick", "#9C5A48", "#EDE6D8"],
+];
+const buildingKits = (w, d) =>
+	BLD_LOOK.map(([s, f, st, wall, trim], i) =>
+		bakeKit(buildingModel({ w, d, floors: f, style: st, wall, trim, shop: SHOPS[s], roofBits: i })),
+	);
+/* fire station, front at +z: two red-brick storeys, the upper one overhanging three apparatus bays (two roll-up doors,
+   the middle one open with a dark interior), FIRE STATION sign, windows, cornice and parapet, a hose-drying tower with
+   louvres and a pyramid roof, a siren on the roof and a concrete apron. A truck can be parked in the open bay. */
+function fireStationModel() {
+	const g = new THREE.Group(),
+		w = 12,
+		d = 7,
+		gh = 4,
+		uh = 3,
+		H = gh + uh,
+		fz = d / 2,
+		wall = "#B5392E",
+		trim = "#F2EEE6",
+		glass = "#3E4E63",
+		gm = { roughness: 0.2, metalness: 0.3, emissive: "#22324A", emissiveIntensity: 0.35 };
+	g.add(B(w, gh, d - 0.7, wall, 0, gh / 2, -0.35), B(w, uh, d, wall, 0, gh + uh / 2, 0));
+	[-w / 2 + 0.27, -2, 2, w / 2 - 0.27].forEach((x) => g.add(B(0.6, gh, 0.74, trim, x, gh / 2, fz - 0.35)));
+	g.add(B(w + 0.12, 0.3, 0.74, trim, 0, gh - 0.15, fz - 0.33));
+	[-4, 0, 4].forEach((x, k) => {
+		const z0 = fz - 0.7;
+		if (k === 1) {
+			g.add(B(3.38, gh - 0.3, 0.06, "#14171D", x, (gh - 0.3) / 2, z0 + 0.03));
+			g.add(B(3.38, 0.06, 0.6, "#2A2E36", x, gh - 0.33, z0 + 0.32));
+		} else {
+			g.add(B(3.38, gh - 0.3, 0.08, "#F4F4F2", x, (gh - 0.3) / 2, z0 + 0.04));
+			for (let r = 1; r < 8; r++) if (r !== 5) g.add(B(3.38, 0.05, 0.12, "#C9CED6", x, r * 0.45, z0 + 0.06));
+			for (let q = -1.5; q <= 1.5; q++) g.add(B(0.6, 0.32, 0.12, glass, x + q * 0.78, 5 * 0.45, z0 + 0.06, gm));
+		}
+	});
+	/* upper floor: sign board over the bays, windows, cornice and parapet */
+	const sg = texturedBox(6.4, 0.8, 0.14, "#F2F2F2", signTexture("FIRE STATION", "#F2F2F2", "#C8262B"), 4);
+	sg.position.set(0, gh + 0.55, fz + 0.07);
+	g.add(sg);
+	[-4.6, -2.3, 2.3, 4.6].forEach((x) => window3(g, x, gh + 1.75, fz, 1.1, 1.3, trim, glass, gm));
+	window3(g, 0, gh + 1.9, fz, 1.6, 1.0, trim, glass, gm);
+	g.add(B(w + 0.36, 0.32, d + 0.36, trim, 0, H + 0.16, 0));
+	g.add(B(w + 0.2, 0.5, 0.22, wall, 0, H + 0.57, fz - 0.01), B(w + 0.2, 0.5, 0.22, wall, 0, H + 0.57, -fz + 0.01));
+	[-1, 1].forEach((sd) => g.add(B(0.22, 0.5, d - 0.42, wall, sd * (w / 2 - 0.01), H + 0.57, 0)));
+	g.add(B(w + 0.26, 0.08, 0.28, trim, 0, H + 0.86, fz - 0.01), B(w + 0.26, 0.08, 0.28, trim, 0, H + 0.86, -fz + 0.01));
+	g.add(B(w - 0.2, 0.05, d - 0.4, "#6B7079", 0, H + 0.345, 0));
+	/* siren on a short mast, AC unit */
+	g.add(Cy(0.06, 0.06, 1.0, 6, "#5A6272", -3, H + 0.85, -1), Cy(0.22, 0.3, 0.36, 10, "#C8262B", -3, H + 1.5, -1));
+	g.add(B(1.0, 0.62, 0.8, "#C9CED8", 2.5, H + 0.68, -1.5), Cy(0.3, 0.3, 0.06, 12, "#3A3F48", 2.5, H + 1.02, -1.5));
+	/* hose tower on the right: tall brick shaft with windows, louvred top and pyramid roof */
+	const tx = w / 2 + 1.15,
+		tz = -d / 2 + 1.25,
+		th = 10;
+	g.add(B(2.3, th, 2.5, wall, tx, th / 2, tz));
+	for (let k = 0; k < 3; k++) window3(g, tx, 2 + k * 2.4, tz + 1.25, 0.7, 1.1, trim, glass, gm);
+	for (let k = 0; k < 4; k++) g.add(B(2.38, 0.07, 2.58, "#8E96A3", tx, th - 1.2 + k * 0.3, tz));
+	g.add(B(2.5, 0.2, 2.7, trim, tx, th + 0.1, tz));
+	const py = mesh(new THREE.ConeGeometry(1.85, 1.4, 4), "#3A3F48");
+	py.rotation.y = Math.PI / 4;
+	py.position.set(tx, th + 0.9, tz);
+	g.add(py);
+	/* apron in front of the bays with a painted keep-clear box */
+	g.add(B(w + 0.4, 0.06, 4.6, "#A2A6AD", 0, 0.0, fz + 2.3));
+	[-4, 0, 4].forEach((x) => g.add(B(3.0, 0.02, 0.12, "#F2C230", x, 0.035, fz + 3.6)));
+	return g;
+}
+/* ---------- Fire Brigade's burning props, front at +z (small, so only the details that read from above):
+   0 garden shed (plank battens, door with a Z brace, side window, pitched roof with a ridge cap),
+   1 news kiosk (counter, glass hatch, striped awning, overhanging roof, NEWS sign, posters),
+   2 parked car (carModel, scaled down to the trucks' size) */
+function firePropModel(kind, col) {
+	const g = new THREE.Group();
+	if (kind === 0) {
+		const W = 1.6,
+			D = 1.2,
+			y0 = 1.08,
+			RH = 0.45,
+			wood = "#9A6A44",
+			dark = "#6B4A2B";
+		g.add(B(W + 0.1, 0.08, D + 0.1, "#5A4A3A", 0, 0.04, 0), B(W, 1.0, D, wood, 0, 0.58, 0));
+		[-0.7, -0.42, 0.42, 0.7].forEach((x) => g.add(B(0.05, 0.96, 0.03, dark, x, 0.58, D / 2 + 0.015)));
+		[-0.55, -0.18, 0.18, 0.55].forEach((x) => g.add(B(0.05, 0.96, 0.03, dark, x, 0.58, -D / 2 - 0.015)));
+		[-0.45, 0, 0.45].forEach((z) => g.add(B(0.03, 0.96, 0.05, dark, -W / 2 - 0.015, 0.58, z)));
+		g.add(B(0.52, 0.86, 0.04, "#7A4E30", 0, 0.51, D / 2 + 0.02));
+		const br = B(0.06, 0.58, 0.03, dark, 0, 0.51, D / 2 + 0.055);
+		br.rotation.z = 0.5;
+		g.add(br, B(0.44, 0.06, 0.03, dark, 0, 0.82, D / 2 + 0.055), B(0.44, 0.06, 0.03, dark, 0, 0.2, D / 2 + 0.055));
+		g.add(Cy(0.03, 0.03, 0.05, 6, "#C9A44A", 0.18, 0.52, D / 2 + 0.065).rotateX(Math.PI / 2));
+		g.add(B(0.03, 0.36, 0.5, "#9FC6E0", W / 2 + 0.015, 0.68, 0, { emissive: "#FFD6A0", emissiveIntensity: 0.2 }));
+		g.add(B(0.06, 0.42, 0.06, dark, W / 2 + 0.035, 0.68, 0), B(0.04, 0.06, 0.56, dark, W / 2 + 0.035, 0.68, 0));
+		g.add(B(0.08, 0.05, 0.6, dark, W / 2 + 0.04, 0.47, 0));
+		const tri = new THREE.Shape([new THREE.Vector2(-D / 2, 0), new THREE.Vector2(D / 2, 0), new THREE.Vector2(0, RH)]),
+			at = mesh(new THREE.ExtrudeGeometry(tri, { depth: W, bevelEnabled: false }), wood);
+		at.rotation.y = Math.PI / 2;
+		at.position.set(-W / 2, y0, 0);
+		g.add(at);
+		const a = Math.atan2(RH, D / 2),
+			sl = Math.hypot(D / 2, RH) + 0.2;
+		[-1, 1].forEach((sd) => {
+			const p = B(W + (sd > 0 ? 0.24 : 0.27), 0.07, sl, "#3A4150", 0, 0, 0);
+			p.rotation.x = sd * a;
+			p.position.set(
+				0,
+				y0 + RH / 2 + 0.04 * Math.cos(a) - 0.08 * Math.sin(a),
+				sd * (D / 4 + 0.04 * Math.sin(a) + 0.08 * Math.cos(a)),
+			);
+			g.add(p);
+		});
+		g.add(B(W + 0.28, 0.07, 0.14, "#2A2F3A", 0, y0 + RH + 0.06, 0));
+	} else if (kind === 1) {
+		const W = 1.2,
+			gr = "#2E9E5B",
+			dg = "#1F7A45";
+		g.add(B(1.32, 0.12, 1.32, "#5A6272", 0, 0.06, 0), B(W, 1.2, W, gr, 0, 0.72, 0));
+		[-1, 1].forEach((sx) => [-1, 1].forEach((sz) => g.add(B(0.06, 1.24, 0.06, dg, sx * 0.6, 0.74, sz * 0.6))));
+		g.add(B(0.96, 0.44, 0.03, "#4A5566", 0, 1.02, W / 2 + 0.015, { emissive: "#FFD6A0", emissiveIntensity: 0.35 }));
+		g.add(B(0.04, 0.42, 0.05, dg, 0, 1.01, W / 2 + 0.025), B(1.04, 0.05, 0.05, dg, 0, 1.26, W / 2 + 0.025));
+		g.add(B(1.04, 0.06, 0.28, "#C9D1DC", 0, 0.77, W / 2 + 0.14));
+		[-0.4, 0.4].forEach((x) => g.add(B(0.04, 0.12, 0.22, "#8E96A3", x, 0.68, W / 2 + 0.11)));
+		[-0.28, 0, 0.28].forEach((x, k) =>
+			g.add(B(0.2, 0.05, 0.16, ["#F4F6F9", "#FFE7B0", "#DCE6F2"][k], x, 0.825, W / 2 + 0.14)),
+		);
+		const aw = texturedBox(1.16, 0.04, 0.42, "#E5484D", stripeTexture("#E5484D", "#FFFFFF"), 2, 0.75, 1);
+		aw.rotation.x = 0.42;
+		aw.position.set(0, 1.22, W / 2 + 0.19);
+		g.add(aw);
+		g.add(B(1.5, 0.1, 1.5, "#23272F", 0, 1.39, 0), B(1.36, 0.08, 1.36, dg, 0, 1.48, 0));
+		const sg = texturedBox(0.9, 0.24, 0.06, "#FFC83D", signTexture("NEWS", "#FFC83D", "#2A2F3A"), 4);
+		sg.position.set(0, 1.72, 0.25);
+		g.add(sg, B(0.06, 0.14, 0.04, "#2A2F3A", -0.3, 1.59, 0.25), B(0.06, 0.14, 0.04, "#2A2F3A", 0.3, 1.59, 0.25));
+		[-1, 1].forEach((sd) => {
+			g.add(B(0.03, 0.5, 0.4, sd > 0 ? "#E5484D" : "#2F7DE1", sd * (W / 2 + 0.015), 0.72, 0.1));
+			g.add(B(0.03, 0.3, 0.4, "#F4F6F9", sd * (W / 2 + 0.015), 0.72, -0.34));
+		});
+	} else {
+		const c = carModel("sedan", col || "#8E96A3");
+		c.scale.setScalar(0.6);
+		g.add(c);
+	}
+	return g;
+}

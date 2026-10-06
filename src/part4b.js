@@ -997,16 +997,16 @@ const MG = {
 		hi: true,
 		unit: "fires",
 		dur: 50,
-		bound: { t: "circ", r: 12 },
+		bound: { t: "circ", r: 14.4 },
 		water: false,
 		bare: true,
 		NEED: 2,
 		RANGE: 3.2,
 		how: "Park next to a fire to hose it out. Refill at hydrants. Most fires wins.",
 		HYD: [
-			[0, -10.6],
-			[9.2, 5.3],
-			[-9.2, 5.3],
+			[0, -12.7],
+			[11, 6.35],
+			[-11, 6.35],
 		],
 		build(W) {
 			const s = W.sc;
@@ -1020,7 +1020,7 @@ const MG = {
 					n = 0;
 				do {
 					const a = W.rng() * 6.28,
-						r = 2 + W.rng() * 7.5;
+						r = 2.4 + W.rng() * 9;
 					x = Math.cos(a) * r;
 					z = Math.sin(a) * r;
 				} while (
@@ -1031,15 +1031,19 @@ const MG = {
 				W.fires.push({ id: W.fires.length + 1, t, x, z, kind: Math.floor(W.rng() * 3) });
 				t += 1.4 + W.rng() * 1.6;
 			}
+			const kits = {};
 			W.fires.forEach((f) => {
 				const g = new THREE.Group();
-				g.position.set(f.x, 0, f.z);
+				g.position.set(f.x, 0.05, f.z);
 				g.visible = false;
 				s.add(g);
 				f.g = g;
-				if (f.kind === 0) g.add(B(1.6, 0.9, 1.1, "#8C5A3C", 0, 0.45, 0), B(1.4, 0.5, 1, "#6B4A2B", 0, 1.1, 0));
-				else if (f.kind === 1) g.add(B(1.2, 1.1, 1.2, "#2E9E5B", 0, 0.55, 0), B(1.3, 0.12, 1.3, "#23272F", 0, 1.16, 0));
-				else g.add(B(2.2, 0.7, 1.2, "#8E96A3", 0, 0.45, 0), B(1.2, 0.5, 1, "#8E96A3", -0.2, 0.95, 0));
+				/* what is burning: garden shed, news kiosk or a parked car (detailed baked models with a contact shadow) */
+				const ck = f.kind === 2 ? 2 + (f.id % 3) : f.kind,
+					kit = kits[ck] || (kits[ck] = bakeKit(firePropModel(f.kind, ["#8E96A3", "#6FA8D6", "#C9A27A"][f.id % 3]))),
+					fy = [1.95, 2.05, 1.3][f.kind];
+				g.add(kitGroup(kit));
+				g.rotation.y = (f.id * 2.4) % 6.28;
 				const fl = [];
 				for (let k = 0; k < 3; k++) {
 					const m = new THREE.Mesh(
@@ -1050,7 +1054,7 @@ const MG = {
 							emissiveIntensity: 1,
 						}),
 					);
-					m.position.set((k - 1) * 0.45, 1.5, (k % 2) * 0.3 - 0.15);
+					m.position.set((k - 1) * 0.45, fy, (k % 2) * 0.3 - 0.15);
 					g.add(m);
 					fl.push(m);
 				}
@@ -1101,7 +1105,7 @@ const MG = {
 				x.fill();
 			});
 			const m = new THREE.Mesh(
-				new THREE.PlaneGeometry(3.6, 3.6),
+				new THREE.PlaneGeometry(4.3, 4.3),
 				new THREE.MeshStandardMaterial({
 					map: t,
 					transparent: true,
@@ -1117,14 +1121,15 @@ const MG = {
 		},
 		lamp(s, a) {
 			// old-fashioned street lamp in a gap between the planters
-			const x = Math.cos(a) * 13.4,
-				z = Math.sin(a) * 13.4;
+			const x = Math.cos(a) * 16,
+				z = Math.sin(a) * 16;
 			s.add(
 				Cy(0.2, 0.26, 0.3, 10, "#2A2F3A", x, 0.15, z),
 				Cy(0.07, 0.09, 3.4, 8, "#2A2F3A", x, 1.9, z),
 				Cy(0.22, 0.14, 0.12, 8, "#2A2F3A", x, 3.62, z),
 				Cy(0.18, 0.2, 0.42, 8, "#FFF1C4", x, 3.89, z, { emissive: "#FFE08A", emissiveIntensity: 0.6 }),
 				Cy(0.02, 0.26, 0.2, 8, "#2A2F3A", x, 4.2, z),
+				contactShadow(0.5, 0.5, 0.25, x, z),
 			);
 		},
 		square(W) {
@@ -1133,9 +1138,9 @@ const MG = {
 				rim = M("#8F8174");
 			s.add(texBox(220, 0.4, 220, grassTex(), 10, 0, -0.25, 0));
 			{
-				const pl = new THREE.Mesh(new THREE.CylinderGeometry(13, 13, 0.5, 48), [
+				const pl = new THREE.Mesh(new THREE.CylinderGeometry(15.6, 15.6, 0.5, 56), [
 					rim,
-					groundMat(cobbleTex(), 26, 26, 3),
+					groundMat(cobbleTex(), 31.2, 31.2, 3),
 					rim,
 				]);
 				pl.position.y = -0.2;
@@ -1144,7 +1149,7 @@ const MG = {
 			}
 			this.inlay(W);
 			autoTracks(W, "#BDB4A8", 0.065);
-			for (let r = 3; r < 13; r += 3) {
+			for (let r = 3; r < 15.6; r += 3) {
 				const c = new THREE.Mesh(
 					new THREE.RingGeometry(r - 0.12, r + 0.12, 64),
 					new THREE.MeshBasicMaterial({
@@ -1161,12 +1166,12 @@ const MG = {
 				c.position.y = 0.06;
 				s.add(c);
 			}
-			for (let i = 0; i < 20; i++) {
-				const a = (i / 20) * 6.283;
-				if (i % 2) this.lamp(s, a + Math.PI / 20);
+			for (let i = 0; i < 24; i++) {
+				const a = (i / 24) * 6.283;
+				if (i % 2) this.lamp(s, a + Math.PI / 24);
 				for (let k = 0; k < 5; k++) {
 					const fa = a + (k - 2) * 0.035,
-						fr = 13.4 + (((k * 37) % 5) - 2) * 0.12,
+						fr = 16 + (((k * 37) % 5) - 2) * 0.12,
 						f = mesh(
 							new THREE.IcosahedronGeometry(0.13, 0),
 							["#FF6FAE", "#FFE066", "#FFFFFF", "#B9A3FF", "#FF8A5C"][(i + k) % 5],
@@ -1176,10 +1181,14 @@ const MG = {
 					s.add(f);
 				}
 				s.add(
-					B(0.9, 0.7, 2.4, "#8C95A5", Math.cos(a) * 13.4, 0.35, Math.sin(a) * 13.4).rotateY(-a),
+					B(0.9, 0.7, 2.4, "#8C95A5", Math.cos(a) * 16, 0.35, Math.sin(a) * 16).rotateY(-a),
+					contactShadow(0.9, 2.4, 0.3, 0, 0, 0.03)
+						.translateX(Math.cos(a) * 16)
+						.translateZ(Math.sin(a) * 16)
+						.rotateY(-a),
 					(() => {
 						const b = mesh(new THREE.IcosahedronGeometry(0.75, 1), "#3FA34D");
-						b.position.set(Math.cos(a) * 13.4, 1.05, Math.sin(a) * 13.4);
+						b.position.set(Math.cos(a) * 16, 1.05, Math.sin(a) * 16);
 						b.scale.y = 0.7;
 						return b;
 					})(),
@@ -1193,59 +1202,51 @@ const MG = {
 				);
 				s.children[s.children.length - 1].rotation.z = Math.PI / 2;
 				decal(s, new THREE.CircleGeometry(1.8, 24), "#2F7DE1", x, 0.04, z, 0.35);
+				s.add(contactShadow(0.8, 0.8, 0.3, x, z, 0.08));
 			});
-			const shop = (x, z, rot, c, aw, h) => {
-				const g = new THREE.Group();
-				g.position.set(x, 0, z);
-				g.rotation.y = rot;
-				s.add(g);
-				g.add(
-					B(8, h, 6, c, 0, h / 2, 0),
-					B(8.4, 0.3, 6.4, "#4A4F5A", 0, h + 0.15, 0),
-					B(6, 2, 0.1, "#FFE7B0", 0, 1.3, 3.02),
-				);
-				const a = B(7, 0.15, 1.6, aw, 0, 2.7, 3.6);
-				a.rotation.x = -0.35;
-				g.add(a);
-				for (let q = -1; q <= 1; q += 2) g.add(B(1.4, 1.3, 0.1, "#3E4A66", q * 2.2, h - 1.8, 3.02));
-			};
+			/* shops around the plaza (detailed buildings, partmodels) and Blaze's fire station with a truck in the open bay */
 			[
-				[6.1, "#E6D8BE", "#1FA35C"],
-				[5.5, "#B8C4D6", "#FFC83D"],
-				[3.9, "#E8B4A0", "#2F7DE1"],
-				[3.3, "#C9D6B8", "#8E5BE0"],
-				[0.15, "#D9C3A5", "#FF6FAE"],
-				[2.99, "#E6D8BE", "#FF8A1F"],
-			].forEach(([a, c, aw], k) =>
-				shop(Math.cos(a) * 24, Math.sin(a) * 24, -a - Math.PI / 2, c, aw, 5 + (k % 3) * 1.6),
+				[6.1, "#E6D8BE", 0],
+				[5.5, "#B8C4D6", 1],
+				[3.9, "#E8B4A0", 3],
+				[3.3, "#C9D6B8", 4],
+				[0.15, "#D9C3A5", 6],
+				[2.99, "#E6D8BE", 7],
+			].forEach(([a, c, si], k) =>
+				placeKits(
+					s,
+					[
+						bakeKit(
+							buildingModel({
+								w: 8,
+								d: 6,
+								floors: 2 + (k % 2),
+								style: ["brick", "plain", "apt"][k % 3],
+								wall: c,
+								shop: SHOPS[si],
+								roofBits: k,
+							}),
+						),
+					],
+					[{ k: 0, x: Math.cos(a) * 26.6, z: Math.sin(a) * 26.6, ry: -a - Math.PI / 2 }],
+				),
 			);
-			const st = new THREE.Group();
-			st.position.set(0, 0, -21);
-			s.add(st);
-			st.add(B(12, 7, 7, "#D42A22", 0, 3.5, 0), B(12.4, 0.4, 7.4, "#F2F2F2", 0, 7.2, 0));
-			[-3.4, 0, 3.4].forEach((x) => st.add(B(2.8, 3.6, 0.1, "#F2F2F2", x, 1.8, 3.52)));
-			const sg = new THREE.Mesh(
-				new THREE.PlaneGeometry(7, 1.2),
-				new THREE.MeshBasicMaterial({
-					map: canvasTex(280, 48, (x, w, h) => {
-						x.fillStyle = "#F2F2F2";
-						x.fillRect(0, 0, w, h);
-						x.font = "30px Bungee, 'Arial Black', Impact, sans-serif";
-						x.textAlign = "center";
-						x.textBaseline = "middle";
-						x.fillStyle = "#D42A22";
-						x.fillText("FIRE STATION", w / 2, h / 2 + 2);
-					}),
-				}),
-			);
-			sg.position.set(0, 5.4, 3.53);
-			st.add(sg);
+			placeKits(s, [bakeKit(fireStationModel())], [{ k: 0, x: 0, z: -23.6 }]);
+			{
+				const ft = buildTruck(2);
+				ft.rotation.y = -Math.PI / 2;
+				ft.scale.setScalar(1.25);
+				ft.position.set(0, 0, -20.5);
+				s.add(ft);
+			}
 			for (let i = 0; i < 10; i++) {
-				const a = (i / 10) * 6.283 + 0.31;
-				s.add(tree(Math.cos(a) * 16.5, Math.sin(a) * 16.5, 1.1, 0));
+				const a = (i / 10) * 6.283 + 0.31,
+					x = Math.cos(a) * 19.5,
+					z = Math.sin(a) * 19.5;
+				if (Math.abs(x) > 7 || z > 0) s.add(tree(x, z, 1.1, 0));
 			}
 		},
-		spawn: ringSpawn(9),
+		spawn: ringSpawn(10.8),
 		initEnt(W, e) {
 			e.water = 100;
 			e.pr = {};
@@ -1323,8 +1324,8 @@ const MG = {
 							life: 1.1,
 							size: 1.2,
 						});
-						f.g.children.forEach((m) => {
-							if (m.material && !f.fl.includes(m)) m.material = M("#2A2F3A");
+						f.g.children[0].children.forEach((m) => {
+							if (!m.userData.shadow) m.material = M("#45403B");
 						});
 					}
 				});
@@ -3624,7 +3625,17 @@ const MG = {
 					const x = sd * (wid / 2 + 1.15),
 						g = new THREE.Group();
 					g.position.set(x, 0.25, z);
-					switch ((k * 5 + (sd > 0 ? 2 : 0)) % 6) {
+					const ty = (k * 5 + (sd > 0 ? 2 : 0)) % 6,
+						fp = [
+							[0.5, 0.5],
+							[0.6, 0.6],
+							[0.6, 1.7],
+							[0.9, 0.9],
+							[0.25, 1.25],
+							[0.45, 0.4],
+						][ty];
+					g.add(contactShadow(fp[0], fp[1], 0.3));
+					switch (ty) {
 						case 0:
 							g.add(Cy(0.16, 0.2, 0.55, 10, "#D93A35", 0, 0.28, 0), Cy(0.12, 0.17, 0.14, 10, "#B52A26", 0, 0.62, 0));
 							g.add(Cy(0.07, 0.07, 0.5, 6, "#B52A26", 0, 0.35, 0).rotateZ(Math.PI / 2));
@@ -3644,6 +3655,7 @@ const MG = {
 							g.add(B(0.9, 0.5, 0.9, "#8C939E", 0, 0.25, 0), B(0.8, 0.06, 0.8, "#5A3E2A", 0, 0.5, 0));
 							const t = tree(0, 0, 0.45, k % 3);
 							t.position.y = 0.5;
+							t.children[1].visible = false;
 							g.add(t);
 							break;
 						}
@@ -3663,32 +3675,25 @@ const MG = {
 			});
 		},
 		city(W, wid) {
-			// downtown street: sidewalks, shop fronts with awnings, apartment blocks, street lamps
+			// downtown street: sidewalks, kerbside furniture, street lamps and a row of detailed shop/apartment/office buildings (partmodels)
 			const s = W.sc,
-				C = ["#D9C3A5", "#B8C4D6", "#E8B4A0", "#C9D6B8", "#E6D8BE", "#A9B8C9"],
-				AW = ["#E5484D", "#2F7DE1", "#1FA35C", "#FFC83D", "#8E5BE0"];
+				blocks = [];
 			s.add(texBox(160, 0.4, 300, asphaltTex(), 8, 0, -0.2, -80, { color: "#C8CCD4" }));
 			kerbs(s, -wid / 2 - 0.3, wid / 2 + 0.3, 70, -230, "city");
 			this.furniture(W, wid);
 			[-1, 1].forEach((sd) => {
 				s.add(texBox(4, 0.25, 300, pavingTex(), 4, sd * (wid / 2 + 2.3), 0.12, -80));
-				for (let z = 12, k = 0; z > -this.LEN - 40; z -= 9, k++) {
-					const o = sd > 0 ? 2 : 0,
-						h = 7 + ((k * 7 + o) % 5) * 2.2,
-						x = sd * (wid / 2 + 8.3);
-					s.add(B(8, h, 8.6, C[(k + o) % C.length], x, h / 2, z));
-					for (let r = 0; r < Math.floor((h - 3) / 2.4); r++)
-						for (let q = -1; q <= 1; q++) s.add(B(0.1, 1.1, 1.3, "#3E4A66", x - sd * 4.02, 4 + r * 2.4, z + q * 2.5));
-					const aw = B(1.2, 0.14, 7, AW[(k + o) % AW.length], x - sd * 4.6, 2.9, z);
-					aw.rotation.z = sd * 0.35;
-					s.add(aw, B(0.1, 1.9, 5, "#FFE7B0", x - sd * 4.03, 1.3, z));
-				}
+				for (let z = 12, k = 0; z > -this.LEN - 40; z -= 9, k++)
+					blocks.push({ k: (k * 3 + (sd > 0 ? 5 : 0)) % 8, x: sd * (wid / 2 + 8.3), z, ry: (-sd * Math.PI) / 2 });
 				for (let z = 0; z > -this.LEN - 20; z -= 15)
 					s.add(
 						Cy(0.1, 0.12, 5, 6, "#2A2F3A", sd * (wid / 2 + 0.9), 2.5, z),
+						contactShadow(0.3, 0.3, 0.25, sd * (wid / 2 + 0.9), z, 0.28),
 						B(1.4, 0.14, 0.3, "#2A2F3A", sd * (wid / 2 + 0.3), 5, z),
 					);
 			});
+			/* shops below, flats and offices above: 8 detailed variants, one InstancedMesh per material */
+			placeKits(s, buildingKits(8.6, 8), blocks);
 		},
 		light(W, t) {
 			const c = W.cyc.find((c) => t < c.r) || W.cyc[W.cyc.length - 1];
@@ -4609,12 +4614,7 @@ const MG = {
 			W.cars.forEach((c) => {
 				const ty = CAR_TYPES[c.id % 4],
 					kit = kits[ty + c.c] || (kits[ty + c.c] = bakeKit(carModel(ty, c.c))),
-					g = new THREE.Group();
-				kit.forEach(({ geo, mat }) => {
-					const m = new THREE.Mesh(geo, mat);
-					m.castShadow = m.receiveShadow = true;
-					g.add(m);
-				});
+					g = kitGroup(kit);
 				g.position.set(this.lx(c.l), 0, c.z0);
 				s.add(g);
 				c.g = g;
