@@ -205,62 +205,181 @@ function houseModel(v) {
 }
 /* built per minigame (stop3D disposes geometry), a few ms */
 const houseKits = () => HOUSE_LOOK.map((l, i) => bakeKit(houseModel(i)));
-/* traffic car, front at -z: sedan, hatch, van or pickup in any body colour; bevelled body, window band with pillars,
-   lights, grille, bumpers, mirrors, plate, wheels with hubcaps */
+/* traffic car, front at -z. Built in "profile space" (x = length with the front at +x, y up, z = width) like a low-poly
+   car: a side-profile body prism plus a glasshouse prism on top (chamferPrism, both convex), window panes laid along
+   the slopes and sides with body-coloured frames, then turned so the front faces -z. Types: sedan, hatch, van, pickup. */
+const CAR_SPEC = {
+	sedan: {
+		L: 4.1,
+		body: [
+			[-2.05, 0.3],
+			[2.05, 0.3],
+			[2.05, 0.74],
+			[1.72, 0.94],
+			[-1.82, 0.98],
+			[-2.05, 0.8],
+		],
+		gh: [
+			[-1.45, 0.96],
+			[0.98, 0.94],
+			[0.28, 1.52],
+			[-0.92, 1.52],
+		],
+	},
+	hatch: {
+		L: 3.7,
+		body: [
+			[-1.85, 0.3],
+			[1.85, 0.3],
+			[1.85, 0.74],
+			[1.5, 0.94],
+			[-1.85, 0.98],
+		],
+		gh: [
+			[-1.78, 0.96],
+			[0.8, 0.94],
+			[0.12, 1.54],
+			[-1.62, 1.52],
+		],
+	},
+	pickup: {
+		L: 4.3,
+		body: [
+			[-2.15, 0.3],
+			[2.15, 0.3],
+			[2.15, 0.76],
+			[1.8, 0.96],
+			[-2.15, 0.96],
+		],
+		gh: [
+			[-0.78, 0.94],
+			[0.95, 0.94],
+			[0.42, 1.56],
+			[-0.72, 1.56],
+		],
+	},
+	van: {
+		L: 4.4,
+		body: [
+			[-2.2, 0.3],
+			[2.2, 0.3],
+			[2.2, 0.92],
+			[1.92, 1.1],
+			[1.32, 1.98],
+			[-2.2, 1.98],
+		],
+	},
+};
 function carModel(type, col) {
-	const g = new THREE.Group(),
-		glass = "#2A3A4E",
-		dark = "#2A2F3A",
-		L = type === "hatch" ? 3.7 : type === "van" ? 4.4 : 4.1,
-		bm = (geo, c, x, y, z) => {
-			const m = mesh(geo.clone(), c);
-			m.position.set(x, y, z);
-			g.add(m);
-			return m;
-		};
-	if (type === "van") {
-		bm(chamferBox(2.05, 1.75, L, 0.2), col, 0, 1.17, 0);
-		g.add(B(1.8, 0.62, 0.06, glass, 0, 1.55, -L / 2 - 0.02));
-		[-1, 1].forEach((sd) => g.add(B(0.06, 0.5, 0.9, glass, sd * 1.04, 1.55, -L / 2 + 0.75)));
-		g.add(B(2.09, 0.12, L - 0.6, "#F4F6F9", 0, 1.05, 0.3));
-	} else {
-		bm(chamferBox(2, 0.72, L, 0.2), col, 0, 0.68, 0);
-		if (type === "pickup") {
-			bm(chamferBox(1.85, 0.72, 1.6, 0.16), col, 0, 1.36, -0.6);
-			g.add(B(1.89, 0.42, 1.38, glass, 0, 1.38, -0.6));
-			g.add(B(1.89, 0.44, 0.1, col, 0, 1.38, -0.6));
-			[-1, 1].forEach((sd) => g.add(B(0.1, 0.45, 2.0, col, sd * 0.95, 1.25, 0.95)));
-			g.add(B(1.9, 0.45, 0.1, col, 0, 1.25, 1.98), B(1.8, 0.04, 1.9, dark, 0, 1.06, 0.95));
-		} else {
-			const cl = type === "hatch" ? 2.3 : 2.1,
-				cz = type === "hatch" ? 0.45 : 0.15;
-			bm(chamferBox(1.78, 0.68, cl, 0.18), col, 0, 1.33, cz);
-			g.add(B(1.82, 0.4, cl - 0.24, glass, 0, 1.36, cz));
-			[-1, 0, 1].forEach((k) => g.add(B(1.84, 0.42, 0.12, col, 0, 1.36, cz + k * (cl / 2 - 0.2))));
-			if (type === "sedan" && col === "#FFC83D") {
-				g.add(B(0.8, 0.26, 0.3, "#151B24", 0, 1.8, cz), B(0.76, 0.2, 0.32, "#FFE066", 0, 1.8, cz));
-			}
-		}
-	}
-	const yb = type === "van" ? 0.48 : 0.42;
-	[-1, 1].forEach((fz) => {
-		g.add(B(2.06, 0.22, 0.22, "#3A3F48", 0, yb, (fz * L) / 2));
-		[-1, 1].forEach((sd) => {
-			g.add(
-				B(0.42, 0.16, 0.06, fz < 0 ? "#FFF6D8" : "#E5484D", sd * 0.68, yb + 0.3, (fz * (L + 0.04)) / 2, {
-					emissive: fz < 0 ? "#FFE9B0" : "#B5121B",
-					emissiveIntensity: 0.6,
-				}),
+	const S = CAR_SPEC[type],
+		L = S.L,
+		W = 1.9,
+		g = new THREE.Group(),
+		pg = new THREE.Group(),
+		glass = "#2E3F55",
+		dark = "#23272F",
+		prism = (P, d, r, c) => {
+			const m = mesh(
+				chamferPrism(
+					P,
+					d,
+					r,
+					P.map(() => 0.05),
+				).clone(),
+				c,
 			);
-			const w = Cy(0.38, 0.38, 0.3, 14, "#1D2230", sd * 0.92, 0.38, fz * (L / 2 - 0.85));
-			w.rotation.z = Math.PI / 2;
-			const hc = Cy(0.2, 0.2, 0.32, 10, "#C9CED8", sd * 0.92, 0.38, fz * (L / 2 - 0.85));
-			hc.rotation.z = Math.PI / 2;
-			g.add(w, hc);
+			pg.add(m);
+			return m;
+		},
+		gm = { roughness: 0.25, metalness: 0.3, emissive: "#1A2636", emissiveIntensity: 0.4 },
+		/* pane along a slope from (x1,y1) to (x2,y2) in profile space, sitting just outside it */
+		slopePane = (x1, y1, x2, y2, w, inset) => {
+			const dx = x2 - x1,
+				dy = y2 - y1,
+				l = Math.hypot(dx, dy),
+				nx = dy / l,
+				ny = -dx / l,
+				p = B(l - 2 * inset, 0.03, w, glass, (x1 + x2) / 2 + nx * 0.03, (y1 + y2) / 2 + ny * 0.03, 0, gm);
+			p.rotation.z = Math.atan2(dy, dx);
+			pg.add(p);
+		};
+	pg.rotation.y = Math.PI / 2;
+	g.add(pg);
+	prism(S.body, W, 0.07, col);
+	if (type === "van") {
+		const [, , , a, b] = S.body;
+		slopePane(a[0], a[1], b[0], b[1], W - 0.3, 0.1);
+		[-1, 1].forEach((sd) => {
+			pg.add(B(0.85, 0.52, 0.03, glass, 1.15, 1.5, sd * (W / 2 + 0.015), gm));
+			pg.add(B(0.05, 0.6, 0.03, dark, 0.65, 1.5, sd * (W / 2 + 0.02)));
 		});
+		const stripe = col === "#F4F6F9" || col === "#FFC83D" ? "#2F7DE1" : "#F4F6F9";
+		pg.add(B(L - 0.5, 0.16, W + 0.06, stripe, -0.15, 1.08, 0));
+		[-1, 1].forEach((sd) => {
+			pg.add(B(0.03, 0.42, 0.62, glass, -L / 2 - 0.015, 1.52, sd * 0.42, gm));
+			pg.add(
+				B(0.05, 1.3, 0.03, dark, -0.2, 1.3, sd * (W / 2 + 0.02)),
+				B(0.05, 1.3, 0.03, dark, 0.55, 1.3, sd * (W / 2 + 0.02)),
+			);
+			pg.add(B(0.16, 0.05, 0.03, dark, 0.35, 1.2, sd * (W / 2 + 0.02)));
+		});
+		pg.add(B(0.03, 1.4, 0.04, dark, -L / 2 - 0.015, 1.15, 0));
+	} else {
+		const G = S.gh,
+			gw = W - 0.24;
+		prism(G, gw, 0.06, col);
+		/* windscreen and rear window on the slopes, side windows split by a B-pillar */
+		slopePane(G[1][0], G[1][1], G[2][0], G[2][1], gw - 0.22, 0.08);
+		slopePane(G[3][0], G[3][1], G[0][0], G[0][1], gw - 0.22, 0.08);
+		const mid = (G[2][0] + G[3][0]) / 2,
+			top = G[2][1] - 0.1,
+			bot = G[0][1] + 0.06,
+			fr = (y) => G[1][0] + ((G[2][0] - G[1][0]) * (y - G[1][1])) / (G[2][1] - G[1][1]),
+			rr = (y) => G[0][0] + ((G[3][0] - G[0][0]) * (y - G[0][1])) / (G[3][1] - G[0][1]),
+			yc = (top + bot) / 2,
+			h = top - bot;
+		[-1, 1].forEach((sd) => {
+			const z = sd * (gw / 2 + 0.016),
+				f = Math.min(fr(top), fr(bot)) - 0.1,
+				b = Math.max(rr(top), rr(bot)) + 0.1;
+			pg.add(B(f - mid - 0.08, h, 0.03, glass, (f + mid + 0.08) / 2, yc, z, gm));
+			pg.add(B(mid - 0.08 - b, h, 0.03, glass, (mid - 0.08 + b) / 2, yc, z, gm));
+		});
+		if (type === "pickup") {
+			[-1, 1].forEach((sd) => pg.add(B(1.3, 0.42, 0.08, col, -1.5, 1.17, sd * (W / 2 - 0.04))));
+			pg.add(B(0.08, 0.42, W, col, -2.11, 1.17, 0), B(1.3, 0.04, W - 0.16, dark, -1.5, 0.98, 0));
+		}
+		if (type === "sedan" && col === "#FFC83D")
+			pg.add(
+				B(0.3, 0.24, 0.78, "#151B24", mid, G[2][1] + 0.12, 0),
+				B(0.32, 0.18, 0.74, "#FFE066", mid, G[2][1] + 0.13, 0),
+			);
+		[-1, 1].forEach((sd) => pg.add(B(0.16, 0.12, 0.14, col, G[1][0] - 0.05, G[1][1] + 0.08, sd * (gw / 2 + 0.1))));
+	}
+	/* lights, grille, bumpers, plate, door seams, wheels with hubcaps */
+	const fy = S.body[2][1] - 0.18;
+	[-1, 1].forEach((sd) => {
+		pg.add(B(0.04, 0.15, 0.4, "#FFF6D8", L / 2 + 0.01, fy, sd * 0.6, { emissive: "#FFE9B0", emissiveIntensity: 0.6 }));
+		pg.add(
+			B(0.04, 0.15, 0.34, "#E5484D", -L / 2 - 0.01, fy + (type === "van" ? 0.05 : 0.04), sd * 0.66, {
+				emissive: "#B5121B",
+				emissiveIntensity: 0.6,
+			}),
+		);
 	});
-	g.add(B(0.9, 0.2, 0.05, dark, 0, yb + 0.3, -L / 2 - 0.02), B(0.5, 0.14, 0.04, "#F4F6F9", 0, yb + 0.22, L / 2 + 0.12));
-	if (type !== "van") [-1, 1].forEach((sd) => g.add(B(0.14, 0.12, 0.22, col, sd * 1.06, 1.12, -0.85)));
+	pg.add(B(0.04, 0.16, 0.7, dark, L / 2 + 0.01, fy, 0), B(0.04, 0.13, 0.46, "#F4F6F9", -L / 2 - 0.01, fy - 0.2, 0));
+	[-1, 1].forEach((sx) => pg.add(B(0.2, 0.2, W + 0.06, "#3A3F48", sx * (L / 2 + 0.02), 0.38, 0)));
+	if (type !== "van") pg.add(B(0.03, 0.5, W + 0.05, dark, type === "pickup" ? 0.95 : 0.25, 0.64, 0));
+	[-1, 1].forEach((sx) =>
+		[-1, 1].forEach((sd) => {
+			const x = sx * (L / 2 - 0.82),
+				z = sd * (W / 2 - 0.06),
+				w = Cy(0.38, 0.38, 0.28, 14, "#1D2230", x, 0.38, z),
+				hc = Cy(0.2, 0.2, 0.3, 10, "#C9CED8", x, 0.38, z);
+			w.rotation.x = hc.rotation.x = Math.PI / 2;
+			pg.add(w, hc);
+		}),
+	);
 	return g;
 }
 const CAR_TYPES = ["sedan", "hatch", "van", "pickup"];
