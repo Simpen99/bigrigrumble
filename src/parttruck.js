@@ -735,8 +735,6 @@ function mergeMeshes(g) {
 	g.traverse((o) => {
 		if (!o.isMesh) hosts.push(o);
 	});
-	const v = new THREE.Vector3(),
-		nm = new THREE.Matrix3();
 	hosts.forEach((h) => {
 		const sets = new Map();
 		h.children.forEach((m) => {
@@ -749,52 +747,77 @@ function mergeMeshes(g) {
 		});
 		sets.forEach(({ mat, L }) => {
 			if (L.length < 2) return;
-			const geos = L.map((m) => (m.geometry.index ? m.geometry.toNonIndexed() : m.geometry)),
-				n = geos.reduce((s, ge) => s + ge.attributes.position.count, 0),
-				P = new Float32Array(n * 3),
-				N = new Float32Array(n * 3),
-				C = mat.vertexColors ? new Float32Array(n * 3).fill(1) : null;
-			let off = 0;
-			L.forEach((m, mi) => {
-				const a = geos[mi].attributes,
-					/* the part's own colour goes into the vertex colours when it moves to the white material */
-					tint = mat !== m.material ? m.material.color : null,
-					vc = m.material.vertexColors && a.color;
-				m.updateMatrix();
-				nm.getNormalMatrix(m.matrix);
-				for (let i = 0; i < a.position.count; i++) {
-					const j = (off + i) * 3;
-					v.fromBufferAttribute(a.position, i).applyMatrix4(m.matrix);
-					P[j] = v.x;
-					P[j + 1] = v.y;
-					P[j + 2] = v.z;
-					v.fromBufferAttribute(a.normal, i).applyMatrix3(nm).normalize();
-					N[j] = v.x;
-					N[j + 1] = v.y;
-					N[j + 2] = v.z;
-					if (C) {
-						const r = vc ? a.color.getX(i) : 1,
-							gg = vc ? a.color.getY(i) : 1,
-							bb = vc ? a.color.getZ(i) : 1;
-						C[j] = tint ? r * tint.r : r;
-						C[j + 1] = tint ? gg * tint.g : gg;
-						C[j + 2] = tint ? bb * tint.b : bb;
-					}
-				}
-				off += a.position.count;
-				h.remove(m);
-			});
-			const geo = new THREE.BufferGeometry();
-			geo.setAttribute("position", new THREE.BufferAttribute(P, 3));
-			geo.setAttribute("normal", new THREE.BufferAttribute(N, 3));
-			if (C) geo.setAttribute("color", new THREE.BufferAttribute(C, 3));
-			const mm = new THREE.Mesh(geo, mat);
+			const mm = new THREE.Mesh(
+				mergeGeo(
+					L.map((m) => {
+						m.updateMatrix();
+						return { m, mx: m.matrix };
+					}),
+					mat,
+				),
+				mat,
+			);
+			L.forEach((m) => h.remove(m));
 			mm.castShadow = L[0].castShadow;
 			mm.receiveShadow = L[0].receiveShadow;
 			mm.renderOrder = L[0].renderOrder;
 			h.add(mm);
 		});
 	});
+}
+/* one geometry from many meshes [{m, mx}] (mx = each mesh's matrix into the merged space), for material mat. A part that
+   moves onto a white neutral material carries its own colour into the vertex colours; uv comes along for textured
+   materials; mirrored parts (negative scale) get their triangles turned back round so they don't vanish. */
+function mergeGeo(items, mat) {
+	const v = new THREE.Vector3(),
+		nm = new THREE.Matrix3(),
+		geos = items.map(({ m }) => (m.geometry.index ? m.geometry.toNonIndexed() : m.geometry)),
+		n = geos.reduce((s, ge) => s + ge.attributes.position.count, 0),
+		P = new Float32Array(n * 3),
+		N = new Float32Array(n * 3),
+		C = mat.vertexColors ? new Float32Array(n * 3).fill(1) : null,
+		UV = mat.map ? new Float32Array(n * 2) : null;
+	let off = 0;
+	items.forEach(({ m, mx }, mi) => {
+		const a = geos[mi].attributes,
+			tint = mat !== m.material ? m.material.color : null,
+			vc = m.material.vertexColors && a.color,
+			flip = mx.determinant() < 0;
+		nm.getNormalMatrix(mx);
+		for (let i = 0; i < a.position.count; i++) {
+			/* mirrored: write each triangle's 2nd and 3rd corner swapped */
+			const k = flip && i % 3 ? i + (i % 3 === 1 ? 1 : -1) : i,
+				j = (off + k) * 3;
+			v.fromBufferAttribute(a.position, i).applyMatrix4(mx);
+			P[j] = v.x;
+			P[j + 1] = v.y;
+			P[j + 2] = v.z;
+			if (a.normal) v.fromBufferAttribute(a.normal, i).applyMatrix3(nm).normalize();
+			else v.set(0, 1, 0);
+			N[j] = v.x;
+			N[j + 1] = v.y;
+			N[j + 2] = v.z;
+			if (C) {
+				const r = vc ? a.color.getX(i) : 1,
+					gg = vc ? a.color.getY(i) : 1,
+					bb = vc ? a.color.getZ(i) : 1;
+				C[j] = tint ? r * tint.r : r;
+				C[j + 1] = tint ? gg * tint.g : gg;
+				C[j + 2] = tint ? bb * tint.b : bb;
+			}
+			if (UV && a.uv) {
+				UV[(off + k) * 2] = a.uv.getX(i);
+				UV[(off + k) * 2 + 1] = a.uv.getY(i);
+			}
+		}
+		off += a.position.count;
+	});
+	const geo = new THREE.BufferGeometry();
+	geo.setAttribute("position", new THREE.BufferAttribute(P, 3));
+	geo.setAttribute("normal", new THREE.BufferAttribute(N, 3));
+	if (C) geo.setAttribute("color", new THREE.BufferAttribute(C, 3));
+	if (UV) geo.setAttribute("uv", new THREE.BufferAttribute(UV, 2));
+	return geo;
 }
 function animTruck(tr, dt, speed = 0) {
 	const u = tr && tr.userData;
