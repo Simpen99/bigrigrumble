@@ -4189,13 +4189,13 @@ const MG = {
 		unit: "pts",
 		dur: 50,
 		bare: true,
-		sun: [12.5, 17.5, 12.5],
-		/* new look: dusty bright midday at the tip (light balance from Cone Smash's tuned look) */
+		sun: [12.5, 18, 12.5],
+		/* new look: dusk at the tip, the floodlight on the lanes, warm lamps on the office and along the lanes (tuned in the light panel 2026-10-07) */
 		look: {
 			exp: 0.82,
-			amb: 0.8,
-			sun: 1.44,
-			warm: 0.55,
+			amb: 0.38,
+			sun: 0.3,
+			warm: 0.82,
 			env: 0.4,
 			paint: 0.55,
 			haze: 60,
@@ -4203,8 +4203,9 @@ const MG = {
 			bloom: 0.2,
 			vig: 0,
 			sat: 0.06,
-			fill: ["#7FA8E8", "#7F6A50"],
-			sky: ["#4E8ED6", "#9FCBEA", "#EEE6D2"],
+			lamp: 1,
+			fill: ["#8A95D8", "#5A4535"],
+			sky: ["#2B3A6B", "#B8707A", "#F0A46E"],
 		},
 		EDGE: -24,
 		HOME: 4,
@@ -4318,6 +4319,7 @@ const MG = {
 				k.rotation.y = ry;
 				s.add(k);
 			});
+			this.lamps(W, wid);
 			// the green scoring strip, then an excavator and a dirt pile behind every lane
 			W.exc = W.plist.map((p, i) => {
 				const x = W.laneX(i);
@@ -4435,6 +4437,116 @@ const MG = {
 			W.dust = puffs(W, "#9C8264");
 			W.smoke = puffs(W, "#D6DAE0");
 			W.skid = tyreTracks(W, "#B2ABA4", "#FFFFFF", 700, 3, 1, true);
+		},
+		/* dusk lighting: the light tower's floodlight as a spotlight on the lanes with a fake beam, a wall lamp and a
+		   roof beacon on the site office, glowing bollards along both sides of the lanes. No shadows; intensities
+		   are base values times the look's lamp (light panel "Lamps"). */
+		lamps(W, wid) {
+			const s = W.sc,
+				D = "#2A2F3A",
+				lin = (c) => new THREE.Color(c).convertSRGBToLinear(),
+				warm = { emissive: "#FFD27A", emissiveIntensity: 1.8 };
+			W.lamps = [];
+			const add = (l, base) => {
+				l.userData.base = base;
+				W.lamps.push(l);
+				s.add(l);
+				return l;
+			};
+			{
+				/* floodlight: heads at the top of the tower, aimed at the middle of the lanes */
+				const hx = wid / 2 + 5.5,
+					hy = 8.6,
+					hz = -9.5,
+					sp = add(new THREE.SpotLight(lin("#FFE6B8"), 3, 42, 0.62, 0.65, 1), 3);
+				sp.position.set(hx, hy, hz);
+				sp.target.position.set(-1, 0, -10);
+				s.add(sp.target);
+				const len = 16,
+					cone = new THREE.ConeGeometry(Math.tan(0.5) * len, len, 24, 1, true);
+				cone.translate(0, -len / 2, 0);
+				const beam = new THREE.Mesh(
+					cone,
+					new THREE.MeshBasicMaterial({
+						map: canvasTex(8, 64, (x, w, h) => {
+							const gr = x.createLinearGradient(0, 0, 0, h);
+							gr.addColorStop(0, "rgba(255,226,170,0)");
+							gr.addColorStop(0.75, "rgba(255,226,170,0.5)");
+							gr.addColorStop(1, "rgba(255,236,200,1)");
+							x.fillStyle = gr;
+							x.fillRect(0, 0, w, h);
+						}),
+						transparent: true,
+						opacity: 0.16,
+						blending: THREE.AdditiveBlending,
+						depthWrite: false,
+						side: THREE.DoubleSide,
+						fog: false,
+					}),
+				);
+				beam.position.set(hx, hy, hz);
+				beam.quaternion.setFromUnitVectors(
+					new THREE.Vector3(0, -1, 0),
+					new THREE.Vector3(-1 - hx, -hy, -10 - hz).normalize(),
+				);
+				beam.castShadow = false;
+				beam.userData.base = 0.16;
+				W.lampFx = [beam];
+				s.add(beam);
+			}
+			{
+				/* site office (same place as its kit): wall lamp over the door, amber beacon on a roof corner */
+				const og = new THREE.Group(),
+					fz = 1.15;
+				og.position.set(-wid / 2 - 5, 0, -6);
+				og.rotation.y = Math.PI / 2;
+				og.add(
+					B(0.36, 0.14, 0.22, D, 1.75, 2.58, fz + 0.1),
+					B(0.3, 0.04, 0.16, "#FFF4D6", 1.75, 2.49, fz + 0.12, warm),
+					Cy(0.11, 0.13, 0.2, 8, "#FF9A1F", 2.75, 3.14, -1.0, { emissive: "#FF8A1F", emissiveIntensity: 2 }),
+				);
+				s.add(og);
+				const pl = add(new THREE.PointLight(lin("#FFC98A"), 1.2, 9, 1), 1.2);
+				og.updateMatrixWorld(true);
+				pl.position.copy(og.localToWorld(new THREE.Vector3(1.75, 2.2, fz + 0.9)));
+			}
+			{
+				/* bollards along both sides of the lanes, each with a soft warm pool on the ground */
+				const glow = new THREE.MeshBasicMaterial({
+						map: canvasTex(64, 64, (x, w, h) => {
+							const gr = x.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2);
+							gr.addColorStop(0, "rgba(255,210,140,0.9)");
+							gr.addColorStop(1, "rgba(255,210,140,0)");
+							x.fillStyle = gr;
+							x.fillRect(0, 0, w, h);
+						}),
+						transparent: true,
+						opacity: 0.35,
+						blending: THREE.AdditiveBlending,
+						depthWrite: false,
+						polygonOffset: true,
+						polygonOffsetFactor: -2,
+						polygonOffsetUnits: -4,
+					}),
+					gg = new THREE.PlaneGeometry(2.6, 2.6);
+				gg.rotateX(-Math.PI / 2);
+				glow.userData.base = 0.35;
+				W.lampFx.push({ material: glow, userData: glow.userData });
+				[-1, 1].forEach((sd) =>
+					[3, -2.8, -8.6, -14.4, -20.2].forEach((z) => {
+						const x = sd * (wid / 2 + 0.7);
+						s.add(
+							Cy(0.06, 0.07, 0.9, 6, D, x, 0.45, z),
+							Cy(0.12, 0.12, 0.14, 8, "#FFE9B0", x, 0.97, z, warm),
+							Cy(0.15, 0.15, 0.05, 8, D, x, 1.065, z),
+						);
+						const m = new THREE.Mesh(gg, glow);
+						m.position.set(x, 0.035, z);
+						m.renderOrder = 2;
+						s.add(m);
+					}),
+				);
+			}
 		},
 		excavator(s, x, z) {
 			const g = excavatorModel();
