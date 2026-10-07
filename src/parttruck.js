@@ -133,7 +133,11 @@ function buildTruck(i, mode) {
 		GL = "#2F3B52",
 		CH = "#D8DDE5",
 		W = 1.1;
-	const glass = { roughness: 0.2, metalness: 0.2 },
+	const glass = {
+			roughness: 0.2,
+			metalness: 0.2,
+			userData: { refl: 0 },
+		} /* no reflections on truck windows (new look): they turned grey */,
 		lamp = { emissive: "#FFF1C2", emissiveIntensity: 1.2 };
 	const anims = [],
 		wheelsL = [],
@@ -655,6 +659,22 @@ function buildTruck(i, mode) {
 		l1.position.set(tailX - 0.075, tailY + 0.01, W * 0.33);
 		l2.position.set(tailX - 0.075, tailY + 0.01, -W * 0.33);
 		host.add(bp, l1, l2);
+	}
+	{
+		/* paint (body and accent colour) gets its own materials per truck, tagged for the new look's slight shine (lookEnv) */
+		const pc = [c, a].map((x) => new THREE.Color(x).getHex()),
+			cl = new Map();
+		g.traverse((o) => {
+			const m = o.material;
+			if (!m || Array.isArray(m) || !m.isMeshStandardMaterial || m.transparent || !pc.includes(m.color.getHex()))
+				return;
+			if (!cl.has(m)) {
+				const q = m.clone();
+				q.userData = { paint: m.roughness, refl: 1 };
+				cl.set(m, q);
+			}
+			o.material = cl.get(m);
+		});
 	}
 	g.userData.anims = anims;
 	g.userData.wheels = wheelsL;

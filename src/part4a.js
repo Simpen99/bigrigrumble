@@ -119,13 +119,13 @@ function mgEnv(s, water, lane, bare, night, storm, dusk) {
 	}
 	return sun;
 }
-/* new look (trial): def.look = {exp, amb, sun, warm, env, haze, glow, bloom, fill: [sky, ground], sky: [top, mid, horizon]}.
+/* new look (trial): def.look = {exp, amb, sun, warm, env, haze, glow, bloom, vig, sat, fill: [sky, ground], sky: [top, mid, horizon]}.
    Sets the scene's colour mood; the renderer switches to sRGB + ACES for scenes with userData.lk (gfxLook). Light colours go in as linear. */
-const LOOK0 = { exp: 1, amb: 0.3, sun: 1.8, warm: 0.6, env: 0.1, haze: 55, glow: 0.98, bloom: 0.4 };
+const LOOK0 = { exp: 1, amb: 0.3, sun: 1.8, warm: 0.6, env: 0.1, paint: 0.45, haze: 55, glow: 1.01, bloom: 0.4 };
 const lkWarm = (c, w) => c.set("#E4EEFF").lerp(new THREE.Color("#FFC27A"), w).convertSRGBToLinear();
-function applyLook(W) {
+function applyLook(W, extra) {
 	const s = W.sc,
-		L = (s.userData.lk = Object.assign({}, LOOK0, W.def.look)),
+		L = (s.userData.lk = Object.assign({}, LOOK0, W.def.look, extra)),
 		h = s.children.find((o) => o.isHemisphereLight);
 	if (L.sky) {
 		SKY.lk = L.sky;
@@ -154,6 +154,14 @@ function applyLook(W) {
 	F.bloom.v = L.bloom;
 	F.bloom.th = L.glow;
 	F.aa.on = true;
+	/* optional grade: vig = vignette, sat = colour boost (the Effects tab's Vignette / Colour) */
+	F.vig.on = L.vig > 0;
+	if (L.vig) F.vig.v = L.vig;
+	F.col.on = L.sat > 0;
+	if (L.sat) {
+		F.col.sat = L.sat * 0.6;
+		F.col.con = L.sat * 0.2;
+	}
 	loadPost().catch(() => {});
 	lookEnv(s);
 	lookEnvTex().then(
@@ -162,6 +170,20 @@ function applyLook(W) {
 		},
 		() => {},
 	);
+}
+/* minigame effects from {ao, bloom, tilt, vig, col, aa} (0 / missing = off), as baked in def.fx or saved from the light panel */
+function setFx(fx) {
+	["ao", "bloom", "tilt", "vig", "col", "aa"].forEach((k) => {
+		const v = fx && fx[k];
+		GFX.fx[k].on = !!v;
+		if (v) {
+			if (k === "col") {
+				GFX.fx.col.sat = v * 0.6;
+				GFX.fx.col.con = v * 0.2;
+			} else GFX.fx[k].v = v;
+		}
+	});
+	if (fx) loadPost().catch(() => {});
 }
 function mkEnt(p, isMe, named, mode) {
 	const g = new THREE.Group(),
@@ -476,17 +498,11 @@ function start3D(mg, p, localOnly, startAt, split) {
 	const def = MG[mg.g],
 		s = new THREE.Scene();
 	GFX.fx.bloom.th = 0.9;
-	["ao", "bloom", "tilt", "vig", "col", "aa"].forEach((k) => {
-		const v = def.fx && def.fx[k];
-		GFX.fx[k].on = !!v;
-		if (v) {
-			if (k === "col") {
-				GFX.fx.col.sat = v * 0.6;
-				GFX.fx.col.con = v * 0.2;
-			} else GFX.fx[k].v = v;
-		}
-	});
-	if (def.fx) loadPost().catch(() => {});
+	setFx(def.fx);
+	/* light panel values saved on this device (Save button) win over the baked ones */
+	const sv = LS.get("trp_light", {})[mg.g];
+	if (!("sun0" in def)) def.sun0 = def.sun || null;
+	def.sun = sv && sv.sun ? sv.sun.slice() : def.sun0 || undefined;
 	const plist = mg.part ? G.players.filter((q) => mg.part.includes(q.key)) : G.players;
 	const tv = !p;
 	W = {
@@ -549,8 +565,9 @@ function start3D(mg, p, localOnly, startAt, split) {
 	camFov(40);
 	def.build(W);
 	/* baked light panel values: def.lt = {amb, sun, warm, haze} (the panel's "Copy" line), applied over the scene's own */
-	if (def.lt) {
-		const L = def.lt,
+	const svLt = sv && sv.lt;
+	if (def.lt || (svLt && !def.look)) {
+		const L = Object.assign({}, def.lt, svLt),
 			h = s.children.find((o) => o.isHemisphereLight);
 		if (h && L.amb !== undefined) h.intensity = L.amb;
 		if (L.sun !== undefined) W.sun.intensity = L.sun;
@@ -563,7 +580,9 @@ function start3D(mg, p, localOnly, startAt, split) {
 			s.fog.far = L.haze * 3.8;
 		}
 	}
-	if (def.look) applyLook(W);
+	if (def.look) applyLook(W, svLt);
+	if (sv && sv.fx) setFx(sv.fx);
+	if (sv && sv.lt && sv.lt.glow) GFX.fx.bloom.th = sv.lt.glow;
 	const n = plist.length;
 	plist.forEach((q, i) => {
 		const e = mkEnt(q, !tv && q.key === p.key, !!split, def.truckMode);
@@ -1279,7 +1298,7 @@ function wireLightPanel() {
 			warm: W.lpWarm ?? 0.5,
 			haze: fog ? fog.near : 60,
 		};
-		if (LK) Object.assign(st, { exp: LK.exp, env: LK.env, glow: LK.glow });
+		if (LK) Object.assign(st, { exp: LK.exp, env: LK.env, paint: LK.paint, glow: LK.glow });
 		const LIGHT = [
 			["amb", "Ambient", 0, 2.5, 0.02],
 			["sun", "Sun", 0, LK ? 4 : 2.5, 0.02],
@@ -1293,6 +1312,7 @@ function wireLightPanel() {
 					? [
 							["exp", "Exposure", 0.4, 3, 0.02],
 							["env", "Reflect", 0, 1.5, 0.02],
+							["paint", "Paint rough", 0.1, 0.8, 0.01],
 							["glow", "Glow cut", 0.8, 1.05, 0.005],
 						]
 					: [],
@@ -1323,7 +1343,7 @@ function wireLightPanel() {
 		lpCamWire();
 		p.innerHTML = `<div class="lpgroups"><button data-g="light">Light</button><button data-g="fx">Effects</button></div><div class="lptabs" id="lptabs"></div>
       <div class="lpsrow"><button id="lptog" class="lptog">OFF</button><input type="range" id="lpslider" class="lpslider"></div><div class="lpout" id="lpout"></div>
-      <div class="lpbtns"><button id="lpcopy">Copy</button><button id="lpreset">Reset view</button><button id="lpclose">Close</button></div>`;
+      <div class="lpbtns"><button id="lpsave">Save</button><button id="lpdef" hidden>Default</button><button id="lpcopy">Copy</button><button id="lpreset">Reset view</button><button id="lpclose">Close</button></div>`;
 		document.getElementById("mg").appendChild(p);
 		const sl = document.getElementById("lpslider"),
 			tog = document.getElementById("lptog"),
@@ -1343,7 +1363,7 @@ function wireLightPanel() {
 			sun.color.copy(cool).lerp(hot, st.warm);
 			if (LK) {
 				sun.color.convertSRGBToLinear();
-				const envCh = LK.env !== st.env;
+				const envCh = LK.env !== st.env || LK.paint !== st.paint;
 				Object.assign(LK, {
 					amb: st.amb,
 					sun: st.sun,
@@ -1351,6 +1371,7 @@ function wireLightPanel() {
 					haze: st.haze,
 					exp: st.exp,
 					env: st.env,
+					paint: st.paint,
 					glow: st.glow,
 				});
 				F.bloom.th = st.glow;
@@ -1374,7 +1395,7 @@ function wireLightPanel() {
 				`${W.mg.g}: ambient ${fmt("amb", st.amb)} · sun ${fmt("sun", st.sun)} · height ${fmt("h", st.h)} · angle ${fmt("ang", st.ang)} · warmth ${fmt("warm", st.warm)}` +
 				(fog ? ` · haze ${fmt("haze", st.haze)}` : "") +
 				(LK
-					? ` · exposure ${fmt("exp", st.exp)} · reflect ${fmt("env", st.env)} · glow cut ${fmt("glow", st.glow)}`
+					? ` · exposure ${fmt("exp", st.exp)} · reflect ${fmt("env", st.env)} · paint rough ${fmt("paint", st.paint)} · glow cut ${fmt("glow", st.glow)}`
 					: "") +
 				` · effects: ${on || "none"}`;
 		};
@@ -1452,6 +1473,35 @@ function wireLightPanel() {
 		});
 		setGrp(grp);
 		document.getElementById("lpclose").addEventListener("click", closeLP);
+		{
+			/* Save keeps these values on this device for this game (localStorage trp_light), applied from the next round on; Default drops them */
+			const sb = document.getElementById("lpsave"),
+				db = document.getElementById("lpdef"),
+				g = W.mg.g;
+			db.hidden = !LS.get("trp_light", {})[g];
+			sb.addEventListener("click", () => {
+				const A = LS.get("trp_light", {}),
+					lt = { amb: st.amb, sun: st.sun, warm: st.warm },
+					fx = {};
+				if (fog) lt.haze = st.haze;
+				if (LK) Object.assign(lt, { exp: st.exp, env: st.env, paint: st.paint, glow: st.glow });
+				FX.forEach(([k]) => (fx[k] = F[k].on ? (k === "aa" ? 1 : +fxv(k).toFixed(2)) : 0));
+				A[g] = { lt, sun: (W.def.sun || [14, 26, 12]).slice(), fx };
+				LS.set("trp_light", A);
+				sb.textContent = "Saved ✓";
+				db.hidden = false;
+				db.textContent = "Default";
+				setTimeout(() => {
+					if (sb.isConnected) sb.textContent = "Save";
+				}, 1600);
+			});
+			db.addEventListener("click", () => {
+				const A = LS.get("trp_light", {});
+				delete A[g];
+				LS.set("trp_light", A);
+				db.textContent = "Default next round";
+			});
+		}
 		document.getElementById("lpreset").addEventListener("click", () => {
 			if (W && W.camOv0) W.camOv = Object.assign({}, W.camOv0, { t: W.camOv0.t.clone() });
 		});

@@ -2686,19 +2686,22 @@ const MG = {
 		bound: { t: "sq", h: 16 },
 		water: false,
 		bare: true,
-		sun: [13.9, 16, 12.1],
-		/* new look trial: golden late afternoon over the depot */
+		sun: [11.3, 18, 14.5],
+		/* new look: golden afternoon over the depot, blue shade, glowing beacons and pads (tuned in the light panel 2026-10-07) */
 		look: {
-			exp: 0.95,
-			amb: 0.3,
-			sun: 1.8,
+			exp: 0.82,
+			amb: 0.8,
+			sun: 1.44,
 			warm: 0.78,
-			env: 0.1,
-			haze: 50,
-			glow: 0.98,
-			bloom: 0.4,
-			fill: ["#B9D2EE", "#8C7358"],
-			sky: ["#5A8FD0", "#A6C9E6", "#F3D9B5"],
+			env: 0.4,
+			paint: 0.55,
+			haze: 42,
+			glow: 1.01,
+			bloom: 0.2,
+			vig: 0,
+			sat: 0.06,
+			fill: ["#7FA8E8", "#9A7A55"],
+			sky: ["#3F72BE", "#93B9DE", "#F8C98F"],
 		},
 		how: "Grab cones (gold = 3) and park on your pad to drop them into your giant cone. First to fill it wins! Ram rivals to knock loose the cones on their roof.",
 		dropY: 0,
@@ -2839,7 +2842,10 @@ const MG = {
 			[-1, 1].forEach((sd) => s.add(B(13, 0.3, 0.1, YE, 17.8, 1.3, CZ + sd * 0.62)));
 			for (let x = 12; x <= 24; x += 2)
 				s.add(B(0.15, 1, 0.15, "#5A6272", x, 0.5, CZ - 0.45), B(0.15, 1, 0.15, "#5A6272", x, 0.5, CZ + 0.45));
-			s.add(B(3, 1.4, 3, "#8C5A3C", 25.9, 0.7, CZ), B(3.1, 0.14, 3.1, "#6B4428", 25.9, 1.33, CZ));
+			s.add(
+				B(3, 1.4, 3, "#8C5A3C", 25.9, 0.7, CZ),
+				B(3.1, 0.14, 3.1, "#6B4428", 25.9, 1.43, CZ),
+			); /* lid sits on the crate (its top was level with the crate top: z-fighting) */
 			const cone = (n) => {
 				const c = new THREE.InstancedMesh(new THREE.ConeGeometry(0.38, 1, 8), M(OR), n),
 					w = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.24, 0.29, 0.14, 8), M("#FFFFFF"), n);
@@ -2999,11 +3005,18 @@ const MG = {
 			].forEach(([a, b]) => {
 				const x = a * (S + 6),
 					z = b * (S + 6);
-				s.add(
-					Cy(0.18, 0.26, 11, 8, "#5A6272", x, 5.5, z),
-					B(1.6, 0.5, 0.8, "#2A2F3A", x, 11.1, z),
-					B(1.4, 0.06, 0.6, "#FFF4D6", x, 10.83, z, { emissive: "#FFF1C2", emissiveIntensity: 0.8 }),
+				/* floodlight heads tilted toward the yard so the camera sees the lit lens */
+				const yaw = new THREE.Group(),
+					tilt = new THREE.Group();
+				yaw.position.set(x, 11.1, z);
+				yaw.rotation.y = Math.atan2(-a, -b);
+				tilt.rotation.x = -0.6;
+				tilt.add(
+					B(1.6, 0.5, 0.8, "#2A2F3A", 0, 0, 0),
+					B(1.4, 0.06, 0.6, "#FFF4D6", 0, -0.27, 0, { emissive: "#FFF1C2", emissiveIntensity: 1.6 }),
 				);
+				yaw.add(tilt);
+				s.add(Cy(0.18, 0.26, 11, 8, "#5A6272", x, 5.5, z), yaw);
 			});
 			for (let i = 0; i < 12; i++) {
 				const u = (W.rng() - 0.5) * 80,
@@ -3178,7 +3191,7 @@ const MG = {
 				mesh(
 					new THREE.ConeGeometry(0.38, 1, 8),
 					gold ? "#FFC83D" : "#FF7A1A",
-					gold ? { emissive: "#B8860B", emissiveIntensity: 0.5, metalness: 0.4 } : undefined,
+					gold ? { emissive: "#B8860B", emissiveIntensity: 0.9, metalness: 0.4 } : undefined,
 				),
 			);
 			g.children[0].position.y = 0.5;
@@ -4177,17 +4190,20 @@ const MG = {
 		dur: 50,
 		bare: true,
 		sun: [12.5, 17.5, 12.5],
-		/* new look trial: dusty bright midday at the tip */
+		/* new look: dusty bright midday at the tip (light balance from Cone Smash's tuned look) */
 		look: {
-			exp: 1.05,
-			amb: 0.3,
-			sun: 1.8,
+			exp: 0.82,
+			amb: 0.8,
+			sun: 1.44,
 			warm: 0.55,
-			env: 0.1,
+			env: 0.4,
+			paint: 0.55,
 			haze: 60,
-			glow: 0.98,
-			bloom: 0.4,
-			fill: ["#C8DDF2", "#7F6A50"],
+			glow: 1.01,
+			bloom: 0.2,
+			vig: 0,
+			sat: 0.06,
+			fill: ["#7FA8E8", "#7F6A50"],
 			sky: ["#4E8ED6", "#9FCBEA", "#EEE6D2"],
 		},
 		EDGE: -24,

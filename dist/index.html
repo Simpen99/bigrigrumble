@@ -926,8 +926,9 @@ function lookShaders() {
 		"emissiveColor.rgb = emissiveMapTexelToLinear( emissiveColor ).rgb;",
 		"emissiveColor.rgb = emissiveMapTexelToLinear( emissiveColor ).rgb;" + lin("emissiveColor.rgb"),
 	);
+	/* glow = emissive relative to the part's own colour (so every colour at the same emissiveIntensity blooms the same): none below 0.3, full from 0.9 */
 	const glow =
-		"gl_FragColor = vec4( outgoingLight, diffuseColor.a );\n#ifdef TONE_MAPPING\n\tif ( opacity > 0.999 && diffuseColor.a > 0.999 ) gl_FragColor.a = 1.0 - smoothstep( 0.12, 0.7, max( max( totalEmissiveRadiance.r, totalEmissiveRadiance.g ), totalEmissiveRadiance.b ) );\n#endif";
+		"gl_FragColor = vec4( outgoingLight, diffuseColor.a );\n#ifdef TONE_MAPPING\n\tfloat lkE = max( max( totalEmissiveRadiance.r, totalEmissiveRadiance.g ), totalEmissiveRadiance.b );\n\tfloat lkD = max( max( diffuseColor.r, diffuseColor.g ), diffuseColor.b );\n\tif ( opacity > 0.999 && diffuseColor.a > 0.999 ) gl_FragColor.a = 1.0 - smoothstep( 0.3, 0.9, lkE / max( lkD, 0.05 ) ) * smoothstep( 0.02, 0.1, lkE );\n#endif";
 	Object.values(L).forEach((sh) => {
 		let f = sh.fragmentShader;
 		if (!f) return;
@@ -944,6 +945,11 @@ function lookShaders() {
 				.replace("gl_FragColor = vec4( outgoingLight, diffuseColor.a );", glow);
 		sh.fragmentShader = f;
 	});
+	/* the room environment only adds reflections (no flat grey fill), so the hemisphere keeps the shade's colour */
+	C.lights_fragment_maps = C.lights_fragment_maps.replace(
+		"iblIrradiance += getLightProbeIndirectIrradiance( geometry, maxMipLevel );",
+		"#ifndef TONE_MAPPING\n\t\tiblIrradiance += getLightProbeIndirectIrradiance( geometry, maxMipLevel );\n\t#endif",
+	);
 	/* sprites are labels (name tags, text): keep their exact colours, no tone mapping */
 	L.sprite.fragmentShader = L.sprite.fragmentShader.replace("#include <tonemapping_fragment>", "");
 	L.background.fragmentShader = L.background.fragmentShader.replace(
@@ -981,12 +987,21 @@ function lookEnvTex() {
 	);
 	return GFX.envLoad;
 }
+/* only shiny materials reflect: full strength (the look's env) at roughness <= 0.2, none from 0.7 up; metals reflect too.
+   material.userData.refl (0-1) overrides the rule; truck paint (userData.paint) also gets the look's paint roughness for a slight shine. */
 function lookEnv(s) {
 	const L = s.userData.lk;
 	if (!L) return;
+	const cl = (v) => Math.max(0, Math.min(1, v));
 	s.traverse((o) => {
 		const m = o.material;
-		if (m) (Array.isArray(m) ? m : [m]).forEach((q) => q.isMeshStandardMaterial && (q.envMapIntensity = L.env));
+		if (m)
+			(Array.isArray(m) ? m : [m]).forEach((q) => {
+				if (!q.isMeshStandardMaterial) return;
+				const k = q.userData.refl ?? Math.max(cl((0.7 - q.roughness) / 0.5), cl((q.metalness - 0.15) / 0.35));
+				q.envMapIntensity = L.env * k;
+				if (q.userData.paint) q.roughness = Math.min(q.userData.paint, L.paint);
+			});
 	});
 }
 function lights(scene, shadow) {
@@ -1838,7 +1853,11 @@ function buildTruck(i, mode) {
 		GL = "#2F3B52",
 		CH = "#D8DDE5",
 		W = 1.1;
-	const glass = { roughness: 0.2, metalness: 0.2 },
+	const glass = {
+			roughness: 0.2,
+			metalness: 0.2,
+			userData: { refl: 0 },
+		} /* no reflections on truck windows (new look): they turned grey */,
 		lamp = { emissive: "#FFF1C2", emissiveIntensity: 1.2 };
 	const anims = [],
 		wheelsL = [],
@@ -2360,6 +2379,22 @@ function buildTruck(i, mode) {
 		l1.position.set(tailX - 0.075, tailY + 0.01, W * 0.33);
 		l2.position.set(tailX - 0.075, tailY + 0.01, -W * 0.33);
 		host.add(bp, l1, l2);
+	}
+	{
+		/* paint (body and accent colour) gets its own materials per truck, tagged for the new look's slight shine (lookEnv) */
+		const pc = [c, a].map((x) => new THREE.Color(x).getHex()),
+			cl = new Map();
+		g.traverse((o) => {
+			const m = o.material;
+			if (!m || Array.isArray(m) || !m.isMeshStandardMaterial || m.transparent || !pc.includes(m.color.getHex()))
+				return;
+			if (!cl.has(m)) {
+				const q = m.clone();
+				q.userData = { paint: m.roughness, refl: 1 };
+				cl.set(m, q);
+			}
+			o.material = cl.get(m);
+		});
 	}
 	g.userData.anims = anims;
 	g.userData.wheels = wheelsL;
@@ -11047,13 +11082,13 @@ function mgEnv(s, water, lane, bare, night, storm, dusk) {
 	}
 	return sun;
 }
-/* new look (trial): def.look = {exp, amb, sun, warm, env, haze, glow, bloom, fill: [sky, ground], sky: [top, mid, horizon]}.
+/* new look (trial): def.look = {exp, amb, sun, warm, env, haze, glow, bloom, vig, sat, fill: [sky, ground], sky: [top, mid, horizon]}.
    Sets the scene's colour mood; the renderer switches to sRGB + ACES for scenes with userData.lk (gfxLook). Light colours go in as linear. */
-const LOOK0 = { exp: 1, amb: 0.3, sun: 1.8, warm: 0.6, env: 0.1, haze: 55, glow: 0.98, bloom: 0.4 };
+const LOOK0 = { exp: 1, amb: 0.3, sun: 1.8, warm: 0.6, env: 0.1, paint: 0.45, haze: 55, glow: 1.01, bloom: 0.4 };
 const lkWarm = (c, w) => c.set("#E4EEFF").lerp(new THREE.Color("#FFC27A"), w).convertSRGBToLinear();
-function applyLook(W) {
+function applyLook(W, extra) {
 	const s = W.sc,
-		L = (s.userData.lk = Object.assign({}, LOOK0, W.def.look)),
+		L = (s.userData.lk = Object.assign({}, LOOK0, W.def.look, extra)),
 		h = s.children.find((o) => o.isHemisphereLight);
 	if (L.sky) {
 		SKY.lk = L.sky;
@@ -11082,6 +11117,14 @@ function applyLook(W) {
 	F.bloom.v = L.bloom;
 	F.bloom.th = L.glow;
 	F.aa.on = true;
+	/* optional grade: vig = vignette, sat = colour boost (the Effects tab's Vignette / Colour) */
+	F.vig.on = L.vig > 0;
+	if (L.vig) F.vig.v = L.vig;
+	F.col.on = L.sat > 0;
+	if (L.sat) {
+		F.col.sat = L.sat * 0.6;
+		F.col.con = L.sat * 0.2;
+	}
 	loadPost().catch(() => {});
 	lookEnv(s);
 	lookEnvTex().then(
@@ -11090,6 +11133,20 @@ function applyLook(W) {
 		},
 		() => {},
 	);
+}
+/* minigame effects from {ao, bloom, tilt, vig, col, aa} (0 / missing = off), as baked in def.fx or saved from the light panel */
+function setFx(fx) {
+	["ao", "bloom", "tilt", "vig", "col", "aa"].forEach((k) => {
+		const v = fx && fx[k];
+		GFX.fx[k].on = !!v;
+		if (v) {
+			if (k === "col") {
+				GFX.fx.col.sat = v * 0.6;
+				GFX.fx.col.con = v * 0.2;
+			} else GFX.fx[k].v = v;
+		}
+	});
+	if (fx) loadPost().catch(() => {});
 }
 function mkEnt(p, isMe, named, mode) {
 	const g = new THREE.Group(),
@@ -11404,17 +11461,11 @@ function start3D(mg, p, localOnly, startAt, split) {
 	const def = MG[mg.g],
 		s = new THREE.Scene();
 	GFX.fx.bloom.th = 0.9;
-	["ao", "bloom", "tilt", "vig", "col", "aa"].forEach((k) => {
-		const v = def.fx && def.fx[k];
-		GFX.fx[k].on = !!v;
-		if (v) {
-			if (k === "col") {
-				GFX.fx.col.sat = v * 0.6;
-				GFX.fx.col.con = v * 0.2;
-			} else GFX.fx[k].v = v;
-		}
-	});
-	if (def.fx) loadPost().catch(() => {});
+	setFx(def.fx);
+	/* light panel values saved on this device (Save button) win over the baked ones */
+	const sv = LS.get("trp_light", {})[mg.g];
+	if (!("sun0" in def)) def.sun0 = def.sun || null;
+	def.sun = sv && sv.sun ? sv.sun.slice() : def.sun0 || undefined;
 	const plist = mg.part ? G.players.filter((q) => mg.part.includes(q.key)) : G.players;
 	const tv = !p;
 	W = {
@@ -11477,8 +11528,9 @@ function start3D(mg, p, localOnly, startAt, split) {
 	camFov(40);
 	def.build(W);
 	/* baked light panel values: def.lt = {amb, sun, warm, haze} (the panel's "Copy" line), applied over the scene's own */
-	if (def.lt) {
-		const L = def.lt,
+	const svLt = sv && sv.lt;
+	if (def.lt || (svLt && !def.look)) {
+		const L = Object.assign({}, def.lt, svLt),
 			h = s.children.find((o) => o.isHemisphereLight);
 		if (h && L.amb !== undefined) h.intensity = L.amb;
 		if (L.sun !== undefined) W.sun.intensity = L.sun;
@@ -11491,7 +11543,9 @@ function start3D(mg, p, localOnly, startAt, split) {
 			s.fog.far = L.haze * 3.8;
 		}
 	}
-	if (def.look) applyLook(W);
+	if (def.look) applyLook(W, svLt);
+	if (sv && sv.fx) setFx(sv.fx);
+	if (sv && sv.lt && sv.lt.glow) GFX.fx.bloom.th = sv.lt.glow;
 	const n = plist.length;
 	plist.forEach((q, i) => {
 		const e = mkEnt(q, !tv && q.key === p.key, !!split, def.truckMode);
@@ -12207,7 +12261,7 @@ function wireLightPanel() {
 			warm: W.lpWarm ?? 0.5,
 			haze: fog ? fog.near : 60,
 		};
-		if (LK) Object.assign(st, { exp: LK.exp, env: LK.env, glow: LK.glow });
+		if (LK) Object.assign(st, { exp: LK.exp, env: LK.env, paint: LK.paint, glow: LK.glow });
 		const LIGHT = [
 			["amb", "Ambient", 0, 2.5, 0.02],
 			["sun", "Sun", 0, LK ? 4 : 2.5, 0.02],
@@ -12221,6 +12275,7 @@ function wireLightPanel() {
 					? [
 							["exp", "Exposure", 0.4, 3, 0.02],
 							["env", "Reflect", 0, 1.5, 0.02],
+							["paint", "Paint rough", 0.1, 0.8, 0.01],
 							["glow", "Glow cut", 0.8, 1.05, 0.005],
 						]
 					: [],
@@ -12251,7 +12306,7 @@ function wireLightPanel() {
 		lpCamWire();
 		p.innerHTML = `<div class="lpgroups"><button data-g="light">Light</button><button data-g="fx">Effects</button></div><div class="lptabs" id="lptabs"></div>
       <div class="lpsrow"><button id="lptog" class="lptog">OFF</button><input type="range" id="lpslider" class="lpslider"></div><div class="lpout" id="lpout"></div>
-      <div class="lpbtns"><button id="lpcopy">Copy</button><button id="lpreset">Reset view</button><button id="lpclose">Close</button></div>`;
+      <div class="lpbtns"><button id="lpsave">Save</button><button id="lpdef" hidden>Default</button><button id="lpcopy">Copy</button><button id="lpreset">Reset view</button><button id="lpclose">Close</button></div>`;
 		document.getElementById("mg").appendChild(p);
 		const sl = document.getElementById("lpslider"),
 			tog = document.getElementById("lptog"),
@@ -12271,7 +12326,7 @@ function wireLightPanel() {
 			sun.color.copy(cool).lerp(hot, st.warm);
 			if (LK) {
 				sun.color.convertSRGBToLinear();
-				const envCh = LK.env !== st.env;
+				const envCh = LK.env !== st.env || LK.paint !== st.paint;
 				Object.assign(LK, {
 					amb: st.amb,
 					sun: st.sun,
@@ -12279,6 +12334,7 @@ function wireLightPanel() {
 					haze: st.haze,
 					exp: st.exp,
 					env: st.env,
+					paint: st.paint,
 					glow: st.glow,
 				});
 				F.bloom.th = st.glow;
@@ -12302,7 +12358,7 @@ function wireLightPanel() {
 				`${W.mg.g}: ambient ${fmt("amb", st.amb)} · sun ${fmt("sun", st.sun)} · height ${fmt("h", st.h)} · angle ${fmt("ang", st.ang)} · warmth ${fmt("warm", st.warm)}` +
 				(fog ? ` · haze ${fmt("haze", st.haze)}` : "") +
 				(LK
-					? ` · exposure ${fmt("exp", st.exp)} · reflect ${fmt("env", st.env)} · glow cut ${fmt("glow", st.glow)}`
+					? ` · exposure ${fmt("exp", st.exp)} · reflect ${fmt("env", st.env)} · paint rough ${fmt("paint", st.paint)} · glow cut ${fmt("glow", st.glow)}`
 					: "") +
 				` · effects: ${on || "none"}`;
 		};
@@ -12380,6 +12436,35 @@ function wireLightPanel() {
 		});
 		setGrp(grp);
 		document.getElementById("lpclose").addEventListener("click", closeLP);
+		{
+			/* Save keeps these values on this device for this game (localStorage trp_light), applied from the next round on; Default drops them */
+			const sb = document.getElementById("lpsave"),
+				db = document.getElementById("lpdef"),
+				g = W.mg.g;
+			db.hidden = !LS.get("trp_light", {})[g];
+			sb.addEventListener("click", () => {
+				const A = LS.get("trp_light", {}),
+					lt = { amb: st.amb, sun: st.sun, warm: st.warm },
+					fx = {};
+				if (fog) lt.haze = st.haze;
+				if (LK) Object.assign(lt, { exp: st.exp, env: st.env, paint: st.paint, glow: st.glow });
+				FX.forEach(([k]) => (fx[k] = F[k].on ? (k === "aa" ? 1 : +fxv(k).toFixed(2)) : 0));
+				A[g] = { lt, sun: (W.def.sun || [14, 26, 12]).slice(), fx };
+				LS.set("trp_light", A);
+				sb.textContent = "Saved ✓";
+				db.hidden = false;
+				db.textContent = "Default";
+				setTimeout(() => {
+					if (sb.isConnected) sb.textContent = "Save";
+				}, 1600);
+			});
+			db.addEventListener("click", () => {
+				const A = LS.get("trp_light", {});
+				delete A[g];
+				LS.set("trp_light", A);
+				db.textContent = "Default next round";
+			});
+		}
 		document.getElementById("lpreset").addEventListener("click", () => {
 			if (W && W.camOv0) W.camOv = Object.assign({}, W.camOv0, { t: W.camOv0.t.clone() });
 		});
@@ -16349,19 +16434,22 @@ const MG = {
 		bound: { t: "sq", h: 16 },
 		water: false,
 		bare: true,
-		sun: [13.9, 16, 12.1],
-		/* new look trial: golden late afternoon over the depot */
+		sun: [11.3, 18, 14.5],
+		/* new look: golden afternoon over the depot, blue shade, glowing beacons and pads (tuned in the light panel 2026-10-07) */
 		look: {
-			exp: 0.95,
-			amb: 0.3,
-			sun: 1.8,
+			exp: 0.82,
+			amb: 0.8,
+			sun: 1.44,
 			warm: 0.78,
-			env: 0.1,
-			haze: 50,
-			glow: 0.98,
-			bloom: 0.4,
-			fill: ["#B9D2EE", "#8C7358"],
-			sky: ["#5A8FD0", "#A6C9E6", "#F3D9B5"],
+			env: 0.4,
+			paint: 0.55,
+			haze: 42,
+			glow: 1.01,
+			bloom: 0.2,
+			vig: 0,
+			sat: 0.06,
+			fill: ["#7FA8E8", "#9A7A55"],
+			sky: ["#3F72BE", "#93B9DE", "#F8C98F"],
 		},
 		how: "Grab cones (gold = 3) and park on your pad to drop them into your giant cone. First to fill it wins! Ram rivals to knock loose the cones on their roof.",
 		dropY: 0,
@@ -16502,7 +16590,10 @@ const MG = {
 			[-1, 1].forEach((sd) => s.add(B(13, 0.3, 0.1, YE, 17.8, 1.3, CZ + sd * 0.62)));
 			for (let x = 12; x <= 24; x += 2)
 				s.add(B(0.15, 1, 0.15, "#5A6272", x, 0.5, CZ - 0.45), B(0.15, 1, 0.15, "#5A6272", x, 0.5, CZ + 0.45));
-			s.add(B(3, 1.4, 3, "#8C5A3C", 25.9, 0.7, CZ), B(3.1, 0.14, 3.1, "#6B4428", 25.9, 1.33, CZ));
+			s.add(
+				B(3, 1.4, 3, "#8C5A3C", 25.9, 0.7, CZ),
+				B(3.1, 0.14, 3.1, "#6B4428", 25.9, 1.43, CZ),
+			); /* lid sits on the crate (its top was level with the crate top: z-fighting) */
 			const cone = (n) => {
 				const c = new THREE.InstancedMesh(new THREE.ConeGeometry(0.38, 1, 8), M(OR), n),
 					w = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.24, 0.29, 0.14, 8), M("#FFFFFF"), n);
@@ -16662,11 +16753,18 @@ const MG = {
 			].forEach(([a, b]) => {
 				const x = a * (S + 6),
 					z = b * (S + 6);
-				s.add(
-					Cy(0.18, 0.26, 11, 8, "#5A6272", x, 5.5, z),
-					B(1.6, 0.5, 0.8, "#2A2F3A", x, 11.1, z),
-					B(1.4, 0.06, 0.6, "#FFF4D6", x, 10.83, z, { emissive: "#FFF1C2", emissiveIntensity: 0.8 }),
+				/* floodlight heads tilted toward the yard so the camera sees the lit lens */
+				const yaw = new THREE.Group(),
+					tilt = new THREE.Group();
+				yaw.position.set(x, 11.1, z);
+				yaw.rotation.y = Math.atan2(-a, -b);
+				tilt.rotation.x = -0.6;
+				tilt.add(
+					B(1.6, 0.5, 0.8, "#2A2F3A", 0, 0, 0),
+					B(1.4, 0.06, 0.6, "#FFF4D6", 0, -0.27, 0, { emissive: "#FFF1C2", emissiveIntensity: 1.6 }),
 				);
+				yaw.add(tilt);
+				s.add(Cy(0.18, 0.26, 11, 8, "#5A6272", x, 5.5, z), yaw);
 			});
 			for (let i = 0; i < 12; i++) {
 				const u = (W.rng() - 0.5) * 80,
@@ -16841,7 +16939,7 @@ const MG = {
 				mesh(
 					new THREE.ConeGeometry(0.38, 1, 8),
 					gold ? "#FFC83D" : "#FF7A1A",
-					gold ? { emissive: "#B8860B", emissiveIntensity: 0.5, metalness: 0.4 } : undefined,
+					gold ? { emissive: "#B8860B", emissiveIntensity: 0.9, metalness: 0.4 } : undefined,
 				),
 			);
 			g.children[0].position.y = 0.5;
@@ -17840,17 +17938,20 @@ const MG = {
 		dur: 50,
 		bare: true,
 		sun: [12.5, 17.5, 12.5],
-		/* new look trial: dusty bright midday at the tip */
+		/* new look: dusty bright midday at the tip (light balance from Cone Smash's tuned look) */
 		look: {
-			exp: 1.05,
-			amb: 0.3,
-			sun: 1.8,
+			exp: 0.82,
+			amb: 0.8,
+			sun: 1.44,
 			warm: 0.55,
-			env: 0.1,
+			env: 0.4,
+			paint: 0.55,
 			haze: 60,
-			glow: 0.98,
-			bloom: 0.4,
-			fill: ["#C8DDF2", "#7F6A50"],
+			glow: 1.01,
+			bloom: 0.2,
+			vig: 0,
+			sat: 0.06,
+			fill: ["#7FA8E8", "#7F6A50"],
 			sky: ["#4E8ED6", "#9FCBEA", "#EEE6D2"],
 		},
 		EDGE: -24,
@@ -20755,17 +20856,20 @@ Object.assign(MG, {
 		dur: 35,
 		bare: true,
 		sun: [-13, 15, 11],
-		/* new look trial: fresh cool morning at the recycling plant */
+		/* new look: fresh cool morning at the recycling plant (light balance from Cone Smash's tuned look, a bit more exposure: the plant is darker) */
 		look: {
-			exp: 1.1,
-			amb: 0.32,
-			sun: 1.8,
+			exp: 1,
+			amb: 0.8,
+			sun: 1.44,
 			warm: 0.35,
-			env: 0.12,
+			env: 0.4,
+			paint: 0.55,
 			haze: 55,
-			glow: 0.98,
-			bloom: 0.4,
-			fill: ["#CFE4FF", "#6E8A70"],
+			glow: 1.01,
+			bloom: 0.2,
+			vig: 0,
+			sat: 0.06,
+			fill: ["#7FA8E8", "#6E8A70"],
 			sky: ["#4A8BD6", "#A0D2F0", "#E2F2F4"],
 		},
 		how: "Send each piece of trash to the right bin. Wrong bin costs points.",
