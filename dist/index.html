@@ -11086,9 +11086,9 @@ function mgEnv(s, water, lane, bare, night, storm, dusk) {
    Sets the scene's colour mood; the renderer switches to sRGB + ACES for scenes with userData.lk (gfxLook). Light colours go in as linear. */
 const LOOK0 = { exp: 1, amb: 0.3, sun: 1.8, warm: 0.6, env: 0.1, paint: 0.45, haze: 55, glow: 1.01, bloom: 0.4 };
 const lkWarm = (c, w) => c.set("#E4EEFF").lerp(new THREE.Color("#FFC27A"), w).convertSRGBToLinear();
-function applyLook(W) {
+function applyLook(W, extra) {
 	const s = W.sc,
-		L = (s.userData.lk = Object.assign({}, LOOK0, W.def.look)),
+		L = (s.userData.lk = Object.assign({}, LOOK0, W.def.look, extra)),
 		h = s.children.find((o) => o.isHemisphereLight);
 	if (L.sky) {
 		SKY.lk = L.sky;
@@ -11133,6 +11133,20 @@ function applyLook(W) {
 		},
 		() => {},
 	);
+}
+/* minigame effects from {ao, bloom, tilt, vig, col, aa} (0 / missing = off), as baked in def.fx or saved from the light panel */
+function setFx(fx) {
+	["ao", "bloom", "tilt", "vig", "col", "aa"].forEach((k) => {
+		const v = fx && fx[k];
+		GFX.fx[k].on = !!v;
+		if (v) {
+			if (k === "col") {
+				GFX.fx.col.sat = v * 0.6;
+				GFX.fx.col.con = v * 0.2;
+			} else GFX.fx[k].v = v;
+		}
+	});
+	if (fx) loadPost().catch(() => {});
 }
 function mkEnt(p, isMe, named, mode) {
 	const g = new THREE.Group(),
@@ -11447,17 +11461,11 @@ function start3D(mg, p, localOnly, startAt, split) {
 	const def = MG[mg.g],
 		s = new THREE.Scene();
 	GFX.fx.bloom.th = 0.9;
-	["ao", "bloom", "tilt", "vig", "col", "aa"].forEach((k) => {
-		const v = def.fx && def.fx[k];
-		GFX.fx[k].on = !!v;
-		if (v) {
-			if (k === "col") {
-				GFX.fx.col.sat = v * 0.6;
-				GFX.fx.col.con = v * 0.2;
-			} else GFX.fx[k].v = v;
-		}
-	});
-	if (def.fx) loadPost().catch(() => {});
+	setFx(def.fx);
+	/* light panel values saved on this device (Save button) win over the baked ones */
+	const sv = LS.get("trp_light", {})[mg.g];
+	if (!("sun0" in def)) def.sun0 = def.sun || null;
+	def.sun = sv && sv.sun ? sv.sun.slice() : def.sun0 || undefined;
 	const plist = mg.part ? G.players.filter((q) => mg.part.includes(q.key)) : G.players;
 	const tv = !p;
 	W = {
@@ -11520,8 +11528,9 @@ function start3D(mg, p, localOnly, startAt, split) {
 	camFov(40);
 	def.build(W);
 	/* baked light panel values: def.lt = {amb, sun, warm, haze} (the panel's "Copy" line), applied over the scene's own */
-	if (def.lt) {
-		const L = def.lt,
+	const svLt = sv && sv.lt;
+	if (def.lt || (svLt && !def.look)) {
+		const L = Object.assign({}, def.lt, svLt),
 			h = s.children.find((o) => o.isHemisphereLight);
 		if (h && L.amb !== undefined) h.intensity = L.amb;
 		if (L.sun !== undefined) W.sun.intensity = L.sun;
@@ -11534,7 +11543,9 @@ function start3D(mg, p, localOnly, startAt, split) {
 			s.fog.far = L.haze * 3.8;
 		}
 	}
-	if (def.look) applyLook(W);
+	if (def.look) applyLook(W, svLt);
+	if (sv && sv.fx) setFx(sv.fx);
+	if (sv && sv.lt && sv.lt.glow) GFX.fx.bloom.th = sv.lt.glow;
 	const n = plist.length;
 	plist.forEach((q, i) => {
 		const e = mkEnt(q, !tv && q.key === p.key, !!split, def.truckMode);
@@ -12295,7 +12306,7 @@ function wireLightPanel() {
 		lpCamWire();
 		p.innerHTML = `<div class="lpgroups"><button data-g="light">Light</button><button data-g="fx">Effects</button></div><div class="lptabs" id="lptabs"></div>
       <div class="lpsrow"><button id="lptog" class="lptog">OFF</button><input type="range" id="lpslider" class="lpslider"></div><div class="lpout" id="lpout"></div>
-      <div class="lpbtns"><button id="lpcopy">Copy</button><button id="lpreset">Reset view</button><button id="lpclose">Close</button></div>`;
+      <div class="lpbtns"><button id="lpsave">Save</button><button id="lpdef" hidden>Default</button><button id="lpcopy">Copy</button><button id="lpreset">Reset view</button><button id="lpclose">Close</button></div>`;
 		document.getElementById("mg").appendChild(p);
 		const sl = document.getElementById("lpslider"),
 			tog = document.getElementById("lptog"),
@@ -12425,6 +12436,35 @@ function wireLightPanel() {
 		});
 		setGrp(grp);
 		document.getElementById("lpclose").addEventListener("click", closeLP);
+		{
+			/* Save keeps these values on this device for this game (localStorage trp_light), applied from the next round on; Default drops them */
+			const sb = document.getElementById("lpsave"),
+				db = document.getElementById("lpdef"),
+				g = W.mg.g;
+			db.hidden = !LS.get("trp_light", {})[g];
+			sb.addEventListener("click", () => {
+				const A = LS.get("trp_light", {}),
+					lt = { amb: st.amb, sun: st.sun, warm: st.warm },
+					fx = {};
+				if (fog) lt.haze = st.haze;
+				if (LK) Object.assign(lt, { exp: st.exp, env: st.env, paint: st.paint, glow: st.glow });
+				FX.forEach(([k]) => (fx[k] = F[k].on ? (k === "aa" ? 1 : +fxv(k).toFixed(2)) : 0));
+				A[g] = { lt, sun: (W.def.sun || [14, 26, 12]).slice(), fx };
+				LS.set("trp_light", A);
+				sb.textContent = "Saved ✓";
+				db.hidden = false;
+				db.textContent = "Default";
+				setTimeout(() => {
+					if (sb.isConnected) sb.textContent = "Save";
+				}, 1600);
+			});
+			db.addEventListener("click", () => {
+				const A = LS.get("trp_light", {});
+				delete A[g];
+				LS.set("trp_light", A);
+				db.textContent = "Default next round";
+			});
+		}
 		document.getElementById("lpreset").addEventListener("click", () => {
 			if (W && W.camOv0) W.camOv = Object.assign({}, W.camOv0, { t: W.camOv0.t.clone() });
 		});
@@ -16394,19 +16434,20 @@ const MG = {
 		bound: { t: "sq", h: 16 },
 		water: false,
 		bare: true,
-		sun: [13.9, 10.6, 12.1],
-		/* new look trial, strong version: golden hour over the depot, low sun with long shadows, blue shade, glowing beacons and pads */
+		sun: [11.3, 18, 14.5],
+		/* new look: golden afternoon over the depot, blue shade, glowing beacons and pads (tuned in the light panel 2026-10-07) */
 		look: {
-			exp: 1,
-			amb: 0.5,
-			sun: 2.2,
-			warm: 0.92,
-			env: 0.2,
+			exp: 0.82,
+			amb: 0.8,
+			sun: 1.44,
+			warm: 0.78,
+			env: 0.4,
+			paint: 0.55,
 			haze: 42,
 			glow: 1.01,
-			bloom: 0.7,
-			vig: 0.3,
-			sat: 0.25,
+			bloom: 0.2,
+			vig: 0,
+			sat: 0.06,
 			fill: ["#7FA8E8", "#9A7A55"],
 			sky: ["#3F72BE", "#93B9DE", "#F8C98F"],
 		},
