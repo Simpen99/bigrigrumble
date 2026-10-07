@@ -2163,3 +2163,141 @@ function sortItemModel(cat, v) {
 	out.add(g);
 	return out;
 }
+/* ---------- Dump Run: tracked excavator ---------- */
+/* excavator facing +z at rest: undercarriage with rounded track loops, grouser shoes and rollers; a house (userData.house,
+   turns about y) with deck, engine hood and grille, rounded counterweight, cab with inset windows, handrail; a bent boom
+   (userData.boom, pitches about x at the deck), stick (userData.stick) and bucket (userData.bucket) with hydraulic rams;
+   userData.dirt sits in the bucket. Static parts of every pivot are baked. */
+function excavatorModel(col = "#FFC83D") {
+	const D = "#2A2F3A",
+		S = "#3A3F48",
+		ST = "#C9CED8",
+		GL = "#5C87AD",
+		CW = "#3B3F4A",
+		g = new THREE.Group(),
+		bake = (parent, build) => {
+			const t = new THREE.Group();
+			build(t);
+			parent.add(kitGroup(bakeKit(t), 0));
+		};
+	const ram = (t, a, b, r) => {
+		/* hydraulic ram along z from a to b (y, z pairs): barrel then chrome rod */
+		const m = (a[1] + b[1]) / 2,
+			L = Math.hypot(b[0] - a[0], b[1] - a[1]),
+			ang = Math.atan2(b[0] - a[0], b[1] - a[1]);
+		const q = new THREE.Group();
+		q.position.set(0, (a[0] + b[0]) / 2, m);
+		q.rotation.x = -ang;
+		q.add(Cy(r, r, L * 0.55, 8, col, 0, 0, -L * 0.2).rotateX(Math.PI / 2));
+		q.add(Cy(r * 0.5, r * 0.5, L * 0.5, 6, ST, 0, 0, L * 0.22).rotateX(Math.PI / 2));
+		t.add(q);
+	};
+	bake(g, (t) => {
+		[-0.75, 0.75].forEach((o) => {
+			const sd = Math.sign(o);
+			t.add(B(0.48, 0.45, 2.0, D, o, 0.23, 0));
+			[-1, 1].forEach((e) => t.add(Cy(0.225, 0.225, 0.44, 12, D, o, 0.23, e).rotateZ(Math.PI / 2)));
+			for (let z = -0.9; z <= 0.91; z += 0.3) t.add(B(0.52, 0.05, 0.08, S, o, 0.475, z));
+			[-0.6, 0, 0.6].forEach((z) =>
+				t.add(Cy(0.09, 0.09, 0.04, 8, "#8E96A3", o + sd * 0.26, 0.13, z).rotateZ(Math.PI / 2)),
+			);
+			[-1, 1].forEach((e) => t.add(Cy(0.11, 0.11, 0.04, 8, "#8E96A3", o + sd * 0.26, 0.23, e).rotateZ(Math.PI / 2)));
+		});
+		t.add(B(1.0, 0.28, 1.2, D, 0, 0.3, 0), Cy(0.62, 0.62, 0.1, 16, S, 0, 0.5, 0));
+	});
+	g.add(contactShadow(2.2, 2.9, 0.3));
+	const house = new THREE.Group();
+	house.position.y = 0.45;
+	g.add(house);
+	bake(house, (t) => {
+		t.add(
+			B(1.8, 0.62, 1.9, col, 0, 0.36, -0.1),
+			B(1.2, 0.2, 0.8, col, 0.25, 0.77, -0.5),
+			B(1.76, 0.64, 0.3, CW, 0, 0.38, -1.1),
+			Cy(0.3, 0.3, 1.72, 12, CW, 0, 0.38, -1.25).rotateZ(Math.PI / 2),
+			Cy(0.06, 0.06, 0.45, 6, D, 0.6, 1.05, -0.6),
+			B(0.5, 0.32, 0.45, col, 0, 0.82, 0.55),
+		);
+		for (let i = 0; i < 4; i++) t.add(B(0.03, 0.05, 0.5, D, 0.915, 0.25 + i * 0.1, -0.5)); /* engine grille */
+		/* cab: body, roof, inset windows (front, left, right) */
+		t.add(
+			B(0.72, 0.9, 0.9, col, -0.52, 1.11, 0.42),
+			B(0.8, 0.06, 0.98, D, -0.52, 1.59, 0.42),
+			B(0.56, 0.48, 0.04, GL, -0.52, 1.28, 0.885),
+			B(0.04, 0.44, 0.62, GL, -0.895, 1.3, 0.42),
+			B(0.04, 0.44, 0.4, GL, -0.145, 1.3, 0.52),
+		);
+		/* handrail along the right of the deck */
+		[-0.8, -0.1, 0.6].forEach((z) => t.add(B(0.05, 0.3, 0.05, ST, 0.86, 0.82, z)));
+		t.add(B(0.05, 0.05, 1.45, ST, 0.86, 0.98, -0.1));
+	});
+	/* boom: bent (up to a knee, then down to the stick pin at z 2.4), rams underneath and on top */
+	const boom = new THREE.Group();
+	boom.position.set(0, 0.95, 0.5);
+	house.add(boom);
+	bake(boom, (t) => {
+		const seg = (a, b, w, h) => {
+			const L = Math.hypot(b[0] - a[0], b[1] - a[1]),
+				m = B(w, h, L + 0.1, col, 0, (a[0] + b[0]) / 2, (a[1] + b[1]) / 2);
+			m.rotation.x = -Math.atan2(b[0] - a[0], b[1] - a[1]);
+			t.add(m);
+		};
+		seg([0, 0], [0.38, 1.25], 0.3, 0.34);
+		seg([0.38, 1.25], [0, 2.4], 0.28, 0.3);
+		t.add(
+			Cy(0.08, 0.08, 0.36, 8, D, 0, 0, 0).rotateZ(Math.PI / 2),
+			Cy(0.08, 0.08, 0.34, 8, D, 0, 0, 2.4).rotateZ(Math.PI / 2),
+		);
+		ram(t, [-0.22, 0.15], [0.12, 1.15], 0.075);
+		ram(t, [0.58, 1.2], [0.22, 2.2], 0.065);
+	});
+	const stick = new THREE.Group();
+	stick.position.z = 2.4;
+	boom.add(stick);
+	bake(stick, (t) => {
+		t.add(B(0.24, 0.3, 2.0, col, 0, 0, 1), B(0.26, 0.12, 0.3, col, 0, 0.18, 0.05));
+		ram(t, [0.24, 0.15], [0.22, 1.75], 0.06);
+		t.add(Cy(0.07, 0.07, 0.3, 8, D, 0, 0, 2).rotateZ(Math.PI / 2));
+	});
+	/* bucket: curved shell (profile in y/z, open toward -z), side plates, teeth */
+	const bucket = new THREE.Group();
+	bucket.position.z = 2;
+	stick.add(bucket);
+	bake(bucket, (t) => {
+		const P = (pts) => new THREE.Shape(pts.map(([z, y]) => new THREE.Vector2(z, y))),
+			outer = [
+				[0.3, 0.18],
+				[0.36, 0],
+				[0.32, -0.22],
+				[0.18, -0.36],
+				[-0.26, -0.4],
+			],
+			shell = P(
+				outer.concat([
+					[-0.26, -0.34],
+					[0.14, -0.3],
+					[0.26, -0.18],
+					[0.3, 0],
+					[0.24, 0.18],
+				]),
+			),
+			side = P(outer),
+			ext = (sh, w, x, c) => {
+				const geo = new THREE.ExtrudeGeometry(sh, { depth: w, bevelEnabled: false });
+				geo.rotateY(-Math.PI / 2);
+				const m = mesh(geo, c);
+				m.position.x = x;
+				t.add(m);
+			};
+		ext(shell, 0.82, 0.41, D);
+		ext(side, 0.05, 0.46, D);
+		ext(side, 0.05, -0.41, D);
+		[-0.3, -0.1, 0.1, 0.3].forEach((o) => t.add(B(0.08, 0.05, 0.14, "#8E96A3", o, -0.38, -0.31)));
+		t.add(B(0.3, 0.12, 0.14, D, 0, 0.25, 0.33));
+	});
+	const dirt = mesh(new THREE.DodecahedronGeometry(0.32, 0), "#8C6A45");
+	dirt.position.set(0, -0.08, -0.02);
+	bucket.add(dirt);
+	Object.assign(g.userData, { house, boom, stick, bucket, dirt });
+	return g;
+}

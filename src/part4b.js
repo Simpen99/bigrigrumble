@@ -4293,7 +4293,11 @@ const MG = {
 			// off to the sides: rock piles, dirt mounds, a site cabin and a light tower
 			[-1, 1].forEach((sd) => {
 				for (let k = 0; k < 5; k++) {
-					const m = mesh(new THREE.DodecahedronGeometry(1.2 + (k % 3) * 0.5, 0), "#9BA3AE");
+					if (sd < 0 && k === 2) continue; /* room for the site office */
+					/* both faces cast: back-face-only shadows left a lit streak where the buried rock meets the ground */
+					const m = mesh(new THREE.DodecahedronGeometry(1.2 + (k % 3) * 0.5, 0), "#9BA3AE", {
+						shadowSide: THREE.DoubleSide,
+					});
 					m.position.set(sd * (wid / 2 + 3 + k * 2.5), 0.6, E + 4 + k * 7);
 					s.add(m);
 				}
@@ -4305,8 +4309,9 @@ const MG = {
 				}
 			});
 			[
-				[siteCabinModel(), -wid / 2 - 8, H + 3, Math.PI / 2],
-				[lightTowerModel(), wid / 2 + 7, H + 2, -Math.PI / 2],
+				/* beside the lanes, up toward the pit, so the camera sees them */
+				[siteCabinModel(), -wid / 2 - 5, -6, Math.PI / 2],
+				[lightTowerModel(), wid / 2 + 5, -9.5, -Math.PI / 2],
 			].forEach(([m, x, z, ry]) => {
 				const k = kitGroup(bakeKit(m));
 				k.position.set(x, 0, z);
@@ -4349,7 +4354,8 @@ const MG = {
 						new THREE.Vector2(PR(k) + 1.6, y + PH),
 						new THREE.Vector2(k === PN - 1 ? 300 : PR(k + 1), y + PH),
 					];
-				const lg = new THREE.LatheGeometry(pts, 30, Math.PI / 2 + 0.35, Math.PI - 0.7),
+				/* wraps past the sides (to near the cliff edge) so wide TV screens don't see the ends */
+				const lg = new THREE.LatheGeometry(pts, 44, Math.PI / 2 - 0.5, Math.PI + 1),
 					lp = lg.attributes.position;
 				for (let i = 0; i < lp.count; i++) {
 					const x = lp.getX(i),
@@ -4431,54 +4437,11 @@ const MG = {
 			W.skid = tyreTracks(W, "#B2ABA4", "#FFFFFF", 700, 3, 1, true);
 		},
 		excavator(s, x, z) {
-			// tracks, rotating house with cab and counterweight, boom, stick, toothed bucket
-			const Y = "#FFC83D",
-				D = "#2A2F3A",
-				g = new THREE.Group();
+			const g = excavatorModel();
 			g.position.set(x, 0, z);
+			g.userData.house.rotation.y = Math.PI;
 			s.add(g);
-			[-0.75, 0.75].forEach((o) => {
-				g.add(B(0.5, 0.45, 2.5, D, o, 0.23, 0));
-				[-0.9, 0, 0.9].forEach((q) => {
-					const w = Cy(0.2, 0.2, 0.56, 8, "#5A6272", o, 0.23, q);
-					w.rotation.z = Math.PI / 2;
-					g.add(w);
-				});
-			});
-			const house = new THREE.Group();
-			house.position.y = 0.45;
-			g.add(house);
-			house.rotation.y = Math.PI;
-			house.add(
-				B(1.8, 0.8, 1.9, Y, 0, 0.45, -0.1),
-				B(1.7, 0.6, 0.55, "#3B3F4A", 0, 0.58, -1.05),
-				B(0.7, 0.85, 0.85, Y, -0.55, 1.25, 0.45),
-				B(0.76, 0.45, 0.9, "#9FD8FF", -0.55, 1.35, 0.5),
-				Cy(0.07, 0.07, 0.5, 6, D, 0.55, 1.05, -0.6),
-			);
-			const boom = new THREE.Group();
-			boom.position.set(0, 0.95, 0.5);
-			house.add(boom);
-			boom.add(B(0.3, 0.32, 2.4, Y, 0, 0, 1.2), Cy(0.06, 0.06, 1.4, 6, "#C9CED8", 0, -0.25, 0.8));
-			boom.children[1].rotation.x = Math.PI / 2;
-			const stick = new THREE.Group();
-			stick.position.z = 2.4;
-			boom.add(stick);
-			stick.add(B(0.24, 0.24, 2, Y, 0, 0, 1));
-			const bucket = new THREE.Group();
-			bucket.position.z = 2;
-			stick.add(bucket);
-			bucket.add(
-				B(0.82, 0.5, 0.08, D, 0, -0.1, 0.3),
-				B(0.82, 0.08, 0.5, D, 0, -0.36, 0.05),
-				B(0.08, 0.54, 0.5, D, -0.42, -0.1, 0.05),
-				B(0.08, 0.54, 0.5, D, 0.42, -0.1, 0.05),
-			);
-			[-0.3, -0.1, 0.1, 0.3].forEach((o) => bucket.add(B(0.08, 0.06, 0.14, "#8E96A3", o, -0.38, -0.25)));
-			const dirt = mesh(new THREE.DodecahedronGeometry(0.4, 0), "#8C6A45");
-			dirt.position.set(0, -0.05, 0.05);
-			bucket.add(dirt);
-			return { house, boom, stick, bucket, dirt };
+			return g.userData;
 		},
 		// poses: [house yaw, boom pitch, stick pitch (relative), bucket curl]; over the bed, at the pile, and the dump tip
 		POSE: {

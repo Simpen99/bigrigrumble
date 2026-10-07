@@ -846,7 +846,16 @@ function tileFace(t, sides) {
 	g.add(lo);
 	if (c.holes) {
 		/* symbol floor: the tile's own shape, a little smaller (a round one poked out through the middle of the sides) */
-		const fl = Cy(1.0, 1.0, 0.02, sides, SYM_FLOOR[t] || new THREE.Color(col).multiplyScalar(0.55).getStyle(), 0, 0.43, 0);
+		const fl = Cy(
+			1.0,
+			1.0,
+			0.02,
+			sides,
+			SYM_FLOOR[t] || new THREE.Color(col).multiplyScalar(0.55).getStyle(),
+			0,
+			0.43,
+			0,
+		);
 		fl.rotation.y = Math.PI / sides;
 		g.add(fl);
 	}

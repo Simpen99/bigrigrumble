@@ -18,6 +18,9 @@
   (additive transparent cones, `depthWrite:false`) and emissive lamp heads so the bloom picks them up. No extra shadow-casting lights (phones).
 - Ambient occlusion: SSAO is too heavy for phones; if wanted, try a cheap baked per-vertex AO in `bakeKit` instead.
 
+## Minigame intro camera
+- Mario Party style opening for every minigame: start high / tilted down over the whole arena (showing props like Dump Run's dirt piles behind the excavators), then sweep down to the game camera during the ready screen or countdown.
+
 ## Minigames picked (to build)
 - Done: Hot Load (`hotload`, partmg3).
 - **Paint the Lot** (free-for-all or teams, arena): trucks leave a trail in their colour; most of the car park covered wins.
