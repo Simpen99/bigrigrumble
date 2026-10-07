@@ -9,10 +9,13 @@ function bakeKit(g, opt = {}) {
 		m4 = new THREE.Matrix4(),
 		nm = new THREE.Matrix3(),
 		v = new THREE.Vector3();
+	/* plain materials share a white one per finish with their colour in the vertex colours (neutralMat, parttruck): a kit
+	   needs a few materials instead of 10-15, and placeKits one InstancedMesh (draw call) per material */
 	g.traverse((o) => {
 		if (!o.isMesh || o.visible === false) return;
-		if (!groups.has(o.material)) groups.set(o.material, []);
-		groups.get(o.material).push(o);
+		const mt = neutralMat(o.material) || o.material;
+		if (!groups.has(mt)) groups.set(mt, []);
+		groups.get(mt).push(o);
 	});
 	const out = [];
 	groups.forEach((parts, mat) => {
@@ -25,7 +28,9 @@ function bakeKit(g, opt = {}) {
 			UV = mat.map ? new Float32Array(n * 2) : null;
 		let off = 0;
 		parts.forEach((m, pi) => {
-			const a = geos[pi].attributes;
+			const a = geos[pi].attributes,
+				tint = mat !== m.material ? m.material.color : null,
+				vc = a.color && (!tint || m.material.vertexColors);
 			m4.multiplyMatrices(inv, m.matrixWorld);
 			nm.getNormalMatrix(m4);
 			for (let i = 0; i < a.position.count; i++) {
@@ -38,10 +43,15 @@ function bakeKit(g, opt = {}) {
 				N[j] = v.x;
 				N[j + 1] = v.y;
 				N[j + 2] = v.z;
-				if (a.color) {
+				if (vc) {
 					C[j] = a.color.getX(i);
 					C[j + 1] = a.color.getY(i);
 					C[j + 2] = a.color.getZ(i);
+				}
+				if (tint) {
+					C[j] *= tint.r;
+					C[j + 1] *= tint.g;
+					C[j + 2] *= tint.b;
 				}
 				if (UV && a.uv) {
 					UV[(off + i) * 2] = a.uv.getX(i);
@@ -115,8 +125,9 @@ function bakeAO(out, ground) {
 		job = { G, ground, A: Object.assign({}, KIT_AO) },
 		apply = (r) =>
 			r.forEach((g, i) => {
-				if (!g) return;
 				const geo = out[i].geo;
+				delete geo.userData.aoPending;
+				if (!g) return;
 				/* frees the old GPU buffers; the next frame uploads the new ones */
 				geo.dispose();
 				geo.setAttribute("position", new THREE.BufferAttribute(g.P, 3));
@@ -126,11 +137,10 @@ function bakeAO(out, ground) {
 			});
 	const key = aoHash(G, ground, job.A),
 		hit = AO_C.get(key);
-	if (hit) {
-		if (hit.r) apply(hit.r);
-		else hit.wait.push(apply);
-		return;
-	}
+	if (hit && hit.r) return apply(hit.r);
+	/* until it lands, mergeScene leaves these geometries alone (a merged copy would never get the shading) */
+	out.forEach(({ geo }) => (geo.userData.aoPending = true));
+	if (hit) return hit.wait.push(apply);
 	const entry = { r: null, wait: [apply] };
 	AO_C.set(key, entry);
 	job.done = (r) => {

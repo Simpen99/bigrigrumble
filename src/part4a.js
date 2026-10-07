@@ -629,8 +629,97 @@ function start3D(mg, p, localOnly, startAt, split) {
 		s.add(e.g);
 	});
 	W.me = tv ? W.list.find((e) => e.rem) || W.list[0] : W.ents[p.key];
+	mergeScene(W);
 	setMode("mg");
 	GFX.mgCam = null;
+}
+/* fewer draw calls: static scenery merges per material into one mesh per 32 m cell (so off-screen chunks are still
+   culled). Static = nothing in W or the game's def points at the mesh or any parent, no userData on it or a parent, opaque,
+   visible, no children. Plain materials go onto shared white ones (neutralMat, parttruck). def.noMerge opts a game out.
+   MERGE_TEST (set by tools/run.mjs) keeps the originals, hidden, and mergeReport() lists any the game moved, showed or
+   recoloured anyway: those were not static after all (give them userData or a W reference). */
+var MERGE_TEST = null;
+function mergeScene(W) {
+	if (W.def.noMerge) return;
+	const s = W.sc,
+		refs = new Set(),
+		mats = new Set(),
+		seen = new Set();
+	const scan = (o, d) => {
+		if (!o || typeof o !== "object" || seen.has(o) || d > 8) return;
+		seen.add(o);
+		if (o.isObject3D) return refs.add(o);
+		if (o.isMaterial) return mats.add(o);
+		if (o.isBufferGeometry || o.isTexture || ArrayBuffer.isView(o) || o === GFX) return;
+		for (const k in o)
+			try {
+				scan(o[k], d + 1);
+			} catch (e) {}
+	};
+	for (const k in W) if (k !== "sc" && k !== "cam") scan(W[k], 0);
+	scan(W.def, 0);
+	s.updateMatrixWorld(true);
+	const base = THREE.Object3D.prototype.onBeforeRender,
+		free = (o) => {
+			for (let q = o; q && q !== s; q = q.parent)
+				if (refs.has(q) || q.visible === false || Object.keys(q.userData).length) return false;
+			return true;
+		},
+		sets = new Map(),
+		c = new THREE.Vector3();
+	s.traverse((o) => {
+		if (!o.isMesh || o.isInstancedMesh || o.isSkinnedMesh || o.children.length || Array.isArray(o.material)) return;
+		const m = o.material,
+			ge = o.geometry;
+		if (m.transparent || m.depthWrite === false || !ge.attributes.position || ge.morphAttributes.position) return;
+		if (ge.drawRange.count !== Infinity || (m.map && !ge.attributes.uv) || ge.userData.aoPending) return;
+		if (o.frustumCulled === false || o.layers.mask !== 1 || o.onBeforeRender !== base || !free(o)) return;
+		if (!ge.boundingSphere) ge.computeBoundingSphere();
+		c.copy(ge.boundingSphere.center).applyMatrix4(o.matrixWorld);
+		const tm = (!mats.has(m) && neutralMat(m)) || m,
+			k = [tm.uuid, o.castShadow, o.receiveShadow, o.renderOrder, Math.floor(c.x / 32), Math.floor(c.z / 32)].join();
+		if (!sets.has(k)) sets.set(k, { tm, L: [] });
+		sets.get(k).L.push(o);
+	});
+	const test = MERGE_TEST && (MERGE_TEST.orig = []);
+	if (test) MERGE_TEST.merged = [];
+	sets.forEach(({ tm, L }) => {
+		if (L.length < 2) return;
+		const mm = new THREE.Mesh(
+			mergeGeo(
+				L.map((o) => ({ m: o, mx: o.matrixWorld })),
+				tm,
+			),
+			tm,
+		);
+		mm.castShadow = L[0].castShadow;
+		mm.receiveShadow = L[0].receiveShadow;
+		mm.renderOrder = L[0].renderOrder;
+		if (test) MERGE_TEST.merged = (MERGE_TEST.merged || []).concat(mm);
+		s.add(mm);
+		L.forEach((o) => {
+			if (test) {
+				test.push({ o, mx: o.matrixWorld.clone(), col: o.material.color.getHex(), mat: o.material });
+				o.visible = false;
+			} else o.parent.remove(o);
+		});
+	});
+}
+function mergeReport() {
+	if (!MERGE_TEST || !MERGE_TEST.orig || !W) return [];
+	W.sc.updateMatrixWorld(true);
+	return MERGE_TEST.orig
+		.filter(
+			(q) =>
+				q.o.visible !== false ||
+				!q.o.matrixWorld.equals(q.mx) ||
+				q.o.material !== q.mat ||
+				q.o.material.color.getHex() !== q.col,
+		)
+		.map((q) => {
+			const p = new THREE.Vector3().setFromMatrixPosition(q.mx);
+			return `${q.o.geometry.type} #${q.mat.color.getHexString()} at ${p.x.toFixed(1)},${p.y.toFixed(1)},${p.z.toFixed(1)}: ${q.o.visible !== false ? "shown " : ""}${!q.o.matrixWorld.equals(q.mx) ? "moved " : ""}${q.o.material !== q.mat ? "material swapped " : q.o.material.color.getHex() !== q.col ? "recoloured" : ""}`;
+		});
 }
 function stop3D() {
 	if (TVS) {
@@ -1117,9 +1206,6 @@ const POSTJS = [
 	"postprocessing/SSAOPass.js",
 	"shaders/HorizontalTiltShiftShader.js",
 	"shaders/VerticalTiltShiftShader.js",
-	"shaders/VignetteShader.js",
-	"shaders/HueSaturationShader.js",
-	"shaders/BrightnessContrastShader.js",
 	"shaders/FXAAShader.js",
 ];
 GFX.fx = {
@@ -1239,20 +1325,52 @@ function buildPost(scene, cam) {
 			hp.needsUpdate = true;
 		}
 	}
-	const col = new THREE.ShaderPass(THREE.HueSaturationShader),
-		bc = new THREE.ShaderPass(THREE.BrightnessContrastShader);
-	comp.addPass(col);
-	comp.addPass(bc);
 	const th = new THREE.ShaderPass(THREE.HorizontalTiltShiftShader),
 		tv = new THREE.ShaderPass(THREE.VerticalTiltShiftShader);
 	comp.addPass(th);
 	comp.addPass(tv);
-	const vig = new THREE.ShaderPass(THREE.VignetteShader);
-	comp.addPass(vig);
-	const aa = new THREE.ShaderPass(THREE.FXAAShader);
-	aa.uniforms.resolution.value.set(1 / (w * pr), 1 / (h * pr));
-	comp.addPass(aa);
-	return { comp, scene, cam, w, h, ao, bloom, col, bc, th, tv, vig, aa };
+	const fin = new THREE.ShaderPass(finalShader());
+	fin.uniforms.resolution.value.set(1 / (w * pr), 1 / (h * pr));
+	comp.addPass(fin);
+	return { comp, scene, cam, w, h, ao, bloom, th, tv, fin };
+}
+/* the last pass does FXAA, saturation / contrast and the vignette in one go (four full-screen passes were a lot of
+   pixels on a phone). Grading and vignette are per pixel, so doing them after FXAA and the tilt blur looks the same. */
+function finalShader() {
+	const F = THREE.FXAAShader,
+		main = F.fragmentShader.lastIndexOf("void main()");
+	return {
+		uniforms: {
+			tDiffuse: { value: null },
+			resolution: { value: new THREE.Vector2() },
+			uAA: { value: 1 },
+			uCol: { value: 0 },
+			saturation: { value: 0 },
+			contrast: { value: 0 },
+			uVig: { value: 0 },
+			darkness: { value: 0 },
+		},
+		vertexShader: F.vertexShader,
+		fragmentShader:
+			F.fragmentShader.slice(0, main) +
+			`uniform float uAA, uCol, saturation, contrast, uVig, darkness;
+void main() {
+	vec4 c = texture2D( tDiffuse, vUv );
+	if ( uAA > 0.5 ) c.rgb = FxaaPixelShader( vUv, vec4( 0.0 ), tDiffuse, tDiffuse, tDiffuse, resolution, vec4( 0.0 ), vec4( 0.0 ), vec4( 0.0 ), 0.75, 0.166, 0.0833, 0.0, 0.0, 0.0, vec4( 0.0 ) ).rgb;
+	if ( uCol > 0.5 ) {
+		float average = ( c.r + c.g + c.b ) / 3.0;
+		if ( saturation > 0.0 ) c.rgb += ( average - c.rgb ) * ( 1.0 - 1.0 / ( 1.001 - saturation ) );
+		else c.rgb += ( average - c.rgb ) * ( -saturation );
+		if ( contrast > 0.0 ) c.rgb = ( c.rgb - 0.5 ) / ( 1.0 - contrast ) + 0.5;
+		else c.rgb = ( c.rgb - 0.5 ) * ( 1.0 + contrast ) + 0.5;
+	}
+	if ( uVig > 0.5 ) {
+		vec2 uv = vUv - vec2( 0.5 );
+		c.rgb = mix( c.rgb, vec3( 1.0 - darkness ), dot( uv, uv ) );
+	}
+	gl_FragColor = c;
+}`,
+	};
 }
 function renderMG(scene, cam) {
 	const F = GFX.fx;
@@ -1286,18 +1404,20 @@ function renderMG(scene, cam) {
 	P.bloom.enabled = F.bloom.on;
 	P.bloom.strength = F.bloom.v * 0.7;
 	P.bloom.threshold = F.bloom.th;
-	P.col.enabled = P.bc.enabled = F.col.on;
-	P.col.uniforms.saturation.value = F.col.sat;
-	P.bc.uniforms.contrast.value = F.col.con;
-	P.bc.uniforms.brightness.value = 0;
 	P.th.enabled = P.tv.enabled = F.tilt.on;
 	P.th.uniforms.h.value = (F.tilt.v * 3) / P.w;
 	P.tv.uniforms.v.value = (F.tilt.v * 3) / P.h;
 	P.th.uniforms.r.value = P.tv.uniforms.r.value = 0.5;
-	P.vig.enabled = F.vig.on;
-	P.vig.uniforms.offset.value = 1;
-	P.vig.uniforms.darkness.value = F.vig.v * 1.8;
-	P.aa.enabled = F.aa.on;
+	{
+		const u = P.fin.uniforms;
+		P.fin.enabled = F.aa.on || F.col.on || F.vig.on;
+		u.uAA.value = F.aa.on ? 1 : 0;
+		u.uCol.value = F.col.on ? 1 : 0;
+		u.saturation.value = F.col.sat;
+		u.contrast.value = F.col.con;
+		u.uVig.value = F.vig.on ? 1 : 0;
+		u.darkness.value = F.vig.v * 1.8;
+	}
 	P.comp.render();
 }
 function wireLightPanel() {
