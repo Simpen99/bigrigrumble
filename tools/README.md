@@ -12,6 +12,7 @@ cd tools && npm i            # once: playwright + three@0.128.0 (served instead 
 | `node rig.mjs <models>` | Renders each model from front, back, side and 3/4 above, one row per model -> `out/rig.png` |
 | `node check.mjs <models>` | Automatic model checks (z-fighting, overhanging panels, floating parts, buried parts); problem parts painted magenta -> `out/check.png`. Exit code 1 if anything is found |
 | `node sheet.mjs <game ids>\|all [--landscape] [--t 5]` | Screenshots minigames at iPhone size, `t` seconds in, as one contact sheet -> `out/sheet.png` |
+| `node mergecheck.mjs` | Builds every truck with and without `mergeTruck` and checks every vertex still matches (position, colour, finish); look for non-zero `unmatched` |
 | `node run.mjs <game ids>\|all` | Plays minigames to the end with CPUs and reports time and page errors. Exit code 1 on errors |
 
 `<models>` are presets (`cars`, `taxi`, `houses`, `buildings`, `trucks`) or JS expressions evaluated in the game page that return a

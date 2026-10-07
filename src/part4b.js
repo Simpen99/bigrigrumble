@@ -4953,7 +4953,9 @@ const MG = {
 			dirt.position.x = 0.87;
 			pv.add(dirt);
 			const ram = Cy(0.07, 0.07, 1, 8, "#C9CED8", hx + 1.3, 0, 0, { metalness: 0.4, roughness: 0.35 });
+			ram.userData.dyn = true;
 			tr.add(ram);
+			mergeMeshes(tr);
 			e.bed = pv;
 			e.dirt = dirt;
 			e.ram = ram;

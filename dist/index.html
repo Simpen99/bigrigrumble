@@ -2072,6 +2072,7 @@ function buildTruck(i, mode) {
 			mount = { x: -0.34, y: 1.37, s: 0.95 };
 			g.add(bed);
 			const ram = B(0.1, 0.5, 0.1, "#8E96A3", -0.1, 0.6, 0);
+			ram.userData.dyn = true;
 			add(ram);
 			cab(0.72);
 			anims.push((tm) => {
@@ -2114,6 +2115,7 @@ function buildTruck(i, mode) {
 					new THREE.IcosahedronGeometry(0.1, 0),
 					new THREE.MeshStandardMaterial({ color: "#C9CED8", transparent: true, opacity: 0.7, flatShading: true }),
 				);
+				m.userData.dyn = true;
 				g.add(m);
 				return m;
 			});
@@ -2211,6 +2213,7 @@ function buildTruck(i, mode) {
 			const junk = [0, 1, 2].map((k) => {
 				const m = B(0.09, 0.09, 0.09, ["#8C5A3C", "#6F7682", "#C28A4A"][k], 0, 0, 0);
 				m.visible = false;
+				m.userData.dyn = true;
 				g.add(m);
 				return m;
 			});
@@ -2242,6 +2245,7 @@ function buildTruck(i, mode) {
 			});
 			const lid = new THREE.Group(),
 				drop = uniq(mesh(new THREE.IcosahedronGeometry(0.07, 0), "#4FB3E8", { transparent: true, opacity: 0.9 }));
+			drop.userData.dyn = true;
 			if (hose) {
 				add(B(1.1, 0.26, 0.7, D, -0.35, 1.43, 0));
 				mount = { x: -0.35, y: 1.56, s: 0.95 };
@@ -2311,6 +2315,7 @@ function buildTruck(i, mode) {
 				B(0.24, 0.13, 0.02, "#E5484D", 0.12, 0.3, 0.012),
 			);
 			const env = mesh(new THREE.PlaneGeometry(0.28, 0.18), "#FFF8E6", { side: THREE.DoubleSide });
+			env.userData.dyn = true;
 			g.add(env);
 			anims.push((tm) => {
 				const u = (tm * 0.4) % 1;
@@ -2404,7 +2409,112 @@ function buildTruck(i, mode) {
 		roof.forEach((o) => o.parent && o.parent.remove(o));
 		g.userData.mount = mount;
 	}
+	mergeTruck(g);
 	return g;
+}
+/* fewer draw calls: inside every group, the static meshes that share a material become one mesh (a truck drops from
+   50-70 meshes to about 15, and the shadow pass with it). Meshes with userData (dyn: moved or toggled on their own)
+   stay as they are, and so do moving groups (they merge inside). Wheels keep only the spoke turning: tyre, hub and cap
+   look the same at any angle, so they join the static body. */
+function mergeTruck(g) {
+	g.updateMatrixWorld(true);
+	(g.userData.wheels || []).forEach(({ g: wg }) =>
+		wg.children.slice(0, 3).forEach((m) => {
+			m.applyMatrix4(wg.matrix);
+			g.add(m);
+		}),
+	);
+	mergeMeshes(g);
+}
+/* the merge itself, for anything bolted onto a truck later too (Dump Run's tipper bed). Plain parts (no paint, glow,
+   transparency or texture) move their colour into the vertex colours and share one white material per finish, so all
+   the trim, chrome, tyres and lamps of a group become one mesh; the shader multiplies colour and vertex colour either
+   way, so they look the same. */
+var NEUTRAL_MAT = {};
+function neutralMat(m) {
+	if (!m.isMeshStandardMaterial || m.transparent || m.map || m.userData.paint !== undefined || m.emissive.getHex())
+		return null;
+	const rf = m.userData.refl,
+		k = [m.roughness, m.metalness, m.side, m.flatShading, rf].join();
+	if (!NEUTRAL_MAT[k]) {
+		const q = new THREE.MeshStandardMaterial({
+			color: "#FFFFFF",
+			vertexColors: true,
+			flatShading: m.flatShading,
+			roughness: m.roughness,
+			metalness: m.metalness,
+			side: m.side,
+		});
+		if (rf !== undefined) q.userData.refl = rf;
+		NEUTRAL_MAT[k] = q;
+	}
+	return NEUTRAL_MAT[k];
+}
+function mergeMeshes(g) {
+	const hosts = [];
+	g.traverse((o) => {
+		if (!o.isMesh) hosts.push(o);
+	});
+	const v = new THREE.Vector3(),
+		nm = new THREE.Matrix3();
+	hosts.forEach((h) => {
+		const sets = new Map();
+		h.children.forEach((m) => {
+			if (!m.isMesh || m.isInstancedMesh || m.visible === false || Array.isArray(m.material)) return;
+			if (Object.keys(m.userData).length || m.children.length) return;
+			const mat = neutralMat(m.material) || m.material,
+				k = mat.uuid + (m.castShadow ? 1 : 0) + (m.receiveShadow ? 1 : 0) + "|" + m.renderOrder;
+			if (!sets.has(k)) sets.set(k, { mat, L: [] });
+			sets.get(k).L.push(m);
+		});
+		sets.forEach(({ mat, L }) => {
+			if (L.length < 2) return;
+			const geos = L.map((m) => (m.geometry.index ? m.geometry.toNonIndexed() : m.geometry)),
+				n = geos.reduce((s, ge) => s + ge.attributes.position.count, 0),
+				P = new Float32Array(n * 3),
+				N = new Float32Array(n * 3),
+				C = mat.vertexColors ? new Float32Array(n * 3).fill(1) : null;
+			let off = 0;
+			L.forEach((m, mi) => {
+				const a = geos[mi].attributes,
+					/* the part's own colour goes into the vertex colours when it moves to the white material */
+					tint = mat !== m.material ? m.material.color : null,
+					vc = m.material.vertexColors && a.color;
+				m.updateMatrix();
+				nm.getNormalMatrix(m.matrix);
+				for (let i = 0; i < a.position.count; i++) {
+					const j = (off + i) * 3;
+					v.fromBufferAttribute(a.position, i).applyMatrix4(m.matrix);
+					P[j] = v.x;
+					P[j + 1] = v.y;
+					P[j + 2] = v.z;
+					v.fromBufferAttribute(a.normal, i).applyMatrix3(nm).normalize();
+					N[j] = v.x;
+					N[j + 1] = v.y;
+					N[j + 2] = v.z;
+					if (C) {
+						const r = vc ? a.color.getX(i) : 1,
+							gg = vc ? a.color.getY(i) : 1,
+							bb = vc ? a.color.getZ(i) : 1;
+						C[j] = tint ? r * tint.r : r;
+						C[j + 1] = tint ? gg * tint.g : gg;
+						C[j + 2] = tint ? bb * tint.b : bb;
+					}
+				}
+				off += a.position.count;
+				h.remove(m);
+			});
+			const geo = new THREE.BufferGeometry();
+			geo.setAttribute("position", new THREE.BufferAttribute(P, 3));
+			geo.setAttribute("normal", new THREE.BufferAttribute(N, 3));
+			if (C) geo.setAttribute("color", new THREE.BufferAttribute(C, 3));
+			const mm = new THREE.Mesh(geo, mat);
+			mm.castShadow = L[0].castShadow;
+			mm.receiveShadow = L[0].receiveShadow;
+			mm.renderOrder = L[0].renderOrder;
+			h.add(mm);
+		});
+	});
 }
 function animTruck(tr, dt, speed = 0) {
 	const u = tr && tr.userData;
@@ -18747,7 +18857,9 @@ const MG = {
 			dirt.position.x = 0.87;
 			pv.add(dirt);
 			const ram = Cy(0.07, 0.07, 1, 8, "#C9CED8", hx + 1.3, 0, 0, { metalness: 0.4, roughness: 0.35 });
+			ram.userData.dyn = true;
 			tr.add(ram);
+			mergeMeshes(tr);
 			e.bed = pv;
 			e.dirt = dirt;
 			e.ram = ram;
