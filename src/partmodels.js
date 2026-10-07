@@ -1740,48 +1740,134 @@ function crushedCarModel(type, col) {
 }
 
 /* ---------- Sort It Out: wheelie bins and the trash ---------- */
-/* flat icon shapes for bin lids, drawn in a 0.6 x 0.6 box: bottle, can, log end, leaf */
+/* flat icon shapes for bin lids, drawn in a 0.6 x 0.6 box: bottle, can, log (side view with a branch stub and its end grain
+   as an island), two leaves on their stems. Returns {holes, islands}: holes are cut into the lid, islands stand in a hole. */
 function binIconShape(icon) {
 	const V = (P) => new THREE.Shape(P.map(([x, y]) => new THREE.Vector2(x, y)));
 	if (icon === "bottle")
-		return V([
-			[-0.13, -0.28],
-			[0.13, -0.28],
-			[0.13, 0.08],
-			[0.06, 0.17],
-			[0.06, 0.28],
-			[-0.06, 0.28],
-			[-0.06, 0.17],
-			[-0.13, 0.08],
-		]);
+		return {
+			holes: [
+				V([
+					[-0.13, -0.28],
+					[0.13, -0.28],
+					[0.13, 0.08],
+					[0.06, 0.17],
+					[0.06, 0.28],
+					[-0.06, 0.28],
+					[-0.06, 0.17],
+					[-0.13, 0.08],
+				]),
+			],
+			islands: [],
+		};
 	if (icon === "can")
-		return V([
-			[-0.16, -0.22],
-			[-0.12, -0.27],
-			[0.12, -0.27],
-			[0.16, -0.22],
-			[0.16, 0.22],
-			[0.12, 0.27],
-			[-0.12, 0.27],
-			[-0.16, 0.22],
-		]);
+		return {
+			holes: [
+				V([
+					[-0.16, -0.22],
+					[-0.12, -0.27],
+					[0.12, -0.27],
+					[0.16, -0.22],
+					[0.16, 0.22],
+					[0.12, 0.27],
+					[-0.12, 0.27],
+					[-0.16, 0.22],
+				]),
+			],
+			islands: [],
+		};
 	if (icon === "log") {
 		const s = new THREE.Shape();
-		s.absarc(0, 0, 0.26, 0, Math.PI * 2, false);
-		const h = new THREE.Path();
-		h.absarc(0, 0, 0.13, 0, Math.PI * 2, true);
-		s.holes.push(h);
-		return s;
+		s.moveTo(-0.24, -0.12);
+		s.lineTo(0.2, -0.12);
+		s.absellipse(0.2, 0, 0.08, 0.12, -Math.PI / 2, Math.PI / 2, false);
+		s.lineTo(-0.02, 0.12);
+		s.lineTo(-0.05, 0.25);
+		s.lineTo(-0.13, 0.23);
+		s.lineTo(-0.11, 0.12);
+		s.lineTo(-0.24, 0.12);
+		s.absellipse(-0.24, 0, 0.07, 0.12, Math.PI / 2, (Math.PI * 3) / 2, false);
+		const e = new THREE.Shape();
+		e.absellipse(0.2, 0, 0.035, 0.065, 0, Math.PI * 2, false);
+		return { holes: [s], islands: [e] };
 	}
-	const s = new THREE.Shape();
-	s.moveTo(0, -0.28);
-	s.quadraticCurveTo(0.3, -0.02, 0, 0.3);
-	s.quadraticCurveTo(-0.3, -0.02, 0, -0.28);
-	return s;
+	/* compost: a sprout, two pointed leaves joined on one forked stem (one outline), each with its midrib as an island */
+	const P2 = (b, d, n, t, o, L) => [b[0] + d[0] * L * t + n[0] * o, b[1] + d[1] * L * t + n[1] * o],
+		edges = (C, hw) => {
+			const l = [],
+				r = [];
+			C.forEach((p, i) => {
+				const a = C[Math.max(0, i - 1)],
+					b = C[Math.min(C.length - 1, i + 1)],
+					len = Math.hypot(b[0] - a[0], b[1] - a[1]),
+					nx = -(b[1] - a[1]) / len,
+					ny = (b[0] - a[0]) / len;
+				l.push([p[0] + nx * hw, p[1] + ny * hw]);
+				r.push([p[0] - nx * hw, p[1] - ny * hw]);
+			});
+			return [l, r];
+		},
+		ribs = [],
+		leaf = (b, ang, L, W) => {
+			const d = [Math.cos(ang), Math.sin(ang)],
+				n = [-d[1], d[0]],
+				l = [],
+				r = [];
+			for (let i = 0; i <= 14; i++) {
+				const t = i / 14,
+					hw = i === 14 ? 0 : Math.max(0.025 * (1 - t / 0.2), W * Math.sin(Math.PI * Math.pow(t, 0.8)));
+				l.push(P2(b, d, n, t, hw, L));
+				if (i < 14) r.unshift(P2(b, d, n, t, -hw, L));
+			}
+			ribs.push(V([P2(b, d, n, 0.2, 0.014, L), P2(b, d, n, 0.8, 0, L), P2(b, d, n, 0.2, -0.014, L)]));
+			return l.concat(r);
+		};
+	const stem = [
+			[0.005, -0.3],
+			[0, -0.22],
+			[-0.012, -0.14],
+			[-0.03, -0.07],
+			[-0.055, -0.01],
+		],
+		br = [
+			[0.01, -0.205],
+			[0.045, -0.165],
+			[0.085, -0.115],
+		],
+		[sL, sR] = edges(stem, 0.026),
+		[bL, bR] = edges(br, 0.024);
+	const out = sL
+		.slice(0, 4)
+		.concat(leaf(stem[4], (Math.PI * 7) / 12, 0.32, 0.105), [sR[3], sR[2], bL[1]])
+		.concat(leaf(br[2], (Math.PI * 5) / 18, 0.31, 0.1), [bR[1], sR[1], sR[0]]);
+	return { holes: [V(out)], islands: ribs };
+}
+/* bin name plate texture, same proportions as the plate so the letters don't stretch */
+function binPlateTex(txt) {
+	const k = "bp" + txt;
+	return (
+		BLD_TEX[k] ||
+		(BLD_TEX[k] = canvasTex(256, 70, (x, w, h) => {
+			x.fillStyle = "#F4F6F9";
+			x.fillRect(0, 0, w, h);
+			x.font = "40px Bungee, 'Arial Black', Impact, sans-serif";
+			x.textAlign = "center";
+			x.textBaseline = "middle";
+			x.fillStyle = "#23272F";
+			const s = Math.min(1, (w - 16) / x.measureText(txt).width);
+			x.save();
+			x.translate(w / 2, h / 2 + 3);
+			x.scale(s, 1);
+			x.fillText(txt, 0, 0);
+			x.restore();
+		}))
+	);
 }
 /* wheelie bin, front at +z: tapered body, overhanging lid on a hinge at the back (userData.lid pivots there, rotate
-   x negative to open), a raised white icon on the lid, a name plate on the front, back handle, wheels and front feet */
-function wheelieBinModel(col, name, icon) {
+   x negative to open), the icon indented into the lid like the board tiles' symbols, back handle, wheels and front feet.
+   yaw = the bin's world rotation.y: the name plate goes on the side facing the camera (world +z) and the icon is turned
+   to read upright from there. */
+function wheelieBinModel(col, name, icon, yaw = 0) {
 	const g = new THREE.Group(),
 		lidC = "#" + new THREE.Color(col).multiplyScalar(0.72).getHexString(),
 		D = "#23272F";
@@ -1809,23 +1895,49 @@ function wheelieBinModel(col, name, icon) {
 	/* back handle on two brackets, hinge bar */
 	[-1, 1].forEach((sd) => g.add(B(0.1, 0.14, 0.2, lidC, sd * 0.5, 1.22, -0.76)));
 	g.add(Cy(0.045, 0.045, 1.16, 6, D, 0, 1.22, -0.88).rotateZ(Math.PI / 2));
-	/* lid: pivot at the hinge, so it can flap open */
+	/* lid: pivot at the hinge, so it can flap open. The slab has the icon cut through it, a white plate inside shows
+	   through 0.045 below the top. */
 	const lid = new THREE.Group();
 	lid.position.set(0, 1.33, -0.72);
 	g.add(lid);
-	lid.add(B(1.72, 0.1, 1.5, lidC, 0, 0.02, 0.74), B(1.66, 0.14, 0.07, lidC, 0, -0.04, 1.5));
+	const ic = binIconShape(icon),
+		ca = Math.cos(-yaw),
+		sa = Math.sin(-yaw),
+		turn = (sh) =>
+			new THREE.Shape(
+				sh.getPoints(6).map((p) => new THREE.Vector2((p.x * ca - p.y * sa) * 1.6, (p.x * sa + p.y * ca) * 1.6)),
+			);
+	const slab = new THREE.Shape([
+		new THREE.Vector2(-0.86, -0.75),
+		new THREE.Vector2(0.86, -0.75),
+		new THREE.Vector2(0.86, 0.75),
+		new THREE.Vector2(-0.86, 0.75),
+	]);
+	ic.holes.forEach((h) => slab.holes.push(turn(h)));
+	const flat = (sh, d, y) => {
+		const geo = new THREE.ExtrudeGeometry(sh, { depth: d, bevelEnabled: false });
+		geo.rotateX(-Math.PI / 2);
+		const m = mesh(geo, lidC);
+		m.position.set(0, y, 0.74);
+		return m;
+	};
+	lid.add(flat(slab, 0.1, -0.03), B(1.3, 0.02, 1.3, "#F4F6F9", 0, 0.015, 0.74));
+	ic.islands.forEach((s) => lid.add(flat(turn(s), 0.04, 0.03)));
+	lid.add(B(1.66, 0.14, 0.07, lidC, 0, -0.04, 1.5));
 	lid.add(Cy(0.05, 0.05, 1.6, 6, D, 0, 0, 0).rotateZ(Math.PI / 2));
-	const ic = new THREE.ExtrudeGeometry(binIconShape(icon), { depth: 0.04, bevelEnabled: false, curveSegments: 6 });
-	ic.rotateX(-Math.PI / 2);
-	ic.scale(1.6, 1, 1.6);
-	const im = mesh(ic, "#F4F6F9");
-	im.position.set(0, 0.07, 0.74);
-	lid.add(im);
 	g.userData.lid = lid;
-	/* name plate on the sloping front */
-	const pl = texturedBox(1.1, 0.3, 0.03, "#F4F6F9", signTexture(name.toUpperCase(), "#F4F6F9", "#23272F"), 4);
-	pl.position.set(0, 0.78, 0.67);
-	pl.rotation.x = 0.066;
+	/* name plate on the sloping side that faces the camera */
+	const cx = -Math.sin(yaw),
+		cz = Math.cos(yaw),
+		n = Math.abs(cx) > Math.abs(cz) ? [Math.sign(cx), 0] : [0, Math.sign(cz)],
+		back = n[1] < 0 /* the back has the handle overhead: plate lower, between the ribs */,
+		y = back ? 0.62 : 0.72,
+		r = 0.86 + ((y - 0.1) / 1.2) * 0.12,
+		dist = (n[0] ? 1.15 : 1) * r * Math.SQRT1_2 + 0.012;
+	const pl = texturedBox(1.2, back ? 0.3 : 0.33, 0.03, "#F4F6F9", binPlateTex(name.toUpperCase()), 4);
+	pl.position.set(n[0] * dist, y, n[1] * dist);
+	pl.rotation.order = "YXZ";
+	pl.rotation.set(Math.atan(((n[0] ? 1.15 : 1) * 0.12 * Math.SQRT1_2) / 1.2), Math.atan2(n[0], n[1]), 0);
 	g.add(pl);
 	return g;
 }
