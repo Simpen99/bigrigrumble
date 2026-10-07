@@ -18529,10 +18529,11 @@ const MG = {
 							x.fillRect(0, 0, w, h);
 						}),
 						transparent: true,
-						opacity: 0.16,
+						opacity: 0.27,
 						blending: THREE.AdditiveBlending,
 						depthWrite: false,
-						side: THREE.DoubleSide,
+						/* outside only (both sides drew every beam pixel twice: slow on phones), a bit stronger instead */
+						side: THREE.FrontSide,
 						fog: false,
 					}),
 				);
@@ -18542,7 +18543,7 @@ const MG = {
 					new THREE.Vector3(-1 - hx, -hy, -10 - hz).normalize(),
 				);
 				beam.castShadow = false;
-				beam.userData.base = 0.16;
+				beam.userData.base = 0.27;
 				W.lampFx = [beam];
 				s.add(beam);
 			}
@@ -18557,10 +18558,37 @@ const MG = {
 					B(0.3, 0.04, 0.16, "#FFF4D6", 1.75, 2.49, fz + 0.12, warm),
 					Cy(0.11, 0.13, 0.2, 8, "#FF9A1F", 2.75, 3.14, -1.0, { emissive: "#FF8A1F", emissiveIntensity: 2 }),
 				);
+				/* its light is faked (a real point light costs every lit pixel on screen, phones dropped below 60 fps):
+				   a warm glow on the wall round the lamp and a pool on the ground in front of the door */
+				const pool = new THREE.MeshBasicMaterial({
+						map: canvasTex(64, 64, (x, w, h) => {
+							const gr = x.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2);
+							gr.addColorStop(0, "rgba(255,201,138,0.9)");
+							gr.addColorStop(0.45, "rgba(255,201,138,0.35)");
+							gr.addColorStop(1, "rgba(255,201,138,0)");
+							x.fillStyle = gr;
+							x.fillRect(0, 0, w, h);
+						}),
+						transparent: true,
+						opacity: 0.3,
+						blending: THREE.AdditiveBlending,
+						depthWrite: false,
+						polygonOffset: true,
+						polygonOffsetFactor: -2,
+						polygonOffsetUnits: -4,
+					}),
+					wall = pool.clone(),
+					wg = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 2.2), wall),
+					gp = new THREE.Mesh(new THREE.PlaneGeometry(4.6, 4.6).rotateX(-Math.PI / 2), pool);
+				pool.userData.base = 0.3;
+				wall.opacity = wall.userData.base = 0.22;
+				/* just in front of the door frame (z 1.24), so the door gets lit too */
+				wg.position.set(1.75, 2.2, fz + 0.13);
+				gp.position.set(1.75, 0.04, fz + 1.4);
+				wg.renderOrder = gp.renderOrder = 2;
+				og.add(wg, gp);
 				s.add(og);
-				const pl = add(new THREE.PointLight(lin("#FFC98A"), 1.2, 9, 1), 1.2);
-				og.updateMatrixWorld(true);
-				pl.position.copy(og.localToWorld(new THREE.Vector3(1.75, 2.2, fz + 0.9)));
+				W.lampFx.push({ material: pool, userData: pool.userData }, { material: wall, userData: wall.userData });
 			}
 			{
 				/* bollards along both sides of the lanes, each with a soft warm pool on the ground */
