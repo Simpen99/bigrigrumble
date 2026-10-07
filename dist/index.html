@@ -20981,16 +20981,16 @@ Object.assign(MG, {
 		unit: "pts",
 		dur: 35,
 		bare: true,
-		sun: [-13, 15, 11],
+		sun: [6.7, 32, 15.7],
 		/* new look: fresh cool morning at the recycling plant (tuned in the light panel 2026-10-07) */
 		look: {
-			exp: 1,
-			amb: 0.96,
-			sun: 1.66,
-			warm: 0.35,
-			env: 0.4,
-			paint: 0.55,
-			haze: 55,
+			exp: 0.9,
+			amb: 0.74,
+			sun: 1.26,
+			warm: 0.4,
+			env: 0.6,
+			paint: 0.6,
+			haze: 50,
 			glow: 1.01,
 			bloom: 0.2,
 			vig: 0,
@@ -27367,21 +27367,33 @@ function binIconShape(icon) {
 			],
 			islands: [],
 		};
+	/* soda can: tapered base, narrower lid rim on top, a swoosh across the label as an island */
 	if (icon === "can")
 		return {
 			holes: [
 				V([
-					[-0.16, -0.22],
-					[-0.12, -0.27],
-					[0.12, -0.27],
+					[-0.12, -0.28],
+					[0.12, -0.28],
 					[0.16, -0.22],
-					[0.16, 0.22],
-					[0.12, 0.27],
-					[-0.12, 0.27],
-					[-0.16, 0.22],
+					[0.16, 0.19],
+					[0.12, 0.24],
+					[0.12, 0.28],
+					[-0.12, 0.28],
+					[-0.12, 0.24],
+					[-0.16, 0.19],
+					[-0.16, -0.22],
 				]),
 			],
-			islands: [],
+			islands: [
+				V([
+					[-0.105, -0.06],
+					[0, -0.03],
+					[0.105, 0.03],
+					[0.105, 0.07],
+					[0, 0.02],
+					[-0.105, -0.02],
+				]),
+			],
 		};
 	if (icon === "log") {
 		const s = new THREE.Shape();
