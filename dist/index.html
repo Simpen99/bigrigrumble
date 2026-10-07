@@ -11197,6 +11197,7 @@ function mkEnt(p, isMe, named, mode) {
 	g.add(tr);
 	const disc = Cy(0.95, 0.95, 0.05, 20, pcol(p), 0, 0.03, 0, { transparent: true, opacity: 0.4, depthWrite: false });
 	disc.castShadow = false;
+	disc.userData.disc = true; /* the player-colour disc under the truck (a game can hide it) */
 	g.add(disc);
 	const tag = nameTag(isMe && !named ? "You" : p.name, pcol(p));
 	tag.position.y = 2.5;
@@ -20981,11 +20982,11 @@ Object.assign(MG, {
 		dur: 35,
 		bare: true,
 		sun: [-13, 15, 11],
-		/* new look: fresh cool morning at the recycling plant (light balance from Cone Smash's tuned look, a bit more exposure: the plant is darker) */
+		/* new look: fresh cool morning at the recycling plant (tuned in the light panel 2026-10-07) */
 		look: {
 			exp: 1,
-			amb: 0.8,
-			sun: 1.44,
+			amb: 0.96,
+			sun: 1.66,
 			warm: 0.35,
 			env: 0.4,
 			paint: 0.55,
@@ -21008,7 +21009,6 @@ Object.assign(MG, {
 		build(W) {
 			const s = W.sc;
 			this.plant(s);
-			decal(s, new THREE.CircleGeometry(1.5, 20), "#FFC83D", 0, 0.02, 0.2, 0.35);
 			/* bins round the player's truck, fronts (and lids) opening toward it */
 			W.lids = this.CATS.map((c, i) => {
 				const yaw = Math.atan2(-c.pos[0], -c.pos[1]),
@@ -21122,7 +21122,8 @@ Object.assign(MG, {
 			hideOthers(W, e);
 			if (e.isMe) {
 				W.roofY = new THREE.Box3().setFromObject(e.tr).max.y;
-				e.g.children.forEach((o) => o.isSprite && (o.visible = false)); /* no name tag: only your truck is here */
+				/* no name tag or player disc: only your truck is here */
+				e.g.children.forEach((o) => (o.isSprite || o.userData.disc) && (o.visible = false));
 			}
 			e.n = 0;
 			e.combo = 0;
@@ -27479,14 +27480,15 @@ function wheelieBinModel(col, name, icon, yaw = 0) {
 	const bg = new THREE.CylinderGeometry(0.98, 0.86, 1.2, 4);
 	bg.rotateY(Math.PI / 4);
 	bg.scale(1.15, 1, 1);
-	const body = mesh(bg, col);
+	const gloss = { roughness: 0.42 } /* moulded plastic: a little shine (reflections in the new look) */,
+		body = mesh(bg, col, gloss);
 	body.position.y = 0.7;
 	g.add(body);
 	[0.42, 0.98].forEach((y) => {
 		const rg = new THREE.CylinderGeometry(0.9 + (y - 0.1) * 0.1, 0.9 + (y - 0.18) * 0.1, 0.08, 4);
 		rg.rotateY(Math.PI / 4);
 		rg.scale(1.15, 1, 1);
-		const r = mesh(rg, lidC);
+		const r = mesh(rg, lidC, gloss);
 		r.position.y = y;
 		g.add(r);
 	}); /* two moulded ribs round the body */
@@ -27522,7 +27524,7 @@ function wheelieBinModel(col, name, icon, yaw = 0) {
 	const flat = (sh, d, y) => {
 		const geo = new THREE.ExtrudeGeometry(sh, { depth: d, bevelEnabled: false });
 		geo.rotateX(-Math.PI / 2);
-		const m = mesh(geo, lidC);
+		const m = mesh(geo, lidC, gloss);
 		evenCaps(m.geometry);
 		m.position.set(0, y, 0.74);
 		return m;

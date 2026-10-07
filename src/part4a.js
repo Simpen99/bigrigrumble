@@ -209,6 +209,7 @@ function mkEnt(p, isMe, named, mode) {
 	g.add(tr);
 	const disc = Cy(0.95, 0.95, 0.05, 20, pcol(p), 0, 0.03, 0, { transparent: true, opacity: 0.4, depthWrite: false });
 	disc.castShadow = false;
+	disc.userData.disc = true; /* the player-colour disc under the truck (a game can hide it) */
 	g.add(disc);
 	const tag = nameTag(isMe && !named ? "You" : p.name, pcol(p));
 	tag.position.y = 2.5;

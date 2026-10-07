@@ -1873,14 +1873,15 @@ function wheelieBinModel(col, name, icon, yaw = 0) {
 	const bg = new THREE.CylinderGeometry(0.98, 0.86, 1.2, 4);
 	bg.rotateY(Math.PI / 4);
 	bg.scale(1.15, 1, 1);
-	const body = mesh(bg, col);
+	const gloss = { roughness: 0.42 } /* moulded plastic: a little shine (reflections in the new look) */,
+		body = mesh(bg, col, gloss);
 	body.position.y = 0.7;
 	g.add(body);
 	[0.42, 0.98].forEach((y) => {
 		const rg = new THREE.CylinderGeometry(0.9 + (y - 0.1) * 0.1, 0.9 + (y - 0.18) * 0.1, 0.08, 4);
 		rg.rotateY(Math.PI / 4);
 		rg.scale(1.15, 1, 1);
-		const r = mesh(rg, lidC);
+		const r = mesh(rg, lidC, gloss);
 		r.position.y = y;
 		g.add(r);
 	}); /* two moulded ribs round the body */
@@ -1916,7 +1917,7 @@ function wheelieBinModel(col, name, icon, yaw = 0) {
 	const flat = (sh, d, y) => {
 		const geo = new THREE.ExtrudeGeometry(sh, { depth: d, bevelEnabled: false });
 		geo.rotateX(-Math.PI / 2);
-		const m = mesh(geo, lidC);
+		const m = mesh(geo, lidC, gloss);
 		evenCaps(m.geometry);
 		m.position.set(0, y, 0.74);
 		return m;
