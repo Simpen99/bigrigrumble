@@ -1791,7 +1791,7 @@ function binIconShape(icon) {
 		e.absellipse(0.2, 0, 0.035, 0.065, 0, Math.PI * 2, false);
 		return { holes: [s], islands: [e] };
 	}
-	/* compost: a sprout, two pointed leaves joined on one forked stem (one outline), each with its midrib as an island */
+	/* compost: a sprout, two big pointed leaves joined on one forked stem (one outline) */
 	const P2 = (b, d, n, t, o, L) => [b[0] + d[0] * L * t + n[0] * o, b[1] + d[1] * L * t + n[1] * o],
 		edges = (C, hw) => {
 			const l = [],
@@ -1807,7 +1807,6 @@ function binIconShape(icon) {
 			});
 			return [l, r];
 		},
-		ribs = [],
 		leaf = (b, ang, L, W) => {
 			const d = [Math.cos(ang), Math.sin(ang)],
 				n = [-d[1], d[0]],
@@ -1819,28 +1818,28 @@ function binIconShape(icon) {
 				l.push(P2(b, d, n, t, hw, L));
 				if (i < 14) r.unshift(P2(b, d, n, t, -hw, L));
 			}
-			ribs.push(V([P2(b, d, n, 0.2, 0.014, L), P2(b, d, n, 0.8, 0, L), P2(b, d, n, 0.2, -0.014, L)]));
 			return l.concat(r);
 		};
-	const stem = [
+	const dn = ([x, y]) => [x, y - 0.06] /* whole sprout sits a bit low so the bigger leaves fit */,
+		stem = [
 			[0.005, -0.3],
 			[0, -0.22],
 			[-0.012, -0.14],
 			[-0.03, -0.07],
 			[-0.055, -0.01],
-		],
+		].map(dn),
 		br = [
 			[0.01, -0.205],
 			[0.045, -0.165],
 			[0.085, -0.115],
-		],
+		].map(dn),
 		[sL, sR] = edges(stem, 0.026),
 		[bL, bR] = edges(br, 0.024);
 	const out = sL
 		.slice(0, 4)
-		.concat(leaf(stem[4], (Math.PI * 7) / 12, 0.32, 0.105), [sR[3], sR[2], bL[1]])
-		.concat(leaf(br[2], (Math.PI * 5) / 18, 0.31, 0.1), [bR[1], sR[1], sR[0]]);
-	return { holes: [V(out)], islands: ribs };
+		.concat(leaf(stem[4], (Math.PI * 7) / 12, 0.4, 0.13), [sR[3], sR[2], bL[1]])
+		.concat(leaf(br[2], (Math.PI * 5) / 18, 0.37, 0.12), [bR[1], sR[1], sR[0]]);
+	return { holes: [V(out)], islands: [] };
 }
 /* bin name plate texture, same proportions as the plate so the letters don't stretch */
 function binPlateTex(txt) {
