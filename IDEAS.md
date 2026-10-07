@@ -18,6 +18,20 @@
   (additive transparent cones, `depthWrite:false`) and emissive lamp heads so the bloom picks them up. No extra shadow-casting lights (phones).
 - Ambient occlusion: SSAO is too heavy for phones; if wanted, try a cheap baked per-vertex AO in `bakeKit` instead.
 
+## Performance (phones)
+- Perf panel in practice mode: switches for the floodlight / lamps, beams, bloom, shadows, sprites and resolution, plus live
+  fps and draw calls, so the cost of each thing can be measured on the phone itself. Dump Run still runs ~50 fps on an
+  iPhone 13 Pro (all other games hold 60 after the draw-call work in PR #30); its floodlight spot light is the main suspect
+  but the user wants to keep it.
+- three.js upgrade (r128 -> latest) as one planned project: step through versions (r128 -> ~r150 -> ~r160 -> latest) with
+  the Migration Guide (three.js wiki) and console deprecation warnings, type-check the plain JS against `@types/three`
+  (`tsc --checkJs`) to list renamed / removed APIs, load the ES modules through a small module shim that sets
+  `window.THREE` before the game script. Colour management and light units change (intensities ~x pi): add a
+  version-compare mode to `tools/scenecheck.mjs` (old vs new render per game) to retune, then the user re-approves each
+  game. Most of `lookShaders` can go (sRGB + ACES are built in). Payoff: BatchedMesh (one draw call for many different,
+  even moving, objects), later WebGPURenderer (much cheaper draw calls on phones; needs the look shaders and post chain
+  rebuilt as node materials). Estimate: 1-2 sessions porting plus the retuning pass.
+
 ## Minigame intro camera
 - Mario Party style opening for every minigame: start high / tilted down over the whole arena (showing props like Dump Run's dirt piles behind the excavators), then sweep down to the game camera during the ready screen or countdown.
 

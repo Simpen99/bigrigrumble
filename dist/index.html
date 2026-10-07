@@ -2072,6 +2072,7 @@ function buildTruck(i, mode) {
 			mount = { x: -0.34, y: 1.37, s: 0.95 };
 			g.add(bed);
 			const ram = B(0.1, 0.5, 0.1, "#8E96A3", -0.1, 0.6, 0);
+			ram.userData.dyn = true;
 			add(ram);
 			cab(0.72);
 			anims.push((tm) => {
@@ -2114,6 +2115,7 @@ function buildTruck(i, mode) {
 					new THREE.IcosahedronGeometry(0.1, 0),
 					new THREE.MeshStandardMaterial({ color: "#C9CED8", transparent: true, opacity: 0.7, flatShading: true }),
 				);
+				m.userData.dyn = true;
 				g.add(m);
 				return m;
 			});
@@ -2211,6 +2213,7 @@ function buildTruck(i, mode) {
 			const junk = [0, 1, 2].map((k) => {
 				const m = B(0.09, 0.09, 0.09, ["#8C5A3C", "#6F7682", "#C28A4A"][k], 0, 0, 0);
 				m.visible = false;
+				m.userData.dyn = true;
 				g.add(m);
 				return m;
 			});
@@ -2242,6 +2245,7 @@ function buildTruck(i, mode) {
 			});
 			const lid = new THREE.Group(),
 				drop = uniq(mesh(new THREE.IcosahedronGeometry(0.07, 0), "#4FB3E8", { transparent: true, opacity: 0.9 }));
+			drop.userData.dyn = true;
 			if (hose) {
 				add(B(1.1, 0.26, 0.7, D, -0.35, 1.43, 0));
 				mount = { x: -0.35, y: 1.56, s: 0.95 };
@@ -2311,6 +2315,7 @@ function buildTruck(i, mode) {
 				B(0.24, 0.13, 0.02, "#E5484D", 0.12, 0.3, 0.012),
 			);
 			const env = mesh(new THREE.PlaneGeometry(0.28, 0.18), "#FFF8E6", { side: THREE.DoubleSide });
+			env.userData.dyn = true;
 			g.add(env);
 			anims.push((tm) => {
 				const u = (tm * 0.4) % 1;
@@ -2404,7 +2409,135 @@ function buildTruck(i, mode) {
 		roof.forEach((o) => o.parent && o.parent.remove(o));
 		g.userData.mount = mount;
 	}
+	mergeTruck(g);
 	return g;
+}
+/* fewer draw calls: inside every group, the static meshes that share a material become one mesh (a truck drops from
+   50-70 meshes to about 15, and the shadow pass with it). Meshes with userData (dyn: moved or toggled on their own)
+   stay as they are, and so do moving groups (they merge inside). Wheels keep only the spoke turning: tyre, hub and cap
+   look the same at any angle, so they join the static body. */
+function mergeTruck(g) {
+	g.updateMatrixWorld(true);
+	(g.userData.wheels || []).forEach(({ g: wg }) =>
+		wg.children.slice(0, 3).forEach((m) => {
+			m.applyMatrix4(wg.matrix);
+			g.add(m);
+		}),
+	);
+	mergeMeshes(g);
+}
+/* the merge itself, for anything bolted onto a truck later too (Dump Run's tipper bed). Plain parts (no paint, glow,
+   transparency or texture) move their colour into the vertex colours and share one white material per finish, so all
+   the trim, chrome, tyres and lamps of a group become one mesh; the shader multiplies colour and vertex colour either
+   way, so they look the same. */
+var NEUTRAL_MAT = {};
+function neutralMat(m) {
+	if (!m.isMeshStandardMaterial || m.transparent || m.map || m.userData.paint !== undefined || m.emissive.getHex())
+		return null;
+	const rf = m.userData.refl,
+		k = [m.roughness, m.metalness, m.side, m.flatShading, rf].join();
+	if (!NEUTRAL_MAT[k]) {
+		const q = new THREE.MeshStandardMaterial({
+			color: "#FFFFFF",
+			vertexColors: true,
+			flatShading: m.flatShading,
+			roughness: m.roughness,
+			metalness: m.metalness,
+			side: m.side,
+		});
+		if (rf !== undefined) q.userData.refl = rf;
+		NEUTRAL_MAT[k] = q;
+	}
+	return NEUTRAL_MAT[k];
+}
+function mergeMeshes(g) {
+	const hosts = [];
+	g.traverse((o) => {
+		if (!o.isMesh) hosts.push(o);
+	});
+	hosts.forEach((h) => {
+		const sets = new Map();
+		h.children.forEach((m) => {
+			if (!m.isMesh || m.isInstancedMesh || m.visible === false || Array.isArray(m.material)) return;
+			if (Object.keys(m.userData).length || m.children.length) return;
+			const mat = neutralMat(m.material) || m.material,
+				k = mat.uuid + (m.castShadow ? 1 : 0) + (m.receiveShadow ? 1 : 0) + "|" + m.renderOrder;
+			if (!sets.has(k)) sets.set(k, { mat, L: [] });
+			sets.get(k).L.push(m);
+		});
+		sets.forEach(({ mat, L }) => {
+			if (L.length < 2) return;
+			const mm = new THREE.Mesh(
+				mergeGeo(
+					L.map((m) => {
+						m.updateMatrix();
+						return { m, mx: m.matrix };
+					}),
+					mat,
+				),
+				mat,
+			);
+			L.forEach((m) => h.remove(m));
+			mm.castShadow = L[0].castShadow;
+			mm.receiveShadow = L[0].receiveShadow;
+			mm.renderOrder = L[0].renderOrder;
+			h.add(mm);
+		});
+	});
+}
+/* one geometry from many meshes [{m, mx}] (mx = each mesh's matrix into the merged space), for material mat. A part that
+   moves onto a white neutral material carries its own colour into the vertex colours; uv comes along for textured
+   materials; mirrored parts (negative scale) get their triangles turned back round so they don't vanish. */
+function mergeGeo(items, mat) {
+	const v = new THREE.Vector3(),
+		nm = new THREE.Matrix3(),
+		geos = items.map(({ m }) => (m.geometry.index ? m.geometry.toNonIndexed() : m.geometry)),
+		n = geos.reduce((s, ge) => s + ge.attributes.position.count, 0),
+		P = new Float32Array(n * 3),
+		N = new Float32Array(n * 3),
+		C = mat.vertexColors ? new Float32Array(n * 3).fill(1) : null,
+		UV = mat.map ? new Float32Array(n * 2) : null;
+	let off = 0;
+	items.forEach(({ m, mx }, mi) => {
+		const a = geos[mi].attributes,
+			tint = mat !== m.material ? m.material.color : null,
+			vc = m.material.vertexColors && a.color,
+			flip = mx.determinant() < 0;
+		nm.getNormalMatrix(mx);
+		for (let i = 0; i < a.position.count; i++) {
+			/* mirrored: write each triangle's 2nd and 3rd corner swapped */
+			const k = flip && i % 3 ? i + (i % 3 === 1 ? 1 : -1) : i,
+				j = (off + k) * 3;
+			v.fromBufferAttribute(a.position, i).applyMatrix4(mx);
+			P[j] = v.x;
+			P[j + 1] = v.y;
+			P[j + 2] = v.z;
+			if (a.normal) v.fromBufferAttribute(a.normal, i).applyMatrix3(nm).normalize();
+			else v.set(0, 1, 0);
+			N[j] = v.x;
+			N[j + 1] = v.y;
+			N[j + 2] = v.z;
+			if (C) {
+				const r = vc ? a.color.getX(i) : 1,
+					gg = vc ? a.color.getY(i) : 1,
+					bb = vc ? a.color.getZ(i) : 1;
+				C[j] = tint ? r * tint.r : r;
+				C[j + 1] = tint ? gg * tint.g : gg;
+				C[j + 2] = tint ? bb * tint.b : bb;
+			}
+			if (UV && a.uv) {
+				UV[(off + k) * 2] = a.uv.getX(i);
+				UV[(off + k) * 2 + 1] = a.uv.getY(i);
+			}
+		}
+		off += a.position.count;
+	});
+	const geo = new THREE.BufferGeometry();
+	geo.setAttribute("position", new THREE.BufferAttribute(P, 3));
+	geo.setAttribute("normal", new THREE.BufferAttribute(N, 3));
+	if (C) geo.setAttribute("color", new THREE.BufferAttribute(C, 3));
+	if (UV) geo.setAttribute("uv", new THREE.BufferAttribute(UV, 2));
+	return geo;
 }
 function animTruck(tr, dt, speed = 0) {
 	const u = tr && tr.userData;
@@ -11617,8 +11750,97 @@ function start3D(mg, p, localOnly, startAt, split) {
 		s.add(e.g);
 	});
 	W.me = tv ? W.list.find((e) => e.rem) || W.list[0] : W.ents[p.key];
+	mergeScene(W);
 	setMode("mg");
 	GFX.mgCam = null;
+}
+/* fewer draw calls: static scenery merges per material into one mesh per 32 m cell (so off-screen chunks are still
+   culled). Static = nothing in W or the game's def points at the mesh or any parent, no userData on it or a parent, opaque,
+   visible, no children. Plain materials go onto shared white ones (neutralMat, parttruck). def.noMerge opts a game out.
+   MERGE_TEST (set by tools/run.mjs) keeps the originals, hidden, and mergeReport() lists any the game moved, showed or
+   recoloured anyway: those were not static after all (give them userData or a W reference). */
+var MERGE_TEST = null;
+function mergeScene(W) {
+	if (W.def.noMerge) return;
+	const s = W.sc,
+		refs = new Set(),
+		mats = new Set(),
+		seen = new Set();
+	const scan = (o, d) => {
+		if (!o || typeof o !== "object" || seen.has(o) || d > 8) return;
+		seen.add(o);
+		if (o.isObject3D) return refs.add(o);
+		if (o.isMaterial) return mats.add(o);
+		if (o.isBufferGeometry || o.isTexture || ArrayBuffer.isView(o) || o === GFX) return;
+		for (const k in o)
+			try {
+				scan(o[k], d + 1);
+			} catch (e) {}
+	};
+	for (const k in W) if (k !== "sc" && k !== "cam") scan(W[k], 0);
+	scan(W.def, 0);
+	s.updateMatrixWorld(true);
+	const base = THREE.Object3D.prototype.onBeforeRender,
+		free = (o) => {
+			for (let q = o; q && q !== s; q = q.parent)
+				if (refs.has(q) || q.visible === false || Object.keys(q.userData).length) return false;
+			return true;
+		},
+		sets = new Map(),
+		c = new THREE.Vector3();
+	s.traverse((o) => {
+		if (!o.isMesh || o.isInstancedMesh || o.isSkinnedMesh || o.children.length || Array.isArray(o.material)) return;
+		const m = o.material,
+			ge = o.geometry;
+		if (m.transparent || m.depthWrite === false || !ge.attributes.position || ge.morphAttributes.position) return;
+		if (ge.drawRange.count !== Infinity || (m.map && !ge.attributes.uv)) return;
+		if (o.frustumCulled === false || o.layers.mask !== 1 || o.onBeforeRender !== base || !free(o)) return;
+		if (!ge.boundingSphere) ge.computeBoundingSphere();
+		c.copy(ge.boundingSphere.center).applyMatrix4(o.matrixWorld);
+		const tm = (!mats.has(m) && neutralMat(m)) || m,
+			k = [tm.uuid, o.castShadow, o.receiveShadow, o.renderOrder, Math.floor(c.x / 32), Math.floor(c.z / 32)].join();
+		if (!sets.has(k)) sets.set(k, { tm, L: [] });
+		sets.get(k).L.push(o);
+	});
+	const test = MERGE_TEST && (MERGE_TEST.orig = []);
+	if (test) MERGE_TEST.merged = [];
+	sets.forEach(({ tm, L }) => {
+		if (L.length < 2) return;
+		const mm = new THREE.Mesh(
+			mergeGeo(
+				L.map((o) => ({ m: o, mx: o.matrixWorld })),
+				tm,
+			),
+			tm,
+		);
+		mm.castShadow = L[0].castShadow;
+		mm.receiveShadow = L[0].receiveShadow;
+		mm.renderOrder = L[0].renderOrder;
+		if (test) MERGE_TEST.merged = (MERGE_TEST.merged || []).concat(mm);
+		s.add(mm);
+		L.forEach((o) => {
+			if (test) {
+				test.push({ o, mx: o.matrixWorld.clone(), col: o.material.color.getHex(), mat: o.material });
+				o.visible = false;
+			} else o.parent.remove(o);
+		});
+	});
+}
+function mergeReport() {
+	if (!MERGE_TEST || !MERGE_TEST.orig || !W) return [];
+	W.sc.updateMatrixWorld(true);
+	return MERGE_TEST.orig
+		.filter(
+			(q) =>
+				q.o.visible !== false ||
+				!q.o.matrixWorld.equals(q.mx) ||
+				q.o.material !== q.mat ||
+				q.o.material.color.getHex() !== q.col,
+		)
+		.map((q) => {
+			const p = new THREE.Vector3().setFromMatrixPosition(q.mx);
+			return `${q.o.geometry.type} #${q.mat.color.getHexString()} at ${p.x.toFixed(1)},${p.y.toFixed(1)},${p.z.toFixed(1)}: ${q.o.visible !== false ? "shown " : ""}${!q.o.matrixWorld.equals(q.mx) ? "moved " : ""}${q.o.material !== q.mat ? "material swapped " : q.o.material.color.getHex() !== q.col ? "recoloured" : ""}`;
+		});
 }
 function stop3D() {
 	if (TVS) {
@@ -12093,9 +12315,6 @@ const POSTJS = [
 	"postprocessing/SSAOPass.js",
 	"shaders/HorizontalTiltShiftShader.js",
 	"shaders/VerticalTiltShiftShader.js",
-	"shaders/VignetteShader.js",
-	"shaders/HueSaturationShader.js",
-	"shaders/BrightnessContrastShader.js",
 	"shaders/FXAAShader.js",
 ];
 GFX.fx = {
@@ -12215,20 +12434,52 @@ function buildPost(scene, cam) {
 			hp.needsUpdate = true;
 		}
 	}
-	const col = new THREE.ShaderPass(THREE.HueSaturationShader),
-		bc = new THREE.ShaderPass(THREE.BrightnessContrastShader);
-	comp.addPass(col);
-	comp.addPass(bc);
 	const th = new THREE.ShaderPass(THREE.HorizontalTiltShiftShader),
 		tv = new THREE.ShaderPass(THREE.VerticalTiltShiftShader);
 	comp.addPass(th);
 	comp.addPass(tv);
-	const vig = new THREE.ShaderPass(THREE.VignetteShader);
-	comp.addPass(vig);
-	const aa = new THREE.ShaderPass(THREE.FXAAShader);
-	aa.uniforms.resolution.value.set(1 / (w * pr), 1 / (h * pr));
-	comp.addPass(aa);
-	return { comp, scene, cam, w, h, ao, bloom, col, bc, th, tv, vig, aa };
+	const fin = new THREE.ShaderPass(finalShader());
+	fin.uniforms.resolution.value.set(1 / (w * pr), 1 / (h * pr));
+	comp.addPass(fin);
+	return { comp, scene, cam, w, h, ao, bloom, th, tv, fin };
+}
+/* the last pass does FXAA, saturation / contrast and the vignette in one go (four full-screen passes were a lot of
+   pixels on a phone). Grading and vignette are per pixel, so doing them after FXAA and the tilt blur looks the same. */
+function finalShader() {
+	const F = THREE.FXAAShader,
+		main = F.fragmentShader.lastIndexOf("void main()");
+	return {
+		uniforms: {
+			tDiffuse: { value: null },
+			resolution: { value: new THREE.Vector2() },
+			uAA: { value: 1 },
+			uCol: { value: 0 },
+			saturation: { value: 0 },
+			contrast: { value: 0 },
+			uVig: { value: 0 },
+			darkness: { value: 0 },
+		},
+		vertexShader: F.vertexShader,
+		fragmentShader:
+			F.fragmentShader.slice(0, main) +
+			`uniform float uAA, uCol, saturation, contrast, uVig, darkness;
+void main() {
+	vec4 c = texture2D( tDiffuse, vUv );
+	if ( uAA > 0.5 ) c.rgb = FxaaPixelShader( vUv, vec4( 0.0 ), tDiffuse, tDiffuse, tDiffuse, resolution, vec4( 0.0 ), vec4( 0.0 ), vec4( 0.0 ), 0.75, 0.166, 0.0833, 0.0, 0.0, 0.0, vec4( 0.0 ) ).rgb;
+	if ( uCol > 0.5 ) {
+		float average = ( c.r + c.g + c.b ) / 3.0;
+		if ( saturation > 0.0 ) c.rgb += ( average - c.rgb ) * ( 1.0 - 1.0 / ( 1.001 - saturation ) );
+		else c.rgb += ( average - c.rgb ) * ( -saturation );
+		if ( contrast > 0.0 ) c.rgb = ( c.rgb - 0.5 ) / ( 1.0 - contrast ) + 0.5;
+		else c.rgb = ( c.rgb - 0.5 ) * ( 1.0 + contrast ) + 0.5;
+	}
+	if ( uVig > 0.5 ) {
+		vec2 uv = vUv - vec2( 0.5 );
+		c.rgb = mix( c.rgb, vec3( 1.0 - darkness ), dot( uv, uv ) );
+	}
+	gl_FragColor = c;
+}`,
+	};
 }
 function renderMG(scene, cam) {
 	const F = GFX.fx;
@@ -12262,18 +12513,20 @@ function renderMG(scene, cam) {
 	P.bloom.enabled = F.bloom.on;
 	P.bloom.strength = F.bloom.v * 0.7;
 	P.bloom.threshold = F.bloom.th;
-	P.col.enabled = P.bc.enabled = F.col.on;
-	P.col.uniforms.saturation.value = F.col.sat;
-	P.bc.uniforms.contrast.value = F.col.con;
-	P.bc.uniforms.brightness.value = 0;
 	P.th.enabled = P.tv.enabled = F.tilt.on;
 	P.th.uniforms.h.value = (F.tilt.v * 3) / P.w;
 	P.tv.uniforms.v.value = (F.tilt.v * 3) / P.h;
 	P.th.uniforms.r.value = P.tv.uniforms.r.value = 0.5;
-	P.vig.enabled = F.vig.on;
-	P.vig.uniforms.offset.value = 1;
-	P.vig.uniforms.darkness.value = F.vig.v * 1.8;
-	P.aa.enabled = F.aa.on;
+	{
+		const u = P.fin.uniforms;
+		P.fin.enabled = F.aa.on || F.col.on || F.vig.on;
+		u.uAA.value = F.aa.on ? 1 : 0;
+		u.uCol.value = F.col.on ? 1 : 0;
+		u.saturation.value = F.col.sat;
+		u.contrast.value = F.col.con;
+		u.uVig.value = F.vig.on ? 1 : 0;
+		u.darkness.value = F.vig.v * 1.8;
+	}
 	P.comp.render();
 }
 function wireLightPanel() {
@@ -18276,10 +18529,11 @@ const MG = {
 							x.fillRect(0, 0, w, h);
 						}),
 						transparent: true,
-						opacity: 0.16,
+						opacity: 0.27,
 						blending: THREE.AdditiveBlending,
 						depthWrite: false,
-						side: THREE.DoubleSide,
+						/* outside only (both sides drew every beam pixel twice: slow on phones), a bit stronger instead */
+						side: THREE.FrontSide,
 						fog: false,
 					}),
 				);
@@ -18289,7 +18543,7 @@ const MG = {
 					new THREE.Vector3(-1 - hx, -hy, -10 - hz).normalize(),
 				);
 				beam.castShadow = false;
-				beam.userData.base = 0.16;
+				beam.userData.base = 0.27;
 				W.lampFx = [beam];
 				s.add(beam);
 			}
@@ -18304,10 +18558,37 @@ const MG = {
 					B(0.3, 0.04, 0.16, "#FFF4D6", 1.75, 2.49, fz + 0.12, warm),
 					Cy(0.11, 0.13, 0.2, 8, "#FF9A1F", 2.75, 3.14, -1.0, { emissive: "#FF8A1F", emissiveIntensity: 2 }),
 				);
+				/* its light is faked (a real point light costs every lit pixel on screen, phones dropped below 60 fps):
+				   a warm glow on the wall round the lamp and a pool on the ground in front of the door */
+				const pool = new THREE.MeshBasicMaterial({
+						map: canvasTex(64, 64, (x, w, h) => {
+							const gr = x.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2);
+							gr.addColorStop(0, "rgba(255,201,138,0.9)");
+							gr.addColorStop(0.45, "rgba(255,201,138,0.35)");
+							gr.addColorStop(1, "rgba(255,201,138,0)");
+							x.fillStyle = gr;
+							x.fillRect(0, 0, w, h);
+						}),
+						transparent: true,
+						opacity: 0.3,
+						blending: THREE.AdditiveBlending,
+						depthWrite: false,
+						polygonOffset: true,
+						polygonOffsetFactor: -2,
+						polygonOffsetUnits: -4,
+					}),
+					wall = pool.clone(),
+					wg = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 2.2), wall),
+					gp = new THREE.Mesh(new THREE.PlaneGeometry(4.6, 4.6).rotateX(-Math.PI / 2), pool);
+				pool.userData.base = 0.3;
+				wall.opacity = wall.userData.base = 0.22;
+				/* just in front of the door frame (z 1.24), so the door gets lit too */
+				wg.position.set(1.75, 2.2, fz + 0.13);
+				gp.position.set(1.75, 0.04, fz + 1.4);
+				wg.renderOrder = gp.renderOrder = 2;
+				og.add(wg, gp);
 				s.add(og);
-				const pl = add(new THREE.PointLight(lin("#FFC98A"), 1.2, 9, 1), 1.2);
-				og.updateMatrixWorld(true);
-				pl.position.copy(og.localToWorld(new THREE.Vector3(1.75, 2.2, fz + 0.9)));
+				W.lampFx.push({ material: pool, userData: pool.userData }, { material: wall, userData: wall.userData });
 			}
 			{
 				/* bollards along both sides of the lanes, each with a soft warm pool on the ground */
@@ -18747,7 +19028,9 @@ const MG = {
 			dirt.position.x = 0.87;
 			pv.add(dirt);
 			const ram = Cy(0.07, 0.07, 1, 8, "#C9CED8", hx + 1.3, 0, 0, { metalness: 0.4, roughness: 0.35 });
+			ram.userData.dyn = true;
 			tr.add(ram);
+			mergeMeshes(tr);
 			e.bed = pv;
 			e.dirt = dirt;
 			e.ram = ram;
@@ -25615,10 +25898,13 @@ function bakeKit(g) {
 		m4 = new THREE.Matrix4(),
 		nm = new THREE.Matrix3(),
 		v = new THREE.Vector3();
+	/* plain materials share a white one per finish with their colour in the vertex colours (neutralMat, parttruck): a kit
+	   needs a few materials instead of 10-15, and placeKits one InstancedMesh (draw call) per material */
 	g.traverse((o) => {
 		if (!o.isMesh || o.visible === false) return;
-		if (!groups.has(o.material)) groups.set(o.material, []);
-		groups.get(o.material).push(o);
+		const mt = neutralMat(o.material) || o.material;
+		if (!groups.has(mt)) groups.set(mt, []);
+		groups.get(mt).push(o);
 	});
 	const out = [];
 	groups.forEach((parts, mat) => {
@@ -25631,7 +25917,9 @@ function bakeKit(g) {
 			UV = mat.map ? new Float32Array(n * 2) : null;
 		let off = 0;
 		parts.forEach((m, pi) => {
-			const a = geos[pi].attributes;
+			const a = geos[pi].attributes,
+				tint = mat !== m.material ? m.material.color : null,
+				vc = a.color && (!tint || m.material.vertexColors);
 			m4.multiplyMatrices(inv, m.matrixWorld);
 			nm.getNormalMatrix(m4);
 			for (let i = 0; i < a.position.count; i++) {
@@ -25644,10 +25932,15 @@ function bakeKit(g) {
 				N[j] = v.x;
 				N[j + 1] = v.y;
 				N[j + 2] = v.z;
-				if (a.color) {
+				if (vc) {
 					C[j] = a.color.getX(i);
 					C[j + 1] = a.color.getY(i);
 					C[j + 2] = a.color.getZ(i);
+				}
+				if (tint) {
+					C[j] *= tint.r;
+					C[j + 1] *= tint.g;
+					C[j + 2] *= tint.b;
 				}
 				if (UV && a.uv) {
 					UV[(off + i) * 2] = a.uv.getX(i);
