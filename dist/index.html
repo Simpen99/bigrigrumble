@@ -25607,8 +25607,9 @@ function autoTrkStep(W, dt) {
 }
 /* ---------- detailed reusable props ----------
    Build a model once as a normal group (as much detail as it deserves), bakeKit() merges it into one geometry per
-   material, placeKits() stamps out any number of copies with one InstancedMesh per material: detail costs almost nothing. */
-function bakeKit(g) {
+   material, placeKits() stamps out any number of copies with one InstancedMesh per material: detail costs almost nothing.
+   opt: {ao: false} skips the baked ambient occlusion, {ground: false} for kits that don't stand on anything. */
+function bakeKit(g, opt = {}) {
 	g.updateMatrixWorld(true);
 	const inv = g.matrixWorld.clone().invert(),
 		groups = new Map(),
@@ -25663,6 +25664,7 @@ function bakeKit(g) {
 		if (UV) geo.setAttribute("uv", new THREE.BufferAttribute(UV, 2));
 		out.push({ geo, mat });
 	});
+	if (KIT_AO.on && KIT_AO.k > 0 && opt.ao !== false) bakeAO(out, opt.ground !== false);
 	/* footprint for the contact shadow: x/z extent of the main mass (above 30% of the height, so aprons, yards and fences don't count) */
 	let y0 = 1e9,
 		y1 = -1e9;
@@ -25682,6 +25684,306 @@ function bakeKit(g) {
 	});
 	if (!bb.isEmpty()) out.foot = { x0: bb.min.x, x1: bb.max.x, z0: bb.min.z, z1: bb.max.z, y0 };
 	return out;
+}
+/* ---------- baked ambient occlusion: per vertex, computed once in bakeKit, free at draw time ----------
+   From each vertex n rays go out over the hemisphere round its normal; hits on the kit itself (or the ground it stands
+   on) within r metres darken the vertex colour, nearer hits more. An edge is split where the shade changes along it (its
+   midpoint differs from its ends by more than thr) or where it is longer than max, so eaves, creases and contact lines
+   get a soft dark band while flat open areas stay a few big triangles. k = strength (0 = off).
+   The bake runs in a background worker, so a game's scene shows at once and the shading lands a moment later (during
+   the ready screen); where workers fail it runs right away. */
+var KIT_AO = { on: true, k: 0.6, r: 0.7, n: 16, max: 6, min: 0.2, thr: 0.1, thin: 0.25 },
+	AO_W = { id: 0, cb: {} };
+function bakeAO(out, ground) {
+	const G = out.map(({ geo, mat }) => {
+			const a = geo.attributes;
+			return {
+				P: a.position.array,
+				N: a.normal.array,
+				C: a.color.array,
+				U: a.uv ? a.uv.array : null,
+				vc: !!mat.vertexColors,
+				clear: !!(mat.transparent && mat.opacity < 0.7),
+			};
+		}),
+		job = { G, ground, A: Object.assign({}, KIT_AO) };
+	job.done = (r) =>
+		r.forEach((g, i) => {
+			if (!g) return;
+			const geo = out[i].geo;
+			/* frees the old GPU buffers; the next frame uploads the new ones */
+			geo.dispose();
+			geo.setAttribute("position", new THREE.BufferAttribute(g.P, 3));
+			geo.setAttribute("normal", new THREE.BufferAttribute(g.N, 3));
+			geo.setAttribute("color", new THREE.BufferAttribute(g.C, 3));
+			if (g.U) geo.setAttribute("uv", new THREE.BufferAttribute(g.U, 2));
+		});
+	const sync = (j) => j.done(aoCompute(j.G, j.ground, j.A));
+	if (AO_W.w === undefined)
+		try {
+			const src =
+				aoCompute.toString() +
+				";\nonmessage = (e) => { const r = aoCompute(e.data.G, e.data.ground, e.data.A); postMessage({ id: e.data.id, r }, r.filter(Boolean).flatMap((g) => [g.P.buffer, g.N.buffer, g.C.buffer].concat(g.U ? [g.U.buffer] : []))); };";
+			AO_W.w = new Worker(URL.createObjectURL(new Blob([src], { type: "text/javascript" })));
+			AO_W.w.onmessage = (e) => {
+				const j = AO_W.cb[e.data.id];
+				delete AO_W.cb[e.data.id];
+				if (j) j.done(e.data.r);
+			};
+			AO_W.w.onerror = () => {
+				AO_W.w = null;
+				const L = Object.values(AO_W.cb);
+				AO_W.cb = {};
+				L.forEach(sync);
+			};
+		} catch (e) {
+			AO_W.w = null;
+		}
+	if (!AO_W.w) return sync(job);
+	const id = ++AO_W.id;
+	AO_W.cb[id] = job;
+	/* structured clone copies the arrays: the kit keeps drawing from the originals meanwhile */
+	AO_W.w.postMessage({ id, G, ground, A: job.A });
+}
+/* pure (no THREE, no globals) so it also runs in the worker. G: [{P, N, C, U, vc, clear}] per material; returns the
+   split, shaded arrays per material (null where the material has no vertex colours) */
+function aoCompute(G, ground, A) {
+	const R = A.r,
+		occ = [];
+	/* occluders: every opaque triangle (glass and other see-through parts let the light through) */
+	let gy = 1e9;
+	G.forEach(({ P, clear }) => {
+		for (let i = 1; i < P.length; i += 3) gy = Math.min(gy, P[i]);
+		if (!clear) for (let i = 0; i < P.length; i++) occ.push(P[i]);
+	});
+	gy = Math.max(0, gy);
+	/* per triangle: corner a, edges e1 e2, plane normal e1 x e2 (unnormalised), bounding box */
+	const nT = occ.length / 9,
+		T = new Float32Array(nT * 18),
+		lo = [1e9, 1e9, 1e9];
+	for (let t = 0; t < nT; t++) {
+		const q = t * 9,
+			w = t * 18;
+		for (let c = 0; c < 3; c++) {
+			const v0 = occ[q + c],
+				v1 = occ[q + 3 + c],
+				v2 = occ[q + 6 + c];
+			T[w + c] = v0;
+			T[w + 3 + c] = v1 - v0;
+			T[w + 6 + c] = v2 - v0;
+			T[w + 12 + c] = Math.min(v0, v1, v2);
+			T[w + 15 + c] = Math.max(v0, v1, v2);
+			lo[c] = Math.min(lo[c], T[w + 12 + c]);
+		}
+		T[w + 9] = T[w + 4] * T[w + 8] - T[w + 5] * T[w + 7];
+		T[w + 10] = T[w + 5] * T[w + 6] - T[w + 3] * T[w + 8];
+		T[w + 11] = T[w + 3] * T[w + 7] - T[w + 4] * T[w + 6];
+	}
+	/* uniform grid with r-sized cells: a lookup only touches the 2-3 cells per axis round the vertex */
+	let hi = [-1e9, -1e9, -1e9];
+	for (let t = 0; t < nT; t++) for (let c = 0; c < 3; c++) hi[c] = Math.max(hi[c], T[t * 18 + 15 + c]);
+	const GD = hi.map((h, c) => Math.floor((h - lo[c]) / R) + 3),
+		cell = (v, c) => Math.min(GD[c] - 1, Math.max(0, Math.floor((v - lo[c]) / R) + 1)),
+		key = (i, j, k) => (i * GD[1] + j) * GD[2] + k,
+		/* compressed lists: cell c holds triangles L[S[c]] .. L[S[c + 1] - 1] */
+		S = new Int32Array(GD[0] * GD[1] * GD[2] + 1),
+		each = (t, fn) => {
+			const w = t * 18;
+			for (let i = cell(T[w + 12], 0); i <= cell(T[w + 15], 0); i++)
+				for (let j = cell(T[w + 13], 1); j <= cell(T[w + 16], 1); j++)
+					for (let k = cell(T[w + 14], 2); k <= cell(T[w + 17], 2); k++) fn(key(i, j, k));
+		};
+	for (let t = 0; t < nT; t++) each(t, (c) => S[c + 1]++);
+	for (let c = 1; c < S.length; c++) S[c] += S[c - 1];
+	const L = new Int32Array(S[S.length - 1]),
+		fill = S.slice();
+	for (let t = 0; t < nT; t++) each(t, (c) => (L[fill[c]++] = t));
+	/* fixed cosine-weighted ray set (points spread evenly on a disc, lifted onto the hemisphere), so neighbours shade alike */
+	const D = [];
+	for (let i = 0; i < A.n; i++) {
+		const u = (i + 0.5) / A.n,
+			s = Math.sqrt(u),
+			ph = i * 2.399963;
+		D.push(s * Math.cos(ph), s * Math.sin(ph), Math.sqrt(1 - u));
+	}
+	const stamp = new Int32Array(nT),
+		cT = new Int32Array(nT),
+		cS = new Float64Array(nT),
+		cache = new Map(),
+		R2 = R * R;
+	let st = 0;
+	const shade = (p, n) => {
+		const ck = `${Math.round(p[0] * 1e4)},${Math.round(p[1] * 1e4)},${Math.round(p[2] * 1e4)},${Math.round(n[0] * 100)},${Math.round(n[1] * 100)},${Math.round(n[2] * 100)}`;
+		if (cache.has(ck)) return cache.get(ck);
+		const [nx, ny, nz] = n,
+			ox = p[0] + nx * 0.004,
+			oy = p[1] + ny * 0.004,
+			oz = p[2] + nz * 0.004;
+		st++;
+		let nc = 0;
+		for (let i = cell(ox - R, 0); i <= cell(ox + R, 0); i++)
+			for (let j = cell(oy - R, 1); j <= cell(oy + R, 1); j++)
+				for (let k = cell(oz - R, 2); k <= cell(oz + R, 2); k++) {
+					const c = key(i, j, k);
+					for (let m = S[c]; m < S[c + 1]; m++) {
+						const t = L[m];
+						if (stamp[t] === st) continue;
+						stamp[t] = st;
+						const w = t * 18,
+							/* box further than r away */
+							gx = Math.max(T[w + 12] - ox, 0, ox - T[w + 15]),
+							gy2 = Math.max(T[w + 13] - oy, 0, oy - T[w + 16]),
+							gz = Math.max(T[w + 14] - oz, 0, oz - T[w + 17]);
+						if (gx * gx + gy2 * gy2 + gz * gz > R2) continue;
+						/* wholly behind the vertex */
+						const d0 = (T[w] - ox) * nx + (T[w + 1] - oy) * ny + (T[w + 2] - oz) * nz,
+							d1 = d0 + T[w + 3] * nx + T[w + 4] * ny + T[w + 5] * nz,
+							d2 = d0 + T[w + 6] * nx + T[w + 7] * ny + T[w + 8] * nz;
+						if (d0 <= 0 && d1 <= 0 && d2 <= 0) continue;
+						cT[nc] = t;
+						/* signed plane distance (times |plane normal|) for the cheap per-ray test */
+						cS[nc++] = (T[w] - ox) * T[w + 9] + (T[w + 1] - oy) * T[w + 10] + (T[w + 2] - oz) * T[w + 11];
+					}
+				}
+		/* tangent basis round the normal */
+		let tx, ty, tz;
+		if (Math.abs(nx) < 0.9) [tx, ty, tz] = [0, -nz, ny];
+		else [tx, ty, tz] = [nz, 0, -nx];
+		const tl = Math.hypot(tx, ty, tz);
+		tx /= tl;
+		ty /= tl;
+		tz /= tl;
+		const bx = ny * tz - nz * ty,
+			by = nz * tx - nx * tz,
+			bz = nx * ty - ny * tx;
+		let occl = 0;
+		for (let r = 0; r < D.length; r += 3) {
+			const dx = tx * D[r] + bx * D[r + 1] + nx * D[r + 2],
+				dy = ty * D[r] + by * D[r + 1] + ny * D[r + 2],
+				dz = tz * D[r] + bz * D[r + 1] + nz * D[r + 2];
+			let best = R;
+			if (ground && dy < -1e-4) {
+				const tg = (gy - oy) / dy;
+				if (tg >= 0 && tg < best) best = tg;
+			}
+			for (let c = 0; c < nc; c++) {
+				const w = cT[c] * 18,
+					dn = dx * T[w + 9] + dy * T[w + 10] + dz * T[w + 11];
+				if (dn === 0) continue;
+				/* where the ray meets the triangle's plane: behind, or further than the nearest hit so far */
+				const h = cS[c] / dn;
+				if (h <= 1e-4 || h >= best) continue;
+				/* inside the triangle? barycentric coordinates of the hit point */
+				const sx = ox + dx * h - T[w],
+					sy = oy + dy * h - T[w + 1],
+					sz = oz + dz * h - T[w + 2],
+					e1x = T[w + 3],
+					e1y = T[w + 4],
+					e1z = T[w + 5],
+					e2x = T[w + 6],
+					e2y = T[w + 7],
+					e2z = T[w + 8],
+					n2 = T[w + 9] * T[w + 9] + T[w + 10] * T[w + 10] + T[w + 11] * T[w + 11],
+					u =
+						((sy * e2z - sz * e2y) * T[w + 9] + (sz * e2x - sx * e2z) * T[w + 10] + (sx * e2y - sy * e2x) * T[w + 11]) /
+						n2;
+				if (u < 0 || u > 1) continue;
+				const v =
+					((e1y * sz - e1z * sy) * T[w + 9] + (e1z * sx - e1x * sz) * T[w + 10] + (e1x * sy - e1y * sx) * T[w + 11]) /
+					n2;
+				if (v < 0 || u + v > 1) continue;
+				best = h;
+			}
+			if (best < R) occl += 1 - best / R;
+		}
+		const ao = 1 - occl / (D.length / 3);
+		cache.set(ck, ao);
+		return ao;
+	};
+	return G.map(({ P, N, C, U, vc }) => {
+		/* materials without vertex colours can't show it (they still block light for the others) */
+		if (!vc) return null;
+		const oP = [],
+			oN = [],
+			oC = [],
+			oU = [];
+		const vert = (i) => {
+			const v = {
+				p: [P[i * 3], P[i * 3 + 1], P[i * 3 + 2]],
+				n: [N[i * 3], N[i * 3 + 1], N[i * 3 + 2]],
+				c: [C[i * 3], C[i * 3 + 1], C[i * 3 + 2]],
+				u: U && [U[i * 2], U[i * 2 + 1]],
+			};
+			v.ao = shade(v.p, v.n);
+			return v;
+		};
+		const avg = (a, b) => a.map((x, i) => (x + b[i]) / 2);
+		/* the midpoint of edge a-b if it should be split, else null (decided by the edge alone, so both triangles on it agree) */
+		const cut = (a, b) => {
+			const L = Math.hypot(a.p[0] - b.p[0], a.p[1] - b.p[1], a.p[2] - b.p[2]);
+			if (L < A.min * 2) return null;
+			const n = avg(a.n, b.n),
+				nl = Math.hypot(...n) || 1,
+				m = { p: avg(a.p, b.p), n: n.map((x) => x / nl), c: avg(a.c, b.c), u: a.u && avg(a.u, b.u) };
+			m.ao = shade(m.p, m.n);
+			return L > A.max || Math.abs(m.ao - (a.ao + b.ao) / 2) > A.thr ? m : null;
+		};
+		const emit = (v) => {
+			const f = 1 - A.k * (1 - v.ao);
+			oP.push(...v.p);
+			oN.push(...v.n);
+			oC.push(v.c[0] * f, v.c[1] * f, v.c[2] * f);
+			if (U) oU.push(...v.u);
+		};
+		/* thin triangles (trim, strips, slivers) already have their vertices where the shade changes: never split them */
+		const thick = (a, b, c) => {
+			const e = [
+					[b.p, a.p],
+					[c.p, a.p],
+				].map(([x, y]) => x.map((v, i) => v - y[i])),
+				cr = Math.hypot(
+					e[0][1] * e[1][2] - e[0][2] * e[1][1],
+					e[0][2] * e[1][0] - e[0][0] * e[1][2],
+					e[0][0] * e[1][1] - e[0][1] * e[1][0],
+				),
+				L = Math.max(...[a, b, c].map((v, i, V) => Math.hypot(...v.p.map((x, j) => x - V[(i + 1) % 3].p[j]))));
+			return cr / L > A.thin;
+		};
+		const tri = (a, b, c, dep) => {
+			const m = dep < 9 && thick(a, b, c) ? [cut(a, b), cut(b, c), cut(c, a)] : [null, null, null],
+				s = m.filter(Boolean).length,
+				V = [a, b, c];
+			if (!s) [a, b, c].forEach(emit);
+			else if (s === 3) {
+				tri(a, m[0], m[2], dep + 1);
+				tri(m[0], b, m[1], dep + 1);
+				tri(m[2], m[1], c, dep + 1);
+				tri(m[0], m[1], m[2], dep + 1);
+			} else if (s === 1) {
+				const e = m.findIndex(Boolean);
+				tri(V[e], m[e], V[(e + 2) % 3], dep + 1);
+				tri(m[e], V[(e + 1) % 3], V[(e + 2) % 3], dep + 1);
+			} else {
+				/* edge e unsplit; e+1 and e+2 split */
+				const e = m.findIndex((x) => !x),
+					a0 = V[e],
+					b0 = V[(e + 1) % 3],
+					c0 = V[(e + 2) % 3],
+					mbc = m[(e + 1) % 3],
+					mca = m[(e + 2) % 3];
+				tri(mca, mbc, c0, dep + 1);
+				tri(a0, b0, mbc, dep + 1);
+				tri(a0, mbc, mca, dep + 1);
+			}
+		};
+		for (let i = 0; i < P.length / 3; i += 3) tri(vert(i), vert(i + 1), vert(i + 2), 0);
+		return {
+			P: new Float32Array(oP),
+			N: new Float32Array(oN),
+			C: new Float32Array(oC),
+			U: U && new Float32Array(oU),
+		};
+	});
 }
 /* ---------- contact shadows: a soft dark footprint under props so they sit on the ground instead of looking pasted in.
    9-slice quad: the dark core is the footprint, the fade runs m metres outward (same width whatever the prop's size). */
