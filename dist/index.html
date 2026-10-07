@@ -11793,7 +11793,7 @@ function mergeScene(W) {
 		const m = o.material,
 			ge = o.geometry;
 		if (m.transparent || m.depthWrite === false || !ge.attributes.position || ge.morphAttributes.position) return;
-		if (ge.drawRange.count !== Infinity || (m.map && !ge.attributes.uv)) return;
+		if (ge.drawRange.count !== Infinity || (m.map && !ge.attributes.uv) || ge.userData.aoPending) return;
 		if (o.frustumCulled === false || o.layers.mask !== 1 || o.onBeforeRender !== base || !free(o)) return;
 		if (!ge.boundingSphere) ge.computeBoundingSphere();
 		c.copy(ge.boundingSphere.center).applyMatrix4(o.matrixWorld);
@@ -12112,6 +12112,7 @@ function enterMg(mg, p) {
 	trNonce = mg.nonce;
 	mgBusy = true;
 	const c = trClouds();
+	prebakeKits(mg);
 	document.body.classList.add("trout");
 	GFX.rise = performance.now();
 	c.classList.add("on");
@@ -12127,6 +12128,17 @@ function enterMg(mg, p) {
 		}, 150);
 		setTimeout(() => document.body.classList.remove("trin"), 1300);
 	}, 1300);
+}
+/* bake the coming game's props now: the AO worker runs during the clouds and start3D finds the results cached */
+function prebakeKits(mg) {
+	const def = MG[mg.g];
+	if (!def || !def.kits) return;
+	/* a frame later, so the clouds and the camera rise get going first */
+	setTimeout(() => {
+		try {
+			def.kits((mg.part || G.players).length);
+		} catch (e) {}
+	}, 30);
 }
 function trClouds() {
 	let c = document.getElementById("trc");
@@ -14566,6 +14578,15 @@ const MG = {
 		MUD: -2.2,
 		how: "Ram everyone off the stage into the mud. The stage shrinks! Last truck standing wins.",
 		R: (t) => (t < 20 ? 11 : Math.max(5, 11 - (t - 20) * 0.15)),
+		/* baked props, also called by enterMg while the clouds cover the switch so their AO is ready by the start (partmodels) */
+		kits() {
+			return [
+				["sedan", "#2F7DE1"],
+				["hatch", "#8E96A3"],
+				["van", "#1FA35C"],
+				["pickup", "#FF8A1F"],
+			].map(([t, c]) => bakeKit(crushedCarModel(t, c)));
+		},
 		build(W) {
 			const g = new THREE.Group();
 			g.add(Cy(11, 11.4, 1.4, 40, "#8A6A48", 0, -0.7, 0), Cy(10.4, 11.4, 2.2, 40, "#6B4F35", 0, -1.3, 0));
@@ -14742,17 +14763,7 @@ const MG = {
 				W.jets.push({ x, z, t: 1 + i * 1.7 });
 			}
 			/* crushed cars piled beside the fire jets */
-			placeKits(
-				s,
-				[
-					["sedan", "#2F7DE1"],
-					["hatch", "#8E96A3"],
-					["van", "#1FA35C"],
-					["pickup", "#FF8A1F"],
-				].map(([t, c]) => bakeKit(crushedCarModel(t, c))),
-				wreck,
-				0,
-			);
+			placeKits(s, this.kits(), wreck, 0);
 			W.wob = { x: 0, z: 0, y: 0, vx: 0, vz: 0, vy: 0 };
 			W.bub = [];
 			for (let i = 0; i < 9; i++) {
@@ -15074,6 +15085,36 @@ const MG = {
 			[11, 6.35],
 			[-11, 6.35],
 		],
+		PLAZA: [
+			[6.1, "#E6D8BE", 0],
+			[5.5, "#B8C4D6", 1],
+			[3.9, "#E8B4A0", 3],
+			[3.3, "#C9D6B8", 4],
+			[0.15, "#D9C3A5", 6],
+			[2.99, "#E6D8BE", 7],
+		],
+		shopKit(k) {
+			const [, c, si] = this.PLAZA[k];
+			return bakeKit(
+				buildingModel({
+					w: 8,
+					d: 6,
+					floors: 2 + (k % 2),
+					style: ["brick", "plain", "apt"][k % 3],
+					wall: c,
+					shop: SHOPS[si],
+					roofBits: k,
+				}),
+			);
+		},
+		FIRECOL: ["#8E96A3", "#6FA8D6", "#C9A27A"],
+		/* baked props, also called by enterMg while the clouds cover the switch so their AO is ready by the start (partmodels) */
+		kits() {
+			/* every prop kind in every colour: which ones burn comes from the seed */
+			this.PLAZA.forEach((_, k) => this.shopKit(k));
+			bakeKit(fireStationModel());
+			[0, 1, 2].forEach((kind) => this.FIRECOL.forEach((c) => bakeKit(firePropModel(kind, c))));
+		},
 		build(W) {
 			const s = W.sc;
 			this.square(W);
@@ -15106,7 +15147,7 @@ const MG = {
 				f.g = g;
 				/* what is burning: garden shed, news kiosk or a parked car (detailed baked models with a contact shadow) */
 				const ck = f.kind === 2 ? 2 + (f.id % 3) : f.kind,
-					kit = kits[ck] || (kits[ck] = bakeKit(firePropModel(f.kind, ["#8E96A3", "#6FA8D6", "#C9A27A"][f.id % 3])));
+					kit = kits[ck] || (kits[ck] = bakeKit(firePropModel(f.kind, MG.hill.FIRECOL[f.id % 3])));
 				g.add(kitGroup(kit));
 				g.rotation.y = (f.id * 2.4) % 6.28;
 				/* where flames come out of this prop (roof, window, hatch, bonnet), in world space */
@@ -15410,29 +15451,10 @@ const MG = {
 				s.add(contactShadow(0.8, 0.8, 0.3, x, z, 0.08));
 			});
 			/* shops around the plaza (detailed buildings, partmodels) and Blaze's fire station with a truck in the open bay */
-			[
-				[6.1, "#E6D8BE", 0],
-				[5.5, "#B8C4D6", 1],
-				[3.9, "#E8B4A0", 3],
-				[3.3, "#C9D6B8", 4],
-				[0.15, "#D9C3A5", 6],
-				[2.99, "#E6D8BE", 7],
-			].forEach(([a, c, si], k) =>
+			MG.hill.PLAZA.forEach(([a], k) =>
 				placeKits(
 					s,
-					[
-						bakeKit(
-							buildingModel({
-								w: 8,
-								d: 6,
-								floors: 2 + (k % 2),
-								style: ["brick", "plain", "apt"][k % 3],
-								wall: c,
-								shop: SHOPS[si],
-								roofBits: k,
-							}),
-						),
-					],
+					[MG.hill.shopKit(k)],
 					[{ k: 0, x: Math.cos(a) * 26.6, z: Math.sin(a) * 26.6, ry: -a - Math.PI / 2 }],
 				),
 			);
@@ -15772,6 +15794,15 @@ const MG = {
 		sun: [13.9, 26, 12.1],
 		fx: { col: 0.14 },
 		how: "Slabs crack and sink after you drive on them. Keep moving and RAM to hop gaps. Last one up wins.",
+		/* baked props, also called by enterMg while the clouds cover the switch so their AO is ready by the start (partmodels) */
+		kits() {
+			return [
+				towerCraneModel(30, 26),
+				siteCabinModel(),
+				siteCabinModel("#FFC83D", "#5A6272", "MIXIE CO."),
+				lightTowerModel(),
+			].map((m) => bakeKit(m));
+		},
 		build(W) {
 			const S = 1.35,
 				cols = ["#E2DDD2", "#D5D0C4", "#EAE6DC", "#CCC7BA"];
@@ -15943,13 +15974,14 @@ const MG = {
 				for (let k = 0; k < 5; k++)
 					s.add(B(0.6, 0.25, 0.9, "#E8E4DA", x - 0.32 + (k % 2) * 0.64, 0.82 + Math.floor(k / 2) * 0.26, z));
 			});
+			const K = MG.tiles.kits();
 			[
-				[towerCraneModel(30, 26), -25, -25, Math.PI / 4],
-				[siteCabinModel(), 27, -2, -Math.PI / 2],
-				[siteCabinModel("#FFC83D", "#5A6272", "MIXIE CO."), 2, -27, 0],
-				[lightTowerModel(), -27, 2, Math.PI / 2],
-			].forEach(([m, x, z, ry]) => {
-				const k = kitGroup(bakeKit(m));
+				[K[0], -25, -25, Math.PI / 4],
+				[K[1], 27, -2, -Math.PI / 2],
+				[K[2], 2, -27, 0],
+				[K[3], -27, 2, Math.PI / 2],
+			].forEach(([kit, x, z, ry]) => {
+				const k = kitGroup(kit);
 				k.position.set(x, 0.5, z);
 				k.rotation.y = ry;
 				s.add(k);
@@ -17197,6 +17229,16 @@ const MG = {
 				b.g.add(b.lab);
 			}
 		},
+		/* baked props, also called by enterMg while the clouds cover the switch so their AO is ready by the start (partmodels) */
+		kits() {
+			buildingKits(8.4, 7.8);
+			containerKits(["#2F7DE1", "#E5484D", "#1FA35C", "#FFC83D", "#8E5BE0"]);
+			bakeKit(
+				buildingModel({ w: 10, d: 8, floors: 3, style: "office", wall: "#E4E7EB", trim: "#F4F6F9", roofBits: 1 }),
+			);
+			CAR_TYPES.forEach((t, i) => bakeKit(carModel(t, ["#E5484D", "#2F7DE1", "#F4F6F9", "#3A3F48"][i])));
+			bakeKit(gatehouseModel("#FF7A1A"));
+		},
 		build(W) {
 			this.yard(W);
 			W.items = []; /* tuned in the light panel: ambient .40, sun .86, height 26, angle 41, warmth .44, haze 50 */
@@ -17860,6 +17902,8 @@ const MG = {
 		LEN: 110,
 		how: "Hold to drive on green, let go before red or the lorry gets you. First to the finish wins.",
 		tapHint: "Hold the pedal (or Space) to drive.",
+		/* baked props, also called by enterMg while the clouds cover the switch so their AO is ready by the start (partmodels) */
+		kits: () => buildingKits(8.6, 8),
 		build(W) {
 			const s = W.sc,
 				wid = laneWorld(W, this.LEN + 20, { noTrees: true });
@@ -18048,7 +18092,7 @@ const MG = {
 					);
 			});
 			/* shops below, flats and offices above: 8 detailed variants, one InstancedMesh per material */
-			placeKits(s, buildingKits(8.6, 8), blocks);
+			placeKits(s, MG.light.kits(), blocks);
 		},
 		light(W, t) {
 			const c = W.cyc.find((c) => t < c.r) || W.cyc[W.cyc.length - 1];
@@ -18260,6 +18304,12 @@ const MG = {
 		MAXL: 6,
 		how: "Wait for a big load, reverse to the edge and brake as close as you dare. Don't fall in!",
 		tapHint: "Tap GO when loaded, BRAKE near the edge.",
+		/* baked props, also called by enterMg while the clouds cover the switch so their AO is ready by the start (partmodels) */
+		kits() {
+			bakeKit(siteCabinModel());
+			bakeKit(lightTowerModel());
+			excavatorModel();
+		},
 		build(W) {
 			const s = W.sc,
 				n = W.plist.length,
@@ -19085,6 +19135,13 @@ const MG = {
 			return (l - (this.LANES - 1) / 2) * this.LW;
 		},
 		speed: (t) => 12 + Math.max(0, t) * 0.2,
+		CARCOL: ["#E5484D", "#2F7DE1", "#1FA35C", "#8E5BE0", "#F4F6F9", "#FFC83D", "#16B3C9"],
+		/* baked props, also called by enterMg while the clouds cover the switch so their AO is ready by the start (partmodels) */
+		kits() {
+			/* traffic comes from the seed: every car type in every colour */
+			CAR_TYPES.forEach((t) => this.CARCOL.forEach((c) => bakeKit(carModel(t, c))));
+			houseKits();
+		},
 		build(W) {
 			const s = W.sc,
 				wid = this.LANES * this.LW;
@@ -19093,7 +19150,7 @@ const MG = {
 			W.cars = [];
 			W.holes = [];
 			W.parcels = [];
-			const CC = ["#E5484D", "#2F7DE1", "#1FA35C", "#8E5BE0", "#F4F6F9", "#FFC83D", "#16B3C9"];
+			const CC = MG.hop.CARCOL;
 			for (let z = -34; z > -1000; z -= 9 + W.rng() * 7) {
 				const lanes = [0, 1, 2, 3].sort(() => W.rng() - 0.5),
 					nc = W.rng() < 0.35 ? 2 : 1;
@@ -19541,6 +19598,16 @@ const MG = {
 		tapLabel: "DROP",
 		tapHint: "Tap to drop the crate onto your stack.",
 		how: "Drop 10 crates onto your truck. Centre each one on the crate below: overhang too far and it tips off, lean the stack and it topples.",
+		CC: ["#E5484D", "#2F7DE1", "#FF8A1F", "#1FA35C", "#FFC83D", "#8E96A3", "#1FB5A8", "#B5622F"],
+		/* baked props, also called by enterMg while the clouds cover the switch so their AO is ready by the start (partmodels) */
+		kits(n) {
+			bakeKit(rtgModel(n * 4.6 + 2));
+			bakeKit(trolleyModel());
+			crateKits();
+			containerKits(this.CC, 0);
+			containerKits(this.CC, 1);
+			bakeKit(shipModel());
+		},
 		build(W) {
 			/* wide lanes: a swinging crate reaches 1.85 m from the lane centre, so neighbours can't overlap */
 			const wid = laneWorld(W, 30, { noTrees: true, lw: 4.6 }),
@@ -19590,7 +19657,7 @@ const MG = {
 		port(W, wid) {
 			// container terminal: quay, container stacks, a docked cargo ship, quay cranes and the sea
 			const s = W.sc,
-				CC = ["#E5484D", "#2F7DE1", "#FF8A1F", "#1FA35C", "#FFC83D", "#8E96A3", "#1FB5A8", "#B5622F"],
+				CC = MG.crane.CC,
 				rc = () => Math.floor(W.rng() * CC.length);
 			s.add(texBox(260, 0.4, 70, concreteTex(), 8, 0, -0.2, -2));
 			roadWear(s, -60, 60, 30, -34, 0.002, 0.5);
@@ -25890,8 +25957,9 @@ function autoTrkStep(W, dt) {
 }
 /* ---------- detailed reusable props ----------
    Build a model once as a normal group (as much detail as it deserves), bakeKit() merges it into one geometry per
-   material, placeKits() stamps out any number of copies with one InstancedMesh per material: detail costs almost nothing. */
-function bakeKit(g) {
+   material, placeKits() stamps out any number of copies with one InstancedMesh per material: detail costs almost nothing.
+   opt: {ao: false} skips the baked ambient occlusion, {ground: false} for kits that don't stand on anything. */
+function bakeKit(g, opt = {}) {
 	g.updateMatrixWorld(true);
 	const inv = g.matrixWorld.clone().invert(),
 		groups = new Map(),
@@ -25956,6 +26024,7 @@ function bakeKit(g) {
 		if (UV) geo.setAttribute("uv", new THREE.BufferAttribute(UV, 2));
 		out.push({ geo, mat });
 	});
+	if (KIT_AO.on && KIT_AO.k > 0 && opt.ao !== false) bakeAO(out, opt.ground !== false);
 	/* footprint for the contact shadow: x/z extent of the main mass (above 30% of the height, so aprons, yards and fences don't count) */
 	let y0 = 1e9,
 		y1 = -1e9;
@@ -25975,6 +26044,333 @@ function bakeKit(g) {
 	});
 	if (!bb.isEmpty()) out.foot = { x0: bb.min.x, x1: bb.max.x, z0: bb.min.z, z1: bb.max.z, y0 };
 	return out;
+}
+/* ---------- baked ambient occlusion: per vertex, computed once in bakeKit, free at draw time ----------
+   From each vertex n rays go out over the hemisphere round its normal; hits on the kit itself (or the ground it stands
+   on) within r metres darken the vertex colour, nearer hits more. An edge is split where the shade changes along it (its
+   midpoint differs from its ends by more than thr) or where it is longer than max, so eaves, creases and contact lines
+   get a soft dark band while flat open areas stay a few big triangles. k = strength (0 = off).
+   The bake runs in a background worker, so a game's scene shows at once; where workers fail it runs right away.
+   Results are kept by geometry (AO_C), so a kit baked before shades instantly: enterMg calls the game's def.kits()
+   while the clouds cover the switch, so the worker is done (or nearly) by the time the scene is built. */
+var KIT_AO = { on: true, k: 0.6, r: 0.7, n: 16, max: 6, min: 0.2, thr: 0.1, thin: 0.25 },
+	AO_W = { id: 0, cb: {} },
+	AO_C = new Map();
+/* FNV-1a over the positions and normals (as raw bits) plus the settings */
+function aoHash(G, ground, A) {
+	let h = 2166136261;
+	const mix = (x) => (h = Math.imul(h ^ x, 16777619));
+	G.forEach(({ P, N, vc, clear }) => {
+		[P, N].forEach((a) => new Uint32Array(a.buffer, a.byteOffset, a.length).forEach(mix));
+		mix(vc ? 7 : 3);
+		mix(clear ? 5 : 11);
+	});
+	return h + "|" + G.length + "|" + ground + JSON.stringify(A);
+}
+function bakeAO(out, ground) {
+	const G = out.map(({ geo, mat }) => {
+			const a = geo.attributes;
+			return {
+				P: a.position.array,
+				N: a.normal.array,
+				C: a.color.array,
+				U: a.uv ? a.uv.array : null,
+				vc: !!mat.vertexColors,
+				clear: !!(mat.transparent && mat.opacity < 0.7),
+			};
+		}),
+		job = { G, ground, A: Object.assign({}, KIT_AO) },
+		apply = (r) =>
+			r.forEach((g, i) => {
+				const geo = out[i].geo;
+				delete geo.userData.aoPending;
+				if (!g) return;
+				/* frees the old GPU buffers; the next frame uploads the new ones */
+				geo.dispose();
+				geo.setAttribute("position", new THREE.BufferAttribute(g.P, 3));
+				geo.setAttribute("normal", new THREE.BufferAttribute(g.N, 3));
+				geo.setAttribute("color", new THREE.BufferAttribute(g.C, 3));
+				if (g.U) geo.setAttribute("uv", new THREE.BufferAttribute(g.U, 2));
+			});
+	const key = aoHash(G, ground, job.A),
+		hit = AO_C.get(key);
+	if (hit && hit.r) return apply(hit.r);
+	/* until it lands, mergeScene leaves these geometries alone (a merged copy would never get the shading) */
+	out.forEach(({ geo }) => (geo.userData.aoPending = true));
+	if (hit) return hit.wait.push(apply);
+	const entry = { r: null, wait: [apply] };
+	AO_C.set(key, entry);
+	job.done = (r) => {
+		entry.r = r;
+		entry.wait.forEach((f) => f(r));
+		entry.wait = [];
+	};
+	const sync = (j) => j.done(aoCompute(j.G, j.ground, j.A));
+	if (AO_W.w === undefined)
+		try {
+			const src =
+				aoCompute.toString() +
+				";\nonmessage = (e) => { const r = aoCompute(e.data.G, e.data.ground, e.data.A); postMessage({ id: e.data.id, r }, r.filter(Boolean).flatMap((g) => [g.P.buffer, g.N.buffer, g.C.buffer].concat(g.U ? [g.U.buffer] : []))); };";
+			AO_W.w = new Worker(URL.createObjectURL(new Blob([src], { type: "text/javascript" })));
+			AO_W.w.onmessage = (e) => {
+				const j = AO_W.cb[e.data.id];
+				delete AO_W.cb[e.data.id];
+				if (j) j.done(e.data.r);
+			};
+			AO_W.w.onerror = () => {
+				AO_W.w = null;
+				const L = Object.values(AO_W.cb);
+				AO_W.cb = {};
+				L.forEach(sync);
+			};
+		} catch (e) {
+			AO_W.w = null;
+		}
+	if (!AO_W.w) return sync(job);
+	const id = ++AO_W.id;
+	AO_W.cb[id] = job;
+	/* structured clone copies the arrays: the kit keeps drawing from the originals meanwhile */
+	AO_W.w.postMessage({ id, G, ground, A: job.A });
+}
+/* pure (no THREE, no globals) so it also runs in the worker. G: [{P, N, C, U, vc, clear}] per material; returns the
+   split, shaded arrays per material (null where the material has no vertex colours) */
+function aoCompute(G, ground, A) {
+	const R = A.r,
+		occ = [];
+	/* occluders: every opaque triangle (glass and other see-through parts let the light through) */
+	let gy = 1e9;
+	G.forEach(({ P, clear }) => {
+		for (let i = 1; i < P.length; i += 3) gy = Math.min(gy, P[i]);
+		if (!clear) for (let i = 0; i < P.length; i++) occ.push(P[i]);
+	});
+	gy = Math.max(0, gy);
+	/* per triangle: corner a, edges e1 e2, plane normal e1 x e2 (unnormalised), bounding box */
+	const nT = occ.length / 9,
+		T = new Float32Array(nT * 18),
+		lo = [1e9, 1e9, 1e9];
+	for (let t = 0; t < nT; t++) {
+		const q = t * 9,
+			w = t * 18;
+		for (let c = 0; c < 3; c++) {
+			const v0 = occ[q + c],
+				v1 = occ[q + 3 + c],
+				v2 = occ[q + 6 + c];
+			T[w + c] = v0;
+			T[w + 3 + c] = v1 - v0;
+			T[w + 6 + c] = v2 - v0;
+			T[w + 12 + c] = Math.min(v0, v1, v2);
+			T[w + 15 + c] = Math.max(v0, v1, v2);
+			lo[c] = Math.min(lo[c], T[w + 12 + c]);
+		}
+		T[w + 9] = T[w + 4] * T[w + 8] - T[w + 5] * T[w + 7];
+		T[w + 10] = T[w + 5] * T[w + 6] - T[w + 3] * T[w + 8];
+		T[w + 11] = T[w + 3] * T[w + 7] - T[w + 4] * T[w + 6];
+	}
+	/* uniform grid with r-sized cells: a lookup only touches the 2-3 cells per axis round the vertex */
+	let hi = [-1e9, -1e9, -1e9];
+	for (let t = 0; t < nT; t++) for (let c = 0; c < 3; c++) hi[c] = Math.max(hi[c], T[t * 18 + 15 + c]);
+	const GD = hi.map((h, c) => Math.floor((h - lo[c]) / R) + 3),
+		cell = (v, c) => Math.min(GD[c] - 1, Math.max(0, Math.floor((v - lo[c]) / R) + 1)),
+		key = (i, j, k) => (i * GD[1] + j) * GD[2] + k,
+		/* compressed lists: cell c holds triangles L[S[c]] .. L[S[c + 1] - 1] */
+		S = new Int32Array(GD[0] * GD[1] * GD[2] + 1),
+		each = (t, fn) => {
+			const w = t * 18;
+			for (let i = cell(T[w + 12], 0); i <= cell(T[w + 15], 0); i++)
+				for (let j = cell(T[w + 13], 1); j <= cell(T[w + 16], 1); j++)
+					for (let k = cell(T[w + 14], 2); k <= cell(T[w + 17], 2); k++) fn(key(i, j, k));
+		};
+	for (let t = 0; t < nT; t++) each(t, (c) => S[c + 1]++);
+	for (let c = 1; c < S.length; c++) S[c] += S[c - 1];
+	const L = new Int32Array(S[S.length - 1]),
+		fill = S.slice();
+	for (let t = 0; t < nT; t++) each(t, (c) => (L[fill[c]++] = t));
+	/* fixed cosine-weighted ray set (points spread evenly on a disc, lifted onto the hemisphere), so neighbours shade alike */
+	const D = [];
+	for (let i = 0; i < A.n; i++) {
+		const u = (i + 0.5) / A.n,
+			s = Math.sqrt(u),
+			ph = i * 2.399963;
+		D.push(s * Math.cos(ph), s * Math.sin(ph), Math.sqrt(1 - u));
+	}
+	const stamp = new Int32Array(nT),
+		cT = new Int32Array(nT),
+		cS = new Float64Array(nT),
+		cache = new Map(),
+		R2 = R * R;
+	let st = 0;
+	const shade = (p, n) => {
+		const ck = `${Math.round(p[0] * 1e4)},${Math.round(p[1] * 1e4)},${Math.round(p[2] * 1e4)},${Math.round(n[0] * 100)},${Math.round(n[1] * 100)},${Math.round(n[2] * 100)}`;
+		if (cache.has(ck)) return cache.get(ck);
+		const [nx, ny, nz] = n,
+			ox = p[0] + nx * 0.004,
+			oy = p[1] + ny * 0.004,
+			oz = p[2] + nz * 0.004;
+		st++;
+		let nc = 0;
+		for (let i = cell(ox - R, 0); i <= cell(ox + R, 0); i++)
+			for (let j = cell(oy - R, 1); j <= cell(oy + R, 1); j++)
+				for (let k = cell(oz - R, 2); k <= cell(oz + R, 2); k++) {
+					const c = key(i, j, k);
+					for (let m = S[c]; m < S[c + 1]; m++) {
+						const t = L[m];
+						if (stamp[t] === st) continue;
+						stamp[t] = st;
+						const w = t * 18,
+							/* box further than r away */
+							gx = Math.max(T[w + 12] - ox, 0, ox - T[w + 15]),
+							gy2 = Math.max(T[w + 13] - oy, 0, oy - T[w + 16]),
+							gz = Math.max(T[w + 14] - oz, 0, oz - T[w + 17]);
+						if (gx * gx + gy2 * gy2 + gz * gz > R2) continue;
+						/* wholly behind the vertex */
+						const d0 = (T[w] - ox) * nx + (T[w + 1] - oy) * ny + (T[w + 2] - oz) * nz,
+							d1 = d0 + T[w + 3] * nx + T[w + 4] * ny + T[w + 5] * nz,
+							d2 = d0 + T[w + 6] * nx + T[w + 7] * ny + T[w + 8] * nz;
+						if (d0 <= 0 && d1 <= 0 && d2 <= 0) continue;
+						cT[nc] = t;
+						/* signed plane distance (times |plane normal|) for the cheap per-ray test */
+						cS[nc++] = (T[w] - ox) * T[w + 9] + (T[w + 1] - oy) * T[w + 10] + (T[w + 2] - oz) * T[w + 11];
+					}
+				}
+		/* tangent basis round the normal */
+		let tx, ty, tz;
+		if (Math.abs(nx) < 0.9) [tx, ty, tz] = [0, -nz, ny];
+		else [tx, ty, tz] = [nz, 0, -nx];
+		const tl = Math.hypot(tx, ty, tz);
+		tx /= tl;
+		ty /= tl;
+		tz /= tl;
+		const bx = ny * tz - nz * ty,
+			by = nz * tx - nx * tz,
+			bz = nx * ty - ny * tx;
+		let occl = 0;
+		for (let r = 0; r < D.length; r += 3) {
+			const dx = tx * D[r] + bx * D[r + 1] + nx * D[r + 2],
+				dy = ty * D[r] + by * D[r + 1] + ny * D[r + 2],
+				dz = tz * D[r] + bz * D[r + 1] + nz * D[r + 2];
+			let best = R;
+			if (ground && dy < -1e-4) {
+				const tg = (gy - oy) / dy;
+				if (tg >= 0 && tg < best) best = tg;
+			}
+			for (let c = 0; c < nc; c++) {
+				const w = cT[c] * 18,
+					dn = dx * T[w + 9] + dy * T[w + 10] + dz * T[w + 11];
+				if (dn === 0) continue;
+				/* where the ray meets the triangle's plane: behind, or further than the nearest hit so far */
+				const h = cS[c] / dn;
+				if (h <= 1e-4 || h >= best) continue;
+				/* inside the triangle? barycentric coordinates of the hit point */
+				const sx = ox + dx * h - T[w],
+					sy = oy + dy * h - T[w + 1],
+					sz = oz + dz * h - T[w + 2],
+					e1x = T[w + 3],
+					e1y = T[w + 4],
+					e1z = T[w + 5],
+					e2x = T[w + 6],
+					e2y = T[w + 7],
+					e2z = T[w + 8],
+					n2 = T[w + 9] * T[w + 9] + T[w + 10] * T[w + 10] + T[w + 11] * T[w + 11],
+					u =
+						((sy * e2z - sz * e2y) * T[w + 9] + (sz * e2x - sx * e2z) * T[w + 10] + (sx * e2y - sy * e2x) * T[w + 11]) /
+						n2;
+				if (u < 0 || u > 1) continue;
+				const v =
+					((e1y * sz - e1z * sy) * T[w + 9] + (e1z * sx - e1x * sz) * T[w + 10] + (e1x * sy - e1y * sx) * T[w + 11]) /
+					n2;
+				if (v < 0 || u + v > 1) continue;
+				best = h;
+			}
+			if (best < R) occl += 1 - best / R;
+		}
+		const ao = 1 - occl / (D.length / 3);
+		cache.set(ck, ao);
+		return ao;
+	};
+	return G.map(({ P, N, C, U, vc }) => {
+		/* materials without vertex colours can't show it (they still block light for the others) */
+		if (!vc) return null;
+		const oP = [],
+			oN = [],
+			oC = [],
+			oU = [];
+		const vert = (i) => {
+			const v = {
+				p: [P[i * 3], P[i * 3 + 1], P[i * 3 + 2]],
+				n: [N[i * 3], N[i * 3 + 1], N[i * 3 + 2]],
+				c: [C[i * 3], C[i * 3 + 1], C[i * 3 + 2]],
+				u: U && [U[i * 2], U[i * 2 + 1]],
+			};
+			v.ao = shade(v.p, v.n);
+			return v;
+		};
+		const avg = (a, b) => a.map((x, i) => (x + b[i]) / 2);
+		/* the midpoint of edge a-b if it should be split, else null (decided by the edge alone, so both triangles on it agree) */
+		const cut = (a, b) => {
+			const L = Math.hypot(a.p[0] - b.p[0], a.p[1] - b.p[1], a.p[2] - b.p[2]);
+			if (L < A.min * 2) return null;
+			const n = avg(a.n, b.n),
+				nl = Math.hypot(...n) || 1,
+				m = { p: avg(a.p, b.p), n: n.map((x) => x / nl), c: avg(a.c, b.c), u: a.u && avg(a.u, b.u) };
+			m.ao = shade(m.p, m.n);
+			return L > A.max || Math.abs(m.ao - (a.ao + b.ao) / 2) > A.thr ? m : null;
+		};
+		const emit = (v) => {
+			const f = 1 - A.k * (1 - v.ao);
+			oP.push(...v.p);
+			oN.push(...v.n);
+			oC.push(v.c[0] * f, v.c[1] * f, v.c[2] * f);
+			if (U) oU.push(...v.u);
+		};
+		/* thin triangles (trim, strips, slivers) already have their vertices where the shade changes: never split them */
+		const thick = (a, b, c) => {
+			const e = [
+					[b.p, a.p],
+					[c.p, a.p],
+				].map(([x, y]) => x.map((v, i) => v - y[i])),
+				cr = Math.hypot(
+					e[0][1] * e[1][2] - e[0][2] * e[1][1],
+					e[0][2] * e[1][0] - e[0][0] * e[1][2],
+					e[0][0] * e[1][1] - e[0][1] * e[1][0],
+				),
+				L = Math.max(...[a, b, c].map((v, i, V) => Math.hypot(...v.p.map((x, j) => x - V[(i + 1) % 3].p[j]))));
+			return cr / L > A.thin;
+		};
+		const tri = (a, b, c, dep) => {
+			const m = dep < 9 && thick(a, b, c) ? [cut(a, b), cut(b, c), cut(c, a)] : [null, null, null],
+				s = m.filter(Boolean).length,
+				V = [a, b, c];
+			if (!s) [a, b, c].forEach(emit);
+			else if (s === 3) {
+				tri(a, m[0], m[2], dep + 1);
+				tri(m[0], b, m[1], dep + 1);
+				tri(m[2], m[1], c, dep + 1);
+				tri(m[0], m[1], m[2], dep + 1);
+			} else if (s === 1) {
+				const e = m.findIndex(Boolean);
+				tri(V[e], m[e], V[(e + 2) % 3], dep + 1);
+				tri(m[e], V[(e + 1) % 3], V[(e + 2) % 3], dep + 1);
+			} else {
+				/* edge e unsplit; e+1 and e+2 split */
+				const e = m.findIndex((x) => !x),
+					a0 = V[e],
+					b0 = V[(e + 1) % 3],
+					c0 = V[(e + 2) % 3],
+					mbc = m[(e + 1) % 3],
+					mca = m[(e + 2) % 3];
+				tri(mca, mbc, c0, dep + 1);
+				tri(a0, b0, mbc, dep + 1);
+				tri(a0, mbc, mca, dep + 1);
+			}
+		};
+		for (let i = 0; i < P.length / 3; i += 3) tri(vert(i), vert(i + 1), vert(i + 2), 0);
+		return {
+			P: new Float32Array(oP),
+			N: new Float32Array(oN),
+			C: new Float32Array(oC),
+			U: U && new Float32Array(oU),
+		};
+	});
 }
 /* ---------- contact shadows: a soft dark footprint under props so they sit on the ground instead of looking pasted in.
    9-slice quad: the dark core is the footprint, the fade runs m metres outward (same width whatever the prop's size). */

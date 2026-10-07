@@ -16,7 +16,8 @@
 - Trial on Cone Smash, Dump Run, Sort It Out via `def.look` (sRGB + ACES, cool fill, RoomEnvironment reflections, emissive-only bloom). Roll out to the other games, the board and the showroom once approved.
 - Night games later: 2-4 point / spot lights without shadows (street lamps, headlights, site floodlights) plus fake light cones
   (additive transparent cones, `depthWrite:false`) and emissive lamp heads so the bloom picks them up. No extra shadow-casting lights (phones).
-- Ambient occlusion: SSAO is too heavy for phones; if wanted, try a cheap baked per-vertex AO in `bakeKit` instead.
+- Ambient occlusion: baked per-vertex AO in `bakeKit` (`KIT_AO`) is in. Only props built as kits get it; board pieces and
+  minigame-only meshes (not baked) don't yet.
 
 ## Performance (phones)
 - Perf panel in practice mode: switches for the floodlight / lamps, beams, bloom, shadows, sprites and resolution, plus live
