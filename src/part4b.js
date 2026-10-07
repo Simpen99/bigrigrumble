@@ -4458,21 +4458,26 @@ const MG = {
 				const hx = wid / 2 + 5.5,
 					hy = 8.6,
 					hz = -9.5,
-					sp = add(new THREE.SpotLight(lin("#FFE6B8"), 3, 42, 0.62, 0.65, 1), 3);
+					sp = add(
+						new THREE.SpotLight(lin("#FFE6B8"), 3, 55, 1.0, 0.45, 1),
+						3,
+					); /* wide: the tower stands close to the lanes, so the near ends are 58 degrees off its aim */
 				sp.position.set(hx, hy, hz);
 				sp.target.position.set(-1, 0, -10);
 				s.add(sp.target);
-				const len = 16,
-					cone = new THREE.ConeGeometry(Math.tan(0.5) * len, len, 24, 1, true);
+				/* the beam fades out before its open end, so it never stops with an edge in mid-air */
+				const len = 20,
+					cone = new THREE.ConeGeometry(Math.tan(0.55) * len, len, 24, 1, true);
 				cone.translate(0, -len / 2, 0);
 				const beam = new THREE.Mesh(
 					cone,
 					new THREE.MeshBasicMaterial({
 						map: canvasTex(8, 64, (x, w, h) => {
 							const gr = x.createLinearGradient(0, 0, 0, h);
-							gr.addColorStop(0, "rgba(255,226,170,0)");
-							gr.addColorStop(0.75, "rgba(255,226,170,0.5)");
-							gr.addColorStop(1, "rgba(255,236,200,1)");
+							gr.addColorStop(0, "rgba(255,236,200,1)");
+							gr.addColorStop(0.3, "rgba(255,226,170,0.55)");
+							gr.addColorStop(0.75, "rgba(255,226,170,0.12)");
+							gr.addColorStop(1, "rgba(255,226,170,0)");
 							x.fillStyle = gr;
 							x.fillRect(0, 0, w, h);
 						}),
