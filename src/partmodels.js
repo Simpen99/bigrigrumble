@@ -83,10 +83,23 @@ function bakeKit(g, opt = {}) {
    on) within r metres darken the vertex colour, nearer hits more. An edge is split where the shade changes along it (its
    midpoint differs from its ends by more than thr) or where it is longer than max, so eaves, creases and contact lines
    get a soft dark band while flat open areas stay a few big triangles. k = strength (0 = off).
-   The bake runs in a background worker, so a game's scene shows at once and the shading lands a moment later (during
-   the ready screen); where workers fail it runs right away. */
+   The bake runs in a background worker, so a game's scene shows at once; where workers fail it runs right away.
+   Results are kept by geometry (AO_C), so a kit baked before shades instantly: enterMg calls the game's def.kits()
+   while the clouds cover the switch, so the worker is done (or nearly) by the time the scene is built. */
 var KIT_AO = { on: true, k: 0.6, r: 0.7, n: 16, max: 6, min: 0.2, thr: 0.1, thin: 0.25 },
-	AO_W = { id: 0, cb: {} };
+	AO_W = { id: 0, cb: {} },
+	AO_C = new Map();
+/* FNV-1a over the positions and normals (as raw bits) plus the settings */
+function aoHash(G, ground, A) {
+	let h = 2166136261;
+	const mix = (x) => (h = Math.imul(h ^ x, 16777619));
+	G.forEach(({ P, N, vc, clear }) => {
+		[P, N].forEach((a) => new Uint32Array(a.buffer, a.byteOffset, a.length).forEach(mix));
+		mix(vc ? 7 : 3);
+		mix(clear ? 5 : 11);
+	});
+	return h + "|" + G.length + "|" + ground + JSON.stringify(A);
+}
 function bakeAO(out, ground) {
 	const G = out.map(({ geo, mat }) => {
 			const a = geo.attributes;
@@ -99,18 +112,32 @@ function bakeAO(out, ground) {
 				clear: !!(mat.transparent && mat.opacity < 0.7),
 			};
 		}),
-		job = { G, ground, A: Object.assign({}, KIT_AO) };
-	job.done = (r) =>
-		r.forEach((g, i) => {
-			if (!g) return;
-			const geo = out[i].geo;
-			/* frees the old GPU buffers; the next frame uploads the new ones */
-			geo.dispose();
-			geo.setAttribute("position", new THREE.BufferAttribute(g.P, 3));
-			geo.setAttribute("normal", new THREE.BufferAttribute(g.N, 3));
-			geo.setAttribute("color", new THREE.BufferAttribute(g.C, 3));
-			if (g.U) geo.setAttribute("uv", new THREE.BufferAttribute(g.U, 2));
-		});
+		job = { G, ground, A: Object.assign({}, KIT_AO) },
+		apply = (r) =>
+			r.forEach((g, i) => {
+				if (!g) return;
+				const geo = out[i].geo;
+				/* frees the old GPU buffers; the next frame uploads the new ones */
+				geo.dispose();
+				geo.setAttribute("position", new THREE.BufferAttribute(g.P, 3));
+				geo.setAttribute("normal", new THREE.BufferAttribute(g.N, 3));
+				geo.setAttribute("color", new THREE.BufferAttribute(g.C, 3));
+				if (g.U) geo.setAttribute("uv", new THREE.BufferAttribute(g.U, 2));
+			});
+	const key = aoHash(G, ground, job.A),
+		hit = AO_C.get(key);
+	if (hit) {
+		if (hit.r) apply(hit.r);
+		else hit.wait.push(apply);
+		return;
+	}
+	const entry = { r: null, wait: [apply] };
+	AO_C.set(key, entry);
+	job.done = (r) => {
+		entry.r = r;
+		entry.wait.forEach((f) => f(r));
+		entry.wait = [];
+	};
 	const sync = (j) => j.done(aoCompute(j.G, j.ground, j.A));
 	if (AO_W.w === undefined)
 		try {

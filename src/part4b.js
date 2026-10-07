@@ -519,6 +519,15 @@ const MG = {
 		MUD: -2.2,
 		how: "Ram everyone off the stage into the mud. The stage shrinks! Last truck standing wins.",
 		R: (t) => (t < 20 ? 11 : Math.max(5, 11 - (t - 20) * 0.15)),
+		/* baked props, also called by enterMg while the clouds cover the switch so their AO is ready by the start (partmodels) */
+		kits() {
+			return [
+				["sedan", "#2F7DE1"],
+				["hatch", "#8E96A3"],
+				["van", "#1FA35C"],
+				["pickup", "#FF8A1F"],
+			].map(([t, c]) => bakeKit(crushedCarModel(t, c)));
+		},
 		build(W) {
 			const g = new THREE.Group();
 			g.add(Cy(11, 11.4, 1.4, 40, "#8A6A48", 0, -0.7, 0), Cy(10.4, 11.4, 2.2, 40, "#6B4F35", 0, -1.3, 0));
@@ -695,17 +704,7 @@ const MG = {
 				W.jets.push({ x, z, t: 1 + i * 1.7 });
 			}
 			/* crushed cars piled beside the fire jets */
-			placeKits(
-				s,
-				[
-					["sedan", "#2F7DE1"],
-					["hatch", "#8E96A3"],
-					["van", "#1FA35C"],
-					["pickup", "#FF8A1F"],
-				].map(([t, c]) => bakeKit(crushedCarModel(t, c))),
-				wreck,
-				0,
-			);
+			placeKits(s, this.kits(), wreck, 0);
 			W.wob = { x: 0, z: 0, y: 0, vx: 0, vz: 0, vy: 0 };
 			W.bub = [];
 			for (let i = 0; i < 9; i++) {
@@ -1027,6 +1026,36 @@ const MG = {
 			[11, 6.35],
 			[-11, 6.35],
 		],
+		PLAZA: [
+			[6.1, "#E6D8BE", 0],
+			[5.5, "#B8C4D6", 1],
+			[3.9, "#E8B4A0", 3],
+			[3.3, "#C9D6B8", 4],
+			[0.15, "#D9C3A5", 6],
+			[2.99, "#E6D8BE", 7],
+		],
+		shopKit(k) {
+			const [, c, si] = this.PLAZA[k];
+			return bakeKit(
+				buildingModel({
+					w: 8,
+					d: 6,
+					floors: 2 + (k % 2),
+					style: ["brick", "plain", "apt"][k % 3],
+					wall: c,
+					shop: SHOPS[si],
+					roofBits: k,
+				}),
+			);
+		},
+		FIRECOL: ["#8E96A3", "#6FA8D6", "#C9A27A"],
+		/* baked props, also called by enterMg while the clouds cover the switch so their AO is ready by the start (partmodels) */
+		kits() {
+			/* every prop kind in every colour: which ones burn comes from the seed */
+			this.PLAZA.forEach((_, k) => this.shopKit(k));
+			bakeKit(fireStationModel());
+			[0, 1, 2].forEach((kind) => this.FIRECOL.forEach((c) => bakeKit(firePropModel(kind, c))));
+		},
 		build(W) {
 			const s = W.sc;
 			this.square(W);
@@ -1059,7 +1088,7 @@ const MG = {
 				f.g = g;
 				/* what is burning: garden shed, news kiosk or a parked car (detailed baked models with a contact shadow) */
 				const ck = f.kind === 2 ? 2 + (f.id % 3) : f.kind,
-					kit = kits[ck] || (kits[ck] = bakeKit(firePropModel(f.kind, ["#8E96A3", "#6FA8D6", "#C9A27A"][f.id % 3])));
+					kit = kits[ck] || (kits[ck] = bakeKit(firePropModel(f.kind, MG.hill.FIRECOL[f.id % 3])));
 				g.add(kitGroup(kit));
 				g.rotation.y = (f.id * 2.4) % 6.28;
 				/* where flames come out of this prop (roof, window, hatch, bonnet), in world space */
@@ -1363,29 +1392,10 @@ const MG = {
 				s.add(contactShadow(0.8, 0.8, 0.3, x, z, 0.08));
 			});
 			/* shops around the plaza (detailed buildings, partmodels) and Blaze's fire station with a truck in the open bay */
-			[
-				[6.1, "#E6D8BE", 0],
-				[5.5, "#B8C4D6", 1],
-				[3.9, "#E8B4A0", 3],
-				[3.3, "#C9D6B8", 4],
-				[0.15, "#D9C3A5", 6],
-				[2.99, "#E6D8BE", 7],
-			].forEach(([a, c, si], k) =>
+			MG.hill.PLAZA.forEach(([a], k) =>
 				placeKits(
 					s,
-					[
-						bakeKit(
-							buildingModel({
-								w: 8,
-								d: 6,
-								floors: 2 + (k % 2),
-								style: ["brick", "plain", "apt"][k % 3],
-								wall: c,
-								shop: SHOPS[si],
-								roofBits: k,
-							}),
-						),
-					],
+					[MG.hill.shopKit(k)],
 					[{ k: 0, x: Math.cos(a) * 26.6, z: Math.sin(a) * 26.6, ry: -a - Math.PI / 2 }],
 				),
 			);
@@ -1725,6 +1735,15 @@ const MG = {
 		sun: [13.9, 26, 12.1],
 		fx: { col: 0.14 },
 		how: "Slabs crack and sink after you drive on them. Keep moving and RAM to hop gaps. Last one up wins.",
+		/* baked props, also called by enterMg while the clouds cover the switch so their AO is ready by the start (partmodels) */
+		kits() {
+			return [
+				towerCraneModel(30, 26),
+				siteCabinModel(),
+				siteCabinModel("#FFC83D", "#5A6272", "MIXIE CO."),
+				lightTowerModel(),
+			].map((m) => bakeKit(m));
+		},
 		build(W) {
 			const S = 1.35,
 				cols = ["#E2DDD2", "#D5D0C4", "#EAE6DC", "#CCC7BA"];
@@ -1896,13 +1915,14 @@ const MG = {
 				for (let k = 0; k < 5; k++)
 					s.add(B(0.6, 0.25, 0.9, "#E8E4DA", x - 0.32 + (k % 2) * 0.64, 0.82 + Math.floor(k / 2) * 0.26, z));
 			});
+			const K = MG.tiles.kits();
 			[
-				[towerCraneModel(30, 26), -25, -25, Math.PI / 4],
-				[siteCabinModel(), 27, -2, -Math.PI / 2],
-				[siteCabinModel("#FFC83D", "#5A6272", "MIXIE CO."), 2, -27, 0],
-				[lightTowerModel(), -27, 2, Math.PI / 2],
-			].forEach(([m, x, z, ry]) => {
-				const k = kitGroup(bakeKit(m));
+				[K[0], -25, -25, Math.PI / 4],
+				[K[1], 27, -2, -Math.PI / 2],
+				[K[2], 2, -27, 0],
+				[K[3], -27, 2, Math.PI / 2],
+			].forEach(([kit, x, z, ry]) => {
+				const k = kitGroup(kit);
 				k.position.set(x, 0.5, z);
 				k.rotation.y = ry;
 				s.add(k);
@@ -3150,6 +3170,16 @@ const MG = {
 				b.g.add(b.lab);
 			}
 		},
+		/* baked props, also called by enterMg while the clouds cover the switch so their AO is ready by the start (partmodels) */
+		kits() {
+			buildingKits(8.4, 7.8);
+			containerKits(["#2F7DE1", "#E5484D", "#1FA35C", "#FFC83D", "#8E5BE0"]);
+			bakeKit(
+				buildingModel({ w: 10, d: 8, floors: 3, style: "office", wall: "#E4E7EB", trim: "#F4F6F9", roofBits: 1 }),
+			);
+			CAR_TYPES.forEach((t, i) => bakeKit(carModel(t, ["#E5484D", "#2F7DE1", "#F4F6F9", "#3A3F48"][i])));
+			bakeKit(gatehouseModel("#FF7A1A"));
+		},
 		build(W) {
 			this.yard(W);
 			W.items = []; /* tuned in the light panel: ambient .40, sun .86, height 26, angle 41, warmth .44, haze 50 */
@@ -3813,6 +3843,8 @@ const MG = {
 		LEN: 110,
 		how: "Hold to drive on green, let go before red or the lorry gets you. First to the finish wins.",
 		tapHint: "Hold the pedal (or Space) to drive.",
+		/* baked props, also called by enterMg while the clouds cover the switch so their AO is ready by the start (partmodels) */
+		kits: () => buildingKits(8.6, 8),
 		build(W) {
 			const s = W.sc,
 				wid = laneWorld(W, this.LEN + 20, { noTrees: true });
@@ -4001,7 +4033,7 @@ const MG = {
 					);
 			});
 			/* shops below, flats and offices above: 8 detailed variants, one InstancedMesh per material */
-			placeKits(s, buildingKits(8.6, 8), blocks);
+			placeKits(s, MG.light.kits(), blocks);
 		},
 		light(W, t) {
 			const c = W.cyc.find((c) => t < c.r) || W.cyc[W.cyc.length - 1];
@@ -4213,6 +4245,12 @@ const MG = {
 		MAXL: 6,
 		how: "Wait for a big load, reverse to the edge and brake as close as you dare. Don't fall in!",
 		tapHint: "Tap GO when loaded, BRAKE near the edge.",
+		/* baked props, also called by enterMg while the clouds cover the switch so their AO is ready by the start (partmodels) */
+		kits() {
+			bakeKit(siteCabinModel());
+			bakeKit(lightTowerModel());
+			excavatorModel();
+		},
 		build(W) {
 			const s = W.sc,
 				n = W.plist.length,
@@ -5008,6 +5046,13 @@ const MG = {
 			return (l - (this.LANES - 1) / 2) * this.LW;
 		},
 		speed: (t) => 12 + Math.max(0, t) * 0.2,
+		CARCOL: ["#E5484D", "#2F7DE1", "#1FA35C", "#8E5BE0", "#F4F6F9", "#FFC83D", "#16B3C9"],
+		/* baked props, also called by enterMg while the clouds cover the switch so their AO is ready by the start (partmodels) */
+		kits() {
+			/* traffic comes from the seed: every car type in every colour */
+			CAR_TYPES.forEach((t) => this.CARCOL.forEach((c) => bakeKit(carModel(t, c))));
+			houseKits();
+		},
 		build(W) {
 			const s = W.sc,
 				wid = this.LANES * this.LW;
@@ -5016,7 +5061,7 @@ const MG = {
 			W.cars = [];
 			W.holes = [];
 			W.parcels = [];
-			const CC = ["#E5484D", "#2F7DE1", "#1FA35C", "#8E5BE0", "#F4F6F9", "#FFC83D", "#16B3C9"];
+			const CC = MG.hop.CARCOL;
 			for (let z = -34; z > -1000; z -= 9 + W.rng() * 7) {
 				const lanes = [0, 1, 2, 3].sort(() => W.rng() - 0.5),
 					nc = W.rng() < 0.35 ? 2 : 1;
@@ -5464,6 +5509,16 @@ const MG = {
 		tapLabel: "DROP",
 		tapHint: "Tap to drop the crate onto your stack.",
 		how: "Drop 10 crates onto your truck. Centre each one on the crate below: overhang too far and it tips off, lean the stack and it topples.",
+		CC: ["#E5484D", "#2F7DE1", "#FF8A1F", "#1FA35C", "#FFC83D", "#8E96A3", "#1FB5A8", "#B5622F"],
+		/* baked props, also called by enterMg while the clouds cover the switch so their AO is ready by the start (partmodels) */
+		kits(n) {
+			bakeKit(rtgModel(n * 4.6 + 2));
+			bakeKit(trolleyModel());
+			crateKits();
+			containerKits(this.CC, 0);
+			containerKits(this.CC, 1);
+			bakeKit(shipModel());
+		},
 		build(W) {
 			/* wide lanes: a swinging crate reaches 1.85 m from the lane centre, so neighbours can't overlap */
 			const wid = laneWorld(W, 30, { noTrees: true, lw: 4.6 }),
@@ -5513,7 +5568,7 @@ const MG = {
 		port(W, wid) {
 			// container terminal: quay, container stacks, a docked cargo ship, quay cranes and the sea
 			const s = W.sc,
-				CC = ["#E5484D", "#2F7DE1", "#FF8A1F", "#1FA35C", "#FFC83D", "#8E96A3", "#1FB5A8", "#B5622F"],
+				CC = MG.crane.CC,
 				rc = () => Math.floor(W.rng() * CC.length);
 			s.add(texBox(260, 0.4, 70, concreteTex(), 8, 0, -0.2, -2));
 			roadWear(s, -60, 60, 30, -34, 0.002, 0.5);

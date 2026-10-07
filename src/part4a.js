@@ -902,6 +902,7 @@ function enterMg(mg, p) {
 	trNonce = mg.nonce;
 	mgBusy = true;
 	const c = trClouds();
+	prebakeKits(mg);
 	document.body.classList.add("trout");
 	GFX.rise = performance.now();
 	c.classList.add("on");
@@ -917,6 +918,17 @@ function enterMg(mg, p) {
 		}, 150);
 		setTimeout(() => document.body.classList.remove("trin"), 1300);
 	}, 1300);
+}
+/* bake the coming game's props now: the AO worker runs during the clouds and start3D finds the results cached */
+function prebakeKits(mg) {
+	const def = MG[mg.g];
+	if (!def || !def.kits) return;
+	/* a frame later, so the clouds and the camera rise get going first */
+	setTimeout(() => {
+		try {
+			def.kits((mg.part || G.players).length);
+		} catch (e) {}
+	}, 30);
 }
 function trClouds() {
 	let c = document.getElementById("trc");
