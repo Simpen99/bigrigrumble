@@ -1228,16 +1228,16 @@ Object.assign(MG, {
 		unit: "pts",
 		dur: 35,
 		bare: true,
-		sun: [-13, 15, 11],
-		/* new look: fresh cool morning at the recycling plant (light balance from Cone Smash's tuned look, a bit more exposure: the plant is darker) */
+		sun: [6.7, 32, 15.7],
+		/* new look: fresh cool morning at the recycling plant (tuned in the light panel 2026-10-07) */
 		look: {
-			exp: 1,
-			amb: 0.8,
-			sun: 1.44,
-			warm: 0.35,
-			env: 0.4,
-			paint: 0.55,
-			haze: 55,
+			exp: 0.9,
+			amb: 0.74,
+			sun: 1.26,
+			warm: 0.4,
+			env: 0.6,
+			paint: 0.6,
+			haze: 50,
 			glow: 1.01,
 			bloom: 0.2,
 			vig: 0,
@@ -1256,7 +1256,6 @@ Object.assign(MG, {
 		build(W) {
 			const s = W.sc;
 			this.plant(s);
-			decal(s, new THREE.CircleGeometry(1.5, 20), "#FFC83D", 0, 0.02, 0.2, 0.35);
 			/* bins round the player's truck, fronts (and lids) opening toward it */
 			W.lids = this.CATS.map((c, i) => {
 				const yaw = Math.atan2(-c.pos[0], -c.pos[1]),
@@ -1370,7 +1369,8 @@ Object.assign(MG, {
 			hideOthers(W, e);
 			if (e.isMe) {
 				W.roofY = new THREE.Box3().setFromObject(e.tr).max.y;
-				e.g.children.forEach((o) => o.isSprite && (o.visible = false)); /* no name tag: only your truck is here */
+				/* no name tag or player disc: only your truck is here */
+				e.g.children.forEach((o) => (o.isSprite || o.userData.disc) && (o.visible = false));
 			}
 			e.n = 0;
 			e.combo = 0;
