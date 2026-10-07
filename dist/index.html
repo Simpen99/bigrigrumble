@@ -986,12 +986,20 @@ function lookEnvTex() {
 	);
 	return GFX.envLoad;
 }
+/* only shiny materials reflect: full strength (the look's env) at roughness <= 0.2, none from 0.7 up; metals reflect too.
+   material.userData.refl (0-1) overrides the rule. */
 function lookEnv(s) {
 	const L = s.userData.lk;
 	if (!L) return;
+	const cl = (v) => Math.max(0, Math.min(1, v));
 	s.traverse((o) => {
 		const m = o.material;
-		if (m) (Array.isArray(m) ? m : [m]).forEach((q) => q.isMeshStandardMaterial && (q.envMapIntensity = L.env));
+		if (m)
+			(Array.isArray(m) ? m : [m]).forEach((q) => {
+				if (!q.isMeshStandardMaterial) return;
+				const k = q.userData.refl ?? Math.max(cl((0.7 - q.roughness) / 0.5), cl((q.metalness - 0.15) / 0.35));
+				q.envMapIntensity = L.env * k;
+			});
 	});
 }
 function lights(scene, shadow) {
