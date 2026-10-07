@@ -827,12 +827,12 @@ function tileFace(t, sides) {
 			const g = new THREE.ExtrudeGeometry(out, { depth: 0.08, bevelEnabled: false, curveSegments: 16 });
 			g.rotateX(-Math.PI / 2);
 			return {
-				plate: varyColors(g),
+				plate: evenCaps(varyColors(g)),
 				holes: sym.holes.length,
 				raised: (sym.raised || []).map(([shs, h, cl]) => {
 					const rg = new THREE.ExtrudeGeometry(shs, { depth: h, bevelEnabled: false, curveSegments: 14 });
 					rg.rotateX(-Math.PI / 2);
-					return [varyColors(rg), cl];
+					return [evenCaps(varyColors(rg)), cl];
 				}),
 			};
 		})());
@@ -844,8 +844,21 @@ function tileFace(t, sides) {
 	const lo = Cy(1.08, 1.14, 0.14, sides, col, 0, 0.35, 0);
 	lo.rotation.y = Math.PI / sides;
 	g.add(lo);
-	if (c.holes)
-		g.add(Cy(1.02, 1.02, 0.02, 24, SYM_FLOOR[t] || new THREE.Color(col).multiplyScalar(0.55).getStyle(), 0, 0.43, 0));
+	if (c.holes) {
+		/* symbol floor: the tile's own shape, a little smaller (a round one poked out through the middle of the sides) */
+		const fl = Cy(
+			1.0,
+			1.0,
+			0.02,
+			sides,
+			SYM_FLOOR[t] || new THREE.Color(col).multiplyScalar(0.55).getStyle(),
+			0,
+			0.43,
+			0,
+		);
+		fl.rotation.y = Math.PI / sides;
+		g.add(fl);
+	}
 	c.raised.forEach(([geo, cl]) => {
 		const m = new THREE.Mesh(geo, M(cl, { vertexColors: true }));
 		m.position.y = 0.44;

@@ -3259,12 +3259,12 @@ function tileFace(t, sides) {
 			const g = new THREE.ExtrudeGeometry(out, { depth: 0.08, bevelEnabled: false, curveSegments: 16 });
 			g.rotateX(-Math.PI / 2);
 			return {
-				plate: varyColors(g),
+				plate: evenCaps(varyColors(g)),
 				holes: sym.holes.length,
 				raised: (sym.raised || []).map(([shs, h, cl]) => {
 					const rg = new THREE.ExtrudeGeometry(shs, { depth: h, bevelEnabled: false, curveSegments: 14 });
 					rg.rotateX(-Math.PI / 2);
-					return [varyColors(rg), cl];
+					return [evenCaps(varyColors(rg)), cl];
 				}),
 			};
 		})());
@@ -3276,8 +3276,21 @@ function tileFace(t, sides) {
 	const lo = Cy(1.08, 1.14, 0.14, sides, col, 0, 0.35, 0);
 	lo.rotation.y = Math.PI / sides;
 	g.add(lo);
-	if (c.holes)
-		g.add(Cy(1.02, 1.02, 0.02, 24, SYM_FLOOR[t] || new THREE.Color(col).multiplyScalar(0.55).getStyle(), 0, 0.43, 0));
+	if (c.holes) {
+		/* symbol floor: the tile's own shape, a little smaller (a round one poked out through the middle of the sides) */
+		const fl = Cy(
+			1.0,
+			1.0,
+			0.02,
+			sides,
+			SYM_FLOOR[t] || new THREE.Color(col).multiplyScalar(0.55).getStyle(),
+			0,
+			0.43,
+			0,
+		);
+		fl.rotation.y = Math.PI / sides;
+		g.add(fl);
+	}
 	c.raised.forEach(([geo, cl]) => {
 		const m = new THREE.Mesh(geo, M(cl, { vertexColors: true }));
 		m.position.y = 0.44;
@@ -7248,6 +7261,18 @@ function varyColors(geo) {
 	return g;
 }
 
+/* the flat caps of an ExtrudeGeometry (group 0) in one even colour after varyColors: the per-face tint streaks on the long
+   triangles round cut-out holes (tile symbols, bin lid icons); the side walls keep their tint */
+function evenCaps(geo) {
+	const c = geo.attributes.color,
+		gr = geo.groups[0];
+	if (c && gr) {
+		for (let i = gr.start; i < gr.start + gr.count; i++) c.setXYZ(i, 1, 1, 1);
+		c.needsUpdate = true;
+	}
+	return geo;
+}
+
 /* ---------- particles ---------- */
 const PGEO = {},
 	PMAT = {};
@@ -11084,7 +11109,23 @@ function mgEnv(s, water, lane, bare, night, storm, dusk) {
 }
 /* new look (trial): def.look = {exp, amb, sun, warm, env, haze, glow, bloom, vig, sat, fill: [sky, ground], sky: [top, mid, horizon]}.
    Sets the scene's colour mood; the renderer switches to sRGB + ACES for scenes with userData.lk (gfxLook). Light colours go in as linear. */
-const LOOK0 = { exp: 1, amb: 0.3, sun: 1.8, warm: 0.6, env: 0.1, paint: 0.45, haze: 55, glow: 1.01, bloom: 0.4 };
+const LOOK0 = {
+	exp: 1,
+	amb: 0.3,
+	sun: 1.8,
+	warm: 0.6,
+	env: 0.1,
+	paint: 0.45,
+	haze: 55,
+	glow: 1.01,
+	bloom: 0.4,
+	lamp: 1,
+};
+/* a game's own lamps (W.lamps: lights with userData.base intensity, W.lampFx: fake beams / glows with a base opacity) times the look's lamp */
+function lookLamps(W, v) {
+	(W.lamps || []).forEach((l) => (l.intensity = l.userData.base * v));
+	(W.lampFx || []).forEach((f) => (f.material.opacity = f.userData.base * Math.min(1, v)));
+}
 const lkWarm = (c, w) => c.set("#E4EEFF").lerp(new THREE.Color("#FFC27A"), w).convertSRGBToLinear();
 function applyLook(W, extra) {
 	const s = W.sc,
@@ -11105,6 +11146,7 @@ function applyLook(W, extra) {
 		}
 	}
 	W.sun.intensity = L.sun;
+	lookLamps(W, L.lamp);
 	lkWarm(W.sun.color, L.warm);
 	W.lpWarm = L.warm;
 	if (GFX.touch) W.sun.shadow.mapSize.set(1024, 1024);
@@ -12261,7 +12303,7 @@ function wireLightPanel() {
 			warm: W.lpWarm ?? 0.5,
 			haze: fog ? fog.near : 60,
 		};
-		if (LK) Object.assign(st, { exp: LK.exp, env: LK.env, paint: LK.paint, glow: LK.glow });
+		if (LK) Object.assign(st, { exp: LK.exp, env: LK.env, paint: LK.paint, glow: LK.glow, lamp: LK.lamp });
 		const LIGHT = [
 			["amb", "Ambient", 0, 2.5, 0.02],
 			["sun", "Sun", 0, LK ? 4 : 2.5, 0.02],
@@ -12276,6 +12318,7 @@ function wireLightPanel() {
 							["exp", "Exposure", 0.4, 3, 0.02],
 							["env", "Reflect", 0, 1.5, 0.02],
 							["paint", "Paint rough", 0.1, 0.8, 0.01],
+							...(W.lamps && W.lamps.length ? [["lamp", "Lamps", 0, 3, 0.02]] : []),
 							["glow", "Glow cut", 0.8, 1.05, 0.005],
 						]
 					: [],
@@ -12336,7 +12379,9 @@ function wireLightPanel() {
 					env: st.env,
 					paint: st.paint,
 					glow: st.glow,
+					lamp: st.lamp,
 				});
+				lookLamps(W, st.lamp);
 				F.bloom.th = st.glow;
 				if (envCh) lookEnv(W.sc);
 			}
@@ -12358,7 +12403,7 @@ function wireLightPanel() {
 				`${W.mg.g}: ambient ${fmt("amb", st.amb)} · sun ${fmt("sun", st.sun)} · height ${fmt("h", st.h)} · angle ${fmt("ang", st.ang)} · warmth ${fmt("warm", st.warm)}` +
 				(fog ? ` · haze ${fmt("haze", st.haze)}` : "") +
 				(LK
-					? ` · exposure ${fmt("exp", st.exp)} · reflect ${fmt("env", st.env)} · paint rough ${fmt("paint", st.paint)} · glow cut ${fmt("glow", st.glow)}`
+					? ` · exposure ${fmt("exp", st.exp)} · reflect ${fmt("env", st.env)} · paint rough ${fmt("paint", st.paint)}${W.lamps && W.lamps.length ? ` · lamps ${fmt("lamp", st.lamp)}` : ""} · glow cut ${fmt("glow", st.glow)}`
 					: "") +
 				` · effects: ${on || "none"}`;
 		};
@@ -12447,7 +12492,7 @@ function wireLightPanel() {
 					lt = { amb: st.amb, sun: st.sun, warm: st.warm },
 					fx = {};
 				if (fog) lt.haze = st.haze;
-				if (LK) Object.assign(lt, { exp: st.exp, env: st.env, paint: st.paint, glow: st.glow });
+				if (LK) Object.assign(lt, { exp: st.exp, env: st.env, paint: st.paint, glow: st.glow, lamp: st.lamp });
 				FX.forEach(([k]) => (fx[k] = F[k].on ? (k === "aa" ? 1 : +fxv(k).toFixed(2)) : 0));
 				A[g] = { lt, sun: (W.def.sun || [14, 26, 12]).slice(), fx };
 				LS.set("trp_light", A);
@@ -17937,13 +17982,13 @@ const MG = {
 		unit: "pts",
 		dur: 50,
 		bare: true,
-		sun: [12.5, 17.5, 12.5],
-		/* new look: dusty bright midday at the tip (light balance from Cone Smash's tuned look) */
+		sun: [12.5, 18, 12.5],
+		/* new look: dusk at the tip, the floodlight on the lanes, warm lamps on the office and along the lanes (tuned in the light panel 2026-10-07) */
 		look: {
 			exp: 0.82,
-			amb: 0.8,
-			sun: 1.44,
-			warm: 0.55,
+			amb: 0.38,
+			sun: 0.3,
+			warm: 0.82,
 			env: 0.4,
 			paint: 0.55,
 			haze: 60,
@@ -17951,8 +17996,9 @@ const MG = {
 			bloom: 0.2,
 			vig: 0,
 			sat: 0.06,
-			fill: ["#7FA8E8", "#7F6A50"],
-			sky: ["#4E8ED6", "#9FCBEA", "#EEE6D2"],
+			lamp: 1,
+			fill: ["#8A95D8", "#5A4535"],
+			sky: ["#2B3A6B", "#B8707A", "#F0A46E"],
 		},
 		EDGE: -24,
 		HOME: 4,
@@ -18041,7 +18087,11 @@ const MG = {
 			// off to the sides: rock piles, dirt mounds, a site cabin and a light tower
 			[-1, 1].forEach((sd) => {
 				for (let k = 0; k < 5; k++) {
-					const m = mesh(new THREE.DodecahedronGeometry(1.2 + (k % 3) * 0.5, 0), "#9BA3AE");
+					if (sd < 0 && k === 2) continue; /* room for the site office */
+					/* both faces cast: back-face-only shadows left a lit streak where the buried rock meets the ground */
+					const m = mesh(new THREE.DodecahedronGeometry(1.2 + (k % 3) * 0.5, 0), "#9BA3AE", {
+						shadowSide: THREE.DoubleSide,
+					});
 					m.position.set(sd * (wid / 2 + 3 + k * 2.5), 0.6, E + 4 + k * 7);
 					s.add(m);
 				}
@@ -18053,14 +18103,16 @@ const MG = {
 				}
 			});
 			[
-				[siteCabinModel(), -wid / 2 - 8, H + 3, Math.PI / 2],
-				[lightTowerModel(), wid / 2 + 7, H + 2, -Math.PI / 2],
+				/* beside the lanes, up toward the pit, so the camera sees them */
+				[siteCabinModel(), -wid / 2 - 5, -6, Math.PI / 2],
+				[lightTowerModel(), wid / 2 + 5, -9.5, -Math.PI / 2],
 			].forEach(([m, x, z, ry]) => {
 				const k = kitGroup(bakeKit(m));
 				k.position.set(x, 0, z);
 				k.rotation.y = ry;
 				s.add(k);
 			});
+			this.lamps(W, wid);
 			// the green scoring strip, then an excavator and a dirt pile behind every lane
 			W.exc = W.plist.map((p, i) => {
 				const x = W.laneX(i);
@@ -18097,7 +18149,8 @@ const MG = {
 						new THREE.Vector2(PR(k) + 1.6, y + PH),
 						new THREE.Vector2(k === PN - 1 ? 300 : PR(k + 1), y + PH),
 					];
-				const lg = new THREE.LatheGeometry(pts, 30, Math.PI / 2 + 0.35, Math.PI - 0.7),
+				/* wraps past the sides (to near the cliff edge) so wide TV screens don't see the ends */
+				const lg = new THREE.LatheGeometry(pts, 44, Math.PI / 2 - 0.5, Math.PI + 1),
 					lp = lg.attributes.position;
 				for (let i = 0; i < lp.count; i++) {
 					const x = lp.getX(i),
@@ -18178,55 +18231,127 @@ const MG = {
 			W.smoke = puffs(W, "#D6DAE0");
 			W.skid = tyreTracks(W, "#B2ABA4", "#FFFFFF", 700, 3, 1, true);
 		},
-		excavator(s, x, z) {
-			// tracks, rotating house with cab and counterweight, boom, stick, toothed bucket
-			const Y = "#FFC83D",
+		/* dusk lighting: the light tower's floodlight as a spotlight on the lanes with a fake beam, a wall lamp and a
+		   roof beacon on the site office, glowing bollards along both sides of the lanes. No shadows; intensities
+		   are base values times the look's lamp (light panel "Lamps"). */
+		lamps(W, wid) {
+			const s = W.sc,
 				D = "#2A2F3A",
-				g = new THREE.Group();
+				lin = (c) => new THREE.Color(c).convertSRGBToLinear(),
+				warm = { emissive: "#FFD27A", emissiveIntensity: 1.8 };
+			W.lamps = [];
+			const add = (l, base) => {
+				l.userData.base = base;
+				W.lamps.push(l);
+				s.add(l);
+				return l;
+			};
+			{
+				/* floodlight: heads at the top of the tower, aimed at the middle of the lanes */
+				const hx = wid / 2 + 5.5,
+					hy = 8.6,
+					hz = -9.5,
+					sp = add(
+						new THREE.SpotLight(lin("#FFE6B8"), 3, 55, 1.0, 0.45, 1),
+						3,
+					); /* wide: the tower stands close to the lanes, so the near ends are 58 degrees off its aim */
+				sp.position.set(hx, hy, hz);
+				sp.target.position.set(-1, 0, -10);
+				s.add(sp.target);
+				/* the beam fades out before its open end, so it never stops with an edge in mid-air */
+				const len = 20,
+					cone = new THREE.ConeGeometry(Math.tan(0.55) * len, len, 24, 1, true);
+				cone.translate(0, -len / 2, 0);
+				const beam = new THREE.Mesh(
+					cone,
+					new THREE.MeshBasicMaterial({
+						map: canvasTex(8, 64, (x, w, h) => {
+							const gr = x.createLinearGradient(0, 0, 0, h);
+							gr.addColorStop(0, "rgba(255,236,200,1)");
+							gr.addColorStop(0.3, "rgba(255,226,170,0.55)");
+							gr.addColorStop(0.75, "rgba(255,226,170,0.12)");
+							gr.addColorStop(1, "rgba(255,226,170,0)");
+							x.fillStyle = gr;
+							x.fillRect(0, 0, w, h);
+						}),
+						transparent: true,
+						opacity: 0.16,
+						blending: THREE.AdditiveBlending,
+						depthWrite: false,
+						side: THREE.DoubleSide,
+						fog: false,
+					}),
+				);
+				beam.position.set(hx, hy, hz);
+				beam.quaternion.setFromUnitVectors(
+					new THREE.Vector3(0, -1, 0),
+					new THREE.Vector3(-1 - hx, -hy, -10 - hz).normalize(),
+				);
+				beam.castShadow = false;
+				beam.userData.base = 0.16;
+				W.lampFx = [beam];
+				s.add(beam);
+			}
+			{
+				/* site office (same place as its kit): wall lamp over the door, amber beacon on a roof corner */
+				const og = new THREE.Group(),
+					fz = 1.15;
+				og.position.set(-wid / 2 - 5, 0, -6);
+				og.rotation.y = Math.PI / 2;
+				og.add(
+					B(0.36, 0.14, 0.22, D, 1.75, 2.58, fz + 0.1),
+					B(0.3, 0.04, 0.16, "#FFF4D6", 1.75, 2.49, fz + 0.12, warm),
+					Cy(0.11, 0.13, 0.2, 8, "#FF9A1F", 2.75, 3.14, -1.0, { emissive: "#FF8A1F", emissiveIntensity: 2 }),
+				);
+				s.add(og);
+				const pl = add(new THREE.PointLight(lin("#FFC98A"), 1.2, 9, 1), 1.2);
+				og.updateMatrixWorld(true);
+				pl.position.copy(og.localToWorld(new THREE.Vector3(1.75, 2.2, fz + 0.9)));
+			}
+			{
+				/* bollards along both sides of the lanes, each with a soft warm pool on the ground */
+				const glow = new THREE.MeshBasicMaterial({
+						map: canvasTex(64, 64, (x, w, h) => {
+							const gr = x.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2);
+							gr.addColorStop(0, "rgba(255,210,140,0.9)");
+							gr.addColorStop(1, "rgba(255,210,140,0)");
+							x.fillStyle = gr;
+							x.fillRect(0, 0, w, h);
+						}),
+						transparent: true,
+						opacity: 0.35,
+						blending: THREE.AdditiveBlending,
+						depthWrite: false,
+						polygonOffset: true,
+						polygonOffsetFactor: -2,
+						polygonOffsetUnits: -4,
+					}),
+					gg = new THREE.PlaneGeometry(2.6, 2.6);
+				gg.rotateX(-Math.PI / 2);
+				glow.userData.base = 0.35;
+				W.lampFx.push({ material: glow, userData: glow.userData });
+				[-1, 1].forEach((sd) =>
+					[3, -2.8, -8.6, -14.4, -20.2].forEach((z) => {
+						const x = sd * (wid / 2 + 0.7);
+						s.add(
+							Cy(0.06, 0.07, 0.9, 6, D, x, 0.45, z),
+							Cy(0.12, 0.12, 0.14, 8, "#FFE9B0", x, 0.97, z, warm),
+							Cy(0.15, 0.15, 0.05, 8, D, x, 1.065, z),
+						);
+						const m = new THREE.Mesh(gg, glow);
+						m.position.set(x, 0.035, z);
+						m.renderOrder = 2;
+						s.add(m);
+					}),
+				);
+			}
+		},
+		excavator(s, x, z) {
+			const g = excavatorModel();
 			g.position.set(x, 0, z);
+			g.userData.house.rotation.y = Math.PI;
 			s.add(g);
-			[-0.75, 0.75].forEach((o) => {
-				g.add(B(0.5, 0.45, 2.5, D, o, 0.23, 0));
-				[-0.9, 0, 0.9].forEach((q) => {
-					const w = Cy(0.2, 0.2, 0.56, 8, "#5A6272", o, 0.23, q);
-					w.rotation.z = Math.PI / 2;
-					g.add(w);
-				});
-			});
-			const house = new THREE.Group();
-			house.position.y = 0.45;
-			g.add(house);
-			house.rotation.y = Math.PI;
-			house.add(
-				B(1.8, 0.8, 1.9, Y, 0, 0.45, -0.1),
-				B(1.7, 0.6, 0.55, "#3B3F4A", 0, 0.58, -1.05),
-				B(0.7, 0.85, 0.85, Y, -0.55, 1.25, 0.45),
-				B(0.76, 0.45, 0.9, "#9FD8FF", -0.55, 1.35, 0.5),
-				Cy(0.07, 0.07, 0.5, 6, D, 0.55, 1.05, -0.6),
-			);
-			const boom = new THREE.Group();
-			boom.position.set(0, 0.95, 0.5);
-			house.add(boom);
-			boom.add(B(0.3, 0.32, 2.4, Y, 0, 0, 1.2), Cy(0.06, 0.06, 1.4, 6, "#C9CED8", 0, -0.25, 0.8));
-			boom.children[1].rotation.x = Math.PI / 2;
-			const stick = new THREE.Group();
-			stick.position.z = 2.4;
-			boom.add(stick);
-			stick.add(B(0.24, 0.24, 2, Y, 0, 0, 1));
-			const bucket = new THREE.Group();
-			bucket.position.z = 2;
-			stick.add(bucket);
-			bucket.add(
-				B(0.82, 0.5, 0.08, D, 0, -0.1, 0.3),
-				B(0.82, 0.08, 0.5, D, 0, -0.36, 0.05),
-				B(0.08, 0.54, 0.5, D, -0.42, -0.1, 0.05),
-				B(0.08, 0.54, 0.5, D, 0.42, -0.1, 0.05),
-			);
-			[-0.3, -0.1, 0.1, 0.3].forEach((o) => bucket.add(B(0.08, 0.06, 0.14, "#8E96A3", o, -0.38, -0.25)));
-			const dirt = mesh(new THREE.DodecahedronGeometry(0.4, 0), "#8C6A45");
-			dirt.position.set(0, -0.05, 0.05);
-			bucket.add(dirt);
-			return { house, boom, stick, bucket, dirt };
+			return g.userData;
 		},
 		// poses: [house yaw, boom pitch, stick pitch (relative), bucket curl]; over the bed, at the pile, and the dump tip
 		POSE: {
@@ -20883,17 +21008,14 @@ Object.assign(MG, {
 		build(W) {
 			const s = W.sc;
 			this.plant(s);
-			decal(s, new THREE.CircleGeometry(1.1, 16), "#FFC83D", 0, 0.02, 0, 0.5);
-			s.add(Cy(0.75, 0.85, 0.5, 10, "#3A4150", 0, 0.25, 0));
-			const belt = B(1.6, 0.3, 6, "#23272F", 0, 0.45, -6.4);
-			s.add(belt, B(1.8, 0.5, 6, "#5A6272", 0, 0.1, -6.4));
+			decal(s, new THREE.CircleGeometry(1.5, 20), "#FFC83D", 0, 0.02, 0.2, 0.35);
+			/* bins round the player's truck, fronts (and lids) opening toward it */
 			W.lids = this.CATS.map((c, i) => {
-				const g = wheelieBinModel(c.c, c.n, ["bottle", "can", "log", "leaf"][i]);
+				const yaw = Math.atan2(-c.pos[0], -c.pos[1]),
+					g = wheelieBinModel(c.c, c.n, ["bottle", "can", "log", "leaf"][i], yaw);
 				g.position.set(c.pos[0], 0, c.pos[1]);
+				g.rotation.y = yaw;
 				g.add(contactShadow(1.6, 1.4, 0.3));
-				const lab = textSprite(c.n.toUpperCase(), "#151B24", "#FFFFFF", 1.6);
-				lab.position.y = 2.3;
-				g.add(lab);
 				s.add(g);
 				return g.userData.lid;
 			});
@@ -20937,10 +21059,6 @@ Object.assign(MG, {
 			);
 			sign.position.set(-6.2, 2.6, Z + 0.45);
 			s.add(sign);
-			const inc = B(1.6, 0.25, 3.4, "#23272F", 0, 1.35, -10.1);
-			inc.rotation.x = -0.5;
-			s.add(inc);
-			[-0.9, 0.9].forEach((x) => s.add(B(0.16, 2.3, 0.16, "#5A6272", x, 1.15, -9.9)));
 			const bale = (x, y, z, c, str) => {
 				s.add(B(1.6, 1.15, 1.2, c, x, y + 0.575, z));
 				[-0.45, 0.45].forEach((o) => s.add(B(0.06, 1.2, 1.26, str, x + o, y + 0.575, z)));
@@ -20993,9 +21111,19 @@ Object.assign(MG, {
 			);
 			s.add(this.motes);
 		},
-		spawn: (W, i) => ({ x: 4.8, z: -3.5, yaw: Math.PI * 0.8 }),
+		/* the player's truck stands in the middle; trash drops onto its roof and it hops to shove each piece into a bin */
+		X0: 0,
+		Z0: 0.2,
+		YAW0: -0.5,
+		spawn(W, i) {
+			return { x: this.X0, z: this.Z0, yaw: this.YAW0 };
+		},
 		initEnt(W, e) {
 			hideOthers(W, e);
+			if (e.isMe) {
+				W.roofY = new THREE.Box3().setFromObject(e.tr).max.y;
+				e.g.children.forEach((o) => o.isSprite && (o.visible = false)); /* no name tag: only your truck is here */
+			}
 			e.n = 0;
 			e.combo = 0;
 			e.cur = null;
@@ -21003,7 +21131,7 @@ Object.assign(MG, {
 		},
 		item(cat, v) {
 			const g = sortItemModel(cat, v);
-			g.scale.setScalar(1.5);
+			g.scale.setScalar(1.25);
 			return g;
 		},
 		next(W, e) {
@@ -21013,7 +21141,7 @@ Object.assign(MG, {
 			if (e.isMe) {
 				if (W.curM) W.sc.remove(W.curM);
 				W.curM = this.item(c.cat, c.v);
-				W.curM.position.set(0, 0.5, -4);
+				W.curM.position.set(e.x, 4.5, e.z);
 				W.sc.add(W.curM);
 				W.curIn = 0;
 			}
@@ -21029,6 +21157,7 @@ Object.assign(MG, {
 				W.curM = null;
 				if (m) W.flyM.push({ m, from: m.position.clone(), to: new THREE.Vector3(c.pos[0], 1.5, c.pos[1]), t: 0, ok });
 				W.lidT[idx] = W.t; /* the bin's lid flaps open to catch it */
+				W.push = { i: idx, t0: W.t }; /* the truck turns and hops toward that bin */
 				sfx(ok ? "coin" : "loss");
 				e.msg = ok ? "+10" : `Not ${c.n.toLowerCase()}! −5`;
 				e.msgT = W.t;
@@ -21060,10 +21189,25 @@ Object.assign(MG, {
 				}
 				p.needsUpdate = true;
 			}
+			{
+				/* truck: faces the bin it shoves into, with a little hop and lunge, then settles back */
+				const P = W.push,
+					k = P ? (W.t - P.t0) / 0.32 : 1,
+					c = P && this.CATS[P.i],
+					want = P && W.t - P.t0 < 0.5 ? Math.atan2(-(c.pos[1] - this.Z0), c.pos[0] - this.X0) : this.YAW0;
+				e.yaw = lerpA(e.yaw, want, Math.min(1, dt * 16));
+				const h = k < 1 ? Math.sin(k * Math.PI) : 0;
+				e.y = h * 0.3;
+				e.x = this.X0 + Math.cos(e.yaw) * h * 0.3;
+				e.z = this.Z0 - Math.sin(e.yaw) * h * 0.3;
+			}
 			if (W.curM) {
-				W.curIn = Math.min(1, (W.curIn || 0) + dt * 5);
-				const k = W.curIn;
-				W.curM.position.set(0, 0.5 + Math.sin(k * Math.PI) * 1.2, -4 + k * 4);
+				/* the next piece drops straight down onto the roof, with a small bounce */
+				W.curIn = Math.min(1.6, (W.curIn || 0) + dt * 4.5);
+				const k = W.curIn,
+					top = (W.roofY || 1.4) + e.y + 0.3,
+					y = k < 1 ? 4.5 - (4.5 - top) * k * k : top + Math.sin(((k - 1) / 0.6) * Math.PI) * 0.18;
+				W.curM.position.set(e.x, y, e.z);
 				W.curM.rotation.y += dt * 1.5;
 			}
 			W.lids.forEach((l, i) => {
@@ -27202,48 +27346,133 @@ function crushedCarModel(type, col) {
 }
 
 /* ---------- Sort It Out: wheelie bins and the trash ---------- */
-/* flat icon shapes for bin lids, drawn in a 0.6 x 0.6 box: bottle, can, log end, leaf */
+/* flat icon shapes for bin lids, drawn in a 0.6 x 0.6 box: bottle, can, log (side view with a branch stub and its end grain
+   as an island), two leaves on their stems. Returns {holes, islands}: holes are cut into the lid, islands stand in a hole. */
 function binIconShape(icon) {
 	const V = (P) => new THREE.Shape(P.map(([x, y]) => new THREE.Vector2(x, y)));
 	if (icon === "bottle")
-		return V([
-			[-0.13, -0.28],
-			[0.13, -0.28],
-			[0.13, 0.08],
-			[0.06, 0.17],
-			[0.06, 0.28],
-			[-0.06, 0.28],
-			[-0.06, 0.17],
-			[-0.13, 0.08],
-		]);
+		return {
+			holes: [
+				V([
+					[-0.13, -0.28],
+					[0.13, -0.28],
+					[0.13, 0.08],
+					[0.06, 0.17],
+					[0.06, 0.28],
+					[-0.06, 0.28],
+					[-0.06, 0.17],
+					[-0.13, 0.08],
+				]),
+			],
+			islands: [],
+		};
 	if (icon === "can")
-		return V([
-			[-0.16, -0.22],
-			[-0.12, -0.27],
-			[0.12, -0.27],
-			[0.16, -0.22],
-			[0.16, 0.22],
-			[0.12, 0.27],
-			[-0.12, 0.27],
-			[-0.16, 0.22],
-		]);
+		return {
+			holes: [
+				V([
+					[-0.16, -0.22],
+					[-0.12, -0.27],
+					[0.12, -0.27],
+					[0.16, -0.22],
+					[0.16, 0.22],
+					[0.12, 0.27],
+					[-0.12, 0.27],
+					[-0.16, 0.22],
+				]),
+			],
+			islands: [],
+		};
 	if (icon === "log") {
 		const s = new THREE.Shape();
-		s.absarc(0, 0, 0.26, 0, Math.PI * 2, false);
-		const h = new THREE.Path();
-		h.absarc(0, 0, 0.13, 0, Math.PI * 2, true);
-		s.holes.push(h);
-		return s;
+		s.moveTo(-0.24, -0.12);
+		s.lineTo(0.2, -0.12);
+		s.absellipse(0.2, 0, 0.08, 0.12, -Math.PI / 2, Math.PI / 2, false);
+		s.lineTo(-0.02, 0.12);
+		s.lineTo(-0.05, 0.25);
+		s.lineTo(-0.13, 0.23);
+		s.lineTo(-0.11, 0.12);
+		s.lineTo(-0.24, 0.12);
+		s.absellipse(-0.24, 0, 0.07, 0.12, Math.PI / 2, (Math.PI * 3) / 2, false);
+		const e = new THREE.Shape();
+		e.absellipse(0.2, 0, 0.035, 0.065, 0, Math.PI * 2, false);
+		return { holes: [s], islands: [e] };
 	}
-	const s = new THREE.Shape();
-	s.moveTo(0, -0.28);
-	s.quadraticCurveTo(0.3, -0.02, 0, 0.3);
-	s.quadraticCurveTo(-0.3, -0.02, 0, -0.28);
-	return s;
+	/* compost: a sprout, two big pointed leaves joined on one forked stem (one outline) */
+	const P2 = (b, d, n, t, o, L) => [b[0] + d[0] * L * t + n[0] * o, b[1] + d[1] * L * t + n[1] * o],
+		edges = (C, hw) => {
+			const l = [],
+				r = [];
+			C.forEach((p, i) => {
+				const a = C[Math.max(0, i - 1)],
+					b = C[Math.min(C.length - 1, i + 1)],
+					len = Math.hypot(b[0] - a[0], b[1] - a[1]),
+					nx = -(b[1] - a[1]) / len,
+					ny = (b[0] - a[0]) / len;
+				l.push([p[0] + nx * hw, p[1] + ny * hw]);
+				r.push([p[0] - nx * hw, p[1] - ny * hw]);
+			});
+			return [l, r];
+		},
+		leaf = (b, ang, L, W) => {
+			const d = [Math.cos(ang), Math.sin(ang)],
+				n = [-d[1], d[0]],
+				l = [],
+				r = [];
+			for (let i = 0; i <= 14; i++) {
+				const t = i / 14,
+					hw = i === 14 ? 0 : Math.max(0.025 * (1 - t / 0.2), W * Math.sin(Math.PI * Math.pow(t, 0.8)));
+				l.push(P2(b, d, n, t, hw, L));
+				if (i < 14) r.unshift(P2(b, d, n, t, -hw, L));
+			}
+			return l.concat(r);
+		};
+	const dn = ([x, y]) => [x, y - 0.06] /* whole sprout sits a bit low so the bigger leaves fit */,
+		stem = [
+			[0.005, -0.3],
+			[0, -0.22],
+			[-0.012, -0.14],
+			[-0.03, -0.07],
+			[-0.055, -0.01],
+		].map(dn),
+		br = [
+			[0.01, -0.205],
+			[0.045, -0.165],
+			[0.085, -0.115],
+		].map(dn),
+		[sL, sR] = edges(stem, 0.026),
+		[bL, bR] = edges(br, 0.024);
+	const out = sL
+		.slice(0, 4)
+		.concat(leaf(stem[4], (Math.PI * 7) / 12, 0.4, 0.13), [sR[3], sR[2], bL[1]])
+		.concat(leaf(br[2], (Math.PI * 5) / 18, 0.37, 0.12), [bR[1], sR[1], sR[0]]);
+	return { holes: [V(out)], islands: [] };
+}
+/* bin name plate texture, same proportions as the plate so the letters don't stretch */
+function binPlateTex(txt) {
+	const k = "bp" + txt;
+	return (
+		BLD_TEX[k] ||
+		(BLD_TEX[k] = canvasTex(256, 70, (x, w, h) => {
+			x.fillStyle = "#F4F6F9";
+			x.fillRect(0, 0, w, h);
+			x.font = "40px Bungee, 'Arial Black', Impact, sans-serif";
+			x.textAlign = "center";
+			x.textBaseline = "middle";
+			x.fillStyle = "#23272F";
+			const s = Math.min(1, (w - 16) / x.measureText(txt).width);
+			x.save();
+			x.translate(w / 2, h / 2 + 3);
+			x.scale(s, 1);
+			x.fillText(txt, 0, 0);
+			x.restore();
+		}))
+	);
 }
 /* wheelie bin, front at +z: tapered body, overhanging lid on a hinge at the back (userData.lid pivots there, rotate
-   x negative to open), a raised white icon on the lid, a name plate on the front, back handle, wheels and front feet */
-function wheelieBinModel(col, name, icon) {
+   x negative to open), the icon indented into the lid like the board tiles' symbols, back handle, wheels and front feet.
+   yaw = the bin's world rotation.y: the name plate goes on the side facing the camera (world +z) and the icon is turned
+   to read upright from there. */
+function wheelieBinModel(col, name, icon, yaw = 0) {
 	const g = new THREE.Group(),
 		lidC = "#" + new THREE.Color(col).multiplyScalar(0.72).getHexString(),
 		D = "#23272F";
@@ -27271,23 +27500,50 @@ function wheelieBinModel(col, name, icon) {
 	/* back handle on two brackets, hinge bar */
 	[-1, 1].forEach((sd) => g.add(B(0.1, 0.14, 0.2, lidC, sd * 0.5, 1.22, -0.76)));
 	g.add(Cy(0.045, 0.045, 1.16, 6, D, 0, 1.22, -0.88).rotateZ(Math.PI / 2));
-	/* lid: pivot at the hinge, so it can flap open */
+	/* lid: pivot at the hinge, so it can flap open. The slab has the icon cut through it, a white plate inside shows
+	   through 0.045 below the top. */
 	const lid = new THREE.Group();
 	lid.position.set(0, 1.33, -0.72);
 	g.add(lid);
-	lid.add(B(1.72, 0.1, 1.5, lidC, 0, 0.02, 0.74), B(1.66, 0.14, 0.07, lidC, 0, -0.04, 1.5));
+	const ic = binIconShape(icon),
+		ca = Math.cos(-yaw),
+		sa = Math.sin(-yaw),
+		turn = (sh) =>
+			new THREE.Shape(
+				sh.getPoints(6).map((p) => new THREE.Vector2((p.x * ca - p.y * sa) * 1.6, (p.x * sa + p.y * ca) * 1.6)),
+			);
+	const slab = new THREE.Shape([
+		new THREE.Vector2(-0.86, -0.75),
+		new THREE.Vector2(0.86, -0.75),
+		new THREE.Vector2(0.86, 0.75),
+		new THREE.Vector2(-0.86, 0.75),
+	]);
+	ic.holes.forEach((h) => slab.holes.push(turn(h)));
+	const flat = (sh, d, y) => {
+		const geo = new THREE.ExtrudeGeometry(sh, { depth: d, bevelEnabled: false });
+		geo.rotateX(-Math.PI / 2);
+		const m = mesh(geo, lidC);
+		evenCaps(m.geometry);
+		m.position.set(0, y, 0.74);
+		return m;
+	};
+	lid.add(flat(slab, 0.1, -0.03), B(1.3, 0.02, 1.3, "#F4F6F9", 0, 0.015, 0.74));
+	ic.islands.forEach((s) => lid.add(flat(turn(s), 0.04, 0.03)));
+	lid.add(B(1.66, 0.14, 0.07, lidC, 0, -0.04, 1.5));
 	lid.add(Cy(0.05, 0.05, 1.6, 6, D, 0, 0, 0).rotateZ(Math.PI / 2));
-	const ic = new THREE.ExtrudeGeometry(binIconShape(icon), { depth: 0.04, bevelEnabled: false, curveSegments: 6 });
-	ic.rotateX(-Math.PI / 2);
-	ic.scale(1.6, 1, 1.6);
-	const im = mesh(ic, "#F4F6F9");
-	im.position.set(0, 0.07, 0.74);
-	lid.add(im);
 	g.userData.lid = lid;
-	/* name plate on the sloping front */
-	const pl = texturedBox(1.1, 0.3, 0.03, "#F4F6F9", signTexture(name.toUpperCase(), "#F4F6F9", "#23272F"), 4);
-	pl.position.set(0, 0.78, 0.67);
-	pl.rotation.x = 0.066;
+	/* name plate on the sloping side that faces the camera */
+	const cx = -Math.sin(yaw),
+		cz = Math.cos(yaw),
+		n = Math.abs(cx) > Math.abs(cz) ? [Math.sign(cx), 0] : [0, Math.sign(cz)],
+		back = n[1] < 0 /* the back has the handle overhead: plate lower, between the ribs */,
+		y = back ? 0.62 : 0.72,
+		r = 0.86 + ((y - 0.1) / 1.2) * 0.12,
+		dist = (n[0] ? 1.15 : 1) * r * Math.SQRT1_2 + 0.012;
+	const pl = texturedBox(1.2, back ? 0.3 : 0.33, 0.03, "#F4F6F9", binPlateTex(name.toUpperCase()), 4);
+	pl.position.set(n[0] * dist, y, n[1] * dist);
+	pl.rotation.order = "YXZ";
+	pl.rotation.set(Math.atan(((n[0] ? 1.15 : 1) * 0.12 * Math.SQRT1_2) / 1.2), Math.atan2(n[0], n[1]), 0);
 	g.add(pl);
 	return g;
 }
@@ -27512,6 +27768,144 @@ function sortItemModel(cat, v) {
 	const out = new THREE.Group();
 	out.add(g);
 	return out;
+}
+/* ---------- Dump Run: tracked excavator ---------- */
+/* excavator facing +z at rest: undercarriage with rounded track loops, grouser shoes and rollers; a house (userData.house,
+   turns about y) with deck, engine hood and grille, rounded counterweight, cab with inset windows, handrail; a bent boom
+   (userData.boom, pitches about x at the deck), stick (userData.stick) and bucket (userData.bucket) with hydraulic rams;
+   userData.dirt sits in the bucket. Static parts of every pivot are baked. */
+function excavatorModel(col = "#FFC83D") {
+	const D = "#2A2F3A",
+		S = "#3A3F48",
+		ST = "#C9CED8",
+		GL = "#5C87AD",
+		CW = "#3B3F4A",
+		g = new THREE.Group(),
+		bake = (parent, build) => {
+			const t = new THREE.Group();
+			build(t);
+			parent.add(kitGroup(bakeKit(t), 0));
+		};
+	const ram = (t, a, b, r) => {
+		/* hydraulic ram along z from a to b (y, z pairs): barrel then chrome rod */
+		const m = (a[1] + b[1]) / 2,
+			L = Math.hypot(b[0] - a[0], b[1] - a[1]),
+			ang = Math.atan2(b[0] - a[0], b[1] - a[1]);
+		const q = new THREE.Group();
+		q.position.set(0, (a[0] + b[0]) / 2, m);
+		q.rotation.x = -ang;
+		q.add(Cy(r, r, L * 0.55, 8, col, 0, 0, -L * 0.2).rotateX(Math.PI / 2));
+		q.add(Cy(r * 0.5, r * 0.5, L * 0.5, 6, ST, 0, 0, L * 0.22).rotateX(Math.PI / 2));
+		t.add(q);
+	};
+	bake(g, (t) => {
+		[-0.75, 0.75].forEach((o) => {
+			const sd = Math.sign(o);
+			t.add(B(0.48, 0.45, 2.0, D, o, 0.23, 0));
+			[-1, 1].forEach((e) => t.add(Cy(0.225, 0.225, 0.44, 12, D, o, 0.23, e).rotateZ(Math.PI / 2)));
+			for (let z = -0.9; z <= 0.91; z += 0.3) t.add(B(0.52, 0.05, 0.08, S, o, 0.475, z));
+			[-0.6, 0, 0.6].forEach((z) =>
+				t.add(Cy(0.09, 0.09, 0.04, 8, "#8E96A3", o + sd * 0.26, 0.13, z).rotateZ(Math.PI / 2)),
+			);
+			[-1, 1].forEach((e) => t.add(Cy(0.11, 0.11, 0.04, 8, "#8E96A3", o + sd * 0.26, 0.23, e).rotateZ(Math.PI / 2)));
+		});
+		t.add(B(1.0, 0.28, 1.2, D, 0, 0.3, 0), Cy(0.62, 0.62, 0.1, 16, S, 0, 0.5, 0));
+	});
+	g.add(contactShadow(2.2, 2.9, 0.3));
+	const house = new THREE.Group();
+	house.position.y = 0.45;
+	g.add(house);
+	bake(house, (t) => {
+		t.add(
+			B(1.8, 0.62, 1.9, col, 0, 0.36, -0.1),
+			B(1.2, 0.2, 0.8, col, 0.25, 0.77, -0.5),
+			B(1.76, 0.64, 0.3, CW, 0, 0.38, -1.1),
+			Cy(0.3, 0.3, 1.72, 12, CW, 0, 0.38, -1.25).rotateZ(Math.PI / 2),
+			Cy(0.06, 0.06, 0.45, 6, D, 0.6, 1.05, -0.6),
+			B(0.5, 0.32, 0.45, col, 0, 0.82, 0.55),
+		);
+		for (let i = 0; i < 4; i++) t.add(B(0.03, 0.05, 0.5, D, 0.915, 0.25 + i * 0.1, -0.5)); /* engine grille */
+		/* cab: body, roof, inset windows (front, left, right) */
+		t.add(
+			B(0.72, 0.9, 0.9, col, -0.52, 1.11, 0.42),
+			B(0.8, 0.06, 0.98, D, -0.52, 1.59, 0.42),
+			B(0.56, 0.48, 0.04, GL, -0.52, 1.28, 0.885),
+			B(0.04, 0.44, 0.62, GL, -0.895, 1.3, 0.42),
+			B(0.04, 0.44, 0.4, GL, -0.145, 1.3, 0.52),
+		);
+		/* handrail along the right of the deck */
+		[-0.8, -0.1, 0.6].forEach((z) => t.add(B(0.05, 0.3, 0.05, ST, 0.86, 0.82, z)));
+		t.add(B(0.05, 0.05, 1.45, ST, 0.86, 0.98, -0.1));
+	});
+	/* boom: bent (up to a knee, then down to the stick pin at z 2.4), rams underneath and on top */
+	const boom = new THREE.Group();
+	boom.position.set(0, 0.95, 0.5);
+	house.add(boom);
+	bake(boom, (t) => {
+		const seg = (a, b, w, h) => {
+			const L = Math.hypot(b[0] - a[0], b[1] - a[1]),
+				m = B(w, h, L + 0.1, col, 0, (a[0] + b[0]) / 2, (a[1] + b[1]) / 2);
+			m.rotation.x = -Math.atan2(b[0] - a[0], b[1] - a[1]);
+			t.add(m);
+		};
+		seg([0, 0], [0.38, 1.25], 0.3, 0.34);
+		seg([0.38, 1.25], [0, 2.4], 0.28, 0.3);
+		t.add(
+			Cy(0.08, 0.08, 0.36, 8, D, 0, 0, 0).rotateZ(Math.PI / 2),
+			Cy(0.08, 0.08, 0.34, 8, D, 0, 0, 2.4).rotateZ(Math.PI / 2),
+		);
+		ram(t, [-0.22, 0.15], [0.12, 1.15], 0.075);
+		ram(t, [0.58, 1.2], [0.22, 2.2], 0.065);
+	});
+	const stick = new THREE.Group();
+	stick.position.z = 2.4;
+	boom.add(stick);
+	bake(stick, (t) => {
+		t.add(B(0.24, 0.3, 2.0, col, 0, 0, 1), B(0.26, 0.12, 0.3, col, 0, 0.18, 0.05));
+		ram(t, [0.24, 0.15], [0.22, 1.75], 0.06);
+		t.add(Cy(0.07, 0.07, 0.3, 8, D, 0, 0, 2).rotateZ(Math.PI / 2));
+	});
+	/* bucket: curved shell (profile in y/z, open toward -z), side plates, teeth */
+	const bucket = new THREE.Group();
+	bucket.position.z = 2;
+	stick.add(bucket);
+	bake(bucket, (t) => {
+		const P = (pts) => new THREE.Shape(pts.map(([z, y]) => new THREE.Vector2(z, y))),
+			outer = [
+				[0.3, 0.18],
+				[0.36, 0],
+				[0.32, -0.22],
+				[0.18, -0.36],
+				[-0.26, -0.4],
+			],
+			shell = P(
+				outer.concat([
+					[-0.26, -0.34],
+					[0.14, -0.3],
+					[0.26, -0.18],
+					[0.3, 0],
+					[0.24, 0.18],
+				]),
+			),
+			side = P(outer),
+			ext = (sh, w, x, c) => {
+				const geo = new THREE.ExtrudeGeometry(sh, { depth: w, bevelEnabled: false });
+				geo.rotateY(-Math.PI / 2);
+				const m = mesh(geo, c);
+				m.position.x = x;
+				t.add(m);
+			};
+		ext(shell, 0.82, 0.41, D);
+		ext(side, 0.05, 0.46, D);
+		ext(side, 0.05, -0.41, D);
+		[-0.3, -0.1, 0.1, 0.3].forEach((o) => t.add(B(0.08, 0.05, 0.14, "#8E96A3", o, -0.38, -0.31)));
+		t.add(B(0.3, 0.12, 0.14, D, 0, 0.25, 0.33));
+	});
+	const dirt = mesh(new THREE.DodecahedronGeometry(0.32, 0), "#8C6A45");
+	dirt.position.set(0, -0.08, -0.02);
+	bucket.add(dirt);
+	Object.assign(g.userData, { house, boom, stick, bucket, dirt });
+	return g;
 }
 /* ---------- map editor (PC): move / rotate / scale spaces and props, tune the map's shape. Edits are stored per map in localStorage (trp_mapedit) and applied by
    buildBoardFor (applyMapEdits / edReg in partmap); "Copy edits" gives JSON the user pastes to Claude, who bakes it into the map as `bake` ---------- */

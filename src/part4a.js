@@ -121,7 +121,23 @@ function mgEnv(s, water, lane, bare, night, storm, dusk) {
 }
 /* new look (trial): def.look = {exp, amb, sun, warm, env, haze, glow, bloom, vig, sat, fill: [sky, ground], sky: [top, mid, horizon]}.
    Sets the scene's colour mood; the renderer switches to sRGB + ACES for scenes with userData.lk (gfxLook). Light colours go in as linear. */
-const LOOK0 = { exp: 1, amb: 0.3, sun: 1.8, warm: 0.6, env: 0.1, paint: 0.45, haze: 55, glow: 1.01, bloom: 0.4 };
+const LOOK0 = {
+	exp: 1,
+	amb: 0.3,
+	sun: 1.8,
+	warm: 0.6,
+	env: 0.1,
+	paint: 0.45,
+	haze: 55,
+	glow: 1.01,
+	bloom: 0.4,
+	lamp: 1,
+};
+/* a game's own lamps (W.lamps: lights with userData.base intensity, W.lampFx: fake beams / glows with a base opacity) times the look's lamp */
+function lookLamps(W, v) {
+	(W.lamps || []).forEach((l) => (l.intensity = l.userData.base * v));
+	(W.lampFx || []).forEach((f) => (f.material.opacity = f.userData.base * Math.min(1, v)));
+}
 const lkWarm = (c, w) => c.set("#E4EEFF").lerp(new THREE.Color("#FFC27A"), w).convertSRGBToLinear();
 function applyLook(W, extra) {
 	const s = W.sc,
@@ -142,6 +158,7 @@ function applyLook(W, extra) {
 		}
 	}
 	W.sun.intensity = L.sun;
+	lookLamps(W, L.lamp);
 	lkWarm(W.sun.color, L.warm);
 	W.lpWarm = L.warm;
 	if (GFX.touch) W.sun.shadow.mapSize.set(1024, 1024);
@@ -1298,7 +1315,7 @@ function wireLightPanel() {
 			warm: W.lpWarm ?? 0.5,
 			haze: fog ? fog.near : 60,
 		};
-		if (LK) Object.assign(st, { exp: LK.exp, env: LK.env, paint: LK.paint, glow: LK.glow });
+		if (LK) Object.assign(st, { exp: LK.exp, env: LK.env, paint: LK.paint, glow: LK.glow, lamp: LK.lamp });
 		const LIGHT = [
 			["amb", "Ambient", 0, 2.5, 0.02],
 			["sun", "Sun", 0, LK ? 4 : 2.5, 0.02],
@@ -1313,6 +1330,7 @@ function wireLightPanel() {
 							["exp", "Exposure", 0.4, 3, 0.02],
 							["env", "Reflect", 0, 1.5, 0.02],
 							["paint", "Paint rough", 0.1, 0.8, 0.01],
+							...(W.lamps && W.lamps.length ? [["lamp", "Lamps", 0, 3, 0.02]] : []),
 							["glow", "Glow cut", 0.8, 1.05, 0.005],
 						]
 					: [],
@@ -1373,7 +1391,9 @@ function wireLightPanel() {
 					env: st.env,
 					paint: st.paint,
 					glow: st.glow,
+					lamp: st.lamp,
 				});
+				lookLamps(W, st.lamp);
 				F.bloom.th = st.glow;
 				if (envCh) lookEnv(W.sc);
 			}
@@ -1395,7 +1415,7 @@ function wireLightPanel() {
 				`${W.mg.g}: ambient ${fmt("amb", st.amb)} · sun ${fmt("sun", st.sun)} · height ${fmt("h", st.h)} · angle ${fmt("ang", st.ang)} · warmth ${fmt("warm", st.warm)}` +
 				(fog ? ` · haze ${fmt("haze", st.haze)}` : "") +
 				(LK
-					? ` · exposure ${fmt("exp", st.exp)} · reflect ${fmt("env", st.env)} · paint rough ${fmt("paint", st.paint)} · glow cut ${fmt("glow", st.glow)}`
+					? ` · exposure ${fmt("exp", st.exp)} · reflect ${fmt("env", st.env)} · paint rough ${fmt("paint", st.paint)}${W.lamps && W.lamps.length ? ` · lamps ${fmt("lamp", st.lamp)}` : ""} · glow cut ${fmt("glow", st.glow)}`
 					: "") +
 				` · effects: ${on || "none"}`;
 		};
@@ -1484,7 +1504,7 @@ function wireLightPanel() {
 					lt = { amb: st.amb, sun: st.sun, warm: st.warm },
 					fx = {};
 				if (fog) lt.haze = st.haze;
-				if (LK) Object.assign(lt, { exp: st.exp, env: st.env, paint: st.paint, glow: st.glow });
+				if (LK) Object.assign(lt, { exp: st.exp, env: st.env, paint: st.paint, glow: st.glow, lamp: st.lamp });
 				FX.forEach(([k]) => (fx[k] = F[k].on ? (k === "aa" ? 1 : +fxv(k).toFixed(2)) : 0));
 				A[g] = { lt, sun: (W.def.sun || [14, 26, 12]).slice(), fx };
 				LS.set("trp_light", A);

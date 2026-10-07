@@ -1740,48 +1740,133 @@ function crushedCarModel(type, col) {
 }
 
 /* ---------- Sort It Out: wheelie bins and the trash ---------- */
-/* flat icon shapes for bin lids, drawn in a 0.6 x 0.6 box: bottle, can, log end, leaf */
+/* flat icon shapes for bin lids, drawn in a 0.6 x 0.6 box: bottle, can, log (side view with a branch stub and its end grain
+   as an island), two leaves on their stems. Returns {holes, islands}: holes are cut into the lid, islands stand in a hole. */
 function binIconShape(icon) {
 	const V = (P) => new THREE.Shape(P.map(([x, y]) => new THREE.Vector2(x, y)));
 	if (icon === "bottle")
-		return V([
-			[-0.13, -0.28],
-			[0.13, -0.28],
-			[0.13, 0.08],
-			[0.06, 0.17],
-			[0.06, 0.28],
-			[-0.06, 0.28],
-			[-0.06, 0.17],
-			[-0.13, 0.08],
-		]);
+		return {
+			holes: [
+				V([
+					[-0.13, -0.28],
+					[0.13, -0.28],
+					[0.13, 0.08],
+					[0.06, 0.17],
+					[0.06, 0.28],
+					[-0.06, 0.28],
+					[-0.06, 0.17],
+					[-0.13, 0.08],
+				]),
+			],
+			islands: [],
+		};
 	if (icon === "can")
-		return V([
-			[-0.16, -0.22],
-			[-0.12, -0.27],
-			[0.12, -0.27],
-			[0.16, -0.22],
-			[0.16, 0.22],
-			[0.12, 0.27],
-			[-0.12, 0.27],
-			[-0.16, 0.22],
-		]);
+		return {
+			holes: [
+				V([
+					[-0.16, -0.22],
+					[-0.12, -0.27],
+					[0.12, -0.27],
+					[0.16, -0.22],
+					[0.16, 0.22],
+					[0.12, 0.27],
+					[-0.12, 0.27],
+					[-0.16, 0.22],
+				]),
+			],
+			islands: [],
+		};
 	if (icon === "log") {
 		const s = new THREE.Shape();
-		s.absarc(0, 0, 0.26, 0, Math.PI * 2, false);
-		const h = new THREE.Path();
-		h.absarc(0, 0, 0.13, 0, Math.PI * 2, true);
-		s.holes.push(h);
-		return s;
+		s.moveTo(-0.24, -0.12);
+		s.lineTo(0.2, -0.12);
+		s.absellipse(0.2, 0, 0.08, 0.12, -Math.PI / 2, Math.PI / 2, false);
+		s.lineTo(-0.02, 0.12);
+		s.lineTo(-0.05, 0.25);
+		s.lineTo(-0.13, 0.23);
+		s.lineTo(-0.11, 0.12);
+		s.lineTo(-0.24, 0.12);
+		s.absellipse(-0.24, 0, 0.07, 0.12, Math.PI / 2, (Math.PI * 3) / 2, false);
+		const e = new THREE.Shape();
+		e.absellipse(0.2, 0, 0.035, 0.065, 0, Math.PI * 2, false);
+		return { holes: [s], islands: [e] };
 	}
-	const s = new THREE.Shape();
-	s.moveTo(0, -0.28);
-	s.quadraticCurveTo(0.3, -0.02, 0, 0.3);
-	s.quadraticCurveTo(-0.3, -0.02, 0, -0.28);
-	return s;
+	/* compost: a sprout, two big pointed leaves joined on one forked stem (one outline) */
+	const P2 = (b, d, n, t, o, L) => [b[0] + d[0] * L * t + n[0] * o, b[1] + d[1] * L * t + n[1] * o],
+		edges = (C, hw) => {
+			const l = [],
+				r = [];
+			C.forEach((p, i) => {
+				const a = C[Math.max(0, i - 1)],
+					b = C[Math.min(C.length - 1, i + 1)],
+					len = Math.hypot(b[0] - a[0], b[1] - a[1]),
+					nx = -(b[1] - a[1]) / len,
+					ny = (b[0] - a[0]) / len;
+				l.push([p[0] + nx * hw, p[1] + ny * hw]);
+				r.push([p[0] - nx * hw, p[1] - ny * hw]);
+			});
+			return [l, r];
+		},
+		leaf = (b, ang, L, W) => {
+			const d = [Math.cos(ang), Math.sin(ang)],
+				n = [-d[1], d[0]],
+				l = [],
+				r = [];
+			for (let i = 0; i <= 14; i++) {
+				const t = i / 14,
+					hw = i === 14 ? 0 : Math.max(0.025 * (1 - t / 0.2), W * Math.sin(Math.PI * Math.pow(t, 0.8)));
+				l.push(P2(b, d, n, t, hw, L));
+				if (i < 14) r.unshift(P2(b, d, n, t, -hw, L));
+			}
+			return l.concat(r);
+		};
+	const dn = ([x, y]) => [x, y - 0.06] /* whole sprout sits a bit low so the bigger leaves fit */,
+		stem = [
+			[0.005, -0.3],
+			[0, -0.22],
+			[-0.012, -0.14],
+			[-0.03, -0.07],
+			[-0.055, -0.01],
+		].map(dn),
+		br = [
+			[0.01, -0.205],
+			[0.045, -0.165],
+			[0.085, -0.115],
+		].map(dn),
+		[sL, sR] = edges(stem, 0.026),
+		[bL, bR] = edges(br, 0.024);
+	const out = sL
+		.slice(0, 4)
+		.concat(leaf(stem[4], (Math.PI * 7) / 12, 0.4, 0.13), [sR[3], sR[2], bL[1]])
+		.concat(leaf(br[2], (Math.PI * 5) / 18, 0.37, 0.12), [bR[1], sR[1], sR[0]]);
+	return { holes: [V(out)], islands: [] };
+}
+/* bin name plate texture, same proportions as the plate so the letters don't stretch */
+function binPlateTex(txt) {
+	const k = "bp" + txt;
+	return (
+		BLD_TEX[k] ||
+		(BLD_TEX[k] = canvasTex(256, 70, (x, w, h) => {
+			x.fillStyle = "#F4F6F9";
+			x.fillRect(0, 0, w, h);
+			x.font = "40px Bungee, 'Arial Black', Impact, sans-serif";
+			x.textAlign = "center";
+			x.textBaseline = "middle";
+			x.fillStyle = "#23272F";
+			const s = Math.min(1, (w - 16) / x.measureText(txt).width);
+			x.save();
+			x.translate(w / 2, h / 2 + 3);
+			x.scale(s, 1);
+			x.fillText(txt, 0, 0);
+			x.restore();
+		}))
+	);
 }
 /* wheelie bin, front at +z: tapered body, overhanging lid on a hinge at the back (userData.lid pivots there, rotate
-   x negative to open), a raised white icon on the lid, a name plate on the front, back handle, wheels and front feet */
-function wheelieBinModel(col, name, icon) {
+   x negative to open), the icon indented into the lid like the board tiles' symbols, back handle, wheels and front feet.
+   yaw = the bin's world rotation.y: the name plate goes on the side facing the camera (world +z) and the icon is turned
+   to read upright from there. */
+function wheelieBinModel(col, name, icon, yaw = 0) {
 	const g = new THREE.Group(),
 		lidC = "#" + new THREE.Color(col).multiplyScalar(0.72).getHexString(),
 		D = "#23272F";
@@ -1809,23 +1894,50 @@ function wheelieBinModel(col, name, icon) {
 	/* back handle on two brackets, hinge bar */
 	[-1, 1].forEach((sd) => g.add(B(0.1, 0.14, 0.2, lidC, sd * 0.5, 1.22, -0.76)));
 	g.add(Cy(0.045, 0.045, 1.16, 6, D, 0, 1.22, -0.88).rotateZ(Math.PI / 2));
-	/* lid: pivot at the hinge, so it can flap open */
+	/* lid: pivot at the hinge, so it can flap open. The slab has the icon cut through it, a white plate inside shows
+	   through 0.045 below the top. */
 	const lid = new THREE.Group();
 	lid.position.set(0, 1.33, -0.72);
 	g.add(lid);
-	lid.add(B(1.72, 0.1, 1.5, lidC, 0, 0.02, 0.74), B(1.66, 0.14, 0.07, lidC, 0, -0.04, 1.5));
+	const ic = binIconShape(icon),
+		ca = Math.cos(-yaw),
+		sa = Math.sin(-yaw),
+		turn = (sh) =>
+			new THREE.Shape(
+				sh.getPoints(6).map((p) => new THREE.Vector2((p.x * ca - p.y * sa) * 1.6, (p.x * sa + p.y * ca) * 1.6)),
+			);
+	const slab = new THREE.Shape([
+		new THREE.Vector2(-0.86, -0.75),
+		new THREE.Vector2(0.86, -0.75),
+		new THREE.Vector2(0.86, 0.75),
+		new THREE.Vector2(-0.86, 0.75),
+	]);
+	ic.holes.forEach((h) => slab.holes.push(turn(h)));
+	const flat = (sh, d, y) => {
+		const geo = new THREE.ExtrudeGeometry(sh, { depth: d, bevelEnabled: false });
+		geo.rotateX(-Math.PI / 2);
+		const m = mesh(geo, lidC);
+		evenCaps(m.geometry);
+		m.position.set(0, y, 0.74);
+		return m;
+	};
+	lid.add(flat(slab, 0.1, -0.03), B(1.3, 0.02, 1.3, "#F4F6F9", 0, 0.015, 0.74));
+	ic.islands.forEach((s) => lid.add(flat(turn(s), 0.04, 0.03)));
+	lid.add(B(1.66, 0.14, 0.07, lidC, 0, -0.04, 1.5));
 	lid.add(Cy(0.05, 0.05, 1.6, 6, D, 0, 0, 0).rotateZ(Math.PI / 2));
-	const ic = new THREE.ExtrudeGeometry(binIconShape(icon), { depth: 0.04, bevelEnabled: false, curveSegments: 6 });
-	ic.rotateX(-Math.PI / 2);
-	ic.scale(1.6, 1, 1.6);
-	const im = mesh(ic, "#F4F6F9");
-	im.position.set(0, 0.07, 0.74);
-	lid.add(im);
 	g.userData.lid = lid;
-	/* name plate on the sloping front */
-	const pl = texturedBox(1.1, 0.3, 0.03, "#F4F6F9", signTexture(name.toUpperCase(), "#F4F6F9", "#23272F"), 4);
-	pl.position.set(0, 0.78, 0.67);
-	pl.rotation.x = 0.066;
+	/* name plate on the sloping side that faces the camera */
+	const cx = -Math.sin(yaw),
+		cz = Math.cos(yaw),
+		n = Math.abs(cx) > Math.abs(cz) ? [Math.sign(cx), 0] : [0, Math.sign(cz)],
+		back = n[1] < 0 /* the back has the handle overhead: plate lower, between the ribs */,
+		y = back ? 0.62 : 0.72,
+		r = 0.86 + ((y - 0.1) / 1.2) * 0.12,
+		dist = (n[0] ? 1.15 : 1) * r * Math.SQRT1_2 + 0.012;
+	const pl = texturedBox(1.2, back ? 0.3 : 0.33, 0.03, "#F4F6F9", binPlateTex(name.toUpperCase()), 4);
+	pl.position.set(n[0] * dist, y, n[1] * dist);
+	pl.rotation.order = "YXZ";
+	pl.rotation.set(Math.atan(((n[0] ? 1.15 : 1) * 0.12 * Math.SQRT1_2) / 1.2), Math.atan2(n[0], n[1]), 0);
 	g.add(pl);
 	return g;
 }
@@ -2050,4 +2162,142 @@ function sortItemModel(cat, v) {
 	const out = new THREE.Group();
 	out.add(g);
 	return out;
+}
+/* ---------- Dump Run: tracked excavator ---------- */
+/* excavator facing +z at rest: undercarriage with rounded track loops, grouser shoes and rollers; a house (userData.house,
+   turns about y) with deck, engine hood and grille, rounded counterweight, cab with inset windows, handrail; a bent boom
+   (userData.boom, pitches about x at the deck), stick (userData.stick) and bucket (userData.bucket) with hydraulic rams;
+   userData.dirt sits in the bucket. Static parts of every pivot are baked. */
+function excavatorModel(col = "#FFC83D") {
+	const D = "#2A2F3A",
+		S = "#3A3F48",
+		ST = "#C9CED8",
+		GL = "#5C87AD",
+		CW = "#3B3F4A",
+		g = new THREE.Group(),
+		bake = (parent, build) => {
+			const t = new THREE.Group();
+			build(t);
+			parent.add(kitGroup(bakeKit(t), 0));
+		};
+	const ram = (t, a, b, r) => {
+		/* hydraulic ram along z from a to b (y, z pairs): barrel then chrome rod */
+		const m = (a[1] + b[1]) / 2,
+			L = Math.hypot(b[0] - a[0], b[1] - a[1]),
+			ang = Math.atan2(b[0] - a[0], b[1] - a[1]);
+		const q = new THREE.Group();
+		q.position.set(0, (a[0] + b[0]) / 2, m);
+		q.rotation.x = -ang;
+		q.add(Cy(r, r, L * 0.55, 8, col, 0, 0, -L * 0.2).rotateX(Math.PI / 2));
+		q.add(Cy(r * 0.5, r * 0.5, L * 0.5, 6, ST, 0, 0, L * 0.22).rotateX(Math.PI / 2));
+		t.add(q);
+	};
+	bake(g, (t) => {
+		[-0.75, 0.75].forEach((o) => {
+			const sd = Math.sign(o);
+			t.add(B(0.48, 0.45, 2.0, D, o, 0.23, 0));
+			[-1, 1].forEach((e) => t.add(Cy(0.225, 0.225, 0.44, 12, D, o, 0.23, e).rotateZ(Math.PI / 2)));
+			for (let z = -0.9; z <= 0.91; z += 0.3) t.add(B(0.52, 0.05, 0.08, S, o, 0.475, z));
+			[-0.6, 0, 0.6].forEach((z) =>
+				t.add(Cy(0.09, 0.09, 0.04, 8, "#8E96A3", o + sd * 0.26, 0.13, z).rotateZ(Math.PI / 2)),
+			);
+			[-1, 1].forEach((e) => t.add(Cy(0.11, 0.11, 0.04, 8, "#8E96A3", o + sd * 0.26, 0.23, e).rotateZ(Math.PI / 2)));
+		});
+		t.add(B(1.0, 0.28, 1.2, D, 0, 0.3, 0), Cy(0.62, 0.62, 0.1, 16, S, 0, 0.5, 0));
+	});
+	g.add(contactShadow(2.2, 2.9, 0.3));
+	const house = new THREE.Group();
+	house.position.y = 0.45;
+	g.add(house);
+	bake(house, (t) => {
+		t.add(
+			B(1.8, 0.62, 1.9, col, 0, 0.36, -0.1),
+			B(1.2, 0.2, 0.8, col, 0.25, 0.77, -0.5),
+			B(1.76, 0.64, 0.3, CW, 0, 0.38, -1.1),
+			Cy(0.3, 0.3, 1.72, 12, CW, 0, 0.38, -1.25).rotateZ(Math.PI / 2),
+			Cy(0.06, 0.06, 0.45, 6, D, 0.6, 1.05, -0.6),
+			B(0.5, 0.32, 0.45, col, 0, 0.82, 0.55),
+		);
+		for (let i = 0; i < 4; i++) t.add(B(0.03, 0.05, 0.5, D, 0.915, 0.25 + i * 0.1, -0.5)); /* engine grille */
+		/* cab: body, roof, inset windows (front, left, right) */
+		t.add(
+			B(0.72, 0.9, 0.9, col, -0.52, 1.11, 0.42),
+			B(0.8, 0.06, 0.98, D, -0.52, 1.59, 0.42),
+			B(0.56, 0.48, 0.04, GL, -0.52, 1.28, 0.885),
+			B(0.04, 0.44, 0.62, GL, -0.895, 1.3, 0.42),
+			B(0.04, 0.44, 0.4, GL, -0.145, 1.3, 0.52),
+		);
+		/* handrail along the right of the deck */
+		[-0.8, -0.1, 0.6].forEach((z) => t.add(B(0.05, 0.3, 0.05, ST, 0.86, 0.82, z)));
+		t.add(B(0.05, 0.05, 1.45, ST, 0.86, 0.98, -0.1));
+	});
+	/* boom: bent (up to a knee, then down to the stick pin at z 2.4), rams underneath and on top */
+	const boom = new THREE.Group();
+	boom.position.set(0, 0.95, 0.5);
+	house.add(boom);
+	bake(boom, (t) => {
+		const seg = (a, b, w, h) => {
+			const L = Math.hypot(b[0] - a[0], b[1] - a[1]),
+				m = B(w, h, L + 0.1, col, 0, (a[0] + b[0]) / 2, (a[1] + b[1]) / 2);
+			m.rotation.x = -Math.atan2(b[0] - a[0], b[1] - a[1]);
+			t.add(m);
+		};
+		seg([0, 0], [0.38, 1.25], 0.3, 0.34);
+		seg([0.38, 1.25], [0, 2.4], 0.28, 0.3);
+		t.add(
+			Cy(0.08, 0.08, 0.36, 8, D, 0, 0, 0).rotateZ(Math.PI / 2),
+			Cy(0.08, 0.08, 0.34, 8, D, 0, 0, 2.4).rotateZ(Math.PI / 2),
+		);
+		ram(t, [-0.22, 0.15], [0.12, 1.15], 0.075);
+		ram(t, [0.58, 1.2], [0.22, 2.2], 0.065);
+	});
+	const stick = new THREE.Group();
+	stick.position.z = 2.4;
+	boom.add(stick);
+	bake(stick, (t) => {
+		t.add(B(0.24, 0.3, 2.0, col, 0, 0, 1), B(0.26, 0.12, 0.3, col, 0, 0.18, 0.05));
+		ram(t, [0.24, 0.15], [0.22, 1.75], 0.06);
+		t.add(Cy(0.07, 0.07, 0.3, 8, D, 0, 0, 2).rotateZ(Math.PI / 2));
+	});
+	/* bucket: curved shell (profile in y/z, open toward -z), side plates, teeth */
+	const bucket = new THREE.Group();
+	bucket.position.z = 2;
+	stick.add(bucket);
+	bake(bucket, (t) => {
+		const P = (pts) => new THREE.Shape(pts.map(([z, y]) => new THREE.Vector2(z, y))),
+			outer = [
+				[0.3, 0.18],
+				[0.36, 0],
+				[0.32, -0.22],
+				[0.18, -0.36],
+				[-0.26, -0.4],
+			],
+			shell = P(
+				outer.concat([
+					[-0.26, -0.34],
+					[0.14, -0.3],
+					[0.26, -0.18],
+					[0.3, 0],
+					[0.24, 0.18],
+				]),
+			),
+			side = P(outer),
+			ext = (sh, w, x, c) => {
+				const geo = new THREE.ExtrudeGeometry(sh, { depth: w, bevelEnabled: false });
+				geo.rotateY(-Math.PI / 2);
+				const m = mesh(geo, c);
+				m.position.x = x;
+				t.add(m);
+			};
+		ext(shell, 0.82, 0.41, D);
+		ext(side, 0.05, 0.46, D);
+		ext(side, 0.05, -0.41, D);
+		[-0.3, -0.1, 0.1, 0.3].forEach((o) => t.add(B(0.08, 0.05, 0.14, "#8E96A3", o, -0.38, -0.31)));
+		t.add(B(0.3, 0.12, 0.14, D, 0, 0.25, 0.33));
+	});
+	const dirt = mesh(new THREE.DodecahedronGeometry(0.32, 0), "#8C6A45");
+	dirt.position.set(0, -0.08, -0.02);
+	bucket.add(dirt);
+	Object.assign(g.userData, { house, boom, stick, bucket, dirt });
+	return g;
 }

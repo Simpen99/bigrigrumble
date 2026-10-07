@@ -1256,17 +1256,14 @@ Object.assign(MG, {
 		build(W) {
 			const s = W.sc;
 			this.plant(s);
-			decal(s, new THREE.CircleGeometry(1.1, 16), "#FFC83D", 0, 0.02, 0, 0.5);
-			s.add(Cy(0.75, 0.85, 0.5, 10, "#3A4150", 0, 0.25, 0));
-			const belt = B(1.6, 0.3, 6, "#23272F", 0, 0.45, -6.4);
-			s.add(belt, B(1.8, 0.5, 6, "#5A6272", 0, 0.1, -6.4));
+			decal(s, new THREE.CircleGeometry(1.5, 20), "#FFC83D", 0, 0.02, 0.2, 0.35);
+			/* bins round the player's truck, fronts (and lids) opening toward it */
 			W.lids = this.CATS.map((c, i) => {
-				const g = wheelieBinModel(c.c, c.n, ["bottle", "can", "log", "leaf"][i]);
+				const yaw = Math.atan2(-c.pos[0], -c.pos[1]),
+					g = wheelieBinModel(c.c, c.n, ["bottle", "can", "log", "leaf"][i], yaw);
 				g.position.set(c.pos[0], 0, c.pos[1]);
+				g.rotation.y = yaw;
 				g.add(contactShadow(1.6, 1.4, 0.3));
-				const lab = textSprite(c.n.toUpperCase(), "#151B24", "#FFFFFF", 1.6);
-				lab.position.y = 2.3;
-				g.add(lab);
 				s.add(g);
 				return g.userData.lid;
 			});
@@ -1310,10 +1307,6 @@ Object.assign(MG, {
 			);
 			sign.position.set(-6.2, 2.6, Z + 0.45);
 			s.add(sign);
-			const inc = B(1.6, 0.25, 3.4, "#23272F", 0, 1.35, -10.1);
-			inc.rotation.x = -0.5;
-			s.add(inc);
-			[-0.9, 0.9].forEach((x) => s.add(B(0.16, 2.3, 0.16, "#5A6272", x, 1.15, -9.9)));
 			const bale = (x, y, z, c, str) => {
 				s.add(B(1.6, 1.15, 1.2, c, x, y + 0.575, z));
 				[-0.45, 0.45].forEach((o) => s.add(B(0.06, 1.2, 1.26, str, x + o, y + 0.575, z)));
@@ -1366,9 +1359,19 @@ Object.assign(MG, {
 			);
 			s.add(this.motes);
 		},
-		spawn: (W, i) => ({ x: 4.8, z: -3.5, yaw: Math.PI * 0.8 }),
+		/* the player's truck stands in the middle; trash drops onto its roof and it hops to shove each piece into a bin */
+		X0: 0,
+		Z0: 0.2,
+		YAW0: -0.5,
+		spawn(W, i) {
+			return { x: this.X0, z: this.Z0, yaw: this.YAW0 };
+		},
 		initEnt(W, e) {
 			hideOthers(W, e);
+			if (e.isMe) {
+				W.roofY = new THREE.Box3().setFromObject(e.tr).max.y;
+				e.g.children.forEach((o) => o.isSprite && (o.visible = false)); /* no name tag: only your truck is here */
+			}
 			e.n = 0;
 			e.combo = 0;
 			e.cur = null;
@@ -1376,7 +1379,7 @@ Object.assign(MG, {
 		},
 		item(cat, v) {
 			const g = sortItemModel(cat, v);
-			g.scale.setScalar(1.5);
+			g.scale.setScalar(1.25);
 			return g;
 		},
 		next(W, e) {
@@ -1386,7 +1389,7 @@ Object.assign(MG, {
 			if (e.isMe) {
 				if (W.curM) W.sc.remove(W.curM);
 				W.curM = this.item(c.cat, c.v);
-				W.curM.position.set(0, 0.5, -4);
+				W.curM.position.set(e.x, 4.5, e.z);
 				W.sc.add(W.curM);
 				W.curIn = 0;
 			}
@@ -1402,6 +1405,7 @@ Object.assign(MG, {
 				W.curM = null;
 				if (m) W.flyM.push({ m, from: m.position.clone(), to: new THREE.Vector3(c.pos[0], 1.5, c.pos[1]), t: 0, ok });
 				W.lidT[idx] = W.t; /* the bin's lid flaps open to catch it */
+				W.push = { i: idx, t0: W.t }; /* the truck turns and hops toward that bin */
 				sfx(ok ? "coin" : "loss");
 				e.msg = ok ? "+10" : `Not ${c.n.toLowerCase()}! −5`;
 				e.msgT = W.t;
@@ -1433,10 +1437,25 @@ Object.assign(MG, {
 				}
 				p.needsUpdate = true;
 			}
+			{
+				/* truck: faces the bin it shoves into, with a little hop and lunge, then settles back */
+				const P = W.push,
+					k = P ? (W.t - P.t0) / 0.32 : 1,
+					c = P && this.CATS[P.i],
+					want = P && W.t - P.t0 < 0.5 ? Math.atan2(-(c.pos[1] - this.Z0), c.pos[0] - this.X0) : this.YAW0;
+				e.yaw = lerpA(e.yaw, want, Math.min(1, dt * 16));
+				const h = k < 1 ? Math.sin(k * Math.PI) : 0;
+				e.y = h * 0.3;
+				e.x = this.X0 + Math.cos(e.yaw) * h * 0.3;
+				e.z = this.Z0 - Math.sin(e.yaw) * h * 0.3;
+			}
 			if (W.curM) {
-				W.curIn = Math.min(1, (W.curIn || 0) + dt * 5);
-				const k = W.curIn;
-				W.curM.position.set(0, 0.5 + Math.sin(k * Math.PI) * 1.2, -4 + k * 4);
+				/* the next piece drops straight down onto the roof, with a small bounce */
+				W.curIn = Math.min(1.6, (W.curIn || 0) + dt * 4.5);
+				const k = W.curIn,
+					top = (W.roofY || 1.4) + e.y + 0.3,
+					y = k < 1 ? 4.5 - (4.5 - top) * k * k : top + Math.sin(((k - 1) / 0.6) * Math.PI) * 0.18;
+				W.curM.position.set(e.x, y, e.z);
 				W.curM.rotation.y += dt * 1.5;
 			}
 			W.lids.forEach((l, i) => {

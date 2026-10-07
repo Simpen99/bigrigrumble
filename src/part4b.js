@@ -4189,13 +4189,13 @@ const MG = {
 		unit: "pts",
 		dur: 50,
 		bare: true,
-		sun: [12.5, 17.5, 12.5],
-		/* new look: dusty bright midday at the tip (light balance from Cone Smash's tuned look) */
+		sun: [12.5, 18, 12.5],
+		/* new look: dusk at the tip, the floodlight on the lanes, warm lamps on the office and along the lanes (tuned in the light panel 2026-10-07) */
 		look: {
 			exp: 0.82,
-			amb: 0.8,
-			sun: 1.44,
-			warm: 0.55,
+			amb: 0.38,
+			sun: 0.3,
+			warm: 0.82,
 			env: 0.4,
 			paint: 0.55,
 			haze: 60,
@@ -4203,8 +4203,9 @@ const MG = {
 			bloom: 0.2,
 			vig: 0,
 			sat: 0.06,
-			fill: ["#7FA8E8", "#7F6A50"],
-			sky: ["#4E8ED6", "#9FCBEA", "#EEE6D2"],
+			lamp: 1,
+			fill: ["#8A95D8", "#5A4535"],
+			sky: ["#2B3A6B", "#B8707A", "#F0A46E"],
 		},
 		EDGE: -24,
 		HOME: 4,
@@ -4293,7 +4294,11 @@ const MG = {
 			// off to the sides: rock piles, dirt mounds, a site cabin and a light tower
 			[-1, 1].forEach((sd) => {
 				for (let k = 0; k < 5; k++) {
-					const m = mesh(new THREE.DodecahedronGeometry(1.2 + (k % 3) * 0.5, 0), "#9BA3AE");
+					if (sd < 0 && k === 2) continue; /* room for the site office */
+					/* both faces cast: back-face-only shadows left a lit streak where the buried rock meets the ground */
+					const m = mesh(new THREE.DodecahedronGeometry(1.2 + (k % 3) * 0.5, 0), "#9BA3AE", {
+						shadowSide: THREE.DoubleSide,
+					});
 					m.position.set(sd * (wid / 2 + 3 + k * 2.5), 0.6, E + 4 + k * 7);
 					s.add(m);
 				}
@@ -4305,14 +4310,16 @@ const MG = {
 				}
 			});
 			[
-				[siteCabinModel(), -wid / 2 - 8, H + 3, Math.PI / 2],
-				[lightTowerModel(), wid / 2 + 7, H + 2, -Math.PI / 2],
+				/* beside the lanes, up toward the pit, so the camera sees them */
+				[siteCabinModel(), -wid / 2 - 5, -6, Math.PI / 2],
+				[lightTowerModel(), wid / 2 + 5, -9.5, -Math.PI / 2],
 			].forEach(([m, x, z, ry]) => {
 				const k = kitGroup(bakeKit(m));
 				k.position.set(x, 0, z);
 				k.rotation.y = ry;
 				s.add(k);
 			});
+			this.lamps(W, wid);
 			// the green scoring strip, then an excavator and a dirt pile behind every lane
 			W.exc = W.plist.map((p, i) => {
 				const x = W.laneX(i);
@@ -4349,7 +4356,8 @@ const MG = {
 						new THREE.Vector2(PR(k) + 1.6, y + PH),
 						new THREE.Vector2(k === PN - 1 ? 300 : PR(k + 1), y + PH),
 					];
-				const lg = new THREE.LatheGeometry(pts, 30, Math.PI / 2 + 0.35, Math.PI - 0.7),
+				/* wraps past the sides (to near the cliff edge) so wide TV screens don't see the ends */
+				const lg = new THREE.LatheGeometry(pts, 44, Math.PI / 2 - 0.5, Math.PI + 1),
 					lp = lg.attributes.position;
 				for (let i = 0; i < lp.count; i++) {
 					const x = lp.getX(i),
@@ -4430,55 +4438,127 @@ const MG = {
 			W.smoke = puffs(W, "#D6DAE0");
 			W.skid = tyreTracks(W, "#B2ABA4", "#FFFFFF", 700, 3, 1, true);
 		},
-		excavator(s, x, z) {
-			// tracks, rotating house with cab and counterweight, boom, stick, toothed bucket
-			const Y = "#FFC83D",
+		/* dusk lighting: the light tower's floodlight as a spotlight on the lanes with a fake beam, a wall lamp and a
+		   roof beacon on the site office, glowing bollards along both sides of the lanes. No shadows; intensities
+		   are base values times the look's lamp (light panel "Lamps"). */
+		lamps(W, wid) {
+			const s = W.sc,
 				D = "#2A2F3A",
-				g = new THREE.Group();
+				lin = (c) => new THREE.Color(c).convertSRGBToLinear(),
+				warm = { emissive: "#FFD27A", emissiveIntensity: 1.8 };
+			W.lamps = [];
+			const add = (l, base) => {
+				l.userData.base = base;
+				W.lamps.push(l);
+				s.add(l);
+				return l;
+			};
+			{
+				/* floodlight: heads at the top of the tower, aimed at the middle of the lanes */
+				const hx = wid / 2 + 5.5,
+					hy = 8.6,
+					hz = -9.5,
+					sp = add(
+						new THREE.SpotLight(lin("#FFE6B8"), 3, 55, 1.0, 0.45, 1),
+						3,
+					); /* wide: the tower stands close to the lanes, so the near ends are 58 degrees off its aim */
+				sp.position.set(hx, hy, hz);
+				sp.target.position.set(-1, 0, -10);
+				s.add(sp.target);
+				/* the beam fades out before its open end, so it never stops with an edge in mid-air */
+				const len = 20,
+					cone = new THREE.ConeGeometry(Math.tan(0.55) * len, len, 24, 1, true);
+				cone.translate(0, -len / 2, 0);
+				const beam = new THREE.Mesh(
+					cone,
+					new THREE.MeshBasicMaterial({
+						map: canvasTex(8, 64, (x, w, h) => {
+							const gr = x.createLinearGradient(0, 0, 0, h);
+							gr.addColorStop(0, "rgba(255,236,200,1)");
+							gr.addColorStop(0.3, "rgba(255,226,170,0.55)");
+							gr.addColorStop(0.75, "rgba(255,226,170,0.12)");
+							gr.addColorStop(1, "rgba(255,226,170,0)");
+							x.fillStyle = gr;
+							x.fillRect(0, 0, w, h);
+						}),
+						transparent: true,
+						opacity: 0.16,
+						blending: THREE.AdditiveBlending,
+						depthWrite: false,
+						side: THREE.DoubleSide,
+						fog: false,
+					}),
+				);
+				beam.position.set(hx, hy, hz);
+				beam.quaternion.setFromUnitVectors(
+					new THREE.Vector3(0, -1, 0),
+					new THREE.Vector3(-1 - hx, -hy, -10 - hz).normalize(),
+				);
+				beam.castShadow = false;
+				beam.userData.base = 0.16;
+				W.lampFx = [beam];
+				s.add(beam);
+			}
+			{
+				/* site office (same place as its kit): wall lamp over the door, amber beacon on a roof corner */
+				const og = new THREE.Group(),
+					fz = 1.15;
+				og.position.set(-wid / 2 - 5, 0, -6);
+				og.rotation.y = Math.PI / 2;
+				og.add(
+					B(0.36, 0.14, 0.22, D, 1.75, 2.58, fz + 0.1),
+					B(0.3, 0.04, 0.16, "#FFF4D6", 1.75, 2.49, fz + 0.12, warm),
+					Cy(0.11, 0.13, 0.2, 8, "#FF9A1F", 2.75, 3.14, -1.0, { emissive: "#FF8A1F", emissiveIntensity: 2 }),
+				);
+				s.add(og);
+				const pl = add(new THREE.PointLight(lin("#FFC98A"), 1.2, 9, 1), 1.2);
+				og.updateMatrixWorld(true);
+				pl.position.copy(og.localToWorld(new THREE.Vector3(1.75, 2.2, fz + 0.9)));
+			}
+			{
+				/* bollards along both sides of the lanes, each with a soft warm pool on the ground */
+				const glow = new THREE.MeshBasicMaterial({
+						map: canvasTex(64, 64, (x, w, h) => {
+							const gr = x.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2);
+							gr.addColorStop(0, "rgba(255,210,140,0.9)");
+							gr.addColorStop(1, "rgba(255,210,140,0)");
+							x.fillStyle = gr;
+							x.fillRect(0, 0, w, h);
+						}),
+						transparent: true,
+						opacity: 0.35,
+						blending: THREE.AdditiveBlending,
+						depthWrite: false,
+						polygonOffset: true,
+						polygonOffsetFactor: -2,
+						polygonOffsetUnits: -4,
+					}),
+					gg = new THREE.PlaneGeometry(2.6, 2.6);
+				gg.rotateX(-Math.PI / 2);
+				glow.userData.base = 0.35;
+				W.lampFx.push({ material: glow, userData: glow.userData });
+				[-1, 1].forEach((sd) =>
+					[3, -2.8, -8.6, -14.4, -20.2].forEach((z) => {
+						const x = sd * (wid / 2 + 0.7);
+						s.add(
+							Cy(0.06, 0.07, 0.9, 6, D, x, 0.45, z),
+							Cy(0.12, 0.12, 0.14, 8, "#FFE9B0", x, 0.97, z, warm),
+							Cy(0.15, 0.15, 0.05, 8, D, x, 1.065, z),
+						);
+						const m = new THREE.Mesh(gg, glow);
+						m.position.set(x, 0.035, z);
+						m.renderOrder = 2;
+						s.add(m);
+					}),
+				);
+			}
+		},
+		excavator(s, x, z) {
+			const g = excavatorModel();
 			g.position.set(x, 0, z);
+			g.userData.house.rotation.y = Math.PI;
 			s.add(g);
-			[-0.75, 0.75].forEach((o) => {
-				g.add(B(0.5, 0.45, 2.5, D, o, 0.23, 0));
-				[-0.9, 0, 0.9].forEach((q) => {
-					const w = Cy(0.2, 0.2, 0.56, 8, "#5A6272", o, 0.23, q);
-					w.rotation.z = Math.PI / 2;
-					g.add(w);
-				});
-			});
-			const house = new THREE.Group();
-			house.position.y = 0.45;
-			g.add(house);
-			house.rotation.y = Math.PI;
-			house.add(
-				B(1.8, 0.8, 1.9, Y, 0, 0.45, -0.1),
-				B(1.7, 0.6, 0.55, "#3B3F4A", 0, 0.58, -1.05),
-				B(0.7, 0.85, 0.85, Y, -0.55, 1.25, 0.45),
-				B(0.76, 0.45, 0.9, "#9FD8FF", -0.55, 1.35, 0.5),
-				Cy(0.07, 0.07, 0.5, 6, D, 0.55, 1.05, -0.6),
-			);
-			const boom = new THREE.Group();
-			boom.position.set(0, 0.95, 0.5);
-			house.add(boom);
-			boom.add(B(0.3, 0.32, 2.4, Y, 0, 0, 1.2), Cy(0.06, 0.06, 1.4, 6, "#C9CED8", 0, -0.25, 0.8));
-			boom.children[1].rotation.x = Math.PI / 2;
-			const stick = new THREE.Group();
-			stick.position.z = 2.4;
-			boom.add(stick);
-			stick.add(B(0.24, 0.24, 2, Y, 0, 0, 1));
-			const bucket = new THREE.Group();
-			bucket.position.z = 2;
-			stick.add(bucket);
-			bucket.add(
-				B(0.82, 0.5, 0.08, D, 0, -0.1, 0.3),
-				B(0.82, 0.08, 0.5, D, 0, -0.36, 0.05),
-				B(0.08, 0.54, 0.5, D, -0.42, -0.1, 0.05),
-				B(0.08, 0.54, 0.5, D, 0.42, -0.1, 0.05),
-			);
-			[-0.3, -0.1, 0.1, 0.3].forEach((o) => bucket.add(B(0.08, 0.06, 0.14, "#8E96A3", o, -0.38, -0.25)));
-			const dirt = mesh(new THREE.DodecahedronGeometry(0.4, 0), "#8C6A45");
-			dirt.position.set(0, -0.05, 0.05);
-			bucket.add(dirt);
-			return { house, boom, stick, bucket, dirt };
+			return g.userData;
 		},
 		// poses: [house yaw, boom pitch, stick pitch (relative), bucket curl]; over the bed, at the pile, and the dump tip
 		POSE: {

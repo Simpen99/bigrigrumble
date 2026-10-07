@@ -35,6 +35,18 @@ function varyColors(geo) {
 	return g;
 }
 
+/* the flat caps of an ExtrudeGeometry (group 0) in one even colour after varyColors: the per-face tint streaks on the long
+   triangles round cut-out holes (tile symbols, bin lid icons); the side walls keep their tint */
+function evenCaps(geo) {
+	const c = geo.attributes.color,
+		gr = geo.groups[0];
+	if (c && gr) {
+		for (let i = gr.start; i < gr.start + gr.count; i++) c.setXYZ(i, 1, 1, 1);
+		c.needsUpdate = true;
+	}
+	return geo;
+}
+
 /* ---------- particles ---------- */
 const PGEO = {},
 	PMAT = {};
