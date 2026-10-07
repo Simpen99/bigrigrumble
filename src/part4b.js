@@ -2842,7 +2842,10 @@ const MG = {
 			[-1, 1].forEach((sd) => s.add(B(13, 0.3, 0.1, YE, 17.8, 1.3, CZ + sd * 0.62)));
 			for (let x = 12; x <= 24; x += 2)
 				s.add(B(0.15, 1, 0.15, "#5A6272", x, 0.5, CZ - 0.45), B(0.15, 1, 0.15, "#5A6272", x, 0.5, CZ + 0.45));
-			s.add(B(3, 1.4, 3, "#8C5A3C", 25.9, 0.7, CZ), B(3.1, 0.14, 3.1, "#6B4428", 25.9, 1.33, CZ));
+			s.add(
+				B(3, 1.4, 3, "#8C5A3C", 25.9, 0.7, CZ),
+				B(3.1, 0.14, 3.1, "#6B4428", 25.9, 1.43, CZ),
+			); /* lid sits on the crate (its top was level with the crate top: z-fighting) */
 			const cone = (n) => {
 				const c = new THREE.InstancedMesh(new THREE.ConeGeometry(0.38, 1, 8), M(OR), n),
 					w = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.24, 0.29, 0.14, 8), M("#FFFFFF"), n);
