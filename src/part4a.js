@@ -121,7 +121,7 @@ function mgEnv(s, water, lane, bare, night, storm, dusk) {
 }
 /* new look (trial): def.look = {exp, amb, sun, warm, env, haze, glow, bloom, vig, sat, fill: [sky, ground], sky: [top, mid, horizon]}.
    Sets the scene's colour mood; the renderer switches to sRGB + ACES for scenes with userData.lk (gfxLook). Light colours go in as linear. */
-const LOOK0 = { exp: 1, amb: 0.3, sun: 1.8, warm: 0.6, env: 0.1, haze: 55, glow: 0.98, bloom: 0.4 };
+const LOOK0 = { exp: 1, amb: 0.3, sun: 1.8, warm: 0.6, env: 0.1, paint: 0.45, haze: 55, glow: 1.01, bloom: 0.4 };
 const lkWarm = (c, w) => c.set("#E4EEFF").lerp(new THREE.Color("#FFC27A"), w).convertSRGBToLinear();
 function applyLook(W) {
 	const s = W.sc,
@@ -1287,7 +1287,7 @@ function wireLightPanel() {
 			warm: W.lpWarm ?? 0.5,
 			haze: fog ? fog.near : 60,
 		};
-		if (LK) Object.assign(st, { exp: LK.exp, env: LK.env, glow: LK.glow });
+		if (LK) Object.assign(st, { exp: LK.exp, env: LK.env, paint: LK.paint, glow: LK.glow });
 		const LIGHT = [
 			["amb", "Ambient", 0, 2.5, 0.02],
 			["sun", "Sun", 0, LK ? 4 : 2.5, 0.02],
@@ -1301,6 +1301,7 @@ function wireLightPanel() {
 					? [
 							["exp", "Exposure", 0.4, 3, 0.02],
 							["env", "Reflect", 0, 1.5, 0.02],
+							["paint", "Paint rough", 0.1, 0.8, 0.01],
 							["glow", "Glow cut", 0.8, 1.05, 0.005],
 						]
 					: [],
@@ -1351,7 +1352,7 @@ function wireLightPanel() {
 			sun.color.copy(cool).lerp(hot, st.warm);
 			if (LK) {
 				sun.color.convertSRGBToLinear();
-				const envCh = LK.env !== st.env;
+				const envCh = LK.env !== st.env || LK.paint !== st.paint;
 				Object.assign(LK, {
 					amb: st.amb,
 					sun: st.sun,
@@ -1359,6 +1360,7 @@ function wireLightPanel() {
 					haze: st.haze,
 					exp: st.exp,
 					env: st.env,
+					paint: st.paint,
 					glow: st.glow,
 				});
 				F.bloom.th = st.glow;
@@ -1382,7 +1384,7 @@ function wireLightPanel() {
 				`${W.mg.g}: ambient ${fmt("amb", st.amb)} · sun ${fmt("sun", st.sun)} · height ${fmt("h", st.h)} · angle ${fmt("ang", st.ang)} · warmth ${fmt("warm", st.warm)}` +
 				(fog ? ` · haze ${fmt("haze", st.haze)}` : "") +
 				(LK
-					? ` · exposure ${fmt("exp", st.exp)} · reflect ${fmt("env", st.env)} · glow cut ${fmt("glow", st.glow)}`
+					? ` · exposure ${fmt("exp", st.exp)} · reflect ${fmt("env", st.env)} · paint rough ${fmt("paint", st.paint)} · glow cut ${fmt("glow", st.glow)}`
 					: "") +
 				` · effects: ${on || "none"}`;
 		};

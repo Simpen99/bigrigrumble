@@ -1237,7 +1237,7 @@ Object.assign(MG, {
 			warm: 0.35,
 			env: 0.12,
 			haze: 55,
-			glow: 0.98,
+			glow: 1.01,
 			bloom: 0.4,
 			fill: ["#CFE4FF", "#6E8A70"],
 			sky: ["#4A8BD6", "#A0D2F0", "#E2F2F4"],

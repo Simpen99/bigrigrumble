@@ -242,8 +242,9 @@ function lookShaders() {
 		"emissiveColor.rgb = emissiveMapTexelToLinear( emissiveColor ).rgb;",
 		"emissiveColor.rgb = emissiveMapTexelToLinear( emissiveColor ).rgb;" + lin("emissiveColor.rgb"),
 	);
+	/* glow = emissive relative to the part's own colour (so every colour at the same emissiveIntensity blooms the same): none below 0.3, full from 0.9 */
 	const glow =
-		"gl_FragColor = vec4( outgoingLight, diffuseColor.a );\n#ifdef TONE_MAPPING\n\tif ( opacity > 0.999 && diffuseColor.a > 0.999 ) gl_FragColor.a = 1.0 - smoothstep( 0.12, 0.7, max( max( totalEmissiveRadiance.r, totalEmissiveRadiance.g ), totalEmissiveRadiance.b ) );\n#endif";
+		"gl_FragColor = vec4( outgoingLight, diffuseColor.a );\n#ifdef TONE_MAPPING\n\tfloat lkE = max( max( totalEmissiveRadiance.r, totalEmissiveRadiance.g ), totalEmissiveRadiance.b );\n\tfloat lkD = max( max( diffuseColor.r, diffuseColor.g ), diffuseColor.b );\n\tif ( opacity > 0.999 && diffuseColor.a > 0.999 ) gl_FragColor.a = 1.0 - smoothstep( 0.3, 0.9, lkE / max( lkD, 0.05 ) ) * smoothstep( 0.02, 0.1, lkE );\n#endif";
 	Object.values(L).forEach((sh) => {
 		let f = sh.fragmentShader;
 		if (!f) return;
@@ -303,7 +304,7 @@ function lookEnvTex() {
 	return GFX.envLoad;
 }
 /* only shiny materials reflect: full strength (the look's env) at roughness <= 0.2, none from 0.7 up; metals reflect too.
-   material.userData.refl (0-1) overrides the rule. */
+   material.userData.refl (0-1) overrides the rule; truck paint (userData.paint) also gets the look's paint roughness for a slight shine. */
 function lookEnv(s) {
 	const L = s.userData.lk;
 	if (!L) return;
@@ -315,6 +316,7 @@ function lookEnv(s) {
 				if (!q.isMeshStandardMaterial) return;
 				const k = q.userData.refl ?? Math.max(cl((0.7 - q.roughness) / 0.5), cl((q.metalness - 0.15) / 0.35));
 				q.envMapIntensity = L.env * k;
+				if (q.userData.paint) q.roughness = Math.min(q.userData.paint, L.paint);
 			});
 	});
 }

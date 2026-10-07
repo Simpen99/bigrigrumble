@@ -926,8 +926,9 @@ function lookShaders() {
 		"emissiveColor.rgb = emissiveMapTexelToLinear( emissiveColor ).rgb;",
 		"emissiveColor.rgb = emissiveMapTexelToLinear( emissiveColor ).rgb;" + lin("emissiveColor.rgb"),
 	);
+	/* glow = emissive relative to the part's own colour (so every colour at the same emissiveIntensity blooms the same): none below 0.3, full from 0.9 */
 	const glow =
-		"gl_FragColor = vec4( outgoingLight, diffuseColor.a );\n#ifdef TONE_MAPPING\n\tif ( opacity > 0.999 && diffuseColor.a > 0.999 ) gl_FragColor.a = 1.0 - smoothstep( 0.12, 0.7, max( max( totalEmissiveRadiance.r, totalEmissiveRadiance.g ), totalEmissiveRadiance.b ) );\n#endif";
+		"gl_FragColor = vec4( outgoingLight, diffuseColor.a );\n#ifdef TONE_MAPPING\n\tfloat lkE = max( max( totalEmissiveRadiance.r, totalEmissiveRadiance.g ), totalEmissiveRadiance.b );\n\tfloat lkD = max( max( diffuseColor.r, diffuseColor.g ), diffuseColor.b );\n\tif ( opacity > 0.999 && diffuseColor.a > 0.999 ) gl_FragColor.a = 1.0 - smoothstep( 0.3, 0.9, lkE / max( lkD, 0.05 ) ) * smoothstep( 0.02, 0.1, lkE );\n#endif";
 	Object.values(L).forEach((sh) => {
 		let f = sh.fragmentShader;
 		if (!f) return;
@@ -987,7 +988,7 @@ function lookEnvTex() {
 	return GFX.envLoad;
 }
 /* only shiny materials reflect: full strength (the look's env) at roughness <= 0.2, none from 0.7 up; metals reflect too.
-   material.userData.refl (0-1) overrides the rule. */
+   material.userData.refl (0-1) overrides the rule; truck paint (userData.paint) also gets the look's paint roughness for a slight shine. */
 function lookEnv(s) {
 	const L = s.userData.lk;
 	if (!L) return;
@@ -999,6 +1000,7 @@ function lookEnv(s) {
 				if (!q.isMeshStandardMaterial) return;
 				const k = q.userData.refl ?? Math.max(cl((0.7 - q.roughness) / 0.5), cl((q.metalness - 0.15) / 0.35));
 				q.envMapIntensity = L.env * k;
+				if (q.userData.paint) q.roughness = Math.min(q.userData.paint, L.paint);
 			});
 	});
 }
@@ -1851,7 +1853,11 @@ function buildTruck(i, mode) {
 		GL = "#2F3B52",
 		CH = "#D8DDE5",
 		W = 1.1;
-	const glass = { roughness: 0.2, metalness: 0.2 },
+	const glass = {
+			roughness: 0.2,
+			metalness: 0.2,
+			userData: { refl: 0 },
+		} /* no reflections on truck windows (new look): they turned grey */,
 		lamp = { emissive: "#FFF1C2", emissiveIntensity: 1.2 };
 	const anims = [],
 		wheelsL = [],
@@ -2373,6 +2379,22 @@ function buildTruck(i, mode) {
 		l1.position.set(tailX - 0.075, tailY + 0.01, W * 0.33);
 		l2.position.set(tailX - 0.075, tailY + 0.01, -W * 0.33);
 		host.add(bp, l1, l2);
+	}
+	{
+		/* paint (body and accent colour) gets its own materials per truck, tagged for the new look's slight shine (lookEnv) */
+		const pc = [c, a].map((x) => new THREE.Color(x).getHex()),
+			cl = new Map();
+		g.traverse((o) => {
+			const m = o.material;
+			if (!m || Array.isArray(m) || !m.isMeshStandardMaterial || m.transparent || !pc.includes(m.color.getHex()))
+				return;
+			if (!cl.has(m)) {
+				const q = m.clone();
+				q.userData = { paint: m.roughness, refl: 1 };
+				cl.set(m, q);
+			}
+			o.material = cl.get(m);
+		});
 	}
 	g.userData.anims = anims;
 	g.userData.wheels = wheelsL;
@@ -11062,7 +11084,7 @@ function mgEnv(s, water, lane, bare, night, storm, dusk) {
 }
 /* new look (trial): def.look = {exp, amb, sun, warm, env, haze, glow, bloom, vig, sat, fill: [sky, ground], sky: [top, mid, horizon]}.
    Sets the scene's colour mood; the renderer switches to sRGB + ACES for scenes with userData.lk (gfxLook). Light colours go in as linear. */
-const LOOK0 = { exp: 1, amb: 0.3, sun: 1.8, warm: 0.6, env: 0.1, haze: 55, glow: 0.98, bloom: 0.4 };
+const LOOK0 = { exp: 1, amb: 0.3, sun: 1.8, warm: 0.6, env: 0.1, paint: 0.45, haze: 55, glow: 1.01, bloom: 0.4 };
 const lkWarm = (c, w) => c.set("#E4EEFF").lerp(new THREE.Color("#FFC27A"), w).convertSRGBToLinear();
 function applyLook(W) {
 	const s = W.sc,
@@ -12228,7 +12250,7 @@ function wireLightPanel() {
 			warm: W.lpWarm ?? 0.5,
 			haze: fog ? fog.near : 60,
 		};
-		if (LK) Object.assign(st, { exp: LK.exp, env: LK.env, glow: LK.glow });
+		if (LK) Object.assign(st, { exp: LK.exp, env: LK.env, paint: LK.paint, glow: LK.glow });
 		const LIGHT = [
 			["amb", "Ambient", 0, 2.5, 0.02],
 			["sun", "Sun", 0, LK ? 4 : 2.5, 0.02],
@@ -12242,6 +12264,7 @@ function wireLightPanel() {
 					? [
 							["exp", "Exposure", 0.4, 3, 0.02],
 							["env", "Reflect", 0, 1.5, 0.02],
+							["paint", "Paint rough", 0.1, 0.8, 0.01],
 							["glow", "Glow cut", 0.8, 1.05, 0.005],
 						]
 					: [],
@@ -12292,7 +12315,7 @@ function wireLightPanel() {
 			sun.color.copy(cool).lerp(hot, st.warm);
 			if (LK) {
 				sun.color.convertSRGBToLinear();
-				const envCh = LK.env !== st.env;
+				const envCh = LK.env !== st.env || LK.paint !== st.paint;
 				Object.assign(LK, {
 					amb: st.amb,
 					sun: st.sun,
@@ -12300,6 +12323,7 @@ function wireLightPanel() {
 					haze: st.haze,
 					exp: st.exp,
 					env: st.env,
+					paint: st.paint,
 					glow: st.glow,
 				});
 				F.bloom.th = st.glow;
@@ -12323,7 +12347,7 @@ function wireLightPanel() {
 				`${W.mg.g}: ambient ${fmt("amb", st.amb)} · sun ${fmt("sun", st.sun)} · height ${fmt("h", st.h)} · angle ${fmt("ang", st.ang)} · warmth ${fmt("warm", st.warm)}` +
 				(fog ? ` · haze ${fmt("haze", st.haze)}` : "") +
 				(LK
-					? ` · exposure ${fmt("exp", st.exp)} · reflect ${fmt("env", st.env)} · glow cut ${fmt("glow", st.glow)}`
+					? ` · exposure ${fmt("exp", st.exp)} · reflect ${fmt("env", st.env)} · paint rough ${fmt("paint", st.paint)} · glow cut ${fmt("glow", st.glow)}`
 					: "") +
 				` · effects: ${on || "none"}`;
 		};
@@ -16379,7 +16403,7 @@ const MG = {
 			warm: 0.92,
 			env: 0.2,
 			haze: 42,
-			glow: 0.98,
+			glow: 1.01,
 			bloom: 0.7,
 			vig: 0.3,
 			sat: 0.25,
@@ -17878,7 +17902,7 @@ const MG = {
 			warm: 0.55,
 			env: 0.1,
 			haze: 60,
-			glow: 0.98,
+			glow: 1.01,
 			bloom: 0.4,
 			fill: ["#C8DDF2", "#7F6A50"],
 			sky: ["#4E8ED6", "#9FCBEA", "#EEE6D2"],
@@ -20793,7 +20817,7 @@ Object.assign(MG, {
 			warm: 0.35,
 			env: 0.12,
 			haze: 55,
-			glow: 0.98,
+			glow: 1.01,
 			bloom: 0.4,
 			fill: ["#CFE4FF", "#6E8A70"],
 			sky: ["#4A8BD6", "#A0D2F0", "#E2F2F4"],
