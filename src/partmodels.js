@@ -1916,9 +1916,8 @@ function wheelieBinModel(col, name, icon, yaw = 0) {
 	const flat = (sh, d, y) => {
 		const geo = new THREE.ExtrudeGeometry(sh, { depth: d, bevelEnabled: false });
 		geo.rotateX(-Math.PI / 2);
-		/* one even colour: the per-face tint of mesh() shows as streaks on the long triangles round the cut-out */
-		const m = new THREE.Mesh(geo, M(lidC));
-		m.castShadow = m.receiveShadow = true;
+		const m = mesh(geo, lidC);
+		evenCaps(m.geometry);
 		m.position.set(0, y, 0.74);
 		return m;
 	};

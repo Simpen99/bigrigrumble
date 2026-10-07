@@ -827,12 +827,12 @@ function tileFace(t, sides) {
 			const g = new THREE.ExtrudeGeometry(out, { depth: 0.08, bevelEnabled: false, curveSegments: 16 });
 			g.rotateX(-Math.PI / 2);
 			return {
-				plate: varyColors(g),
+				plate: evenCaps(varyColors(g)),
 				holes: sym.holes.length,
 				raised: (sym.raised || []).map(([shs, h, cl]) => {
 					const rg = new THREE.ExtrudeGeometry(shs, { depth: h, bevelEnabled: false, curveSegments: 14 });
 					rg.rotateX(-Math.PI / 2);
-					return [varyColors(rg), cl];
+					return [evenCaps(varyColors(rg)), cl];
 				}),
 			};
 		})());

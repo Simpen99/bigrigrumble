@@ -3259,12 +3259,12 @@ function tileFace(t, sides) {
 			const g = new THREE.ExtrudeGeometry(out, { depth: 0.08, bevelEnabled: false, curveSegments: 16 });
 			g.rotateX(-Math.PI / 2);
 			return {
-				plate: varyColors(g),
+				plate: evenCaps(varyColors(g)),
 				holes: sym.holes.length,
 				raised: (sym.raised || []).map(([shs, h, cl]) => {
 					const rg = new THREE.ExtrudeGeometry(shs, { depth: h, bevelEnabled: false, curveSegments: 14 });
 					rg.rotateX(-Math.PI / 2);
-					return [varyColors(rg), cl];
+					return [evenCaps(varyColors(rg)), cl];
 				}),
 			};
 		})());
@@ -7246,6 +7246,18 @@ function varyColors(geo) {
 	}
 	g.setAttribute("color", new THREE.BufferAttribute(col, 3));
 	return g;
+}
+
+/* the flat caps of an ExtrudeGeometry (group 0) in one even colour after varyColors: the per-face tint streaks on the long
+   triangles round cut-out holes (tile symbols, bin lid icons); the side walls keep their tint */
+function evenCaps(geo) {
+	const c = geo.attributes.color,
+		gr = geo.groups[0];
+	if (c && gr) {
+		for (let i = gr.start; i < gr.start + gr.count; i++) c.setXYZ(i, 1, 1, 1);
+		c.needsUpdate = true;
+	}
+	return geo;
 }
 
 /* ---------- particles ---------- */
@@ -27397,9 +27409,8 @@ function wheelieBinModel(col, name, icon, yaw = 0) {
 	const flat = (sh, d, y) => {
 		const geo = new THREE.ExtrudeGeometry(sh, { depth: d, bevelEnabled: false });
 		geo.rotateX(-Math.PI / 2);
-		/* one even colour: the per-face tint of mesh() shows as streaks on the long triangles round the cut-out */
-		const m = new THREE.Mesh(geo, M(lidC));
-		m.castShadow = m.receiveShadow = true;
+		const m = mesh(geo, lidC);
+		evenCaps(m.geometry);
 		m.position.set(0, y, 0.74);
 		return m;
 	};
