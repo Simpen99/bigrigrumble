@@ -19265,12 +19265,14 @@ const MG = {
 			const homes = [];
 			[-1, 1].forEach((sd) => {
 				for (let z = 10, k = 0; z > -L + 30; z -= 22, k++) {
+					/* facing the camera (+z), yard toward it; the kit runs from x -6.5 (garage) to +4.7 (fence), so the
+					   near edge sits ~3 m past the road edge */
 					homes.push({
 						k: (k + (sd > 0 ? 1 : 0) * 2) % 4,
-						x: sd * (wid / 2 + 16 + (k % 3) * 3),
+						x: sd > 0 ? wid / 2 + 9.5 + (k % 3) * 1.5 : -(wid / 2 + 7.7 + (k % 3) * 1.5),
 						y: -0.05,
 						z,
-						ry: (-sd * Math.PI) / 2,
+						ry: 0,
 					});
 					s.add(tree(sd * (wid / 2 + 6 + (k % 2) * 2.5), z - 9, 1, k % 3));
 				}
