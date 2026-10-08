@@ -849,7 +849,8 @@ function houseModel(v) {
 		g.add(B(3.2, 2.5, 4.6, L.wall, gx, 1.25, -0.2), B(3.5, 0.18, 4.9, L.trim, gx, 2.59, -0.2));
 		g.add(B(2.5, 2.0, 0.08, "#E4E6EA", gx, 1.0, 2.14));
 		for (let k = 0; k < 4; k++) g.add(B(2.44, 0.05, 0.11, "#B9BEC6", gx, 0.3 + k * 0.48, 2.17));
-		g.add(B(2.8, 0.04, 4.4, "#868A91", gx, 0.02, 4.5));
+		/* 6 cm thick: its top stays clear of the grass and of the contact shadow (4 cm) */
+		g.add(B(2.8, 0.06, 4.4, "#868A91", gx, 0.03, 4.5));
 	}
 	/* yard: stepping-stone path, picket fence with a gate gap, mailbox, hedge, flower bed */
 	for (let k = 0; k < 5; k++) g.add(B(0.62, 0.05, 0.5, "#968F84", k % 2 ? 0.08 : -0.08, 0.025, D / 2 + 1.2 + k * 0.85));
