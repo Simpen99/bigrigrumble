@@ -16,8 +16,8 @@
 - Trial on Cone Smash, Dump Run, Sort It Out via `def.look` (sRGB + ACES, cool fill, RoomEnvironment reflections, emissive-only bloom). Roll out to the other games, the board and the showroom once approved.
 - Night games later: 2-4 point / spot lights without shadows (street lamps, headlights, site floodlights) plus fake light cones
   (additive transparent cones, `depthWrite:false`) and emissive lamp heads so the bloom picks them up. No extra shadow-casting lights (phones).
-- Ambient occlusion: baked per-vertex AO in `bakeKit` (`KIT_AO`) is in. Only props built as kits get it; board pieces and
-  minigame-only meshes (not baked) don't yet.
+- Ambient occlusion: baked AO textures in `bakeKit` (`KIT_AO`, atlas pages `AO_PG`) are in. Only props built as kits get it;
+  trucks (`mergeTruck`), board pieces (`mergeStatic`) and minigame-only meshes don't yet. Same atlas approach would work there.
 
 ## Performance (phones)
 - Perf panel in practice mode: switches for the floodlight / lamps, beams, bloom, shadows, sprites and resolution, plus live
@@ -32,6 +32,19 @@
   game. Most of `lookShaders` can go (sRGB + ACES are built in). Payoff: BatchedMesh (one draw call for many different,
   even moving, objects), later WebGPURenderer (much cheaper draw calls on phones; needs the look shaders and post chain
   rebuilt as node materials). Estimate: 1-2 sessions porting plus the retuning pass.
+
+## PWA (Add to Home Screen)
+- Main win: true fullscreen on iPhone (Safari can't fullscreen a page; a home-screen app has no toolbar), app icon, faster
+  loads, offline practice / CPU games (online play still needs the PeerJS signalling server).
+- Small PR: `manifest.json` (`display: "standalone"`, icons from the art, theme colour), `apple-touch-icon` + meta tags in
+  part1, a `sw.js` that caches the page and the CDN scripts (network-first for the page so deploys show up at once),
+  `build.sh` copies them to `dist/`. Register the service worker only on GitHub Pages (not raw.githack or the artifact).
+- Leave the manifest `orientation` unset: iPhone ignores it and on Android it would lock the whole app (portrait board
+  games too). TV controllers already lock landscape on Android at runtime (`tvcLand`); iPhone keeps the rotate overlay.
+- iPhone caveats: no install prompt (Share → Add to Home Screen; maybe a hint), storage separate from Safari (identity,
+  light panel saves, map edits), `?join=CODE` QR links open in Safari, not the app. Fullscreen draws under the notch:
+  `viewport-fit=cover` + `env(safe-area-inset-*)` padding for the HUD. The Hide Toolbar tip already hides itself in
+  standalone (`IOS_SAFARI` checks `!navigator.standalone`).
 
 ## Minigame intro camera
 - Mario Party style opening for every minigame: start high / tilted down over the whole arena (showing props like Dump Run's dirt piles behind the excavators), then sweep down to the game camera during the ready screen or countdown.

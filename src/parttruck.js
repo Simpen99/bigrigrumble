@@ -712,7 +712,14 @@ function mergeTruck(g) {
    way, so they look the same. */
 var NEUTRAL_MAT = {};
 function neutralMat(m) {
-	if (!m.isMeshStandardMaterial || m.transparent || m.map || m.userData.paint !== undefined || m.emissive.getHex())
+	if (
+		!m.isMeshStandardMaterial ||
+		m.transparent ||
+		m.map ||
+		m.userData.ao ||
+		m.userData.paint !== undefined ||
+		m.emissive.getHex()
+	)
 		return null;
 	const rf = m.userData.refl,
 		k = [m.roughness, m.metalness, m.side, m.flatShading, rf].join();
@@ -776,7 +783,8 @@ function mergeGeo(items, mat) {
 		P = new Float32Array(n * 3),
 		N = new Float32Array(n * 3),
 		C = mat.vertexColors ? new Float32Array(n * 3).fill(1) : null,
-		UV = mat.map ? new Float32Array(n * 2) : null;
+		UV = mat.map ? new Float32Array(n * 2) : null,
+		AU = mat.userData.ao ? new Float32Array(n * 2) : null;
 	let off = 0;
 	items.forEach(({ m, mx }, mi) => {
 		const a = geos[mi].attributes,
@@ -809,6 +817,10 @@ function mergeGeo(items, mat) {
 				UV[(off + k) * 2] = a.uv.getX(i);
 				UV[(off + k) * 2 + 1] = a.uv.getY(i);
 			}
+			if (AU && a.aoUv) {
+				AU[(off + k) * 2] = a.aoUv.getX(i);
+				AU[(off + k) * 2 + 1] = a.aoUv.getY(i);
+			}
 		}
 		off += a.position.count;
 	});
@@ -817,6 +829,7 @@ function mergeGeo(items, mat) {
 	geo.setAttribute("normal", new THREE.BufferAttribute(N, 3));
 	if (C) geo.setAttribute("color", new THREE.BufferAttribute(C, 3));
 	if (UV) geo.setAttribute("uv", new THREE.BufferAttribute(UV, 2));
+	if (AU) geo.setAttribute("aoUv", new THREE.BufferAttribute(AU, 2));
 	return geo;
 }
 function animTruck(tr, dt, speed = 0) {

@@ -672,7 +672,8 @@ function mergeScene(W) {
 		const m = o.material,
 			ge = o.geometry;
 		if (m.transparent || m.depthWrite === false || !ge.attributes.position || ge.morphAttributes.position) return;
-		if (ge.drawRange.count !== Infinity || (m.map && !ge.attributes.uv) || ge.userData.aoPending) return;
+		if (ge.drawRange.count !== Infinity || (m.map && !ge.attributes.uv) || (m.userData.ao && !ge.attributes.aoUv))
+			return;
 		if (o.frustumCulled === false || o.layers.mask !== 1 || o.onBeforeRender !== base || !free(o)) return;
 		if (!ge.boundingSphere) ge.computeBoundingSphere();
 		c.copy(ge.boundingSphere.center).applyMatrix4(o.matrixWorld);
