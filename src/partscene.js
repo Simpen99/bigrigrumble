@@ -66,7 +66,7 @@ const asphaltTex = () =>
 const grassTex = () =>
 	scnTex("grass", 256, (x, w, h) => {
 		for (let i = 0; i < 5; i++) {
-			x.fillStyle = i % 2 ? "#7BC468" : "#81C96E";
+			x.fillStyle = i % 2 ? "#76B252" : "#7CB757";
 			x.fillRect((i * w) / 5, 0, w / 5, h);
 		}
 		for (let i = 0; i < 6; i++)
@@ -464,34 +464,99 @@ function kerbs(s, xL, xR, z0, z1, style) {
 	});
 }
 /* tufts, flowers and pebbles on grass beside a road (instanced, cheap) */
-function vergeScatter(s, xs, z0, z1, n = 400) {
+/* a grass clump: four thin three-sided blades leaning out from one point (12 triangles), base at y 0 */
+function tuftGeo() {
+	const P = [];
+	[0.32, 0.26, 0.3, 0.22].forEach((h, k) => {
+		const az = k * 1.65,
+			lean = 0.3 + (k % 2) * 0.15,
+			ax = Math.sin(az) * Math.sin(lean) * h,
+			az2 = Math.cos(az) * Math.sin(lean) * h,
+			ay = Math.cos(lean) * h,
+			B = [0, 1, 2].map((j) => [Math.cos(az + j * 2.094) * 0.035, -0.02, Math.sin(az + j * 2.094) * 0.035]);
+		[0, 1, 2].forEach((j) => {
+			const p = B[j],
+				q = B[(j + 1) % 3];
+			P.push(...p, ...q, ax, ay, az2);
+		});
+	});
+	const g = new THREE.BufferGeometry();
+	g.setAttribute("position", new THREE.Float32BufferAttribute(P, 3));
+	g.computeVertexNormals();
+	/* normals tipped toward the sky (the usual stylized-grass trick), so blades shade like the lawn instead of going dark on their shady side */
+	const N = g.attributes.normal,
+		v = new THREE.Vector3();
+	for (let i = 0; i < N.count; i++) {
+		v.fromBufferAttribute(N, i)
+			.multiplyScalar(0.3)
+			.add(new THREE.Vector3(0, 0.7, 0))
+			.normalize();
+		N.setXYZ(i, v.x, v.y, v.z);
+	}
+	return g;
+}
+/* verge dressing on ground at height gy over the x ranges xs between z0 and z1: n grass clumps in little patches of 3-8,
+   2-4 more round each of spots ([x, z]: posts, corners, tree bases), plus flowers and pebbles; one InstancedMesh each */
+function vergeScatter(s, xs, z0, z1, n = 400, spots = [], gy = 0) {
 	const L = Math.abs(z1 - z0),
 		zs = Math.min(z0, z1),
+		T = [];
+	for (let i = 0; T.length < n; i++) {
+		const [a, b] = xs[i % xs.length],
+			cx = a + scnR() * (b - a),
+			cz = zs + scnR() * L,
+			k = 3 + Math.floor(scnR() * 6);
+		for (let j = 0; j < k; j++) {
+			const r = 0.15 + scnR() * 0.65,
+				t = scnR() * 6.283;
+			T.push([cx + Math.cos(t) * r, cz + Math.sin(t) * r]);
+		}
+	}
+	spots.forEach(([x, z]) => {
+		for (let j = 0, k = 2 + Math.floor(scnR() * 3); j < k; j++) {
+			const r = 0.15 + scnR() * 0.35,
+				t = scnR() * 6.283;
+			T.push([x + Math.cos(t) * r, z + Math.sin(t) * r]);
+		}
+	});
+	const rnd = (n) =>
+			Array.from({ length: Math.round(n) }, (_, i) => {
+				const [a, b] = xs[i % xs.length];
+				return [a + scnR() * (b - a), zs + scnR() * L];
+			}),
 		parts = [
-			{ geo: new THREE.ConeGeometry(0.12, 0.42, 5), cols: ["#5FAE52", "#6DBB5C", "#4E9A45"], n, y: 0.18 },
+			{ geo: tuftGeo(), cols: ["#77B453", "#83BC5C", "#6BA94B"], at: T, y: 0 },
 			{
 				geo: new THREE.IcosahedronGeometry(0.08, 0),
 				cols: ["#FFFFFF", "#FFE066", "#F7B8D2", "#B9A3FF"],
-				n: n * 0.35,
+				at: rnd(n * 0.35),
 				y: 0.3,
 			},
-			{ geo: new THREE.IcosahedronGeometry(0.16, 0), cols: ["#9A9488", "#B5AE9F", "#7F7A70"], n: n * 0.2, y: 0.05 },
+			{
+				geo: new THREE.IcosahedronGeometry(0.16, 0),
+				cols: ["#9A9488", "#B5AE9F", "#7F7A70"],
+				at: rnd(n * 0.2),
+				y: 0.05,
+			},
 		];
-	parts.forEach((P) => {
-		const m = Math.round(P.n),
-			im = new THREE.InstancedMesh(P.geo, new THREE.MeshStandardMaterial({ roughness: 0.9, flatShading: true }), m),
+	parts.forEach((P, pi) => {
+		const m = P.at.length;
+		if (!m) return;
+		const im = new THREE.InstancedMesh(P.geo, new THREE.MeshStandardMaterial({ roughness: 0.9, flatShading: true }), m),
 			o = new THREE.Object3D(),
 			c = new THREE.Color();
 		for (let i = 0; i < m; i++) {
-			const [a, b] = xs[i % xs.length],
-				sc = 0.7 + scnR() * 0.8;
-			o.position.set(a + scnR() * (b - a), P.y * sc, zs + scnR() * L);
+			/* clumps: mostly small, a few big ones; the rest as before */
+			const sc = pi ? 0.7 + scnR() * 0.8 : 0.5 + scnR() ** 1.5 * 1.2;
+			o.position.set(P.at[i][0], gy + P.y * sc, P.at[i][1]);
 			o.rotation.set((scnR() - 0.5) * 0.4, scnR() * 6, (scnR() - 0.5) * 0.4);
 			o.scale.set(sc, sc * (0.8 + scnR() * 0.6), sc);
 			o.updateMatrix();
 			im.setMatrixAt(i, o.matrix);
 			im.setColorAt(i, c.set(P.cols[i % P.cols.length]));
 		}
+		/* r128 culls an InstancedMesh by the base geometry at the origin, not by where the copies are */
+		im.frustumCulled = false;
 		s.add(im);
 	});
 }

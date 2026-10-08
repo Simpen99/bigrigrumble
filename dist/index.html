@@ -1105,7 +1105,7 @@ function ground(scene, w, d, flatX, flatZ, base) {
 function tree(x, z, s = 1, kind = rnd(3)) {
 	const t = new THREE.Group(),
 		g = new THREE.Group();
-	t.add(g, contactShadow(1.5 * s, 1.5 * s, 0.26));
+	t.add(g, roundShadow(0.4 * s, 0.35));
 	g.add(Cy(0.12 * s, 0.16 * s, 0.6 * s, 5, "#7A5234", 0, 0.3 * s, 0));
 	if (kind === 0) {
 		g.add(Cy(0, 0.8 * s, 1.3 * s, 6, "#2F8F4E", 0, 1.1 * s, 0), Cy(0, 0.6 * s, 1.0 * s, 6, "#3BA85C", 0, 1.7 * s, 0));
@@ -2432,7 +2432,14 @@ function mergeTruck(g) {
    way, so they look the same. */
 var NEUTRAL_MAT = {};
 function neutralMat(m) {
-	if (!m.isMeshStandardMaterial || m.transparent || m.map || m.userData.paint !== undefined || m.emissive.getHex())
+	if (
+		!m.isMeshStandardMaterial ||
+		m.transparent ||
+		m.map ||
+		m.userData.ao ||
+		m.userData.paint !== undefined ||
+		m.emissive.getHex()
+	)
 		return null;
 	const rf = m.userData.refl,
 		k = [m.roughness, m.metalness, m.side, m.flatShading, rf].join();
@@ -2496,7 +2503,8 @@ function mergeGeo(items, mat) {
 		P = new Float32Array(n * 3),
 		N = new Float32Array(n * 3),
 		C = mat.vertexColors ? new Float32Array(n * 3).fill(1) : null,
-		UV = mat.map ? new Float32Array(n * 2) : null;
+		UV = mat.map ? new Float32Array(n * 2) : null,
+		AU = mat.userData.ao ? new Float32Array(n * 2) : null;
 	let off = 0;
 	items.forEach(({ m, mx }, mi) => {
 		const a = geos[mi].attributes,
@@ -2529,6 +2537,10 @@ function mergeGeo(items, mat) {
 				UV[(off + k) * 2] = a.uv.getX(i);
 				UV[(off + k) * 2 + 1] = a.uv.getY(i);
 			}
+			if (AU && a.aoUv) {
+				AU[(off + k) * 2] = a.aoUv.getX(i);
+				AU[(off + k) * 2 + 1] = a.aoUv.getY(i);
+			}
 		}
 		off += a.position.count;
 	});
@@ -2537,6 +2549,7 @@ function mergeGeo(items, mat) {
 	geo.setAttribute("normal", new THREE.BufferAttribute(N, 3));
 	if (C) geo.setAttribute("color", new THREE.BufferAttribute(C, 3));
 	if (UV) geo.setAttribute("uv", new THREE.BufferAttribute(UV, 2));
+	if (AU) geo.setAttribute("aoUv", new THREE.BufferAttribute(AU, 2));
 	return geo;
 }
 function animTruck(tr, dt, speed = 0) {
@@ -11309,19 +11322,20 @@ function applyLook(W, extra) {
 		() => {},
 	);
 }
-/* minigame effects from {ao, bloom, tilt, vig, col, aa} (0 / missing = off), as baked in def.fx or saved from the light panel */
+/* minigame effects from {ao, bloom, tilt, vig, col, aa} (0 / missing = off, except smooth edges: on unless aa is 0), as
+   baked in def.fx or saved from the light panel */
 function setFx(fx) {
 	["ao", "bloom", "tilt", "vig", "col", "aa"].forEach((k) => {
-		const v = fx && fx[k];
+		const v = k === "aa" ? !fx || fx.aa === undefined || fx.aa : fx && fx[k];
 		GFX.fx[k].on = !!v;
 		if (v) {
 			if (k === "col") {
 				GFX.fx.col.sat = v * 0.6;
 				GFX.fx.col.con = v * 0.2;
-			} else GFX.fx[k].v = v;
+			} else if (k !== "aa") GFX.fx[k].v = v;
 		}
 	});
-	if (fx) loadPost().catch(() => {});
+	loadPost().catch(() => {});
 }
 function mkEnt(p, isMe, named, mode) {
 	const g = new THREE.Group(),
@@ -11793,7 +11807,8 @@ function mergeScene(W) {
 		const m = o.material,
 			ge = o.geometry;
 		if (m.transparent || m.depthWrite === false || !ge.attributes.position || ge.morphAttributes.position) return;
-		if (ge.drawRange.count !== Infinity || (m.map && !ge.attributes.uv) || ge.userData.aoPending) return;
+		if (ge.drawRange.count !== Infinity || (m.map && !ge.attributes.uv) || (m.userData.ao && !ge.attributes.aoUv))
+			return;
 		if (o.frustumCulled === false || o.layers.mask !== 1 || o.onBeforeRender !== base || !free(o)) return;
 		if (!ge.boundingSphere) ge.computeBoundingSphere();
 		c.copy(ge.boundingSphere.center).applyMatrix4(o.matrixWorld);
@@ -14154,7 +14169,7 @@ function laneWorld(W, len, extra) {
 			],
 			24,
 			-len - 20,
-			Math.round(len * 6),
+			Math.round(len * 10),
 		);
 	}
 	roadLines(
@@ -15375,7 +15390,7 @@ const MG = {
 				Cy(0.22, 0.14, 0.12, 8, "#2A2F3A", x, 3.62, z),
 				Cy(0.18, 0.2, 0.42, 8, "#FFF1C4", x, 3.89, z, { emissive: "#FFE08A", emissiveIntensity: 0.6 }),
 				Cy(0.02, 0.26, 0.2, 8, "#2A2F3A", x, 4.2, z),
-				contactShadow(0.5, 0.5, 0.25, x, z),
+				roundShadow(0.5, 0.25, x, z),
 			);
 		},
 		square(W) {
@@ -15448,7 +15463,7 @@ const MG = {
 				);
 				s.children[s.children.length - 1].rotation.z = Math.PI / 2;
 				decal(s, new THREE.CircleGeometry(1.8, 24), "#2F7DE1", x, 0.04, z, 0.35);
-				s.add(contactShadow(0.8, 0.8, 0.3, x, z, 0.08));
+				s.add(roundShadow(0.8, 0.3, x, z, 0.08));
 			});
 			/* shops around the plaza (detailed buildings, partmodels) and Blaze's fire station with a truck in the open bay */
 			MG.hill.PLAZA.forEach(([a], k) =>
@@ -18033,7 +18048,8 @@ const MG = {
 							[0.25, 1.25],
 							[0.45, 0.4],
 						][ty];
-					g.add(contactShadow(fp[0], fp[1], 0.3));
+					/* hydrant and litter bin are round */
+					g.add(ty < 2 ? roundShadow(fp[0], 0.3) : contactShadow(fp[0], fp[1], 0.3));
 					switch (ty) {
 						case 0:
 							g.add(Cy(0.16, 0.2, 0.55, 10, "#D93A35", 0, 0.28, 0), Cy(0.12, 0.17, 0.14, 10, "#B52A26", 0, 0.62, 0));
@@ -18087,7 +18103,7 @@ const MG = {
 				for (let z = 0; z > -this.LEN - 20; z -= 15)
 					s.add(
 						Cy(0.1, 0.12, 5, 6, "#2A2F3A", sd * (wid / 2 + 0.9), 2.5, z),
-						contactShadow(0.3, 0.3, 0.25, sd * (wid / 2 + 0.9), z, 0.28),
+						roundShadow(0.3, 0.25, sd * (wid / 2 + 0.9), z, 0.28),
 						B(1.4, 0.14, 0.3, "#2A2F3A", sd * (wid / 2 + 0.3), 5, z),
 					);
 			});
@@ -19126,6 +19142,7 @@ const MG = {
 		unit: "parcels",
 		dur: 40,
 		bare: true,
+		lt: { amb: 0.6, sun: 0.88, warm: 0.4, haze: 50 },
 		LANES: 4,
 		LW: 3.6,
 		CARV: 6,
@@ -19210,7 +19227,12 @@ const MG = {
 				],
 				30,
 				-L + 30,
-				2600,
+				3600,
+				/* clumps at every other guardrail post, on the field side; this ground's top is at -0.05 */
+				[-1, 1].flatMap((sd) =>
+					Array.from({ length: Math.floor((L - 10) / 8) }, (_, i) => [sd * (wid / 2 + 1.35), 20 - i * 8]),
+				),
+				-0.05,
 			);
 			[-1, 1].forEach((sd) => {
 				s.add(B(0.2, 0.5, L, "#C9CED8", sd * (wid / 2 + 1.1), 0.75, zc));
@@ -19247,20 +19269,30 @@ const MG = {
 				sg.position.set(0, 6.6, z + 0.25);
 				s.add(sg, B(wid + 4, 0.4, 0.3, "#5A6272", 0, 6.6, z - 0.1));
 			}
-			const homes = [];
+			const homes = [],
+				spots = [];
 			[-1, 1].forEach((sd) => {
 				for (let z = 10, k = 0; z > -L + 30; z -= 22, k++) {
+					/* facing the camera (+z), yard toward it; the kit runs from x -6.5 (garage) to +4.7 (fence), so the
+					   near edge sits ~3 m past the road edge */
 					homes.push({
 						k: (k + (sd > 0 ? 1 : 0) * 2) % 4,
-						x: sd * (wid / 2 + 16 + (k % 3) * 3),
+						x: sd > 0 ? wid / 2 + 9.5 + (k % 3) * 1.5 : -(wid / 2 + 7.7 + (k % 3) * 1.5),
 						y: -0.05,
 						z,
-						ry: (-sd * Math.PI) / 2,
+						ry: 0,
 					});
-					s.add(tree(sd * (wid / 2 + 6 + (k % 2) * 2.5), z - 9, 1, k % 3));
+					const tx = sd * (wid / 2 + 6 + (k % 2) * 2.5),
+						hx = homes[homes.length - 1].x,
+						tr = tree(tx, z - 9, 1, k % 3);
+					tr.position.y = -0.05;
+					s.add(tr);
+					/* grass clumps at the tree, the house's front corners and the fence ends */
+					spots.push([tx, z - 9], [hx - 3.1, z + 2.6], [hx + 3.1, z + 2.6], [hx - 4.65, z + 7.9], [hx + 4.65, z + 7.9]);
 				}
 			});
 			placeKits(s, houseKits(), homes);
+			vergeScatter(s, [], 0, 0, 0, spots, -0.05);
 		},
 		spawn: (W, i) => ({ x: MG.hop.lx(i % 4), z: 0, yaw: Math.PI / 2 }),
 		initEnt(W, e) {
@@ -19781,7 +19813,7 @@ const MG = {
 				s.add(Cy(0.35, 0.45, 0.6, 8, "#2A2F3A", x, 0.3, -36));
 				bol.push({ x, z: -36 });
 			}
-			placeShadows(s, 0.8, 0.8, 0.25, bol);
+			placeShadows(s, 0.8, 0.8, 0.25, bol, true);
 			W.sea = sea;
 			W.seaB = Float32Array.from(sp.array);
 			W.gulls = [];
@@ -25509,7 +25541,7 @@ const asphaltTex = () =>
 const grassTex = () =>
 	scnTex("grass", 256, (x, w, h) => {
 		for (let i = 0; i < 5; i++) {
-			x.fillStyle = i % 2 ? "#7BC468" : "#81C96E";
+			x.fillStyle = i % 2 ? "#76B252" : "#7CB757";
 			x.fillRect((i * w) / 5, 0, w / 5, h);
 		}
 		for (let i = 0; i < 6; i++)
@@ -25907,34 +25939,99 @@ function kerbs(s, xL, xR, z0, z1, style) {
 	});
 }
 /* tufts, flowers and pebbles on grass beside a road (instanced, cheap) */
-function vergeScatter(s, xs, z0, z1, n = 400) {
+/* a grass clump: four thin three-sided blades leaning out from one point (12 triangles), base at y 0 */
+function tuftGeo() {
+	const P = [];
+	[0.32, 0.26, 0.3, 0.22].forEach((h, k) => {
+		const az = k * 1.65,
+			lean = 0.3 + (k % 2) * 0.15,
+			ax = Math.sin(az) * Math.sin(lean) * h,
+			az2 = Math.cos(az) * Math.sin(lean) * h,
+			ay = Math.cos(lean) * h,
+			B = [0, 1, 2].map((j) => [Math.cos(az + j * 2.094) * 0.035, -0.02, Math.sin(az + j * 2.094) * 0.035]);
+		[0, 1, 2].forEach((j) => {
+			const p = B[j],
+				q = B[(j + 1) % 3];
+			P.push(...p, ...q, ax, ay, az2);
+		});
+	});
+	const g = new THREE.BufferGeometry();
+	g.setAttribute("position", new THREE.Float32BufferAttribute(P, 3));
+	g.computeVertexNormals();
+	/* normals tipped toward the sky (the usual stylized-grass trick), so blades shade like the lawn instead of going dark on their shady side */
+	const N = g.attributes.normal,
+		v = new THREE.Vector3();
+	for (let i = 0; i < N.count; i++) {
+		v.fromBufferAttribute(N, i)
+			.multiplyScalar(0.3)
+			.add(new THREE.Vector3(0, 0.7, 0))
+			.normalize();
+		N.setXYZ(i, v.x, v.y, v.z);
+	}
+	return g;
+}
+/* verge dressing on ground at height gy over the x ranges xs between z0 and z1: n grass clumps in little patches of 3-8,
+   2-4 more round each of spots ([x, z]: posts, corners, tree bases), plus flowers and pebbles; one InstancedMesh each */
+function vergeScatter(s, xs, z0, z1, n = 400, spots = [], gy = 0) {
 	const L = Math.abs(z1 - z0),
 		zs = Math.min(z0, z1),
+		T = [];
+	for (let i = 0; T.length < n; i++) {
+		const [a, b] = xs[i % xs.length],
+			cx = a + scnR() * (b - a),
+			cz = zs + scnR() * L,
+			k = 3 + Math.floor(scnR() * 6);
+		for (let j = 0; j < k; j++) {
+			const r = 0.15 + scnR() * 0.65,
+				t = scnR() * 6.283;
+			T.push([cx + Math.cos(t) * r, cz + Math.sin(t) * r]);
+		}
+	}
+	spots.forEach(([x, z]) => {
+		for (let j = 0, k = 2 + Math.floor(scnR() * 3); j < k; j++) {
+			const r = 0.15 + scnR() * 0.35,
+				t = scnR() * 6.283;
+			T.push([x + Math.cos(t) * r, z + Math.sin(t) * r]);
+		}
+	});
+	const rnd = (n) =>
+			Array.from({ length: Math.round(n) }, (_, i) => {
+				const [a, b] = xs[i % xs.length];
+				return [a + scnR() * (b - a), zs + scnR() * L];
+			}),
 		parts = [
-			{ geo: new THREE.ConeGeometry(0.12, 0.42, 5), cols: ["#5FAE52", "#6DBB5C", "#4E9A45"], n, y: 0.18 },
+			{ geo: tuftGeo(), cols: ["#77B453", "#83BC5C", "#6BA94B"], at: T, y: 0 },
 			{
 				geo: new THREE.IcosahedronGeometry(0.08, 0),
 				cols: ["#FFFFFF", "#FFE066", "#F7B8D2", "#B9A3FF"],
-				n: n * 0.35,
+				at: rnd(n * 0.35),
 				y: 0.3,
 			},
-			{ geo: new THREE.IcosahedronGeometry(0.16, 0), cols: ["#9A9488", "#B5AE9F", "#7F7A70"], n: n * 0.2, y: 0.05 },
+			{
+				geo: new THREE.IcosahedronGeometry(0.16, 0),
+				cols: ["#9A9488", "#B5AE9F", "#7F7A70"],
+				at: rnd(n * 0.2),
+				y: 0.05,
+			},
 		];
-	parts.forEach((P) => {
-		const m = Math.round(P.n),
-			im = new THREE.InstancedMesh(P.geo, new THREE.MeshStandardMaterial({ roughness: 0.9, flatShading: true }), m),
+	parts.forEach((P, pi) => {
+		const m = P.at.length;
+		if (!m) return;
+		const im = new THREE.InstancedMesh(P.geo, new THREE.MeshStandardMaterial({ roughness: 0.9, flatShading: true }), m),
 			o = new THREE.Object3D(),
 			c = new THREE.Color();
 		for (let i = 0; i < m; i++) {
-			const [a, b] = xs[i % xs.length],
-				sc = 0.7 + scnR() * 0.8;
-			o.position.set(a + scnR() * (b - a), P.y * sc, zs + scnR() * L);
+			/* clumps: mostly small, a few big ones; the rest as before */
+			const sc = pi ? 0.7 + scnR() * 0.8 : 0.5 + scnR() ** 1.5 * 1.2;
+			o.position.set(P.at[i][0], gy + P.y * sc, P.at[i][1]);
 			o.rotation.set((scnR() - 0.5) * 0.4, scnR() * 6, (scnR() - 0.5) * 0.4);
 			o.scale.set(sc, sc * (0.8 + scnR() * 0.6), sc);
 			o.updateMatrix();
 			im.setMatrixAt(i, o.matrix);
 			im.setColorAt(i, c.set(P.cols[i % P.cols.length]));
 		}
+		/* r128 culls an InstancedMesh by the base geometry at the origin, not by where the copies are */
+		im.frustumCulled = false;
 		s.add(im);
 	});
 }
@@ -26025,7 +26122,9 @@ function bakeKit(g, opt = {}) {
 		out.push({ geo, mat });
 	});
 	if (KIT_AO.on && KIT_AO.k > 0 && opt.ao !== false) bakeAO(out, opt.ground !== false);
-	/* footprint for the contact shadow: x/z extent of the main mass (above 30% of the height, so aprons, yards and fences don't count) */
+	/* footprint for the contact shadow: x/z extent of the main mass where it crosses a level at 35% of the height (walls,
+	   sides; aprons, yards and fences stay below it, roof eaves, porch roofs and awnings above; whatever reaches above 25%
+	   if nothing crosses it) */
 	let y0 = 1e9,
 		y1 = -1e9;
 	out.forEach(({ geo }) => {
@@ -26036,105 +26135,290 @@ function bakeKit(g, opt = {}) {
 		}
 	});
 	y0 = Math.max(0, y0);
-	const yc = y0 + Math.max(0.15, (y1 - y0) * 0.3);
-	const bb = new THREE.Box3();
+	const yc = y0 + Math.max(0.2, (y1 - y0) * 0.35),
+		ya = y0 + Math.max(0.15, (y1 - y0) * 0.25),
+		bb = new THREE.Box3(),
+		V = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
 	out.forEach(({ geo }) => {
 		const p = geo.attributes.position;
-		for (let i = 0; i < p.count; i++) if (p.getY(i) > yc) bb.expandByPoint(v.fromBufferAttribute(p, i));
+		for (let i = 0; i + 2 < p.count; i += 3) {
+			V.forEach((q, k) => q.fromBufferAttribute(p, i + k));
+			V.forEach((q, k) => {
+				const r = V[(k + 1) % 3];
+				if ((q.y - yc) * (r.y - yc) < 0) bb.expandByPoint(v.copy(q).lerp(r, (yc - q.y) / (r.y - q.y)));
+			});
+		}
 	});
+	if (bb.isEmpty())
+		out.forEach(({ geo }) => {
+			const p = geo.attributes.position;
+			for (let i = 0; i < p.count; i++) if (p.getY(i) > ya) bb.expandByPoint(v.fromBufferAttribute(p, i));
+		});
 	if (!bb.isEmpty()) out.foot = { x0: bb.min.x, x1: bb.max.x, z0: bb.min.z, z1: bb.max.z, y0 };
 	return out;
 }
-/* ---------- baked ambient occlusion: per vertex, computed once in bakeKit, free at draw time ----------
-   From each vertex n rays go out over the hemisphere round its normal; hits on the kit itself (or the ground it stands
-   on) within r metres darken the vertex colour, nearer hits more. An edge is split where the shade changes along it (its
-   midpoint differs from its ends by more than thr) or where it is longer than max, so eaves, creases and contact lines
-   get a soft dark band while flat open areas stay a few big triangles. k = strength (0 = off).
-   The bake runs in a background worker, so a game's scene shows at once; where workers fail it runs right away.
-   Results are kept by geometry (AO_C), so a kit baked before shades instantly: enterMg calls the game's def.kits()
-   while the clouds cover the switch, so the worker is done (or nearly) by the time the scene is built. */
-var KIT_AO = { on: true, k: 0.6, r: 0.7, n: 16, max: 6, min: 0.2, thr: 0.1, thin: 0.25 },
+/* ---------- baked ambient occlusion: a texture per kit, computed once in bakeKit, free at draw time ----------
+   Every face of a kit gets its own patch in a shared atlas (AO_PG: 2048 px one-channel pages, d texels per metre, a
+   1 texel border so filtering never reaches the next patch); the props read it through a second UV set (aoUv) in a
+   patched copy of their material (aoMat). For each texel n rays go out over the hemisphere round the surface normal;
+   hits on the kit itself (or the ground it stands on) within r metres darken it, nearer hits more. k = strength (0 = off).
+   Texels are sampled every 4th one first and only filled in one by one where the shade bends more than thr there.
+   The faces and their patches are laid out at once, so a kit draws straight away (unshaded); the shading runs in a
+   background worker (right away where workers fail) and lands in the atlas when done. Results are kept by geometry
+   (AO_C), so a kit baked before shades instantly: enterMg calls the game's def.kits() while the clouds cover the switch,
+   so the worker is done (or nearly) by the time the scene is built. */
+var KIT_AO = { on: true, k: 0.6, r: 0.7, n: 16, d: 10, thr: 0.03 },
 	AO_W = { id: 0, cb: {} },
-	AO_C = new Map();
+	AO_C = new Map(),
+	AO_PG = [],
+	AO_MAT = new Map(),
+	AO_S = 2048;
 /* FNV-1a over the positions and normals (as raw bits) plus the settings */
 function aoHash(G, ground, A) {
 	let h = 2166136261;
 	const mix = (x) => (h = Math.imul(h ^ x, 16777619));
-	G.forEach(({ P, N, vc, clear }) => {
+	G.forEach(({ P, N, clear }) => {
 		[P, N].forEach((a) => new Uint32Array(a.buffer, a.byteOffset, a.length).forEach(mix));
-		mix(vc ? 7 : 3);
 		mix(clear ? 5 : 11);
 	});
 	return h + "|" + G.length + "|" + ground + JSON.stringify(A);
 }
-function bakeAO(out, ground) {
-	const G = out.map(({ geo, mat }) => {
-			const a = geo.attributes;
-			return {
-				P: a.position.array,
-				N: a.normal.array,
-				C: a.color.array,
-				U: a.uv ? a.uv.array : null,
-				vc: !!mat.vertexColors,
-				clear: !!(mat.transparent && mat.opacity < 0.7),
+/* the faces as patches: a triangle pair forming a flat parallelogram (most of a kit) is one rectangle, any other
+   triangle gets its bounding rectangle in its own plane. Returns the block size (w, h), per material the texel
+   coordinates of each vertex in the block (null for see-through ones), and the patches for the worker: per patch
+   [x, y, w, h, triangles, then per triangle its 3 texel corners (6), positions (9) and normals (9)] */
+function aoCharts(G, d) {
+	const pad = 1,
+		CH = [],
+		UV = G.map(({ P, clear }) => (clear ? null : new Float32Array((P.length / 3) * 2)));
+	let area = 0;
+	G.forEach(({ P, N, clear }, gi) => {
+		if (clear) return;
+		const p = (i) => [P[i * 3], P[i * 3 + 1], P[i * 3 + 2]],
+			sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]],
+			len = (a) => Math.hypot(a[0], a[1], a[2]),
+			cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]],
+			dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2],
+			eq = (i, j) => P[i * 3] === P[j * 3] && P[i * 3 + 1] === P[j * 3 + 1] && P[i * 3 + 2] === P[j * 3 + 2],
+			nT = P.length / 9,
+			/* texel corners for vertices vs, size w x h (border included) */
+			add = (vs, tc, w, h) => {
+				CH.push({ gi, vs, tc, w, h });
+				area += w * h;
 			};
-		}),
-		job = { G, ground, A: Object.assign({}, KIT_AO) },
-		apply = (r) =>
-			r.forEach((g, i) => {
-				const geo = out[i].geo;
-				delete geo.userData.aoPending;
-				if (!g) return;
-				/* frees the old GPU buffers; the next frame uploads the new ones */
-				geo.dispose();
-				geo.setAttribute("position", new THREE.BufferAttribute(g.P, 3));
-				geo.setAttribute("normal", new THREE.BufferAttribute(g.N, 3));
-				geo.setAttribute("color", new THREE.BufferAttribute(g.C, 3));
-				if (g.U) geo.setAttribute("uv", new THREE.BufferAttribute(g.U, 2));
-			});
-	const key = aoHash(G, ground, job.A),
-		hit = AO_C.get(key);
-	if (hit && hit.r) return apply(hit.r);
-	/* until it lands, mergeScene leaves these geometries alone (a merged copy would never get the shading) */
-	out.forEach(({ geo }) => (geo.userData.aoPending = true));
-	if (hit) return hit.wait.push(apply);
-	const entry = { r: null, wait: [apply] };
-	AO_C.set(key, entry);
-	job.done = (r) => {
-		entry.r = r;
-		entry.wait.forEach((f) => f(r));
-		entry.wait = [];
-	};
-	const sync = (j) => j.done(aoCompute(j.G, j.ground, j.A));
+		for (let t = 0; t < nT; t++) {
+			const a3 = [t * 3, t * 3 + 1, t * 3 + 2];
+			if (t + 1 < nT) {
+				const b3 = [t * 3 + 3, t * 3 + 4, t * 3 + 5],
+					sh = [];
+				a3.forEach((v, i) => b3.forEach((w, j) => eq(v, w) && sh.push([i, j])));
+				if (sh.length === 2) {
+					const o = a3[3 - sh[0][0] - sh[1][0]],
+						q = b3[3 - sh[0][1] - sh[1][1]],
+						a = a3[sh[0][0]],
+						b = a3[sh[1][0]],
+						eu = sub(p(a), p(o)),
+						ev = sub(p(b), p(o)),
+						nA = cross(sub(p(a3[1]), p(a3[0])), sub(p(a3[2]), p(a3[0]))),
+						nB = cross(sub(p(b3[1]), p(b3[0])), sub(p(b3[2]), p(b3[0]))),
+						lu = len(eu),
+						lv = len(ev);
+					if (
+						len(sub(sub(p(q), p(a)), ev)) < Math.max(lu, lv) * 1e-4 &&
+						dot(nA, nB) > 0 &&
+						len(cross(nA, nB)) < 1e-3 * len(nA) * len(nB)
+					) {
+						const wi = Math.min(510, Math.max(1, Math.round(lu * d))),
+							hi = Math.min(510, Math.max(1, Math.round(lv * d))),
+							at = (v) => (v === o ? [0, 0] : v === a ? [wi, 0] : v === b ? [0, hi] : [wi, hi]),
+							/* the shared corners are the same vertex in both triangles */
+							map = (v) => (eq(v, a) ? a : eq(v, b) ? b : v);
+						add(
+							a3.concat(b3),
+							a3.concat(b3).map((v) => at(map(v)).map((x) => x + pad)),
+							wi + pad * 2,
+							hi + pad * 2,
+						);
+						t++;
+						continue;
+					}
+				}
+			}
+			/* lone triangle: u along its longest edge, v across it in its plane */
+			const V = a3.map(p),
+				E = [0, 1, 2].map((i) => len(sub(V[(i + 1) % 3], V[i]))),
+				e = E.indexOf(Math.max(...E)),
+				n = cross(sub(V[1], V[0]), sub(V[2], V[0])),
+				u = sub(V[(e + 1) % 3], V[e]).map((x) => x / (E[e] || 1)),
+				nl = len(n) || 1,
+				w2 = cross(n, u).map((x) => x / nl),
+				uv = V.map((x) => [dot(sub(x, V[e]), u) * d, dot(sub(x, V[e]), w2) * d]),
+				x0 = Math.min(...uv.map((q) => q[0])),
+				y0 = Math.min(...uv.map((q) => q[1])),
+				wi = Math.min(510, Math.max(1, Math.ceil(Math.max(...uv.map((q) => q[0])) - x0))),
+				hi = Math.min(510, Math.max(1, Math.ceil(Math.max(...uv.map((q) => q[1])) - y0)));
+			add(
+				a3,
+				uv.map((q) => [Math.min(wi, q[0] - x0) + pad, Math.min(hi, q[1] - y0) + pad]),
+				wi + pad * 2,
+				hi + pad * 2,
+			);
+		}
+	});
+	/* shelf packing, tallest first */
+	const W = Math.min(AO_S, Math.max(64, 2 ** Math.ceil(Math.log2(Math.sqrt(area * 1.2))))),
+		order = CH.map((c, i) => i).sort((i, j) => CH[j].h - CH[i].h);
+	let x = 0,
+		y = 0,
+		rowH = 0;
+	order.forEach((i) => {
+		const c = CH[i];
+		if (x + c.w > W) {
+			x = 0;
+			y += rowH;
+			rowH = 0;
+		}
+		c.x = x;
+		c.y = y;
+		x += c.w;
+		rowH = Math.max(rowH, c.h);
+	});
+	const H = y + rowH,
+		F = [];
+	CH.forEach((c) => {
+		const g = G[c.gi],
+			nt = c.vs.length / 3;
+		F.push(c.x, c.y, c.w, c.h, nt);
+		c.vs.forEach((v, k) => {
+			UV[c.gi][v * 2] = c.x + c.tc[k][0];
+			UV[c.gi][v * 2 + 1] = c.y + c.tc[k][1];
+		});
+		for (let t = 0; t < nt; t++) {
+			const vs = c.vs.slice(t * 3, t * 3 + 3);
+			vs.forEach((v, k) => F.push(c.tc[t * 3 + k][0], c.tc[t * 3 + k][1]));
+			vs.forEach((v) => F.push(g.P[v * 3], g.P[v * 3 + 1], g.P[v * 3 + 2]));
+			vs.forEach((v) => F.push(g.N[v * 3], g.N[v * 3 + 1], g.N[v * 3 + 2]));
+		}
+	});
+	return { w: W, h: H, uv: UV, F: new Float32Array(F), big: H > AO_S };
+}
+/* a w x h block in an atlas page (shelves of blocks, a new page when full) */
+function aoPlace(w, h) {
+	for (let pi = 0; ; pi++) {
+		if (!AO_PG[pi]) {
+			const data = new Uint8Array(AO_S * AO_S).fill(255),
+				tex = new THREE.DataTexture(data, AO_S, AO_S, THREE.LuminanceFormat, THREE.UnsignedByteType);
+			tex.magFilter = tex.minFilter = THREE.LinearFilter;
+			tex.generateMipmaps = false;
+			tex.needsUpdate = true;
+			AO_PG[pi] = { i: pi, data, tex, rows: [], top: 0 };
+		}
+		const pg = AO_PG[pi],
+			row = pg.rows.find((r) => r.h >= h && r.h <= h * 2 + 16 && r.x + w <= AO_S);
+		if (row) {
+			row.x += w;
+			return { pg, x: row.x - w, y: row.y };
+		}
+		if (pg.top + h <= AO_S) {
+			pg.rows.push({ y: pg.top, h, x: w });
+			pg.top += h;
+			return { pg, x: 0, y: pg.top - h };
+		}
+	}
+}
+/* the kit's material with the AO texture multiplied in (where the vertex colour goes, so in new-look scenes it is read as
+   sRGB like the colours); one copy per material and page, so kits still share materials and merge */
+function aoMat(base, pg) {
+	const k = base.uuid + "|" + pg.i;
+	if (!AO_MAT.has(k)) {
+		const m = base.clone();
+		m.userData = Object.assign({}, base.userData, { ao: true });
+		m.onBeforeCompile = (sh) => {
+			sh.uniforms.aoTex = { value: pg.tex };
+			sh.uniforms.aoK = { value: KIT_AO.k };
+			sh.vertexShader = sh.vertexShader
+				.replace("#include <common>", "#include <common>\nattribute vec2 aoUv;\nvarying vec2 vAoUv;")
+				.replace("#include <begin_vertex>", "#include <begin_vertex>\n\tvAoUv = aoUv;");
+			sh.fragmentShader = sh.fragmentShader
+				.replace(
+					"#include <common>",
+					"#include <common>\nuniform sampler2D aoTex;\nuniform float aoK;\nvarying vec2 vAoUv;",
+				)
+				.replace(
+					"#include <color_fragment>",
+					"#include <color_fragment>\n\tfloat aoF = 1.0 - aoK * ( 1.0 - texture2D( aoTex, vAoUv ).r );\n#ifdef TONE_MAPPING\n\taoF = pow( aoF, 2.2 );\n#endif\n\tdiffuseColor.rgb *= aoF;",
+				);
+		};
+		m.customProgramCacheKey = () => "kitao";
+		AO_MAT.set(k, m);
+	}
+	return AO_MAT.get(k);
+}
+function bakeAO(out, ground) {
+	const A = Object.assign({}, KIT_AO),
+		G = out.map(({ geo, mat }) => ({
+			P: geo.attributes.position.array,
+			N: geo.attributes.normal.array,
+			clear: !!(mat.transparent && mat.opacity < 0.7),
+		}));
+	/* a huge kit that would overflow a page gets fewer texels per metre */
+	let L = aoCharts(G, A.d);
+	while (L.big && A.d > 1) L = aoCharts(G, (A.d *= 0.7));
+	const key = aoHash(G, ground, A);
+	let e = AO_C.get(key);
+	if (!e) {
+		AO_C.set(key, (e = aoPlace(L.w, L.h)));
+		const job = { G, ground, A, F: L.F, w: L.w, h: L.h },
+			done = (img) => {
+				const D = e.pg.data;
+				for (let r = 0; r < L.h; r++) D.set(img.subarray(r * L.w, (r + 1) * L.w), (e.y + r) * AO_S + e.x);
+				e.pg.tex.needsUpdate = true;
+			};
+		aoJob(job, done);
+	}
+	out.forEach((o, i) => {
+		const T = L.uv[i];
+		if (!T) return;
+		for (let j = 0; j < T.length; j += 2) {
+			T[j] = (T[j] + e.x) / AO_S;
+			T[j + 1] = (T[j + 1] + e.y) / AO_S;
+		}
+		o.geo.setAttribute("aoUv", new THREE.BufferAttribute(T, 2));
+		o.mat = aoMat(o.mat, e.pg);
+	});
+}
+function aoJob(job, done) {
+	const sync = () => done(aoCompute(job));
 	if (AO_W.w === undefined)
 		try {
 			const src =
 				aoCompute.toString() +
-				";\nonmessage = (e) => { const r = aoCompute(e.data.G, e.data.ground, e.data.A); postMessage({ id: e.data.id, r }, r.filter(Boolean).flatMap((g) => [g.P.buffer, g.N.buffer, g.C.buffer].concat(g.U ? [g.U.buffer] : []))); };";
+				";\nonmessage = (e) => { const r = aoCompute(e.data); postMessage({ id: e.data.id, r }, [r.buffer]); };";
 			AO_W.w = new Worker(URL.createObjectURL(new Blob([src], { type: "text/javascript" })));
 			AO_W.w.onmessage = (e) => {
-				const j = AO_W.cb[e.data.id];
+				const f = AO_W.cb[e.data.id];
 				delete AO_W.cb[e.data.id];
-				if (j) j.done(e.data.r);
+				if (f) f.done(e.data.r);
 			};
 			AO_W.w.onerror = () => {
 				AO_W.w = null;
 				const L = Object.values(AO_W.cb);
 				AO_W.cb = {};
-				L.forEach(sync);
+				L.forEach((j) => j.done(aoCompute(j.job)));
 			};
 		} catch (e) {
 			AO_W.w = null;
 		}
-	if (!AO_W.w) return sync(job);
+	if (!AO_W.w) return sync();
 	const id = ++AO_W.id;
-	AO_W.cb[id] = job;
-	/* structured clone copies the arrays: the kit keeps drawing from the originals meanwhile */
-	AO_W.w.postMessage({ id, G, ground, A: job.A });
+	AO_W.cb[id] = { job, done };
+	job.id = id;
+	AO_W.w.postMessage(job);
 }
-/* pure (no THREE, no globals) so it also runs in the worker. G: [{P, N, C, U, vc, clear}] per material; returns the
-   split, shaded arrays per material (null where the material has no vertex colours) */
-function aoCompute(G, ground, A) {
+/* pure (no THREE, no globals) so it also runs in the worker. J: {G: [{P, N, clear}] per material, ground, A, F (the
+   patches, see aoCharts), w, h}; returns the block's texels (255 = open, 0 = fully shut in) */
+function aoCompute(J) {
+	const { G, ground, A } = J;
 	const R = A.r,
 		occ = [];
 	/* occluders: every opaque triangle (glass and other see-through parts let the light through) */
@@ -26196,12 +26480,9 @@ function aoCompute(G, ground, A) {
 	const stamp = new Int32Array(nT),
 		cT = new Int32Array(nT),
 		cS = new Float64Array(nT),
-		cache = new Map(),
 		R2 = R * R;
 	let st = 0;
 	const shade = (p, n) => {
-		const ck = `${Math.round(p[0] * 1e4)},${Math.round(p[1] * 1e4)},${Math.round(p[2] * 1e4)},${Math.round(n[0] * 100)},${Math.round(n[1] * 100)},${Math.round(n[2] * 100)}`;
-		if (cache.has(ck)) return cache.get(ck);
 		const [nx, ny, nz] = n,
 			ox = p[0] + nx * 0.004,
 			oy = p[1] + ny * 0.004,
@@ -26284,100 +26565,101 @@ function aoCompute(G, ground, A) {
 			if (best < R) occl += 1 - best / R;
 		}
 		const ao = 1 - occl / (D.length / 3);
-		cache.set(ck, ao);
 		return ao;
 	};
-	return G.map(({ P, N, C, U, vc }) => {
-		/* materials without vertex colours can't show it (they still block light for the others) */
-		if (!vc) return null;
-		const oP = [],
-			oN = [],
-			oC = [],
-			oU = [];
-		const vert = (i) => {
-			const v = {
-				p: [P[i * 3], P[i * 3 + 1], P[i * 3 + 2]],
-				n: [N[i * 3], N[i * 3 + 1], N[i * 3 + 2]],
-				c: [C[i * 3], C[i * 3 + 1], C[i * 3 + 2]],
-				u: U && [U[i * 2], U[i * 2 + 1]],
+	/* each patch texel by texel: the surface point under the texel centre (in the patch's triangle that holds it best,
+	   clamped onto it for the border texels), first every 4th texel, then one by one only where a 4 x 4 cell's corners
+	   and centre disagree by more than thr; elsewhere blended from the corners */
+	const F = J.F,
+		img = new Uint8Array(J.w * J.h).fill(255),
+		B = 4;
+	for (let o = 0; o < F.length;) {
+		const x0 = F[o],
+			y0 = F[o + 1],
+			w = F[o + 2],
+			h = F[o + 3],
+			nt = F[o + 4],
+			t0 = o + 5;
+		o = t0 + nt * 24;
+		const iw = w - 2,
+			ih = h - 2,
+			V = new Float32Array(iw * ih).fill(-1),
+			sample = (px, py) => {
+				let bw = null,
+					bm = -1e9;
+				for (let t = 0; t < nt; t++) {
+					const q = t0 + t * 24,
+						ax = F[q],
+						ay = F[q + 1],
+						e1x = F[q + 2] - ax,
+						e1y = F[q + 3] - ay,
+						e2x = F[q + 4] - ax,
+						e2y = F[q + 5] - ay,
+						det = e1x * e2y - e1y * e2x;
+					if (Math.abs(det) < 1e-12) continue;
+					const u = ((px - ax) * e2y - (py - ay) * e2x) / det,
+						v = (e1x * (py - ay) - e1y * (px - ax)) / det,
+						W3 = [1 - u - v, u, v],
+						m = Math.min(...W3);
+					if (m > bm) [bm, bw] = [m, { q, W3 }];
+				}
+				if (!bw) return 1;
+				const W3 = bw.W3.map((x) => Math.max(0, x)),
+					s = W3[0] + W3[1] + W3[2],
+					p = [0, 0, 0],
+					n = [0, 0, 0];
+				for (let k = 0; k < 3; k++)
+					for (let c = 0; c < 3; c++) {
+						p[c] += (F[bw.q + 6 + k * 3 + c] * W3[k]) / s;
+						n[c] += (F[bw.q + 15 + k * 3 + c] * W3[k]) / s;
+					}
+				const nl = Math.hypot(n[0], n[1], n[2]) || 1;
+				return shade(p, [n[0] / nl, n[1] / nl, n[2] / nl]);
+			},
+			val = (i, j) => {
+				const k = j * iw + i;
+				if (V[k] < 0) V[k] = sample(i + 1.5, j + 1.5);
+				return V[k];
 			};
-			v.ao = shade(v.p, v.n);
-			return v;
-		};
-		const avg = (a, b) => a.map((x, i) => (x + b[i]) / 2);
-		/* the midpoint of edge a-b if it should be split, else null (decided by the edge alone, so both triangles on it agree) */
-		const cut = (a, b) => {
-			const L = Math.hypot(a.p[0] - b.p[0], a.p[1] - b.p[1], a.p[2] - b.p[2]);
-			if (L < A.min * 2) return null;
-			const n = avg(a.n, b.n),
-				nl = Math.hypot(...n) || 1,
-				m = { p: avg(a.p, b.p), n: n.map((x) => x / nl), c: avg(a.c, b.c), u: a.u && avg(a.u, b.u) };
-			m.ao = shade(m.p, m.n);
-			return L > A.max || Math.abs(m.ao - (a.ao + b.ao) / 2) > A.thr ? m : null;
-		};
-		const emit = (v) => {
-			const f = 1 - A.k * (1 - v.ao);
-			oP.push(...v.p);
-			oN.push(...v.n);
-			oC.push(v.c[0] * f, v.c[1] * f, v.c[2] * f);
-			if (U) oU.push(...v.u);
-		};
-		/* thin triangles (trim, strips, slivers) already have their vertices where the shade changes: never split them */
-		const thick = (a, b, c) => {
-			const e = [
-					[b.p, a.p],
-					[c.p, a.p],
-				].map(([x, y]) => x.map((v, i) => v - y[i])),
-				cr = Math.hypot(
-					e[0][1] * e[1][2] - e[0][2] * e[1][1],
-					e[0][2] * e[1][0] - e[0][0] * e[1][2],
-					e[0][0] * e[1][1] - e[0][1] * e[1][0],
-				),
-				L = Math.max(...[a, b, c].map((v, i, V) => Math.hypot(...v.p.map((x, j) => x - V[(i + 1) % 3].p[j]))));
-			return cr / L > A.thin;
-		};
-		const tri = (a, b, c, dep) => {
-			const m = dep < 9 && thick(a, b, c) ? [cut(a, b), cut(b, c), cut(c, a)] : [null, null, null],
-				s = m.filter(Boolean).length,
-				V = [a, b, c];
-			if (!s) [a, b, c].forEach(emit);
-			else if (s === 3) {
-				tri(a, m[0], m[2], dep + 1);
-				tri(m[0], b, m[1], dep + 1);
-				tri(m[2], m[1], c, dep + 1);
-				tri(m[0], m[1], m[2], dep + 1);
-			} else if (s === 1) {
-				const e = m.findIndex(Boolean);
-				tri(V[e], m[e], V[(e + 2) % 3], dep + 1);
-				tri(m[e], V[(e + 1) % 3], V[(e + 2) % 3], dep + 1);
-			} else {
-				/* edge e unsplit; e+1 and e+2 split */
-				const e = m.findIndex((x) => !x),
-					a0 = V[e],
-					b0 = V[(e + 1) % 3],
-					c0 = V[(e + 2) % 3],
-					mbc = m[(e + 1) % 3],
-					mca = m[(e + 2) % 3];
-				tri(mca, mbc, c0, dep + 1);
-				tri(a0, b0, mbc, dep + 1);
-				tri(a0, mbc, mca, dep + 1);
+		/* the inner texels; the 1 texel border copies its neighbour inside */
+		for (let j0 = 0; j0 < ih - 1 || j0 === 0; j0 += B)
+			for (let i0 = 0; i0 < iw - 1 || i0 === 0; i0 += B) {
+				const i1 = Math.min(i0 + B, iw - 1),
+					j1 = Math.min(j0 + B, ih - 1),
+					c = [val(i0, j0), val(i1, j0), val(i0, j1), val(i1, j1), val((i0 + i1) >> 1, (j0 + j1) >> 1)];
+				const smooth = Math.max(...c) - Math.min(...c) <= A.thr;
+				for (let j = j0; j <= j1; j++)
+					for (let i = i0; i <= i1; i++) {
+						if (V[j * iw + i] >= 0) continue;
+						if (!smooth) {
+							val(i, j);
+							continue;
+						}
+						const s = i1 > i0 ? (i - i0) / (i1 - i0) : 0,
+							t = j1 > j0 ? (j - j0) / (j1 - j0) : 0;
+						V[j * iw + i] = (c[0] * (1 - s) + c[1] * s) * (1 - t) + (c[2] * (1 - s) + c[3] * s) * t;
+					}
 			}
-		};
-		for (let i = 0; i < P.length / 3; i += 3) tri(vert(i), vert(i + 1), vert(i + 2), 0);
-		return {
-			P: new Float32Array(oP),
-			N: new Float32Array(oN),
-			C: new Float32Array(oC),
-			U: U && new Float32Array(oU),
-		};
-	});
+		for (let j = 0; j < h; j++)
+			for (let i = 0; i < w; i++) {
+				const v = V[Math.min(ih - 1, Math.max(0, j - 1)) * iw + Math.min(iw - 1, Math.max(0, i - 1))];
+				img[(y0 + j) * J.w + x0 + i] = Math.round(Math.max(0, Math.min(1, v)) * 255);
+			}
+	}
+	return img;
 }
-/* ---------- contact shadows: a soft dark footprint under props so they sit on the ground instead of looking pasted in.
-   9-slice quad: the dark core is the footprint, the fade runs m metres outward (same width whatever the prop's size). */
+/* ---------- contact shadows: a soft dark band where props meet the ground so they don't look pasted in.
+   9-slice quad: the dark core is the footprint, darkest at its edge, fading out over m metres (shadowFade: narrow, a
+   bit wider for big props). Round props get a disc with the same edge (k = the dark part's share of the radius). */
 var SHADOW_MAT = {};
-function shadowMat(op) {
-	if (SHADOW_MAT[op]) return SHADOW_MAT[op];
-	if (!SHADOW_MAT.tex) {
+function shadowFade(size) {
+	return Math.min(0.35, 0.12 + 0.03 * size);
+}
+function shadowMat(op, k) {
+	const key = op + "|" + (k === undefined ? "sq" : k);
+	if (SHADOW_MAT[key]) return SHADOW_MAT[key];
+	const tk = k === undefined ? "tex" : "tex" + k;
+	if (!SHADOW_MAT[tk]) {
 		const n = 64,
 			c = document.createElement("canvas");
 		c.width = c.height = n;
@@ -26385,17 +26667,23 @@ function shadowMat(op) {
 			im = x.createImageData(n, n);
 		for (let j = 0; j < n; j++)
 			for (let i = 0; i < n; i++) {
-				const u = Math.max(0, Math.abs((i + 0.5) / n - 0.5) * 4 - 1),
-					v = Math.max(0, Math.abs((j + 0.5) / n - 0.5) * 4 - 1),
+				let t;
+				if (k === undefined) {
+					const u = Math.max(0, Math.abs((i + 0.5) / n - 0.5) * 4 - 1),
+						v = Math.max(0, Math.abs((j + 0.5) / n - 0.5) * 4 - 1);
 					t = Math.max(0, 1 - Math.hypot(u, v));
+				} else {
+					const r = Math.hypot((i + 0.5) / n - 0.5, (j + 0.5) / n - 0.5) * 2;
+					t = Math.max(0, Math.min(1, 1 - (r - k) / (1 - k)));
+				}
 				im.data[(j * n + i) * 4 + 3] = Math.round(t * t * 255);
 			}
 		x.putImageData(im, 0, 0);
-		SHADOW_MAT.tex = new THREE.CanvasTexture(c);
+		SHADOW_MAT[tk] = new THREE.CanvasTexture(c);
 	}
-	return (SHADOW_MAT[op] = new THREE.MeshBasicMaterial({
+	return (SHADOW_MAT[key] = new THREE.MeshBasicMaterial({
 		color: "#000000",
-		map: SHADOW_MAT.tex,
+		map: SHADOW_MAT[tk],
 		transparent: true,
 		opacity: op,
 		depthWrite: false,
@@ -26404,11 +26692,11 @@ function shadowMat(op) {
 		polygonOffsetUnits: -2,
 	}));
 }
-/* flat 9-slice shadow geometry: footprint w x d centred on (cx, cz) at height y, fading out over m (and slightly inward) */
+/* flat 9-slice shadow geometry: footprint w x d centred on (cx, cz) at height y, fading out over m */
 function shadowGeo(w, d, m, cx = 0, cz = 0, y = 0.03) {
-	const hw = Math.max(0, w / 2 - m * 0.3),
-		hd = Math.max(0, d / 2 - m * 0.3),
-		mm = m * 1.3,
+	const hw = Math.max(0, w / 2 - m * 0.1),
+		hd = Math.max(0, d / 2 - m * 0.1),
+		mm = m,
 		xs = [-hw - mm, -hw, hw, hw + mm],
 		zs = [-hd - mm, -hd, hd, hd + mm],
 		uv = [0, 0.25, 0.75, 1],
@@ -26438,9 +26726,24 @@ function shadowGeo(w, d, m, cx = 0, cz = 0, y = 0.03) {
 	g.setIndex(I);
 	return g;
 }
-/* a contact shadow mesh: w x d footprint (round props: w = d = diameter, the fade makes it soft and round) */
+/* a contact shadow mesh: w x d footprint (round props: roundShadow) */
 function contactShadow(w, d, op = 0.3, x = 0, z = 0, y = 0.03, m) {
-	const sh = new THREE.Mesh(shadowGeo(w, d, m || Math.min(1.1, 0.2 + 0.12 * Math.min(w, d)), x, z, y), shadowMat(op));
+	const sh = new THREE.Mesh(shadowGeo(w, d, m || shadowFade(Math.min(w, d)), x, z, y), shadowMat(op));
+	sh.renderOrder = 1;
+	sh.userData.shadow = true;
+	return sh;
+}
+/* round contact shadow for round props (trunks, posts, hydrants) of diameter dia: a disc quad and its texture's k */
+function roundShadowGeo(dia, x = 0, z = 0, y = 0.03) {
+	const f = shadowFade(dia),
+		R = dia / 2 + f * 0.9,
+		g = new THREE.PlaneGeometry(R * 2, R * 2).rotateX(-Math.PI / 2).translate(x, y, z);
+	g.userData.k = Math.round(((dia / 2 - f * 0.1) / R) * 20) / 20;
+	return g;
+}
+function roundShadow(dia, op = 0.3, x = 0, z = 0, y = 0.03) {
+	const g = roundShadowGeo(dia, x, z, y),
+		sh = new THREE.Mesh(g, shadowMat(op, g.userData.k));
 	sh.renderOrder = 1;
 	sh.userData.shadow = true;
 	return sh;
@@ -26449,7 +26752,7 @@ function kitShadowGeo(kit) {
 	const f = kit.foot,
 		w = f.x1 - f.x0,
 		d = f.z1 - f.z0;
-	return shadowGeo(w, d, Math.min(1.1, 0.2 + 0.12 * Math.min(w, d)), (f.x0 + f.x1) / 2, (f.z0 + f.z1) / 2, f.y0 + 0.04);
+	return shadowGeo(w, d, shadowFade(Math.min(w, d)), (f.x0 + f.x1) / 2, (f.z0 + f.z1) / 2, f.y0 + 0.04);
 }
 /* a baked kit as a normal group (for things that move or toggle), with its contact shadow */
 function kitGroup(kit, shadow = 0.3) {
@@ -26600,7 +26903,8 @@ function houseModel(v) {
 		g.add(B(3.2, 2.5, 4.6, L.wall, gx, 1.25, -0.2), B(3.5, 0.18, 4.9, L.trim, gx, 2.59, -0.2));
 		g.add(B(2.5, 2.0, 0.08, "#E4E6EA", gx, 1.0, 2.14));
 		for (let k = 0; k < 4; k++) g.add(B(2.44, 0.05, 0.11, "#B9BEC6", gx, 0.3 + k * 0.48, 2.17));
-		g.add(B(2.8, 0.04, 4.4, "#868A91", gx, 0.02, 4.5));
+		/* 6 cm thick: its top stays clear of the grass and of the contact shadow (4 cm) */
+		g.add(B(2.8, 0.06, 4.4, "#868A91", gx, 0.03, 4.5));
 	}
 	/* yard: stepping-stone path, picket fence with a gate gap, mailbox, hedge, flower bed */
 	for (let k = 0; k < 5; k++) g.add(B(0.62, 0.05, 0.5, "#968F84", k % 2 ? 0.08 : -0.08, 0.025, D / 2 + 1.2 + k * 0.85));
@@ -27186,13 +27490,10 @@ function firePropModel(kind, col) {
 
 /* ---------- contact shadows for many copies of one footprint (stacks, crane legs, posts): one InstancedMesh.
    list: [{x, y, z, ry}], y = the surface they stand on */
-function placeShadows(s, w, d, op, list) {
+function placeShadows(s, w, d, op, list, round) {
 	if (!list.length) return;
-	const im = new THREE.InstancedMesh(
-			shadowGeo(w, d, Math.min(1.1, 0.2 + 0.12 * Math.min(w, d))),
-			shadowMat(op),
-			list.length,
-		),
+	const geo = round ? roundShadowGeo(w) : shadowGeo(w, d, shadowFade(Math.min(w, d))),
+		im = new THREE.InstancedMesh(geo, shadowMat(op, round ? geo.userData.k : undefined), list.length),
 		o = new THREE.Object3D();
 	list.forEach((q, i) => {
 		o.position.set(q.x, q.y || 0, q.z);

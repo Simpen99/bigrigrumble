@@ -95,7 +95,7 @@ function laneWorld(W, len, extra) {
 			],
 			24,
 			-len - 20,
-			Math.round(len * 6),
+			Math.round(len * 10),
 		);
 	}
 	roadLines(
@@ -1316,7 +1316,7 @@ const MG = {
 				Cy(0.22, 0.14, 0.12, 8, "#2A2F3A", x, 3.62, z),
 				Cy(0.18, 0.2, 0.42, 8, "#FFF1C4", x, 3.89, z, { emissive: "#FFE08A", emissiveIntensity: 0.6 }),
 				Cy(0.02, 0.26, 0.2, 8, "#2A2F3A", x, 4.2, z),
-				contactShadow(0.5, 0.5, 0.25, x, z),
+				roundShadow(0.5, 0.25, x, z),
 			);
 		},
 		square(W) {
@@ -1389,7 +1389,7 @@ const MG = {
 				);
 				s.children[s.children.length - 1].rotation.z = Math.PI / 2;
 				decal(s, new THREE.CircleGeometry(1.8, 24), "#2F7DE1", x, 0.04, z, 0.35);
-				s.add(contactShadow(0.8, 0.8, 0.3, x, z, 0.08));
+				s.add(roundShadow(0.8, 0.3, x, z, 0.08));
 			});
 			/* shops around the plaza (detailed buildings, partmodels) and Blaze's fire station with a truck in the open bay */
 			MG.hill.PLAZA.forEach(([a], k) =>
@@ -3974,7 +3974,8 @@ const MG = {
 							[0.25, 1.25],
 							[0.45, 0.4],
 						][ty];
-					g.add(contactShadow(fp[0], fp[1], 0.3));
+					/* hydrant and litter bin are round */
+					g.add(ty < 2 ? roundShadow(fp[0], 0.3) : contactShadow(fp[0], fp[1], 0.3));
 					switch (ty) {
 						case 0:
 							g.add(Cy(0.16, 0.2, 0.55, 10, "#D93A35", 0, 0.28, 0), Cy(0.12, 0.17, 0.14, 10, "#B52A26", 0, 0.62, 0));
@@ -4028,7 +4029,7 @@ const MG = {
 				for (let z = 0; z > -this.LEN - 20; z -= 15)
 					s.add(
 						Cy(0.1, 0.12, 5, 6, "#2A2F3A", sd * (wid / 2 + 0.9), 2.5, z),
-						contactShadow(0.3, 0.3, 0.25, sd * (wid / 2 + 0.9), z, 0.28),
+						roundShadow(0.3, 0.25, sd * (wid / 2 + 0.9), z, 0.28),
 						B(1.4, 0.14, 0.3, "#2A2F3A", sd * (wid / 2 + 0.3), 5, z),
 					);
 			});
@@ -5067,6 +5068,7 @@ const MG = {
 		unit: "parcels",
 		dur: 40,
 		bare: true,
+		lt: { amb: 0.6, sun: 0.88, warm: 0.4, haze: 50 },
 		LANES: 4,
 		LW: 3.6,
 		CARV: 6,
@@ -5151,7 +5153,12 @@ const MG = {
 				],
 				30,
 				-L + 30,
-				2600,
+				3600,
+				/* clumps at every other guardrail post, on the field side; this ground's top is at -0.05 */
+				[-1, 1].flatMap((sd) =>
+					Array.from({ length: Math.floor((L - 10) / 8) }, (_, i) => [sd * (wid / 2 + 1.35), 20 - i * 8]),
+				),
+				-0.05,
 			);
 			[-1, 1].forEach((sd) => {
 				s.add(B(0.2, 0.5, L, "#C9CED8", sd * (wid / 2 + 1.1), 0.75, zc));
@@ -5188,20 +5195,30 @@ const MG = {
 				sg.position.set(0, 6.6, z + 0.25);
 				s.add(sg, B(wid + 4, 0.4, 0.3, "#5A6272", 0, 6.6, z - 0.1));
 			}
-			const homes = [];
+			const homes = [],
+				spots = [];
 			[-1, 1].forEach((sd) => {
 				for (let z = 10, k = 0; z > -L + 30; z -= 22, k++) {
+					/* facing the camera (+z), yard toward it; the kit runs from x -6.5 (garage) to +4.7 (fence), so the
+					   near edge sits ~3 m past the road edge */
 					homes.push({
 						k: (k + (sd > 0 ? 1 : 0) * 2) % 4,
-						x: sd * (wid / 2 + 16 + (k % 3) * 3),
+						x: sd > 0 ? wid / 2 + 9.5 + (k % 3) * 1.5 : -(wid / 2 + 7.7 + (k % 3) * 1.5),
 						y: -0.05,
 						z,
-						ry: (-sd * Math.PI) / 2,
+						ry: 0,
 					});
-					s.add(tree(sd * (wid / 2 + 6 + (k % 2) * 2.5), z - 9, 1, k % 3));
+					const tx = sd * (wid / 2 + 6 + (k % 2) * 2.5),
+						hx = homes[homes.length - 1].x,
+						tr = tree(tx, z - 9, 1, k % 3);
+					tr.position.y = -0.05;
+					s.add(tr);
+					/* grass clumps at the tree, the house's front corners and the fence ends */
+					spots.push([tx, z - 9], [hx - 3.1, z + 2.6], [hx + 3.1, z + 2.6], [hx - 4.65, z + 7.9], [hx + 4.65, z + 7.9]);
 				}
 			});
 			placeKits(s, houseKits(), homes);
+			vergeScatter(s, [], 0, 0, 0, spots, -0.05);
 		},
 		spawn: (W, i) => ({ x: MG.hop.lx(i % 4), z: 0, yaw: Math.PI / 2 }),
 		initEnt(W, e) {
@@ -5722,7 +5739,7 @@ const MG = {
 				s.add(Cy(0.35, 0.45, 0.6, 8, "#2A2F3A", x, 0.3, -36));
 				bol.push({ x, z: -36 });
 			}
-			placeShadows(s, 0.8, 0.8, 0.25, bol);
+			placeShadows(s, 0.8, 0.8, 0.25, bol, true);
 			W.sea = sea;
 			W.seaB = Float32Array.from(sp.array);
 			W.gulls = [];

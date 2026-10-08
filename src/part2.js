@@ -421,7 +421,7 @@ function ground(scene, w, d, flatX, flatZ, base) {
 function tree(x, z, s = 1, kind = rnd(3)) {
 	const t = new THREE.Group(),
 		g = new THREE.Group();
-	t.add(g, contactShadow(1.5 * s, 1.5 * s, 0.26));
+	t.add(g, roundShadow(0.4 * s, 0.35));
 	g.add(Cy(0.12 * s, 0.16 * s, 0.6 * s, 5, "#7A5234", 0, 0.3 * s, 0));
 	if (kind === 0) {
 		g.add(Cy(0, 0.8 * s, 1.3 * s, 6, "#2F8F4E", 0, 1.1 * s, 0), Cy(0, 0.6 * s, 1.0 * s, 6, "#3BA85C", 0, 1.7 * s, 0));
