@@ -2438,7 +2438,9 @@ Object.assign(MG, {
 				e.y = Math.max(0, e.y + e.vy * dt);
 				if (!e.y) e.vy = 0;
 			}
-			if (e.stunT > 0) {
+			/* stunned (shockwave), or reeling for a moment after a tyre hit so the push carries */
+			if (e.reelT > 0) e.reelT -= dt;
+			if (e.stunT > 0 || e.reelT > 0) {
 				e.stunT -= dt;
 				if (inp) inp.boost = false;
 				inp = { x: 0, y: 0, boost: false };
@@ -2452,7 +2454,8 @@ Object.assign(MG, {
 					e.tyHit[t.id] = 1;
 					if (W.t - (e.tyT || -9) > 0.3) {
 						e.tyT = W.t;
-						this.knock(W, e, t.dx, t.dz, 12.5, 0.6, "tyre");
+						this.knock(W, e, t.dx, t.dz, 19, 0.7, "tyre");
+						e.reelT = 0.35;
 					}
 				}
 			const g = W.gpLive;
