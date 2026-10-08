@@ -711,7 +711,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-09 01:46 8044e26";
+const BUILD = "2026-10-09 01:53 8d5bb39";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -27570,7 +27570,7 @@ Object.assign(MG, {
 							W.mm.bannerT = W.t + 0.8;
 						}
 					} else {
-						this.knock(W, e, dx / d, dz / d, 11, 0.5, "shockwave");
+						this.knock(W, e, dx / d, dz / d, 6, 0.5, "shockwave");
 						e.stunT = MM.STUN;
 						e.f.stn = Math.round((W.t + MM.STUN) * 100) / 100;
 						if (e.isMe || Math.hypot(e.x - W.me.x, e.z - W.me.z) < 6) sfx("stun");

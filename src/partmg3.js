@@ -2479,7 +2479,7 @@ Object.assign(MG, {
 							W.mm.bannerT = W.t + 0.8;
 						}
 					} else {
-						this.knock(W, e, dx / d, dz / d, 11, 0.5, "shockwave");
+						this.knock(W, e, dx / d, dz / d, 6, 0.5, "shockwave");
 						e.stunT = MM.STUN;
 						e.f.stn = Math.round((W.t + MM.STUN) * 100) / 100;
 						if (e.isMe || Math.hypot(e.x - W.me.x, e.z - W.me.z) < 6) sfx("stun");
