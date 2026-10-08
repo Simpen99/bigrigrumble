@@ -25488,10 +25488,10 @@ Object.assign(MG, {
 		hi: true,
 		unit: "%",
 		dur: 50,
-		bound: { t: "sq", h: 13 },
+		bound: { t: "sq", h: 17 },
 		water: false,
 		bare: true,
-		S: 13,
+		S: 17,
 		CS: 0.5,
 		ramLabel: "BOOST",
 		noAssist: true,
@@ -25551,7 +25551,7 @@ Object.assign(MG, {
 				for (let cz = 0; cz < N; cz++)
 					for (let cx = 0; cx < N; cx++) {
 						const [x, z] = this.ctr(cx, cz);
-						if (Math.hypot(x - sp.x, z - sp.z) < 2.1) P.own[cz * N + cx] = i;
+						if (Math.hypot(x - sp.x, z - sp.z) < 2.4) P.own[cz * N + cx] = i;
 					}
 			});
 			P.base = P.own.slice();
@@ -25762,7 +25762,7 @@ Object.assign(MG, {
 				s.add(tree(x, z, 1.2 + r() * 0.8, i % 3));
 			}
 		},
-		spawn: ringSpawn(7.5),
+		spawn: ringSpawn(10),
 		cell(x, z) {
 			const N = W.P.N,
 				cx = Math.max(0, Math.min(N - 1, Math.floor((x + this.S) / this.CS))),
@@ -26296,9 +26296,13 @@ Object.assign(MG, {
 					}
 				}
 			}
-			if (best && bd < 4 + (e.i % 3) * 1.5 && pl.cells.length < 20) {
+			if (W.t > (e.huntT || 0)) {
+				e.hunt = Math.random() < 0.3;
+				e.huntT = W.t + 2.5 + Math.random() * 2;
+			}
+			if (e.hunt && best && bd < 2.5 + (e.i % 3) * 0.8 && pl.cells.length < 12) {
 				const s = steer(e, best[0], best[1], 1);
-				if (bd < 3.5 && e.bcd <= 0 && Math.random() < 0.08) s.boost = true;
+				if (bd < 2.5 && e.bcd <= 0 && Math.random() < 0.02) s.boost = true;
 				return s;
 			}
 			/* head home when the trail is long or a rival is near it */
