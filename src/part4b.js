@@ -95,7 +95,7 @@ function laneWorld(W, len, extra) {
 			],
 			24,
 			-len - 20,
-			Math.round(len * 6),
+			Math.round(len * 10),
 		);
 	}
 	roadLines(
@@ -5068,6 +5068,7 @@ const MG = {
 		unit: "parcels",
 		dur: 40,
 		bare: true,
+		lt: { amb: 0.6, sun: 0.88, warm: 0.4, haze: 50 },
 		LANES: 4,
 		LW: 3.6,
 		CARV: 6,
@@ -5152,7 +5153,12 @@ const MG = {
 				],
 				30,
 				-L + 30,
-				2600,
+				3600,
+				/* clumps at every other guardrail post, on the field side; this ground's top is at -0.05 */
+				[-1, 1].flatMap((sd) =>
+					Array.from({ length: Math.floor((L - 10) / 8) }, (_, i) => [sd * (wid / 2 + 1.35), 20 - i * 8]),
+				),
+				-0.05,
 			);
 			[-1, 1].forEach((sd) => {
 				s.add(B(0.2, 0.5, L, "#C9CED8", sd * (wid / 2 + 1.1), 0.75, zc));
@@ -5189,7 +5195,8 @@ const MG = {
 				sg.position.set(0, 6.6, z + 0.25);
 				s.add(sg, B(wid + 4, 0.4, 0.3, "#5A6272", 0, 6.6, z - 0.1));
 			}
-			const homes = [];
+			const homes = [],
+				spots = [];
 			[-1, 1].forEach((sd) => {
 				for (let z = 10, k = 0; z > -L + 30; z -= 22, k++) {
 					/* facing the camera (+z), yard toward it; the kit runs from x -6.5 (garage) to +4.7 (fence), so the
@@ -5197,14 +5204,21 @@ const MG = {
 					homes.push({
 						k: (k + (sd > 0 ? 1 : 0) * 2) % 4,
 						x: sd > 0 ? wid / 2 + 9.5 + (k % 3) * 1.5 : -(wid / 2 + 7.7 + (k % 3) * 1.5),
-						y: 0,
+						y: -0.05,
 						z,
 						ry: 0,
 					});
-					s.add(tree(sd * (wid / 2 + 6 + (k % 2) * 2.5), z - 9, 1, k % 3));
+					const tx = sd * (wid / 2 + 6 + (k % 2) * 2.5),
+						hx = homes[homes.length - 1].x,
+						tr = tree(tx, z - 9, 1, k % 3);
+					tr.position.y = -0.05;
+					s.add(tr);
+					/* grass clumps at the tree, the house's front corners and the fence ends */
+					spots.push([tx, z - 9], [hx - 3.1, z + 2.6], [hx + 3.1, z + 2.6], [hx - 4.65, z + 7.9], [hx + 4.65, z + 7.9]);
 				}
 			});
 			placeKits(s, houseKits(), homes);
+			vergeScatter(s, [], 0, 0, 0, spots, -0.05);
 		},
 		spawn: (W, i) => ({ x: MG.hop.lx(i % 4), z: 0, yaw: Math.PI / 2 }),
 		initEnt(W, e) {
