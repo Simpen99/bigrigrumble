@@ -1423,6 +1423,69 @@ Object.assign(MG, {
 			e.f.tp = [];
 			e.f.ev = [];
 			e.f.cut = 0;
+			this.mkRoller(W, e);
+		},
+		/* ---- paint roller towed behind each truck: a trailing arm from a hitch at the back, so it swings out on turns and
+		   settles back in line, and the open trail is drawn from it ---- */
+		RL: 1.25,
+		mkRoller(W, e) {
+			e.tr.updateMatrixWorld(true);
+			const bb = new THREE.Box3().setFromObject(e.tr),
+				col = W.P.cols[e.i],
+				L = this.RL,
+				A = new THREE.Group(),
+				spin = new THREE.Group(),
+				R = 0.2,
+				Y = 0.22,
+				D = "#3A3F48",
+				met = { metalness: 0.45, roughness: 0.4 };
+			/* arm group: hitch at the origin, roller axle at x = L, axle across z */
+			strut(A, [0, 0.42, 0], [L - 0.3, Y + 0.12, 0], 0.07, D, 1);
+			A.add(B(0.12, 0.14, 0.16, D, 0.02, 0.42, 0));
+			strut(A, [L - 0.3, Y + 0.12, -0.6], [L - 0.3, Y + 0.12, 0.6], 0.06, "#8E96A3", 2);
+			[-1, 1].forEach((sd) => strut(A, [L - 0.3, Y + 0.12, sd * 0.6], [L, Y, sd * 0.6], 0.06, "#8E96A3", 1));
+			spin.position.set(L, Y, 0);
+			const nap = Cy(R, R, 1.08, 12, col, 0, 0, 0, { roughness: 0.55 });
+			nap.rotation.x = Math.PI / 2;
+			spin.add(nap);
+			[-1, 1].forEach((sd) => {
+				const c = Cy(0.1, 0.1, 0.08, 8, "#C9CED6", 0, 0, sd * 0.58, met);
+				c.rotation.x = Math.PI / 2;
+				spin.add(c);
+			});
+			/* a raised stripe of paint round the nap so its spin shows */
+			const st = B(0.08, 0.05, 1.1, "#F4F6F9", 0, R + 0.01, 0);
+			spin.add(st);
+			A.add(spin);
+			A.traverse((o) => (o.userData.dyn = true));
+			e.g.add(A);
+			const hx = bb.min.x - 0.05,
+				hb = { x: e.x + Math.cos(e.yaw) * hx, z: e.z - Math.sin(e.yaw) * hx };
+			e.rl = { A, spin, hx, x: hb.x - Math.cos(e.yaw) * L, z: hb.z + Math.sin(e.yaw) * L, rot: 0 };
+		},
+		rollAt(e) {
+			return e.rl ? [e.rl.x, e.rl.z] : [e.x, e.z];
+		},
+		roller(W, e, dt) {
+			const r = e.rl;
+			if (!r) return;
+			const hx = e.x + Math.cos(e.yaw) * r.hx,
+				hz = e.z - Math.sin(e.yaw) * r.hx;
+			let dx = r.x - hx,
+				dz = r.z - hz;
+			const l = Math.hypot(dx, dz) || 1,
+				nx = hx + (dx / l) * this.RL,
+				nz = hz + (dz / l) * this.RL,
+				mv = Math.hypot(nx - r.x, nz - r.z);
+			/* roll forward or back depending on which way it moved along the arm */
+			r.rot += (mv / 0.2) * ((nx - r.x) * dx + (nz - r.z) * dz > 0 ? -1 : 1);
+			r.x = nx;
+			r.z = nz;
+			dx = r.x - hx;
+			dz = r.z - hz;
+			r.A.position.set(hx - e.x, 0, hz - e.z);
+			r.A.rotation.y = Math.atan2(-dz, dx);
+			r.spin.rotation.z = r.rot;
 		},
 		close(W, e) {
 			const pl = e.pl,
@@ -1481,7 +1544,7 @@ Object.assign(MG, {
 				}
 				return false;
 			}
-			if (!pl.cells.length) pl.pts = [[pl.lx, pl.lz]];
+			if (!pl.cells.length) pl.pts = [this.rollAt(e)];
 			pl.at.set(c, pl.cells.length);
 			pl.vt.set(c, W.t);
 			pl.cells.push(c);
@@ -1512,9 +1575,10 @@ Object.assign(MG, {
 			pl.lx = e.x;
 			pl.lz = e.z;
 			if (pl.cells.length) {
-				const lp = pl.pts[pl.pts.length - 1];
-				if (!lp || Math.hypot(lp[0] - e.x, lp[1] - e.z) > 0.5) {
-					pl.pts.push([e.x, e.z]);
+				const lp = pl.pts[pl.pts.length - 1],
+					ra = this.rollAt(e);
+				if (!lp || Math.hypot(lp[0] - ra[0], lp[1] - ra[1]) > 0.5) {
+					pl.pts.push(ra);
 					e.f.tp = [].concat(...pl.pts.map(([x, z]) => [Math.round(x * 10), Math.round(z * 10)]));
 				}
 				/* a rival touching the open trail washes it away */
@@ -1601,7 +1665,7 @@ Object.assign(MG, {
 				const tp = (e.f && e.f.tp) || [];
 				for (let k = 0; k + 1 < tp.length; k += 2) pts.push([tp[k] / 10, tp[k + 1] / 10]);
 			}
-			if (pts.length) pts = pts.slice(-(R.MX - 1)).concat([[e.x, e.z]]);
+			if (pts.length) pts = pts.slice(-(R.MX - 1)).concat([this.rollAt(e)]);
 			const n = pts.length,
 				p = R.pos,
 				w = 0.34,
@@ -1626,6 +1690,7 @@ Object.assign(MG, {
 			R.geo.setDrawRange(0, Math.max(0, n - 1) * 6);
 		},
 		render(W, e, dt) {
+			this.roller(W, e, dt);
 			if (W.fxT === W.t) return;
 			W.fxT = W.t;
 			this.frame(W);
