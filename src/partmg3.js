@@ -1808,22 +1808,246 @@ Object.assign(MG, {
 });
 
 /* ---------- team minigames ---------- */
-/* Monster Mash (1 vs 3): the solo truck (side 0) is a giant monster truck: big, heavy (barely moved by the others) and
-   hard-hitting, and it can't fall off. The others must stay on the stage for 30 s; the team wins if anyone survives.
-   Runs on Mud Brawl's arena (MG.bumper: build, bowl, mud fall, stage shrink via this.R). */
+/* Monster Mash (1 vs 3 boss fight) on Mud Brawl's arena (MG.bumper: build, bowl, mud fall).
+   The monster (side 0, a giant truck) sits on a turntable in the middle: tap FIRE to shoot tyres (aimed with the stick),
+   hold it for a Ground Pound (a shockwave ring; DASH through it). Anyone who stays close too long gets lifted by a
+   magnet and flung into the mud (tap DASH to break free; a TNT hit on the boss drops them too). The others grab TNT
+   crates and drive them into the monster: it has 2 HP per survivor, gets angrier each third, and in the last third the
+   turntable drops and it drives. The team wins by knocking it out or surviving the timer.
+   Sync: the monster's device shares its shots in e.f.ty = [[id, t0, x, z, angle, h]] and pounds in e.f.gp = [id, t0, x, z];
+   every device moves the tyres and rings from those times and decides hits on its own trucks. Survivors share
+   e.f.dy (crate carried), e.f.dh (TNT hits; the boss HP is the sum), e.f.nr (magnet timer), e.f.gr (grabbed).
+   Crates come from the seed (pickups through W.claim). */
+const MM = {
+	R: 12.5,
+	TV: 12 /* tyre speed */,
+	CLAW: 1.1 /* seconds close before the magnet grabs */,
+	JUMP: 0.7 /* ground pound: jump time before the slam */,
+	RING: 10 /* shockwave speed */,
+	hpMax: (n) => Math.min(10, Math.max(4, n * 2)),
+};
+/* the highest roof along a truck's centre line (raycast down): {x, y} in the truck's parent space */
+function truckTop(tr) {
+	tr.updateMatrixWorld(true);
+	const box = new THREE.Box3().setFromObject(tr),
+		rc = new THREE.Raycaster(),
+		hits = [];
+	for (let x = box.min.x + 0.15; x < box.max.x - 0.15; x += 0.12) {
+		rc.set(new THREE.Vector3(x, box.max.y + 1, 0), new THREE.Vector3(0, -1, 0));
+		const h = rc.intersectObject(tr, true)[0];
+		if (h) hits.push([x, h.point.y]);
+	}
+	if (!hits.length) return { x: 0, y: box.max.y };
+	const top = Math.max(...hits.map((h) => h[1])),
+		flat = hits.filter((h) => h[1] > top - 0.12);
+	return { x: (flat[0][0] + flat[flat.length - 1][0]) / 2, y: top };
+}
+/* chunky monster tyre, axle along x (rolls along z): tread, sidewalls, silver hub, yellow cap, tread blocks */
+function mmTyreKit() {
+	const g = new THREE.Group(),
+		cy = (r, w, col) => {
+			const c = Cy(r, r, w, 10, col, 0, 0, 0);
+			c.rotation.z = Math.PI / 2;
+			g.add(c);
+		};
+	cy(0.6, 0.5, "#2E323A");
+	cy(0.46, 0.56, "#3D424C");
+	cy(0.22, 0.62, "#C9CED8");
+	cy(0.1, 0.66, "#FFC83D");
+	for (let i = 0; i < 10; i++) {
+		const a = (i / 10) * Math.PI * 2,
+			b = B(0.5, 0.2, 0.1, "#2E323A", 0, Math.sin(a) * 0.62, Math.cos(a) * 0.62);
+		b.rotation.x = -a;
+		g.add(b);
+	}
+	return bakeKit(g, { ao: false, ground: false });
+}
+/* the tyre cannon on the monster's roof: turret ring, armoured base with a hazard band, a stout barrel with a tyre loaded */
+function mmCannon() {
+	const g = new THREE.Group(),
+		bar = new THREE.Group(),
+		cx = (rt, rb, l, col, x) => {
+			const c = Cy(rt, rb, l, 10, col, 0, 0, 0);
+			c.rotation.z = -Math.PI / 2;
+			c.position.x = x;
+			bar.add(c);
+		};
+	g.add(Cy(0.62, 0.7, 0.22, 10, "#3D424C", 0, 0.11, 0));
+	g.add(B(1.0, 0.42, 0.9, "#5A6272", 0, 0.42, 0));
+	g.add(B(1.04, 0.1, 0.94, "#FFC83D", 0, 0.5, 0));
+	[-0.5, 0.5].forEach((z) => g.add(B(0.7, 0.5, 0.08, "#4A525C", 0.05, 0.62, z)));
+	cx(0.4, 0.44, 1.7, "#4A525C", 0.55);
+	cx(0.47, 0.47, 0.12, "#FFC83D", 0.2);
+	cx(0.5, 0.5, 0.2, "#E5484D", 1.38);
+	cx(0.33, 0.33, 0.22, "#2E323A", 1.42);
+	bar.position.set(0, 0.68, 0);
+	bar.rotation.z = 0.12;
+	g.add(bar);
+	g.userData.bar = bar;
+	return g;
+}
+/* the electromagnet that comes down for anyone who stays too close (on a cable from a crane off screen) */
+function mmMagnet() {
+	const g = new THREE.Group();
+	g.add(Cy(0.95, 0.95, 0.42, 12, "#4A525C", 0, 0.21, 0));
+	g.add(Cy(1.0, 1.0, 0.14, 12, "#FFC83D", 0, 0.25, 0));
+	g.add(Cy(0.85, 0.95, 0.12, 12, "#C9CED8", 0, -0.04, 0));
+	g.add(Cy(0.7, 0.9, 0.24, 12, "#E5484D", 0, 0.54, 0));
+	g.add(Cy(0.16, 0.16, 0.3, 6, "#3D424C", 0, 0.8, 0));
+	g.add(Cy(0.06, 0.06, 30, 5, "#3D424C", 0, 15.9, 0));
+	g.visible = false;
+	return g;
+}
+/* TNT bundle on a carrier's roof: three red sticks, two tape bands, a wick */
+function mmBundle() {
+	const g = new THREE.Group();
+	[
+		[-0.15, 0],
+		[0.15, 0],
+		[0, 0.25],
+	].forEach(([z, y]) => {
+		const c = Cy(0.15, 0.15, 0.8, 8, "#D7372B", 0, y + 0.15, z);
+		c.rotation.z = Math.PI / 2;
+		g.add(c);
+	});
+	[-0.22, 0.22].forEach((x) => {
+		const t = Cy(0.34, 0.34, 0.09, 10, "#2E323A", x, 0.24, 0);
+		t.rotation.z = Math.PI / 2;
+		g.add(t);
+	});
+	g.add(Cy(0.03, 0.03, 0.4, 5, "#E8DCC0", 0, 0.6, 0));
+	g.visible = false;
+	return g;
+}
 Object.assign(MG, {
 	mash: Object.assign({}, MG.bumper, {
 		name: "Monster Mash",
 		team: "1v3",
-		dur: 30,
+		dur: 45,
 		lastStanding: false,
-		how: "The monster truck rams everyone off the stage into the mud. Survive 30 seconds to win as a team!",
-		teamHow: (s, solo) =>
+		noAssist: true,
+		camZoom: 1.08,
+		how: "Boss fight! The monster truck fires tyres and ground-pounds from its turntable. Grab TNT crates and drive them into it: knock it out or survive to win as a team.",
+		teamHow: (s) =>
 			s === 0
-				? "You're the MONSTER TRUCK: ram them all into the mud!"
-				: "Dodge the monster truck and stay on the stage!",
-		R: (t) => (t < 8 ? 11 : Math.max(8, 11 - (t - 8) * 0.14)),
-		BIG: 1.8,
+				? "You're the MONSTER: tap FIRE for tyres, hold it for a Ground Pound. Knock them all into the mud!"
+				: "Grab 🧨 TNT and drive it into the monster! DASH through shockwaves, and don't hang around it: the magnet grabs you.",
+		stickHint: (fine) =>
+			fine
+				? "WASD or arrows to drive (the monster aims with them). Space: fire / dash."
+				: "Drag to drive (the monster aims). The button fires (hold: Ground Pound) or dashes.",
+		R: () => MM.R,
+		canRam: () => false,
+		ramCd(W) {
+			const e = W.me;
+			return e.side === 0 ? Math.min(1, Math.max(0, e.fcd || 0)) : Math.min(1, e.bcd / 2);
+		},
+		ramReady(W) {
+			const e = W.me;
+			return e.side === 0 ? (e.fcd || 0) <= 0 : e.bcd <= 0 || !!e.gr;
+		},
+		build(W) {
+			MG.bumper.build.call(this, W);
+			W.plat.scale.set(MM.R / 11, 1, MM.R / 11);
+			const s = W.sc;
+			/* turntable: steel drum with a hazard band, a turning top plate with ribs and bolts, a skirt on the stage */
+			const tt = new THREE.Group(),
+				top = new THREE.Group();
+			tt.add(Cy(3.0, 3.1, 0.16, 28, "#3D424C", 0, 0.08, 0));
+			tt.add(Cy(2.8, 2.8, 0.5, 28, "#4A525C", 0, 0.25, 0));
+			const band = new THREE.Mesh(
+				new THREE.CylinderGeometry(2.84, 2.84, 0.2, 28, 1, true),
+				new THREE.MeshStandardMaterial({
+					map: canvasTex(256, 32, (x, w, h) => {
+						x.fillStyle = "#FFC83D";
+						x.fillRect(0, 0, w, h);
+						x.fillStyle = "#23272F";
+						for (let i = 0; i < 16; i++) {
+							x.beginPath();
+							x.moveTo(i * 16, h);
+							x.lineTo(i * 16 + 8, 0);
+							x.lineTo(i * 16 + 16, 0);
+							x.lineTo(i * 16 + 8, h);
+							x.fill();
+						}
+					}),
+					roughness: 0.7,
+				}),
+			);
+			band.position.y = 0.3;
+			tt.add(band);
+			top.add(Cy(2.65, 2.65, 0.08, 28, "#8C95A5", 0, 0.54, 0));
+			for (let i = 0; i < 8; i++) {
+				const a = (i / 8) * Math.PI * 2,
+					r = B(1.5, 0.06, 0.16, "#6B7380", Math.cos(a) * 1.55, 0.61, Math.sin(a) * 1.55);
+				r.rotation.y = -a;
+				top.add(r);
+			}
+			for (let i = 0; i < 16; i++) {
+				const a = (i / 16) * Math.PI * 2 + 0.2;
+				top.add(Cy(0.08, 0.08, 0.06, 6, "#C9CED8", Math.cos(a) * 2.45, 0.61, Math.sin(a) * 2.45));
+			}
+			tt.add(top);
+			s.add(tt);
+			/* pound warning ring round the monster, and the shockwave ring */
+			const ringMat = (c) =>
+				new THREE.MeshBasicMaterial({
+					color: c,
+					transparent: true,
+					opacity: 0,
+					depthWrite: false,
+					side: THREE.DoubleSide,
+					polygonOffset: true,
+					polygonOffsetFactor: -2,
+				});
+			const warn = new THREE.Mesh(new THREE.RingGeometry(3.05, 3.5, 40), ringMat("#FF3B1F"));
+			warn.rotation.x = -Math.PI / 2;
+			warn.visible = false;
+			s.add(warn);
+			const wave = new THREE.Mesh(new THREE.RingGeometry(0.9, 1, 56), ringMat("#FFE27A"));
+			wave.rotation.x = -Math.PI / 2;
+			wave.visible = false;
+			s.add(wave);
+			W.mm = { tt, top, warn, wave, ringMat, mag: {}, ty: [], slamSeen: 0, lastHp: null, ph: 1 };
+			/* tyre pool */
+			const kit = mmTyreKit();
+			for (let i = 0; i < 10; i++) {
+				const o = new THREE.Group(),
+					t = kitGroup(kit, 0);
+				o.add(t);
+				o.visible = false;
+				s.add(o);
+				W.mm.ty.push({ o, t, id: null });
+			}
+			/* boss HP: 2 per survivor */
+			const n = W.mg.tm ? Object.values(W.mg.tm).filter((x) => x === 1).length : Math.max(1, W.plist.length - 1);
+			W.HP = W.hp = MM.hpMax(n);
+			W.ph = 1;
+			/* TNT crates on a schedule from the seed, more often with fewer survivors */
+			const every = Math.min(7, Math.max(2.2, 12 / n)),
+				rr = mulberry((W.mg.seed || 1) + 907),
+				cm = new THREE.MeshStandardMaterial({ map: hlCrateTex(), roughness: 0.9 });
+			W.mm.crates = [];
+			for (let k = 0; 2.5 + k * every < this.dur; k++) {
+				const a = rr() * Math.PI * 2,
+					r = 6.5 + rr() * (MM.R - 7.7),
+					g = new THREE.Group(),
+					box = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.95, 0.95), cm);
+				box.castShadow = true;
+				g.add(box);
+				const sh = roundShadow(1.3, 0.35, 0, 0, 0.04);
+				g.add(sh);
+				const mark = new THREE.Mesh(new THREE.RingGeometry(0.85, 1.0, 24), ringMat("#FFC83D"));
+				mark.rotation.x = -Math.PI / 2;
+				mark.position.y = 0.06;
+				g.add(mark);
+				g.position.set(Math.cos(a) * r, 0, Math.sin(a) * r);
+				g.visible = false;
+				s.add(g);
+				const ts = 2.5 + k * every;
+				W.mm.crates.push({ id: k + 1, ts, te: ts + 14, x: g.position.x, z: g.position.z, g, box, sh, mark });
+			}
+		},
 		spawn(W, i, n) {
 			const e = W.list[i];
 			if (e && e.side === 0) return { x: 0, z: 0, yaw: -Math.PI / 2 };
@@ -1831,114 +2055,639 @@ Object.assign(MG, {
 				j = solo ? i - 1 : i,
 				m = solo ? n - 1 : n,
 				a = (j / Math.max(1, m)) * Math.PI * 2 + Math.PI / 2;
-			return { x: Math.cos(a) * 7, z: Math.sin(a) * 7, yaw: Math.atan2(Math.sin(a), -Math.cos(a)) };
+			return { x: Math.cos(a) * 8, z: Math.sin(a) * 8, yaw: Math.atan2(Math.sin(a), -Math.cos(a)) };
 		},
-		/* the monster: scaled-up truck, bigger disc and a higher name tag; tuning fields read by arenaPhys / collide */
 		initEnt(W, e) {
-			if (e.side !== 0) return;
-			const k = this.BIG;
-			e.tr.scale.setScalar(0.8 * k);
-			e.g.children.forEach((o) => {
-				if (o.userData.disc) o.scale.set(k, 1, k);
-				else if (o.isSprite) o.position.y = 2.5 * k;
-			});
-			e.rad = 0.95 * k;
-			e.mass = 4;
-			e.ramM = 1.45;
-			e.spd = 0.9;
-			e.ramCdT = 1.4;
-			e.bcd = 1.5; /* no ram for the first moments, so the others can get moving */
-		},
-		inside(W, x, z, e) {
-			return (e && e.side === 0) || Math.hypot(x, z) < this.R(Math.max(0, W.t)) + 0.15;
-		},
-		survivors: (W) => W.list.filter((o) => o.side !== 0 && !o.gone),
-		rules(W, e) {
+			e.f = { dh: 0, dy: 0 };
+			e.tyHit = {};
+			e.gpHit = {};
+			e.nr = 0;
 			if (e.side !== 0) {
-				if (e.al && !e.d) e.sc = Math.floor(W.t * 10);
+				const t = truckTop(e.tr),
+					b = mmBundle();
+				b.position.set(t.x / 0.8, t.y / 0.8, 0);
+				b.scale.setScalar(1 / 0.8);
+				e.tr.add(b);
+				e.bun = b;
+				e.topY = t.y;
 				return;
 			}
-			/* the monster stays on the stage: pushed back from the edge */
-			const lim = this.R(Math.max(0, W.t)) - 0.9,
-				d = Math.hypot(e.x, e.z);
-			if (d > lim) {
-				const nx = e.x / d,
-					nz = e.z / d,
-					vn = e.vx * nx + e.vz * nz;
-				e.x = nx * lim;
-				e.z = nz * lim;
-				if (vn > 0) {
-					e.vx -= vn * nx;
-					e.vz -= vn * nz;
+			/* the monster: a giant on the turntable with a tyre cannon on its roof */
+			const k = 1.8,
+				sc = 0.8 * k;
+			e.tr.scale.setScalar(sc);
+			e.g.children.forEach((o) => {
+				if (o.userData.disc) o.visible = false;
+				else if (o.isSprite) o.position.y = 5.2;
+			});
+			const t = truckTop(e.tr),
+				c = mmCannon();
+			c.position.set(t.x / sc, t.y / sc - 0.02, 0);
+			c.scale.setScalar(1 / sc);
+			e.tr.add(c);
+			e.can = c;
+			e.muzY = t.y + 0.75;
+			e.rad = 2.8;
+			e.mass = 50;
+			e.spd = 0.85;
+			e.fcd = 1.2;
+			e.pcd = 4;
+			e.chg = 0;
+		},
+		inside(W, x, z, e) {
+			return (e && e.side === 0) || Math.hypot(x, z) < MM.R + 0.15;
+		},
+		/* shared per-frame state: boss HP and phase, live tyres and shockwave from the monster's shared fields */
+		tick(W) {
+			const m = (W.ms = W.list.find((o) => o.side === 0 && !o.gone)),
+				sv = W.list.filter((o) => o.side !== 0 && !o.gone);
+			W.hp = W.HP - sv.reduce((t, o) => t + ((o.f && o.f.dh) | 0), 0);
+			const ph = W.hp > (W.HP * 2) / 3 ? 1 : W.hp > W.HP / 3 ? 2 : 3;
+			if (ph !== W.mm.ph && W.hp > 0) {
+				W.mm.ph = ph;
+				W.mm.phT = W.t;
+				W.mm.banner = ph === 2 ? "ENRAGED! Double tyres!" : "The turntable drops: it's loose!";
+				W.mm.bannerT = W.t + 2.2;
+				if (m)
+					burst(W.sc, m.x, 2, m.z, {
+						n: 26,
+						shape: "ico",
+						cols: ["#E5484D", "#FF8A1F", "#5A6272"],
+						spd: 5,
+						up: 6,
+						life: 0.9,
+						size: 1.3,
+					});
+				sfx("thunder");
+			}
+			W.ph = W.mm.ph;
+			if (m) {
+				m.rad = W.ph < 3 ? 2.8 : 1.71;
+				m.mass = W.ph < 3 ? 50 : 4;
+			}
+			if (W.hp <= 0 && W.ko === undefined) {
+				W.ko = W.t;
+				W.list.forEach((o) => {
+					if (o.local && !o.gone) {
+						if (o.gr) this.release(W, o, 4);
+						o.d = true;
+					}
+				});
+			}
+			const f = (m && m.f) || {};
+			W.tyLive = (f.ty || [])
+				.map(([id, t0, x0, z0, a, h]) => {
+					const age = W.t - t0;
+					if (age < 0 || age > 4) return null;
+					const dx = Math.cos(a),
+						dz = -Math.sin(a),
+						s = 1.4 + age * MM.TV,
+						pd = x0 * dx + z0 * dz,
+						Re = MM.R + 0.2,
+						sx = -pd + Math.sqrt(Math.max(0, pd * pd - (x0 * x0 + z0 * z0) + Re * Re)),
+						on = s < sx;
+					return { id, x: x0 + dx * s, z: z0 + dz * s, dx, dz, s, sx, h, on, hit: on && s > 3.2 };
+				})
+				.filter(Boolean);
+			const gp = f.gp;
+			W.gpLive = null;
+			if (gp && W.t < gp[1] + MM.JUMP + 1.5) {
+				const slam = gp[1] + MM.JUMP;
+				W.gpLive = {
+					id: gp[0],
+					t0: gp[1],
+					slam,
+					x: gp[2],
+					z: gp[3],
+					r: W.t >= slam ? 2.6 + (W.t - slam) * MM.RING : -1,
+				};
+			}
+		},
+		phys(W, e, inp, dt) {
+			if (e.side === 0) this.monPhys(W, e, inp, dt);
+			else this.survPhys(W, e, inp, dt);
+		},
+		monPhys(W, e, inp, dt) {
+			const press = !!(inp && (inp.boost || inp.fire));
+			if (inp) inp.boost = false;
+			if (W.ko !== undefined || e.d) {
+				e.vx = e.vz = 0;
+				return;
+			}
+			const ph = W.ph,
+				gp = e.f.gp,
+				jumping = gp && W.t < gp[1] + MM.JUMP;
+			if (ph < 3) {
+				/* on the turntable: the stick turns it */
+				e.x = e.z = e.vx = e.vz = 0;
+				if (inp && Math.hypot(inp.x, inp.y) > 0.3) {
+					const d = wrapA(Math.atan2(-inp.y, inp.x) - e.yaw),
+						rt = (ph === 2 ? 3.4 : 2.8) * dt;
+					e.yaw += Math.max(-rt, Math.min(rt, d));
+				}
+			} else {
+				/* loose: drives (no ram), can't leave the stage */
+				arenaPhys(W, e, inp && !jumping ? { x: inp.x, y: inp.y, boost: false } : null, dt);
+				if (jumping) e.vx = e.vz = 0;
+				const lim = MM.R - 1.2,
+					d = Math.hypot(e.x, e.z);
+				if (d > lim) {
+					const nx = e.x / d,
+						nz = e.z / d,
+						vn = e.vx * nx + e.vz * nz;
+					e.x = nx * lim;
+					e.z = nz * lim;
+					if (vn > 0) {
+						e.vx -= vn * nx;
+						e.vz -= vn * nz;
+					}
 				}
 			}
-			const sv = this.survivors(W);
+			e.fcd = Math.max(0, e.fcd - dt);
+			e.pcd = Math.max(0, e.pcd - dt);
+			if (press && e.fcd <= 0 && !jumping && W.t > 1.2) {
+				const r = (v) => Math.round(v * 100) / 100;
+				e.f.ty = (e.f.ty || []).slice(-8);
+				(ph === 1 ? [0] : [-0.13, 0.13]).forEach((o) => {
+					e.f.tn = (e.f.tn | 0) + 1;
+					e.f.ty.push([e.f.tn, r(W.t), r(e.x), r(e.z), r(e.yaw + o), r(e.muzY + (ph < 3 ? 0.58 : 0))]);
+				});
+				e.fcd = ph === 1 ? 1 : 0.85;
+				e.recoil = 1;
+			}
+			if (inp && inp.hold && e.pcd <= 0 && !jumping) {
+				e.chg += dt;
+				if (e.chg >= 0.8) {
+					const r = (v) => Math.round(v * 100) / 100;
+					e.chg = 0;
+					e.pcd = ph === 3 ? 5 : 6;
+					e.f.gpn = (e.f.gpn | 0) + 1;
+					e.f.gp = [e.f.gpn, r(W.t), r(e.x), r(e.z)];
+				}
+			} else e.chg = 0;
+			e.f.ch = Math.round((e.chg / 0.8) * 10) / 10;
+			const sv = W.list.filter((o) => o.side !== 0 && !o.gone);
 			e.sc = sv.filter((o) => !o.al).length;
-			if (sv.length && W.t > 1 && sv.every((o) => !o.al) && !e.d) {
+			if (sv.length && W.t > 1 && sv.every((o) => !o.al)) {
 				e.d = true;
 				e.won = true;
 			}
 		},
-		timeUp(W, e) {
-			if (e.side !== 0 && e.al) e.sc = this.dur * 10 + 100;
+		knock(W, e, nx, nz, K, sl) {
+			e.vx += nx * K;
+			e.vz += nz * K;
+			e.slideT = sl;
+			e.hitAng = [nx, nz];
+			if (e.isMe) W.shake = 0.4;
+			hitFx(e, e);
 		},
-		final: (W, e) => e.sc,
-		/* live board: the monster's crush count, everyone else's seconds on the stage */
+		release(W, e, push) {
+			e.gr = null;
+			e.f.gr = 0;
+			e.fly = false;
+			e.nr = 0;
+			const m = W.ms;
+			if (m) {
+				const dx = e.x - m.x,
+					dz = e.z - m.z,
+					d = Math.hypot(dx, dz) || 1;
+				e.vx = (dx / d) * push;
+				e.vz = (dz / d) * push;
+			}
+		},
+		survPhys(W, e, inp, dt) {
+			const m = W.ms;
+			if (e.gr) {
+				/* held up by the magnet: tap to break free, a TNT hit on the boss drops you, otherwise flung into the mud */
+				const g = e.gr;
+				e.vx = e.vz = 0;
+				e.x += (g.x - e.x) * Math.min(1, dt * 6);
+				e.z += (g.z - e.z) * Math.min(1, dt * 6);
+				e.y += (3 - e.y) * Math.min(1, dt * 5);
+				if (inp && inp.boost) {
+					g.taps++;
+					inp.boost = false;
+					e.wig = 0.25;
+				}
+				if (W.hp < g.hp || g.taps >= 5) this.release(W, e, 5);
+				else if (W.t - g.t0 >= 1.6) {
+					const dx = e.x - (m ? m.x : 0),
+						dz = e.z - (m ? m.z : 0),
+						d = Math.hypot(dx, dz) || 1;
+					e.gr = null;
+					e.f.gr = 0;
+					e.fly = false;
+					e.f.dy = 0;
+					e.vx = (dx / d) * 20;
+					e.vz = (dz / d) * 20;
+					e.vy = 6;
+					e.falling = true;
+					eliminate(W, e);
+					if (e.isMe) W.shake = 0.5;
+					sfx("magnet");
+				}
+				return;
+			}
+			if (e.y > 0 && !e.falling) {
+				e.vy = (e.vy || 0) - 30 * dt;
+				e.y = Math.max(0, e.y + e.vy * dt);
+				if (!e.y) e.vy = 0;
+			}
+			arenaPhys(W, e, inp, dt);
+			if (!e.al || e.falling || e.d || W.t < 0) return;
+			e.tA = W.t;
+			e.sc = Math.floor(W.t * 10);
+			for (const t of W.tyLive || [])
+				if (t.hit && !e.tyHit[t.id] && Math.hypot(e.x - t.x, e.z - t.z) < 1.4) {
+					e.tyHit[t.id] = 1;
+					if (W.t - (e.tyT || -9) > 0.3) {
+						e.tyT = W.t;
+						this.knock(W, e, t.dx, t.dz, 11, 0.5);
+					}
+				}
+			const g = W.gpLive;
+			if (g && g.r > 0 && !e.gpHit[g.id]) {
+				const dx = e.x - g.x,
+					dz = e.z - g.z,
+					d = Math.hypot(dx, dz) || 1;
+				if (Math.abs(d - g.r) < 0.8) {
+					e.gpHit[g.id] = 1;
+					if (e.boostT > 0) {
+						burst(W.sc, e.x, 1.2, e.z, {
+							n: 10,
+							shape: "cube",
+							cols: ["#F4F6F9", "#BFE6FF"],
+							spd: 3,
+							up: 3,
+							life: 0.4,
+						});
+						if (e.isMe) {
+							W.mm.banner = "Dodged!";
+							W.mm.bannerT = W.t + 0.8;
+						}
+					} else this.knock(W, e, dx / d, dz / d, 11, 0.5);
+				}
+			}
+			if (!e.f.dy)
+				for (const c of W.mm.crates)
+					if (W.t >= c.ts + 0.5 && W.t < c.te && Math.hypot(e.x - c.x, e.z - c.z) < 1.6 && W.claim(c.id)) {
+						e.c.push(c.id);
+						e.f.dy = c.id;
+						if (e.isMe) sfx("coin");
+						break;
+					}
+			if (!m || W.ko !== undefined) return;
+			const dx = e.x - m.x,
+				dz = e.z - m.z,
+				d = Math.hypot(dx, dz) || 1;
+			if (e.f.dy && d < (m.rad || 1.7) + 1.4) {
+				/* TNT delivered: the boss loses 1 HP (everyone sums e.f.dh), the blast bounces you off */
+				e.f.dy = 0;
+				e.f.dh = (e.f.dh | 0) + 1;
+				this.knock(W, e, dx / d, dz / d, 12, 0.5);
+			}
+			const cr = (W.ph < 3 ? 2.8 : 1.71) + 1.7;
+			e.nr = d < cr ? e.nr + dt : Math.max(0, e.nr - dt * 1.5);
+			if (e.nr >= MM.CLAW) {
+				e.gr = { t0: W.t, hp: W.hp, taps: 0, x: e.x, z: e.z };
+				e.f.gr = 1;
+				e.fly = true;
+				if (e.isMe) sfx("magnet");
+			}
+			e.f.nr = Math.round(e.nr * 10) / 10;
+		},
+		rules() {},
+		timeUp() {},
+		/* survivor: 1000 if still on the stage + 100 per TNT hit + seconds on the stage; monster: 100 per crushed + HP left */
+		final(W, e) {
+			if (e.side === 0) return e.sc * 100 + Math.max(0, W.hp);
+			return (e.al ? 1000 : 0) + ((e.f.dh | 0) % 10) * 100 + Math.min(99, Math.floor(e.tA || 0));
+		},
 		fmtE(W, e) {
-			return e.side === 0 ? `${e.sc} 💥` : e.al ? `${Math.min(this.dur, Math.floor(e.sc / 10))} s` : "OUT";
+			if (e.side === 0) return `${Math.max(0, W.hp)} HP`;
+			return !e.al ? "OUT" : e.f && e.f.dy ? "🧨" : `${(e.f && e.f.dh) | 0} 💥`;
 		},
 		fmtTeam(v, s) {
-			return s === 0 ? `Crushed ${v}` : v > this.dur * 10 ? "Survived!" : `Out after ${(v / 10).toFixed(1)} s`;
+			if (s === 0) return `Crushed ${Math.floor(v / 100)}, ${v % 100} HP left`;
+			const h = Math.floor((v % 1000) / 100);
+			return `${v >= 1000 ? "Survived" : `Out after ${v % 100} s`}${h ? `, ${h} TNT hit${h > 1 ? "s" : ""}` : ""}`;
+		},
+		teamWin(res, tm) {
+			const sv = Object.keys(tm).filter((k) => tm[k] === 1);
+			let hits = 0,
+				ok = false;
+			sv.forEach((k) => {
+				if (!(k in res)) return;
+				if (res[k] >= 1000) ok = true;
+				hits += Math.floor((res[k] % 1000) / 100);
+			});
+			return ok || hits >= MM.hpMax(sv.length) ? 1 : 0;
+		},
+		prompt(W, me) {
+			const mm = W.mm;
+			if (mm.banner && W.t < mm.bannerT) return mm.banner;
+			if (me.side === 0) return W.t < 4 ? "Tap FIRE for tyres, hold it for a Ground Pound!" : "";
+			if (me.gr) return "Tap DASH to break free!";
+			if (me.nr > 0.35) return "Too close! The magnet is coming!";
+			if (me.f.dy) return "Drive the TNT into the monster!";
+			return "";
 		},
 		donePrompt(W, me) {
+			if (W.ko !== undefined) return me.side === 0 ? "KNOCKED OUT!" : "The monster is down!";
 			if (me.side === 0) return me.won ? "You crushed them all!" : "Time's up!";
 			return me.al ? "You survived!" : "Into the mud! Watch the others…";
 		},
-		teamWin(res, tm) {
-			const sv = Object.keys(tm).filter((k) => tm[k] === 1 && k in res);
-			return sv.some((k) => res[k] > this.dur * 10) ? 1 : 0;
+		/* visuals: the monster on its turntable (jump, recoil, KO), TNT on roofs, then the shared scene once a frame */
+		render(W, e, dt) {
+			MG.bumper.render.call(this, W, e, dt);
+			const mm = W.mm;
+			if (e.side === 0) {
+				const ph = W.ph || 1,
+					drop = ph < 3 ? 0 : Math.min(1, (W.t - (mm.phT || 0)) / 0.8),
+					gp = W.gpLive;
+				let y = 0.58 * (1 - drop);
+				if (gp && W.t < gp.slam) y += Math.sin(((W.t - gp.t0) / MM.JUMP) * Math.PI) * 2.2;
+				e.g.position.y += y;
+				const ch = (e.local ? e.chg / 0.8 : e.f && e.f.ch) || 0;
+				if (ch > 0) e.tr.rotation.z += (Math.random() - 0.5) * 0.06 * ch;
+				if (e.can) {
+					e.recoil = Math.max(0, (e.recoil || 0) - dt * 5);
+					e.can.userData.bar.position.x = -0.35 * e.recoil;
+				}
+				if (W.ko !== undefined) {
+					e.tr.rotation.z = Math.min(1, (W.t - W.ko) / 0.8) * 1.1;
+					if (Math.random() < dt * 8)
+						burst(W.sc, e.x, 3, e.z, {
+							n: 2,
+							shape: "ico",
+							cols: ["#5A6272", "#3D424C"],
+							spd: 0.8,
+							up: 3,
+							grav: -1,
+							life: 1.4,
+							size: 1.6,
+							op: 0.6,
+						});
+				}
+				mm.tt.position.y = -0.46 * drop;
+				if (ph < 3) mm.top.rotation.y = e.yaw;
+			} else if (e.bun) {
+				e.bun.visible = !!(e.f && e.f.dy && e.al);
+				if (e.wig) {
+					e.wig = Math.max(0, e.wig - dt);
+					e.tr.rotation.z += Math.sin(W.t * 60) * e.wig;
+				}
+			}
+			if (mm.frame === W.t) return;
+			mm.frame = W.t;
+			this.renderShared(W, dt);
+		},
+		renderShared(W, dt) {
+			const mm = W.mm,
+				m = W.ms;
+			/* boss hit: explosion and a flinch */
+			if (mm.lastHp !== null && W.hp < mm.lastHp && m) {
+				burst(W.sc, m.x, 2, m.z, {
+					n: 34,
+					shape: "ico",
+					cols: ["#FFE27A", "#FF8A1F", "#E5484D", "#5A6272"],
+					spd: 7,
+					up: 8,
+					life: 0.9,
+					size: 1.4,
+				});
+				sfx("thunder");
+				W.shake = Math.max(W.shake, 0.35);
+				mm.flinch = 1;
+			}
+			mm.lastHp = W.hp;
+			if (m && mm.flinch > 0) {
+				mm.flinch = Math.max(0, mm.flinch - dt * 3);
+				m.tr.rotation.x += Math.sin(mm.flinch * 20) * 0.08 * mm.flinch;
+			}
+			/* tyres: arc out of the muzzle, roll with a bounce, drop off the edge into the mud */
+			const live = W.tyLive || [],
+				used = new Set();
+			live.forEach((t) => {
+				const sl =
+					mm.ty.find((q) => q.id === t.id) || mm.ty.find((q) => q.id === null || !live.some((l) => l.id === q.id));
+				if (!sl) return;
+				if (sl.id !== t.id) {
+					sl.id = t.id;
+					sl.spl = false;
+				}
+				used.add(sl);
+				let y;
+				if (t.s < 3.6) {
+					const k = (t.s - 1.4) / 2.2;
+					y = 0.6 + (t.h - 0.6) * (1 - k * k);
+				} else if (t.on) y = 0.6 + Math.abs(Math.sin(t.s * 0.9)) * 0.35;
+				else {
+					const tf = (t.s - t.sx) / MM.TV;
+					y = 0.6 - 15 * tf * tf;
+					if (y < this.MUD + 0.4 && !sl.spl) {
+						sl.spl = true;
+						burst(W.sc, t.x, this.MUD + 0.3, t.z, {
+							n: 10,
+							shape: "ico",
+							cols: ["#4A3524", "#6B4F35"],
+							spd: 2.5,
+							up: 4,
+							grav: 12,
+							life: 0.7,
+							size: 1,
+						});
+					}
+				}
+				sl.o.visible = y > this.MUD - 1;
+				sl.o.position.set(t.x, y, t.z);
+				sl.o.rotation.y = Math.atan2(t.dx, t.dz);
+				sl.t.rotation.x = t.s / 0.6;
+			});
+			mm.ty.forEach((q) => {
+				if (!used.has(q)) {
+					q.o.visible = false;
+					q.id = null;
+				}
+			});
+			/* ground pound: a pulsing warning ring while it charges and jumps, then the shockwave */
+			const ch = m ? (m.local ? m.chg / 0.8 : (m.f && m.f.ch) || 0) : 0,
+				gp = W.gpLive,
+				wv = !!((gp && W.t < gp.slam) || ch > 0);
+			mm.warn.visible = wv;
+			if (wv) {
+				const s = W.ph < 3 ? 1 : 0.62;
+				mm.warn.position.set(m ? m.x : 0, 0.12, m ? m.z : 0);
+				mm.warn.scale.set(s, s, 1);
+				mm.warn.material.opacity = (gp && W.t < gp.slam ? 0.85 : ch * 0.7) * (0.65 + 0.35 * Math.sin(W.t * 24));
+			}
+			mm.wave.visible = !!(gp && gp.r > 0 && gp.r < MM.R + 2);
+			if (mm.wave.visible) {
+				mm.wave.position.set(gp.x, 0.25, gp.z);
+				mm.wave.scale.set(gp.r, gp.r, 1);
+				mm.wave.material.opacity = 0.9 * (1 - gp.r / (MM.R + 2));
+				if (mm.slamSeen !== gp.id) {
+					mm.slamSeen = gp.id;
+					sfx("crush");
+					if (Math.hypot(W.me.x - gp.x, W.me.z - gp.z) < 16) W.shake = Math.max(W.shake, 0.5);
+					for (let i = 0; i < 18; i++) {
+						const a = (i / 18) * Math.PI * 2;
+						burst(W.sc, gp.x + Math.cos(a) * 3, 0.4, gp.z + Math.sin(a) * 3, {
+							n: 2,
+							shape: "ico",
+							cols: ["#8A6A48", "#A88563"],
+							spd: 3,
+							up: 3,
+							grav: 12,
+							life: 0.7,
+							size: 1.1,
+						});
+					}
+				}
+			}
+			/* magnets: a red ring under anyone who stays close, the magnet coming down, then holding them up */
+			W.list.forEach((e) => {
+				if (e.side === 0 || e.gone) return;
+				const nr = e.local ? e.nr : (e.f && e.f.nr) || 0,
+					gr = !!(e.f && e.f.gr);
+				let g = mm.mag[e.k];
+				if (!g) {
+					g = mm.mag[e.k] = {
+						m: mmMagnet(),
+						w: new THREE.Mesh(new THREE.RingGeometry(1.1, 1.35, 28), mm.ringMat("#FF3B1F")),
+					};
+					g.w.rotation.x = -Math.PI / 2;
+					g.w.visible = false;
+					W.sc.add(g.m, g.w);
+				}
+				const on = e.al && !e.falling && (gr || nr > 0.25);
+				g.m.visible = !!on;
+				g.w.visible = !!(on && !gr);
+				if (!on) return;
+				const top = e.y + (e.topY || 1.4) + 0.1;
+				g.m.position.set(e.x, gr ? top : Math.max(top, 16 - (nr / MM.CLAW) * (16 - top)), e.z);
+				g.w.position.set(e.x, 0.1, e.z);
+				g.w.material.opacity = Math.min(1, nr / MM.CLAW) * (0.6 + 0.4 * Math.sin(W.t * 20));
+			});
+			/* crates: drop in, sit with a pulsing ring, blink before they vanish */
+			mm.crates.forEach((c) => {
+				const vis = W.t >= c.ts && W.t < c.te && !W.claimed.has(c.id);
+				c.g.visible = !!vis;
+				if (!vis) return;
+				const k = Math.min(1, (W.t - c.ts) / 0.5);
+				c.box.position.y = 0.48 + (1 - k) * (1 - k) * 9;
+				c.box.rotation.y = W.t * 0.8 + c.id;
+				c.box.visible = !!(c.te - W.t > 2 || Math.sin(W.t * 18) > 0);
+				c.sh.scale.setScalar(0.4 + 0.6 * k);
+				c.mark.material.opacity = k * (0.45 + 0.3 * Math.sin(W.t * 6));
+			});
+			/* boss bar: the monster's name and one segment per HP */
+			let bar = document.getElementById("mmbar");
+			const box = document.getElementById("mg");
+			if (!bar && box && m) {
+				bar = document.createElement("div");
+				bar.id = "mmbar";
+				bar.innerHTML = `<b>${esc(TRUCKS[m.p.truck].name)}</b><div class="mmhp"></div>`;
+				box.appendChild(bar);
+				mm.barHp = null;
+			}
+			if (bar && mm.barHp !== W.hp) {
+				mm.barHp = W.hp;
+				bar.querySelector(".mmhp").innerHTML = Array.from(
+					{ length: W.HP },
+					(_, i) => `<i class="${i < W.hp ? "on" : ""}"></i>`,
+				).join("");
+				bar.classList.toggle("rage", W.ph === 3);
+				bar.classList.remove("hit");
+				void bar.offsetWidth;
+				bar.classList.add("hit");
+			}
+			if (!mm.lbl) {
+				const sp = document.querySelector("#ram span");
+				if (sp) {
+					sp.textContent = W.me.side === 0 ? "FIRE" : "DASH";
+					mm.lbl = true;
+				}
+			}
 		},
 		bot(W, e, dt) {
-			const R = this.R(W.t);
+			const m = W.ms,
+				sv = W.list.filter((o) => o.side !== 0 && !o.gone && o.al && !o.d && !o.falling && !o.gr);
 			if (e.side === 0) {
-				/* chase the nearest survivor, ram when close */
-				const t = this.survivors(W)
-					.filter((o) => o.al && !o.d && !o.falling)
-					.sort((a, b) => Math.hypot(a.x - e.x, a.z - e.z) - Math.hypot(b.x - e.x, b.z - e.z))[0];
-				if (!t) return steer(e, 0, 0, 0.4);
-				const s = steer(e, t.x, t.z, 0.9);
-				if (Math.hypot(t.x - e.x, t.z - e.z) < 4.5 && e.bcd <= 0 && Math.random() < dt * 2.5) s.boost = true;
-				return s;
-			}
-			/* survivors: keep away from the monster, sidestep its rams, stay off the edge */
-			const m = W.list.find((o) => o.side === 0 && !o.gone);
-			let x = Math.sin(W.t * 0.7 + e.i * 2.1) * 0.3,
-				z = Math.cos(W.t * 0.6 + e.i * 1.3) * 0.3;
-			if (m) {
-				const ax = e.x - m.x,
-					az = e.z - m.z,
-					d = Math.hypot(ax, az) || 1;
-				if (d < 8) {
-					const w = ((8 - d) / 8) * 1.6;
-					x += (ax / d) * w;
-					z += (az / d) * w;
+				/* aim ahead of a target (TNT carriers first), fire when lined up, pound when trucks crowd in */
+				const near = (o) => Math.hypot(o.x - e.x, o.z - e.z),
+					tg =
+						sv.filter((o) => o.f && o.f.dy).sort((a, b) => near(a) - near(b))[0] ||
+						sv.sort((a, b) => near(a) - near(b))[0],
+					out = { x: 0, y: 0, fire: false, hold: false };
+				if (tg) {
+					const T = near(tg) / MM.TV + 0.15,
+						dx = tg.x + tg.vx * T - e.x,
+						dz = tg.z + tg.vz * T - e.z,
+						l = Math.hypot(dx, dz) || 1;
+					if (e.aimErr === undefined || Math.random() < dt * 1.5) e.aimErr = (Math.random() - 0.5) * 0.2;
+					const a = Math.atan2(-dz, dx) + e.aimErr;
+					out.x = W.ph === 3 ? dx / l : Math.cos(a);
+					out.y = W.ph === 3 ? dz / l : -Math.sin(a);
+					out.fire = Math.abs(wrapA(a - e.yaw)) < 0.14 && Math.random() < dt * 12;
 				}
-				if (m.boostT > 0 && d < 6) {
-					const sg = ax * -m.vz + az * m.vx > 0 ? 1 : -1,
-						l = Math.hypot(m.vx, m.vz) || 1;
-					x += (-m.vz / l) * sg * 1.4;
-					z += (m.vx / l) * sg * 1.4;
+				const crowd = sv.filter((o) => near(o) < 7.5).length,
+					carrier = sv.some((o) => o.f && o.f.dy && near(o) < 6.5);
+				if (e.pcd <= 0 && (crowd >= 2 || carrier || sv.some((o) => near(o) < 4.8))) e.wantP = true;
+				if (e.pcd > 0) e.wantP = false;
+				out.hold = !!e.wantP;
+				return out;
+			}
+			/* survivors: fetch TNT and deliver it, keep clear of the monster otherwise, sidestep tyres, dash through rings */
+			if (e.gr) return { x: 0, y: 0, boost: Math.random() < dt * 3.2 };
+			let x = 0,
+				z = 0;
+			const go = (tx, tz, w) => {
+				const dx = tx - e.x,
+					dz = tz - e.z,
+					l = Math.hypot(dx, dz) || 1;
+				x += (dx / l) * w;
+				z += (dz / l) * w;
+			};
+			const md = m ? Math.hypot(e.x - m.x, e.z - m.z) : 99;
+			if (e.f.dy && m) go(m.x, m.z, 1.4);
+			else {
+				const c = W.mm.crates
+					.filter((c) => W.t >= c.ts && W.t < c.te - 1 && !W.claimed.has(c.id))
+					.sort((a, b) => Math.hypot(a.x - e.x, a.z - e.z) - Math.hypot(b.x - e.x, b.z - e.z))[0];
+				if (c) go(c.x, c.z, 1);
+				else go(Math.cos(W.t * 0.4 + e.i * 2) * 8, Math.sin(W.t * 0.4 + e.i * 2) * 8, 0.6);
+				if (m && md < (m.rad || 1.7) + 3) go(m.x, m.z, -1.8);
+			}
+			for (const t of W.tyLive || []) {
+				if (!t.on) continue;
+				const rx = e.x - t.x,
+					rz = e.z - t.z,
+					ahead = rx * t.dx + rz * t.dz,
+					side = rx * -t.dz + rz * t.dx;
+				if (ahead > 0 && ahead < 6 && Math.abs(side) < 1.8) {
+					const sg = side >= 0 ? 1 : -1;
+					x += -t.dz * sg * 1.6;
+					z += t.dx * sg * 1.6;
 				}
 			}
 			const r = Math.hypot(e.x, e.z);
-			if (r > R * 0.5) {
-				const w = ((r / R - 0.5) / 0.5) * 2;
-				x -= (e.x / r) * w;
-				z -= (e.z / r) * w;
+			if (r > MM.R * 0.72) go(0, 0, ((r / MM.R - 0.72) / 0.28) * 2);
+			let boost = false;
+			const g = W.gpLive;
+			if (g && e.bcd <= 0) {
+				const d = Math.hypot(e.x - g.x, e.z - g.z),
+					eta = g.r > 0 ? (d - g.r) / MM.RING : g.slam - W.t + (d - 2.6) / MM.RING;
+				if (eta > 0 && eta < 0.12) {
+					if (e.dodgeRoll === undefined) e.dodgeRoll = Math.random() < 0.7;
+					boost = e.dodgeRoll;
+				}
+				if (g.r > d + 1) e.dodgeRoll = undefined;
 			}
 			const l = Math.hypot(x, z);
-			return l < 0.05 ? { x: 0, y: 0, boost: false } : { x: x / l, y: z / l, boost: false };
+			return l < 0.05 ? { x: 0, y: 0, boost } : { x: x / l, y: z / l, boost };
 		},
-		botScore: (s) => (s === 0 ? rnd(4) : rnd(2) ? 400 : 50 + rnd(250)),
+		botScore: (s) =>
+			s === 0 ? rnd(4) * 100 + rnd(6) : rnd(2) ? 1000 + rnd(3) * 100 + 45 : rnd(3) * 100 + 10 + rnd(30),
 	}),
 });
