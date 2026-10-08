@@ -274,7 +274,7 @@ function arenaPhys(W, e, inp, dt) {
 				dz = -Math.sin(e.yaw);
 				l = 1;
 			}
-			if (e.isMe) {
+			if (e.isMe && !def.noAssist) {
 				const at = ramAssist(W, e, dx / l, dz / l);
 				if (at) {
 					dx = at[0];
