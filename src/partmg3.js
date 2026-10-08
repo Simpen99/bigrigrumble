@@ -1266,7 +1266,8 @@ Object.assign(MG, {
 						b = p;
 					}
 				});
-				const recent = W.t - ev.t < 1.5,
+				/* only a real loop gets a bucket; skimming the edge of your paint closes tiny ones that just paint in place */
+				const recent = W.t - ev.t < 1.5 && ch.length >= this.BUCKET,
 					t0 = W.t + 0.5;
 				ch.forEach((c, j) => {
 					const [x, z] = pts[j];
@@ -1428,6 +1429,7 @@ Object.assign(MG, {
 		/* ---- paint roller towed behind each truck: a trailing arm from a hitch at the back, so it swings out on turns and
 		   settles back in line, and the open trail is drawn from it ---- */
 		RL: 1.25,
+		BUCKET: 16,
 		mkRoller(W, e) {
 			e.tr.updateMatrixWorld(true);
 			const bb = new THREE.Box3().setFromObject(e.tr),
