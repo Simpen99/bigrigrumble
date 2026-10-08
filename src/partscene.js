@@ -66,7 +66,7 @@ const asphaltTex = () =>
 const grassTex = () =>
 	scnTex("grass", 256, (x, w, h) => {
 		for (let i = 0; i < 5; i++) {
-			x.fillStyle = i % 2 ? "#6CB95B" : "#72BF61";
+			x.fillStyle = i % 2 ? "#76B252" : "#7CB757";
 			x.fillRect((i * w) / 5, 0, w / 5, h);
 		}
 		for (let i = 0; i < 6; i++)
@@ -525,7 +525,7 @@ function vergeScatter(s, xs, z0, z1, n = 400, spots = [], gy = 0) {
 				return [a + scnR() * (b - a), zs + scnR() * L];
 			}),
 		parts = [
-			{ geo: tuftGeo(), cols: ["#6DBB5C", "#78C466", "#62B053"], at: T, y: 0 },
+			{ geo: tuftGeo(), cols: ["#77B453", "#83BC5C", "#6BA94B"], at: T, y: 0 },
 			{
 				geo: new THREE.IcosahedronGeometry(0.08, 0),
 				cols: ["#FFFFFF", "#FFE066", "#F7B8D2", "#B9A3FF"],
