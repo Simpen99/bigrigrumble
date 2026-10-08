@@ -3974,7 +3974,8 @@ const MG = {
 							[0.25, 1.25],
 							[0.45, 0.4],
 						][ty];
-					g.add(contactShadow(fp[0], fp[1], 0.3));
+					/* hydrant and litter bin are round */
+					g.add(ty < 2 ? roundShadow(fp[0], 0.3) : contactShadow(fp[0], fp[1], 0.3));
 					switch (ty) {
 						case 0:
 							g.add(Cy(0.16, 0.2, 0.55, 10, "#D93A35", 0, 0.28, 0), Cy(0.12, 0.17, 0.14, 10, "#B52A26", 0, 0.62, 0));
@@ -5722,7 +5723,7 @@ const MG = {
 				s.add(Cy(0.35, 0.45, 0.6, 8, "#2A2F3A", x, 0.3, -36));
 				bol.push({ x, z: -36 });
 			}
-			placeShadows(s, 0.8, 0.8, 0.25, bol);
+			placeShadows(s, 0.8, 0.8, 0.25, bol, true);
 			W.sea = sea;
 			W.seaB = Float32Array.from(sp.array);
 			W.gulls = [];

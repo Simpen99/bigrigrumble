@@ -579,12 +579,18 @@ function aoCompute(J) {
 	}
 	return img;
 }
-/* ---------- contact shadows: a soft dark footprint under props so they sit on the ground instead of looking pasted in.
-   9-slice quad: the dark core is the footprint, the fade runs m metres outward (same width whatever the prop's size). */
+/* ---------- contact shadows: a soft dark band where props meet the ground so they don't look pasted in.
+   9-slice quad: the dark core is the footprint, darkest at its edge, fading out over m metres (shadowFade: narrow, a
+   bit wider for big props). Round props get a disc with the same edge (k = the dark part's share of the radius). */
 var SHADOW_MAT = {};
-function shadowMat(op) {
-	if (SHADOW_MAT[op]) return SHADOW_MAT[op];
-	if (!SHADOW_MAT.tex) {
+function shadowFade(size) {
+	return Math.min(0.5, 0.15 + 0.05 * size);
+}
+function shadowMat(op, k) {
+	const key = op + "|" + (k === undefined ? "sq" : k);
+	if (SHADOW_MAT[key]) return SHADOW_MAT[key];
+	const tk = k === undefined ? "tex" : "tex" + k;
+	if (!SHADOW_MAT[tk]) {
 		const n = 64,
 			c = document.createElement("canvas");
 		c.width = c.height = n;
@@ -592,17 +598,23 @@ function shadowMat(op) {
 			im = x.createImageData(n, n);
 		for (let j = 0; j < n; j++)
 			for (let i = 0; i < n; i++) {
-				const u = Math.max(0, Math.abs((i + 0.5) / n - 0.5) * 4 - 1),
-					v = Math.max(0, Math.abs((j + 0.5) / n - 0.5) * 4 - 1),
+				let t;
+				if (k === undefined) {
+					const u = Math.max(0, Math.abs((i + 0.5) / n - 0.5) * 4 - 1),
+						v = Math.max(0, Math.abs((j + 0.5) / n - 0.5) * 4 - 1);
 					t = Math.max(0, 1 - Math.hypot(u, v));
+				} else {
+					const r = Math.hypot((i + 0.5) / n - 0.5, (j + 0.5) / n - 0.5) * 2;
+					t = Math.max(0, Math.min(1, 1 - (r - k) / (1 - k)));
+				}
 				im.data[(j * n + i) * 4 + 3] = Math.round(t * t * 255);
 			}
 		x.putImageData(im, 0, 0);
-		SHADOW_MAT.tex = new THREE.CanvasTexture(c);
+		SHADOW_MAT[tk] = new THREE.CanvasTexture(c);
 	}
-	return (SHADOW_MAT[op] = new THREE.MeshBasicMaterial({
+	return (SHADOW_MAT[key] = new THREE.MeshBasicMaterial({
 		color: "#000000",
-		map: SHADOW_MAT.tex,
+		map: SHADOW_MAT[tk],
 		transparent: true,
 		opacity: op,
 		depthWrite: false,
@@ -611,11 +623,11 @@ function shadowMat(op) {
 		polygonOffsetUnits: -2,
 	}));
 }
-/* flat 9-slice shadow geometry: footprint w x d centred on (cx, cz) at height y, fading out over m (and slightly inward) */
+/* flat 9-slice shadow geometry: footprint w x d centred on (cx, cz) at height y, fading out over m */
 function shadowGeo(w, d, m, cx = 0, cz = 0, y = 0.03) {
-	const hw = Math.max(0, w / 2 - m * 0.3),
-		hd = Math.max(0, d / 2 - m * 0.3),
-		mm = m * 1.3,
+	const hw = Math.max(0, w / 2 - m * 0.1),
+		hd = Math.max(0, d / 2 - m * 0.1),
+		mm = m,
 		xs = [-hw - mm, -hw, hw, hw + mm],
 		zs = [-hd - mm, -hd, hd, hd + mm],
 		uv = [0, 0.25, 0.75, 1],
@@ -645,17 +657,24 @@ function shadowGeo(w, d, m, cx = 0, cz = 0, y = 0.03) {
 	g.setIndex(I);
 	return g;
 }
-/* a contact shadow mesh: w x d footprint (round props: w = d = diameter, the fade makes it soft and round) */
+/* a contact shadow mesh: w x d footprint (round props: roundShadow) */
 function contactShadow(w, d, op = 0.3, x = 0, z = 0, y = 0.03, m) {
-	const sh = new THREE.Mesh(shadowGeo(w, d, m || Math.min(1.1, 0.2 + 0.12 * Math.min(w, d)), x, z, y), shadowMat(op));
+	const sh = new THREE.Mesh(shadowGeo(w, d, m || shadowFade(Math.min(w, d)), x, z, y), shadowMat(op));
 	sh.renderOrder = 1;
 	sh.userData.shadow = true;
 	return sh;
 }
-/* a round contact shadow for round props (trees, posts, hydrants): a soft disc, darkest at the centre, reaching the
-   prop's edge (diameter dia) plus the usual fade */
+/* round contact shadow for round props (trunks, posts, hydrants) of diameter dia: a disc quad and its texture's k */
+function roundShadowGeo(dia, x = 0, z = 0, y = 0.03) {
+	const f = shadowFade(dia),
+		R = dia / 2 + f * 0.9,
+		g = new THREE.PlaneGeometry(R * 2, R * 2).rotateX(-Math.PI / 2).translate(x, y, z);
+	g.userData.k = Math.round(((dia / 2 - f * 0.1) / R) * 20) / 20;
+	return g;
+}
 function roundShadow(dia, op = 0.3, x = 0, z = 0, y = 0.03) {
-	const sh = new THREE.Mesh(shadowGeo(0, 0, (dia / 2 + Math.min(1.1, 0.2 + 0.12 * dia)) / 1.3, x, z, y), shadowMat(op));
+	const g = roundShadowGeo(dia, x, z, y),
+		sh = new THREE.Mesh(g, shadowMat(op, g.userData.k));
 	sh.renderOrder = 1;
 	sh.userData.shadow = true;
 	return sh;
@@ -664,7 +683,7 @@ function kitShadowGeo(kit) {
 	const f = kit.foot,
 		w = f.x1 - f.x0,
 		d = f.z1 - f.z0;
-	return shadowGeo(w, d, Math.min(1.1, 0.2 + 0.12 * Math.min(w, d)), (f.x0 + f.x1) / 2, (f.z0 + f.z1) / 2, f.y0 + 0.04);
+	return shadowGeo(w, d, shadowFade(Math.min(w, d)), (f.x0 + f.x1) / 2, (f.z0 + f.z1) / 2, f.y0 + 0.04);
 }
 /* a baked kit as a normal group (for things that move or toggle), with its contact shadow */
 function kitGroup(kit, shadow = 0.3) {
@@ -1401,13 +1420,10 @@ function firePropModel(kind, col) {
 
 /* ---------- contact shadows for many copies of one footprint (stacks, crane legs, posts): one InstancedMesh.
    list: [{x, y, z, ry}], y = the surface they stand on */
-function placeShadows(s, w, d, op, list) {
+function placeShadows(s, w, d, op, list, round) {
 	if (!list.length) return;
-	const im = new THREE.InstancedMesh(
-			shadowGeo(w, d, Math.min(1.1, 0.2 + 0.12 * Math.min(w, d))),
-			shadowMat(op),
-			list.length,
-		),
+	const geo = round ? roundShadowGeo(w) : shadowGeo(w, d, shadowFade(Math.min(w, d))),
+		im = new THREE.InstancedMesh(geo, shadowMat(op, round ? geo.userData.k : undefined), list.length),
 		o = new THREE.Object3D();
 	list.forEach((q, i) => {
 		o.position.set(q.x, q.y || 0, q.z);
