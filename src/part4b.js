@@ -1316,7 +1316,7 @@ const MG = {
 				Cy(0.22, 0.14, 0.12, 8, "#2A2F3A", x, 3.62, z),
 				Cy(0.18, 0.2, 0.42, 8, "#FFF1C4", x, 3.89, z, { emissive: "#FFE08A", emissiveIntensity: 0.6 }),
 				Cy(0.02, 0.26, 0.2, 8, "#2A2F3A", x, 4.2, z),
-				contactShadow(0.5, 0.5, 0.25, x, z),
+				roundShadow(0.5, 0.25, x, z),
 			);
 		},
 		square(W) {
@@ -1389,7 +1389,7 @@ const MG = {
 				);
 				s.children[s.children.length - 1].rotation.z = Math.PI / 2;
 				decal(s, new THREE.CircleGeometry(1.8, 24), "#2F7DE1", x, 0.04, z, 0.35);
-				s.add(contactShadow(0.8, 0.8, 0.3, x, z, 0.08));
+				s.add(roundShadow(0.8, 0.3, x, z, 0.08));
 			});
 			/* shops around the plaza (detailed buildings, partmodels) and Blaze's fire station with a truck in the open bay */
 			MG.hill.PLAZA.forEach(([a], k) =>
@@ -4028,7 +4028,7 @@ const MG = {
 				for (let z = 0; z > -this.LEN - 20; z -= 15)
 					s.add(
 						Cy(0.1, 0.12, 5, 6, "#2A2F3A", sd * (wid / 2 + 0.9), 2.5, z),
-						contactShadow(0.3, 0.3, 0.25, sd * (wid / 2 + 0.9), z, 0.28),
+						roundShadow(0.3, 0.25, sd * (wid / 2 + 0.9), z, 0.28),
 						B(1.4, 0.14, 0.3, "#2A2F3A", sd * (wid / 2 + 0.3), 5, z),
 					);
 			});

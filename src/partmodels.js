@@ -652,6 +652,14 @@ function contactShadow(w, d, op = 0.3, x = 0, z = 0, y = 0.03, m) {
 	sh.userData.shadow = true;
 	return sh;
 }
+/* a round contact shadow for round props (trees, posts, hydrants): a soft disc, darkest at the centre, reaching the
+   prop's edge (diameter dia) plus the usual fade */
+function roundShadow(dia, op = 0.3, x = 0, z = 0, y = 0.03) {
+	const sh = new THREE.Mesh(shadowGeo(0, 0, (dia / 2 + Math.min(1.1, 0.2 + 0.12 * dia)) / 1.3, x, z, y), shadowMat(op));
+	sh.renderOrder = 1;
+	sh.userData.shadow = true;
+	return sh;
+}
 function kitShadowGeo(kit) {
 	const f = kit.foot,
 		w = f.x1 - f.x0,
