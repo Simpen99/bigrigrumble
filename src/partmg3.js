@@ -2452,7 +2452,7 @@ Object.assign(MG, {
 					e.tyHit[t.id] = 1;
 					if (W.t - (e.tyT || -9) > 0.3) {
 						e.tyT = W.t;
-						this.knock(W, e, t.dx, t.dz, 10.4, 0.45, "tyre");
+						this.knock(W, e, t.dx, t.dz, 12.5, 0.6, "tyre");
 					}
 				}
 			const g = W.gpLive;
