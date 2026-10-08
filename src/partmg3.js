@@ -1965,6 +1965,23 @@ Object.assign(MG, {
 		lastStanding: false,
 		noAssist: true,
 		camZoom: 1.08,
+		/* new look: a stadium at dusk, floodlights on the stage (starting values, tune in the light panel) */
+		sun: [14, 15, 11],
+		look: {
+			exp: 0.85,
+			amb: 0.42,
+			sun: 0.36,
+			warm: 0.85,
+			env: 0.4,
+			haze: 60,
+			glow: 1.0,
+			bloom: 0.25,
+			vig: 0.15,
+			sat: 0.08,
+			lamp: 1,
+			fill: ["#8A95D8", "#5A4535"],
+			sky: ["#232D57", "#9E5876", "#EE925C"],
+		},
 		how: "Boss fight! The monster truck fires tyres and ground-pounds from its turntable. Grab TNT crates and drive them into it: knock it out or survive to win as a team.",
 		teamHow: (s) =>
 			s === 0
@@ -2090,6 +2107,66 @@ Object.assign(MG, {
 				s.add(g);
 				const ts = 2.5 + k * every;
 				W.mm.crates.push({ id: k + 1, ts, te: ts + 14, x: g.position.x, z: g.position.z, g, box, sh, mark });
+			}
+			this.lights(W);
+		},
+		/* dusk stadium: a lamp bank on top of each of the bowl's 8 floodlight poles (glowing lenses), and two real
+		   spotlights with fading beams from opposite poles onto the stage (more would cost phones too much) */
+		lights(W) {
+			const s = W.sc,
+				R0 = 17,
+				lin = (c) => new THREE.Color(c).convertSRGBToLinear(),
+				lens = { emissive: "#FFE6B8", emissiveIntensity: 2.2 };
+			W.lamps = [];
+			W.lampFx = [];
+			for (let i = 0; i < 8; i++) {
+				const a = (i / 8) * 6.283 + 0.39,
+					x = Math.cos(a) * (R0 + 6.6),
+					z = Math.sin(a) * (R0 + 6.6),
+					g = new THREE.Group();
+				g.position.set(x, 0, z);
+				g.rotation.y = Math.atan2(x, z) + Math.PI;
+				g.add(B(0.34, 1.3, 0.34, "#5A6272", 0, 13.5, 0));
+				g.add(B(2.9, 1.2, 0.5, "#2E323A", 0, 14.6, 0.05));
+				for (let j = 0; j < 3; j++) g.add(B(0.78, 0.82, 0.06, "#FFF4D6", -0.92 + j * 0.92, 14.6, 0.34, lens));
+				g.add(B(3.1, 0.1, 0.7, "#3D424C", 0, 15.25, 0.1));
+				s.add(g);
+				if (i % 4 !== 1) continue;
+				const hy = 14.6,
+					sp = new THREE.SpotLight(lin("#FFE6B8"), 2.6, 70, 0.42, 0.55, 1);
+				sp.userData.base = 2.6;
+				sp.position.set(x * 0.97, hy, z * 0.97);
+				sp.target.position.set(0, 0, 0);
+				s.add(sp, sp.target);
+				W.lamps.push(sp);
+				const len = 26,
+					cone = new THREE.ConeGeometry(Math.tan(0.42) * len, len, 20, 1, true);
+				cone.translate(0, -len / 2, 0);
+				const beam = new THREE.Mesh(
+					cone,
+					new THREE.MeshBasicMaterial({
+						map: canvasTex(8, 64, (c, w, h) => {
+							const gr = c.createLinearGradient(0, 0, 0, h);
+							gr.addColorStop(0, "rgba(255,236,200,1)");
+							gr.addColorStop(0.35, "rgba(255,226,170,0.45)");
+							gr.addColorStop(0.8, "rgba(255,226,170,0.08)");
+							gr.addColorStop(1, "rgba(255,226,170,0)");
+							c.fillStyle = gr;
+							c.fillRect(0, 0, w, h);
+						}),
+						transparent: true,
+						opacity: 0.2,
+						blending: THREE.AdditiveBlending,
+						depthWrite: false,
+						fog: false,
+					}),
+				);
+				beam.position.copy(sp.position);
+				beam.quaternion.setFromUnitVectors(new THREE.Vector3(0, -1, 0), sp.position.clone().negate().normalize());
+				beam.castShadow = false;
+				beam.userData.base = 0.2;
+				W.lampFx.push(beam);
+				s.add(beam);
 			}
 		},
 		spawn(W, i, n) {
