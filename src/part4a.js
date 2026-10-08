@@ -249,10 +249,22 @@ const steer = (e, tx, tz, m = 1) => {
 		l = Math.hypot(dx, dz) || 1;
 	return { x: (dx / l) * m, y: (dz / l) * m, boost: false };
 };
+/* play-by-play for tools/watch.mjs: games call mgLog(W, text) and set e.lastHit = {k: cause, t: W.t} when they knock a
+   truck; the engine logs knockouts (with the cause) and finishes. Off unless a tool sets MG_LOG. */
+var MG_LOG = false;
+function mgLog(W, txt) {
+	if (MG_LOG && W) (W.log || (W.log = [])).push(`${W.t.toFixed(1)} ${txt}`);
+}
+const mgName = (e) => (e && e.p ? e.p.name.replace(/^CPU /, "") : "?");
 function eliminate(W, e) {
 	if (e.d) return;
 	e.al = false;
 	e.d = true;
+	if (MG_LOG) {
+		e.logD = true;
+		const h = e.lastHit && W.t - e.lastHit.t < 2 ? e.lastHit.k : "own fault";
+		mgLog(W, `OUT ${mgName(e)} (${h})`);
+	}
 }
 function arenaPhys(W, e, inp, dt) {
 	const def = W.def;
@@ -382,6 +394,7 @@ function collide(W, a) {
 			if (now - (b.hitT[a.k] || 0) > 400) {
 				b.hitT[a.k] = now;
 				a.hitAng = [nx, nz];
+				a.lastHit = { k: `rammed by ${mgName(b)}`, t: W.t };
 				const D = W.def,
 					K = (RAMK * (D.ramK || 1) * (b.ramM || 1)) / ma;
 				a.vx += nx * K;
@@ -489,6 +502,7 @@ function netApply(ps) {
 				if (e && e.local && e.al && !e.falling && !e.fly && W.t >= 0) {
 					const hl = Math.hypot(+x.x || 0, +x.z || 0) || 1;
 					e.hitAng = [(+x.x || 0) / hl, (+x.z || 0) / hl];
+					e.lastHit = { k: `rammed by ${mgName(W.ents[x.by])}`, t: W.t };
 					e.vx += (+x.x || 0) / (e.mass || 1);
 					e.vz += (+x.z || 0) / (e.mass || 1);
 					e.slideT = W.def.ramSlide || 0.9;
@@ -874,6 +888,13 @@ function stepMG(dt) {
 				if (e.local) e.d = true;
 			});
 	}
+	if (MG_LOG)
+		W.list.forEach((e) => {
+			if (e.local && e.d && !e.logD) {
+				e.logD = true;
+				mgLog(W, `DONE ${mgName(e)} ${e.al ? "" : "(out) "}score ${Math.round(def.final ? def.final(W, e) : e.sc)}`);
+			}
+		});
 	if (!W.tv && W.me.d && !W.submitted && W.t >= 0) finishMe();
 	if (!W.over && W.t >= 0 && (W.list.every((e) => e.gone || e.d) || W.t >= def.dur + 2)) {
 		W.over = true;

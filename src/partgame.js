@@ -1354,6 +1354,7 @@ function spaceSplit() {
 	return { mode, tm, tc };
 }
 /* a forced team game (practice, TV practice): the solo truck is random (the host's own truck half the time), the rest split evenly */
+var TEST_SIDE = null;
 function forcedSplit(g) {
 	const mode = MG[g].team,
 		ps = HG.players;
@@ -1362,7 +1363,9 @@ function forcedSplit(g) {
 		hum = ps.find((p) => !p.bot),
 		order = ps.slice().sort(() => Math.random() - 0.5);
 	if (mode === "1v3") {
-		const solo = hum && Math.random() < 0.5 ? hum : order[0];
+		/* TEST_SIDE (set by tools/watch.mjs --side) puts the host's truck on side 0 or 1 */
+		const others = order.filter((p) => p !== hum),
+			solo = TEST_SIDE === 0 && hum ? hum : TEST_SIDE === 1 ? others[0] : hum && Math.random() < 0.5 ? hum : order[0];
 		ps.forEach((p) => (tm[p.key] = p === solo ? 0 : 1));
 	} else order.forEach((p, i) => (tm[p.key] = i % 2));
 	return { mode, tm, tc: SIDE_COL.slice() };

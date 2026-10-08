@@ -2108,6 +2108,7 @@ Object.assign(MG, {
 				W.mm.phT = W.t;
 				W.mm.banner = ph === 2 ? "ENRAGED! Double tyres!" : "The turntable drops: it's loose!";
 				W.mm.bannerT = W.t + 2.2;
+				mgLog(W, `PHASE ${ph} (${W.hp} HP)`);
 				if (m)
 					burst(W.sc, m.x, 2, m.z, {
 						n: 26,
@@ -2127,6 +2128,7 @@ Object.assign(MG, {
 			}
 			if (W.hp <= 0 && W.ko === undefined) {
 				W.ko = W.t;
+				mgLog(W, "BOSS KNOCKED OUT");
 				W.list.forEach((o) => {
 					if (o.local && !o.gone) {
 						if (o.gr) this.release(W, o, 4);
@@ -2223,6 +2225,7 @@ Object.assign(MG, {
 					e.pcd = ph === 3 ? 5 : 6;
 					e.f.gpn = (e.f.gpn | 0) + 1;
 					e.f.gp = [e.f.gpn, r(W.t), r(e.x), r(e.z)];
+					mgLog(W, "boss: ground pound");
 				}
 			} else e.chg = 0;
 			e.f.ch = Math.round((e.chg / 0.8) * 10) / 10;
@@ -2233,7 +2236,9 @@ Object.assign(MG, {
 				e.won = true;
 			}
 		},
-		knock(W, e, nx, nz, K, sl) {
+		knock(W, e, nx, nz, K, sl, why) {
+			e.lastHit = { k: why, t: W.t };
+			mgLog(W, `${why} hits ${mgName(e)}`);
 			e.vx += nx * K;
 			e.vz += nz * K;
 			e.slideT = sl;
@@ -2269,8 +2274,10 @@ Object.assign(MG, {
 					inp.boost = false;
 					e.wig = 0.25;
 				}
-				if (W.hp < g.hp || g.taps >= 5) this.release(W, e, 5);
-				else if (W.t - g.t0 >= 1.6) {
+				if (W.hp < g.hp || g.taps >= 5) {
+					mgLog(W, `${mgName(e)} ${g.taps >= 5 ? "breaks free" : "dropped (boss hit)"}`);
+					this.release(W, e, 5);
+				} else if (W.t - g.t0 >= 1.6) {
 					const dx = e.x - (m ? m.x : 0),
 						dz = e.z - (m ? m.z : 0),
 						d = Math.hypot(dx, dz) || 1;
@@ -2282,6 +2289,7 @@ Object.assign(MG, {
 					e.vz = (dz / d) * 20;
 					e.vy = 6;
 					e.falling = true;
+					e.lastHit = { k: "magnet fling", t: W.t };
 					eliminate(W, e);
 					if (e.isMe) W.shake = 0.5;
 					sfx("magnet");
@@ -2302,7 +2310,7 @@ Object.assign(MG, {
 					e.tyHit[t.id] = 1;
 					if (W.t - (e.tyT || -9) > 0.3) {
 						e.tyT = W.t;
-						this.knock(W, e, t.dx, t.dz, 9, 0.45);
+						this.knock(W, e, t.dx, t.dz, 9, 0.45, "tyre");
 					}
 				}
 			const g = W.gpLive;
@@ -2325,7 +2333,7 @@ Object.assign(MG, {
 							W.mm.banner = "Dodged!";
 							W.mm.bannerT = W.t + 0.8;
 						}
-					} else this.knock(W, e, dx / d, dz / d, 11, 0.5);
+					} else this.knock(W, e, dx / d, dz / d, 11, 0.5, "shockwave");
 				}
 			}
 			if (!e.f.dy)
@@ -2333,6 +2341,7 @@ Object.assign(MG, {
 					if (W.t >= c.ts + 0.5 && W.t < c.te && Math.hypot(e.x - c.x, e.z - c.z) < 1.6 && W.claim(c.id)) {
 						e.c.push(c.id);
 						e.f.dy = c.id;
+						mgLog(W, `${mgName(e)} picks up TNT`);
 						if (e.isMe) sfx("coin");
 						break;
 					}
@@ -2344,7 +2353,8 @@ Object.assign(MG, {
 				/* TNT delivered: the boss loses 1 HP (everyone sums e.f.dh), the blast bounces you off */
 				e.f.dy = 0;
 				e.f.dh = (e.f.dh | 0) + 1;
-				this.knock(W, e, dx / d, dz / d, 9, 0.45);
+				this.knock(W, e, dx / d, dz / d, 9, 0.45, "TNT bounce");
+				mgLog(W, `TNT ${mgName(e)} hits the boss (${W.hp - 1} HP left)`);
 			}
 			const cr = (W.ph < 3 ? 2.8 : 1.71) + 1.7;
 			e.nr = d < cr ? e.nr + dt : Math.max(0, e.nr - dt * 1.5);
@@ -2352,11 +2362,33 @@ Object.assign(MG, {
 				e.gr = { t0: W.t, hp: W.hp, taps: 0, x: e.x, z: e.z };
 				e.f.gr = 1;
 				e.fly = true;
+				mgLog(W, `magnet grabs ${mgName(e)}`);
 				if (e.isMe) sfx("magnet");
 			}
 			e.f.nr = Math.round(e.nr * 10) / 10;
 		},
 		rules() {},
+		/* tools/watch.mjs: one summary line, and a rough stand-in for a human player (the boss aims straight at a truck, no
+		   leading; survivors play like the CPUs) */
+		watchSum(W) {
+			const m = W.ms,
+				f = (m && m.f) || {};
+			return `boss ${Math.max(0, W.hp)}/${W.HP} HP, ${f.tn | 0} tyres, ${f.gpn | 0} pounds`;
+		},
+		humanBot(W, e, dt) {
+			const o = this.bot(W, e, dt);
+			if (e.side !== 0 || W.ph === 3) return o;
+			const tg = W.list
+				.filter((q) => q.side === 1 && q.al && !q.falling && !q.gone)
+				.sort((a, b) => Math.hypot(a.x - e.x, a.z - e.z) - Math.hypot(b.x - e.x, b.z - e.z))[0];
+			if (tg) {
+				const a = Math.atan2(-(tg.z - e.z), tg.x - e.x);
+				o.x = Math.cos(a);
+				o.y = -Math.sin(a);
+				o.fire = Math.abs(wrapA(a - e.yaw)) < 0.12;
+			}
+			return o;
+		},
 		timeUp() {},
 		/* survivor: 1000 if still on the stage + 100 per TNT hit + seconds on the stage; monster: 100 per crushed + HP left */
 		final(W, e) {
@@ -2706,6 +2738,12 @@ Object.assign(MG, {
 			if ((e.slideT > 0 && r > MM.R * 0.5) || r > MM.R - 1.3) {
 				e.bsx = -e.x / r;
 				e.bsz = -e.z / r;
+			}
+			/* dodging the shockwave: dash inwards through the ring, never towards the edge */
+			if (boost && g) {
+				const d = Math.hypot(e.x - g.x, e.z - g.z) || 1;
+				e.bsx = (g.x - e.x) / d;
+				e.bsz = (g.z - e.z) / d;
 			}
 			const sl = Math.hypot(e.bsx, e.bsz);
 			return sl < 0.05 ? { x: 0, y: 0, boost } : { x: e.bsx / sl, y: e.bsz / sl, boost };
