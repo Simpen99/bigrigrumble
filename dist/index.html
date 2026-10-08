@@ -600,6 +600,12 @@ body[data-view=lobby]::before,body[data-view=home]::before,body[data-view=join]:
 #mmbar.rage .mmhp i.on{background:#FF8A1F}
 #mmbar.hit{animation:mmHit .35s ease-out}
 @keyframes mmHit{0%{transform:scale(1.15) rotate(-2deg)}100%{transform:none}}
+#dbgp{position:fixed;inset:0;z-index:200;background:rgba(10,14,20,.88);display:flex;align-items:center;justify-content:center;padding:14px}
+.dbgbox{background:#182032;color:#fff;border-radius:16px;width:100%;max-width:520px;max-height:92vh;overflow:auto;padding:14px;box-shadow:0 0 0 3px #FFC83D;display:grid;gap:10px}
+.dbgbox h2{margin:0;font-size:20px}
+.dbgbox img{width:100%;border-radius:10px;display:block}
+#dbgtx{width:100%;height:140px;font:11px/1.35 ui-monospace,Menlo,monospace;background:#0F1520;color:#CFD8E3;border:1px solid #3A4150;border-radius:10px;padding:8px;resize:vertical}
+.dbgbox .row{display:flex;gap:8px;flex-wrap:wrap}
 .reswin{display:inline-block;margin:10px 0 0;font-family:var(--display);font-size:18px;color:#151B24;background:var(--c);padding:5px 14px 4px;border-radius:999px;box-shadow:0 0 0 2.5px #151B24,0 3px 0 2px #151B24}
 .reslist li{background:#243049!important;border:2.5px solid var(--c,#3A4150);border-radius:14px!important;padding:6px 10px 6px 6px!important;box-shadow:0 4px 0 #151B24}
 .reslist li.p1{background:linear-gradient(100deg,rgba(255,200,61,.22),#243049 60%)!important}
@@ -703,6 +709,37 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <script>
 "use strict";
+/* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
+const BUILD = "2026-10-09 00:43 5763f36";
+const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
+(() => {
+	const add = (msg, src, line, col, stack) => {
+		DBG.errs.push({
+			at: Date.now(),
+			msg: String(msg).slice(0, 300),
+			where: src ? `${String(src).split("/").pop().split("?")[0]}:${line}:${col}` : "",
+			stack: stack ? String(stack).split("\n").slice(0, 4).join(" | ").slice(0, 400) : "",
+		});
+		if (DBG.errs.length > 15) DBG.errs.shift();
+	};
+	addEventListener(
+		"error",
+		(e) => {
+			const t = e.target;
+			if (t && t !== window && (t.src || t.href)) add("failed to load " + (t.src || t.href).slice(0, 120));
+			else add(e.message, e.filename, e.lineno, e.colno, e.error && e.error.stack);
+		},
+		true,
+	);
+	addEventListener("unhandledrejection", (e) =>
+		add("unhandled promise: " + ((e.reason && e.reason.message) || e.reason), "", 0, 0, e.reason && e.reason.stack),
+	);
+	const ce = console.error.bind(console);
+	console.error = (...a) => {
+		add("console.error: " + a.map((x) => (x && x.message) || String(x)).join(" "), "", 0, 0, a[0] && a[0].stack);
+		ce(...a);
+	};
+})();
 const PRICE = 20,
 	START_COINS = 10,
 	N = 32;
@@ -1683,6 +1720,8 @@ function gfxInit() {
 			r.render = (s, c) => {
 				if (s && s.isScene) gfxLook(s);
 				rr(s, c);
+				/* bug report screenshot: grab the frame right after it reaches the screen (no preserveDrawingBuffer needed) */
+				if (DBG.want && r.getRenderTarget() === null) dbgGrab(r.domElement);
 			};
 		}
 		GFX.cam = new THREE.PerspectiveCamera(40, 1, 0.5, 240);
@@ -8824,6 +8863,7 @@ function homeHTML() {
     <button class="btn ghost" data-a="practice">🎮 Minigame practice</button>
     ${FINE && GFX.ok ? `<button class="btn ghost" data-a="editor">🛠 Map editor</button>` : ""}
     <div>${statusHTML()}</div>
+    <button class="btn ghost small" data-dbg="open">🐞 Report a bug</button>
   </section>
   <details class="sheet how"><summary>How to play</summary><ul>
     <li>On your turn, pick the standard die or your truck's special die and roll.</li>
@@ -10498,12 +10538,21 @@ function forcedSplit(g) {
 		ps = HG.players;
 	if (!mode || ps.length < 2) return null;
 	const tm = {},
-		hum = ps.find((p) => !p.bot),
+		hum = ps.find((p) => p.key === me.key) || ps.find((p) => !p.bot),
 		order = ps.slice().sort(() => Math.random() - 0.5);
 	if (mode === "1v3") {
-		/* TEST_SIDE (set by tools/watch.mjs --side) puts the host's truck on side 0 or 1 */
+		/* TEST_SIDE (tools/watch.mjs --side, nettest.mjs --solo) puts the host's truck on side 0 or 1, or names the solo player's key */
 		const others = order.filter((p) => p !== hum),
-			solo = TEST_SIDE === 0 && hum ? hum : TEST_SIDE === 1 ? others[0] : hum && Math.random() < 0.5 ? hum : order[0];
+			solo =
+				typeof TEST_SIDE === "string" && ps.some((p) => p.key === TEST_SIDE)
+					? ps.find((p) => p.key === TEST_SIDE)
+					: TEST_SIDE === 0 && hum
+						? hum
+						: TEST_SIDE === 1
+							? others[0]
+							: hum && Math.random() < 0.5
+								? hum
+								: order[0];
 		ps.forEach((p) => (tm[p.key] = p === solo ? 0 : 1));
 	} else order.forEach((p, i) => (tm[p.key] = i % 2));
 	return { mode, tm, tc: SIDE_COL.slice() };
@@ -11545,7 +11594,12 @@ const steer = (e, tx, tz, m = 1) => {
    truck; the engine logs knockouts (with the cause) and finishes. Off unless a tool sets MG_LOG. */
 var MG_LOG = false;
 function mgLog(W, txt) {
-	if (MG_LOG && W) (W.log || (W.log = [])).push(`${W.t.toFixed(1)} ${txt}`);
+	if (!W) return;
+	const l = `${W.t.toFixed(1)} ${txt}`;
+	if (MG_LOG) (W.log || (W.log = [])).push(l);
+	/* the last 40 also go into bug reports */
+	DBG.log.push(l);
+	if (DBG.log.length > 40) DBG.log.shift();
 }
 const mgName = (e) => (e && e.p ? e.p.name.replace(/^CPU /, "") : "?");
 function eliminate(W, e) {
@@ -26047,6 +26101,7 @@ Object.assign(MG, {
 			const ev = { q: e.i, n: raw[0], t: raw[1] / 100, cells: raw.slice(2).filter((c) => c >= 0 && c < P.N * P.N) };
 			P.evs.push(ev);
 			P.fresh.push(ev);
+			mgLog(W, `${e.local ? "sends" : "got"} ${mgName(e)} loop #${raw[0]} (${ev.cells.length} cells)`);
 		},
 		replay(W) {
 			const P = W.P;
@@ -26624,6 +26679,14 @@ Object.assign(MG, {
 			return h ? steer(e, h[0], h[1], 0.9) : wander(W, e, 0.016, 8);
 		},
 		botScore: () => 8 + rnd(25),
+		/* tools/nettest.mjs: the paint (cells per truck) must match whenever both devices hold the same loops (key) */
+		syncSnap(W) {
+			const c = {};
+			W.P.own.forEach((v) => {
+				if (v >= 0) c[mgName(W.list[v])] = (c[mgName(W.list[v])] || 0) + 1;
+			});
+			return { key: W.P.evs.map((v) => v.q + ":" + v.n).join(" "), state: c };
+		},
 	},
 });
 
@@ -27190,6 +27253,19 @@ Object.assign(MG, {
 		rules() {},
 		/* tools/watch.mjs: one summary line, and a rough stand-in for a human player (the boss aims straight at a truck, no
 		   leading; survivors play like the CPUs) */
+		/* tools/nettest.mjs: what must look the same on every device */
+		syncSnap(W) {
+			return {
+				hp: W.hp,
+				phase: W.ph,
+				ko: W.ko !== undefined,
+				crates: [...W.claimed].sort((a, b) => a - b).join(","),
+				grabbed: W.list
+					.filter((e) => e.f && e.f.gr)
+					.map(mgName)
+					.join(","),
+			};
+		},
 		watchSum(W) {
 			const m = W.ms,
 				f = (m && m.f) || {};
@@ -31878,6 +31954,184 @@ setInterval(() => {
 	render.last = null;
 	render();
 })();
+
+/* ---------- bug reports: three-finger tap (F8 on a keyboard, or the home screen button) opens a panel with a
+   screenshot of the game view, recent errors and the game state; Share sends it all (iPhone), Copy copies the text ---------- */
+function dbgGrab(cv) {
+	DBG.want = false;
+	try {
+		const k = Math.min(1, 540 / cv.width),
+			c = document.createElement("canvas");
+		c.width = Math.round(cv.width * k);
+		c.height = Math.round(cv.height * k);
+		c.getContext("2d").drawImage(cv, 0, 0, c.width, c.height);
+		DBG.shot = c.toDataURL("image/jpeg", 0.75);
+	} catch (e) {
+		DBG.shot = null;
+	}
+}
+/* where the player is, for the crash marker and the report */
+function dbgWhere() {
+	if (W && W.def) return `minigame ${W.def.name} at ${W.t.toFixed(1)} s`;
+	if (G)
+		return `${G.practice ? "practice" : G.tv ? "TV game" : "game"}, ${G.phase}${G.round ? ` round ${G.round}/${G.rounds}` : ""}`;
+	return `home (${homeSub})`;
+}
+/* the crash marker: refreshed while the page is on screen, marked clean when it's hidden or left. If the next load
+   finds it unclean, the page died on screen (a crash, or iOS killing it for memory) */
+{
+	const prev = LS.get("trp_live", null);
+	if (prev && !prev.clean && Date.now() - prev.at < 30 * 60000)
+		DBG.crash = `the page stopped on screen during: ${prev.where} (${Math.round((Date.now() - prev.at) / 60000)} min before this load)`;
+	const beat = () => {
+		if (!document.hidden) LS.set("trp_live", { at: Date.now(), where: dbgWhere(), clean: false });
+	};
+	const clean = () => LS.set("trp_live", { at: Date.now(), where: dbgWhere(), clean: true });
+	setInterval(beat, 3000);
+	addEventListener("pagehide", clean);
+	document.addEventListener("visibilitychange", () => (document.hidden ? clean() : beat()));
+}
+function dbgText(note) {
+	const L = [],
+		tr = (f) => {
+			try {
+				f();
+			} catch (e) {
+				L.push("(" + e.message + ")");
+			}
+		};
+	L.push(`Big Rig Rumble bug report, build ${BUILD}`);
+	if (note) L.push(`Note: ${note}`);
+	tr(() => {
+		let gpu = "";
+		try {
+			const gl = GFX.r && GFX.r.getContext(),
+				x = gl && gl.getExtension("WEBGL_debug_renderer_info");
+			gpu = x ? gl.getParameter(x.UNMASKED_RENDERER_WEBGL) : "";
+		} catch (e) {}
+		const fps = (GFX.fps && GFX.fps.el && GFX.fps.el.textContent) || "? fps";
+		L.push(
+			`Device: ${innerWidth}x${innerHeight} @${devicePixelRatio}x, ${GFX.touch ? "touch" : "mouse"}, ${gpu || "GPU ?"}, ${fps}`,
+		);
+		L.push(`Browser: ${navigator.userAgent.slice(0, 170)}`);
+	});
+	tr(() => L.push(`Where: ${dbgWhere()}, page open ${Math.round((Date.now() - DBG.t0) / 1000)} s`));
+	tr(() => {
+		L.push(
+			`Net: role ${role}, ${NET.status}${NET.err ? ` (${NET.err})` : ""}, code ${NET.code || "-"}, ${peers.length} peers`,
+		);
+		if (!G) return;
+		const tag = (p) => (p.bot ? " (CPU)" : p.local ? " (same phone)" : G === HG && !online(p.key) ? " OFFLINE" : "");
+		L.push(`Game: phase ${G.phase}, turn ${G.turn}, players ${G.players.map((p) => p.name + tag(p)).join(", ")}`);
+		if (G.mg) {
+			const mg = G.mg;
+			L.push(
+				`Minigame state: ${mg.g}${mg.team ? " " + mg.team : ""}${mg.duel ? " duel" : ""}, started ${mg.t0 ? "yes" : "no"}, ready [${Object.keys(mg.ready || {}).join(" ")}], scores from [${Object.keys(mg.res || {}).join(" ")}]`,
+			);
+		}
+	});
+	tr(() => {
+		if (!W) return;
+		const e = W.me,
+			flags = [W.tv && "TV", W.split && "split", W.localOnly && "practice run"].filter(Boolean).join(", ");
+		L.push(
+			`World: ${W.def.name}, t ${W.t.toFixed(1)}, ${W.list.length} trucks, over ${!!W.over}, sent ${!!W.submitted}${flags ? ", " + flags : ""}`,
+		);
+		if (e)
+			L.push(
+				`Me: ${e.p.name} at ${e.x.toFixed(1)}, ${e.z.toFixed(1)}, y ${e.y.toFixed(1)}, ${e.al ? "alive" : "out"}${e.d ? ", done" : ""}${e.side !== undefined ? ", side " + e.side : ""}, score ${Math.round(e.sc)}`,
+			);
+		const age = (x) =>
+			x.local ? "" : x.net ? ` (${Math.round(performance.now() - x.net.at)} ms old)` : " (never seen)";
+		L.push(
+			`Others: ${W.list
+				.filter((x) => x !== e)
+				.map((x) => mgName(x) + age(x) + (x.al ? "" : " out"))
+				.join(", ")}`,
+		);
+	});
+	if (DBG.crash) L.push(`Last session: ${DBG.crash}`);
+	L.push(DBG.errs.length ? `Errors (${DBG.errs.length}):` : "Errors: none");
+	DBG.errs.forEach((e) =>
+		L.push(
+			`  ${Math.round((Date.now() - e.at) / 1000)} s ago: ${e.msg}${e.where ? " @ " + e.where : ""}${e.stack ? "\n    " + e.stack : ""}`,
+		),
+	);
+	if (DBG.log.length) {
+		L.push("Last game events:");
+		DBG.log.slice(-15).forEach((l) => L.push("  " + l));
+	}
+	return L.join("\n");
+}
+function dbgOpen() {
+	if (document.getElementById("dbgp")) return;
+	DBG.shot = null;
+	DBG.want = true;
+	/* give the next frame a moment to be grabbed (if anything is rendering), then show the panel */
+	setTimeout(() => {
+		DBG.want = false;
+		const p = document.createElement("div");
+		p.id = "dbgp";
+		p.innerHTML = `<div class="dbgbox"><h2>🐞 Bug report</h2>${DBG.shot ? `<img alt="Screenshot of the game" src="${DBG.shot}">` : `<p class="note">No game view to capture here.</p>`}
+      <label class="field">What went wrong? (optional)<input id="dbgnote" maxlength="200" placeholder="e.g. my truck froze after the TNT"></label>
+      <textarea id="dbgtx" readonly></textarea>
+      <div class="row"><button class="btn go" data-dbg="share">${navigator.share ? "Share" : "Save screenshot"}</button><button class="btn ghost" data-dbg="copy">Copy text</button><button class="btn ghost" data-dbg="close">Close</button></div></div>`;
+		document.body.appendChild(p);
+		const tx = $("#dbgtx"),
+			up = () => (tx.value = dbgText($("#dbgnote").value.trim()));
+		up();
+		$("#dbgnote").addEventListener("input", up);
+	}, 150);
+}
+async function dbgAct(a) {
+	const tx = $("#dbgtx"),
+		text = tx ? tx.value : "";
+	if (a === "open") dbgOpen();
+	else if (a === "close") {
+		const p = $("#dbgp");
+		if (p) p.remove();
+	} else if (a === "copy") {
+		try {
+			await navigator.clipboard.writeText(text);
+		} catch (e) {
+			tx.select();
+			document.execCommand("copy");
+		}
+		$('[data-dbg="copy"]').textContent = "Copied ✓";
+	} else if (a === "share") {
+		let file = null;
+		if (DBG.shot) {
+			const blob = await (await fetch(DBG.shot)).blob();
+			file = new File([blob], "bigrig-bug.jpg", { type: "image/jpeg" });
+		}
+		if (navigator.share) {
+			try {
+				if (file && navigator.canShare && navigator.canShare({ files: [file] }))
+					await navigator.share({ files: [file], text, title: "Big Rig Rumble bug" });
+				else await navigator.share({ text, title: "Big Rig Rumble bug" });
+			} catch (e) {}
+		} else if (DBG.shot) {
+			const l = document.createElement("a");
+			l.href = DBG.shot;
+			l.download = "bigrig-bug.jpg";
+			l.click();
+		}
+	}
+}
+document.addEventListener("click", (e) => {
+	const b = e.target.closest("[data-dbg]");
+	if (b) dbgAct(b.dataset.dbg);
+});
+document.addEventListener(
+	"touchstart",
+	(e) => {
+		if (e.touches.length === 3) dbgOpen();
+	},
+	{ passive: true },
+);
+addEventListener("keydown", (e) => {
+	if (e.key === "F8") dbgOpen();
+});
 </script>
 </body>
 </html>

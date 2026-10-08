@@ -1,3 +1,34 @@
+/* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
+const BUILD = "__BUILD__";
+const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
+(() => {
+	const add = (msg, src, line, col, stack) => {
+		DBG.errs.push({
+			at: Date.now(),
+			msg: String(msg).slice(0, 300),
+			where: src ? `${String(src).split("/").pop().split("?")[0]}:${line}:${col}` : "",
+			stack: stack ? String(stack).split("\n").slice(0, 4).join(" | ").slice(0, 400) : "",
+		});
+		if (DBG.errs.length > 15) DBG.errs.shift();
+	};
+	addEventListener(
+		"error",
+		(e) => {
+			const t = e.target;
+			if (t && t !== window && (t.src || t.href)) add("failed to load " + (t.src || t.href).slice(0, 120));
+			else add(e.message, e.filename, e.lineno, e.colno, e.error && e.error.stack);
+		},
+		true,
+	);
+	addEventListener("unhandledrejection", (e) =>
+		add("unhandled promise: " + ((e.reason && e.reason.message) || e.reason), "", 0, 0, e.reason && e.reason.stack),
+	);
+	const ce = console.error.bind(console);
+	console.error = (...a) => {
+		add("console.error: " + a.map((x) => (x && x.message) || String(x)).join(" "), "", 0, 0, a[0] && a[0].stack);
+		ce(...a);
+	};
+})();
 const PRICE = 20,
 	START_COINS = 10,
 	N = 32;
@@ -978,6 +1009,8 @@ function gfxInit() {
 			r.render = (s, c) => {
 				if (s && s.isScene) gfxLook(s);
 				rr(s, c);
+				/* bug report screenshot: grab the frame right after it reaches the screen (no preserveDrawingBuffer needed) */
+				if (DBG.want && r.getRenderTarget() === null) dbgGrab(r.domElement);
 			};
 		}
 		GFX.cam = new THREE.PerspectiveCamera(40, 1, 0.5, 240);

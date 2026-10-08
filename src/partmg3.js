@@ -1227,6 +1227,7 @@ Object.assign(MG, {
 			const ev = { q: e.i, n: raw[0], t: raw[1] / 100, cells: raw.slice(2).filter((c) => c >= 0 && c < P.N * P.N) };
 			P.evs.push(ev);
 			P.fresh.push(ev);
+			mgLog(W, `${e.local ? "sends" : "got"} ${mgName(e)} loop #${raw[0]} (${ev.cells.length} cells)`);
 		},
 		replay(W) {
 			const P = W.P;
@@ -1804,6 +1805,14 @@ Object.assign(MG, {
 			return h ? steer(e, h[0], h[1], 0.9) : wander(W, e, 0.016, 8);
 		},
 		botScore: () => 8 + rnd(25),
+		/* tools/nettest.mjs: the paint (cells per truck) must match whenever both devices hold the same loops (key) */
+		syncSnap(W) {
+			const c = {};
+			W.P.own.forEach((v) => {
+				if (v >= 0) c[mgName(W.list[v])] = (c[mgName(W.list[v])] || 0) + 1;
+			});
+			return { key: W.P.evs.map((v) => v.q + ":" + v.n).join(" "), state: c };
+		},
 	},
 });
 
@@ -2370,6 +2379,19 @@ Object.assign(MG, {
 		rules() {},
 		/* tools/watch.mjs: one summary line, and a rough stand-in for a human player (the boss aims straight at a truck, no
 		   leading; survivors play like the CPUs) */
+		/* tools/nettest.mjs: what must look the same on every device */
+		syncSnap(W) {
+			return {
+				hp: W.hp,
+				phase: W.ph,
+				ko: W.ko !== undefined,
+				crates: [...W.claimed].sort((a, b) => a - b).join(","),
+				grabbed: W.list
+					.filter((e) => e.f && e.f.gr)
+					.map(mgName)
+					.join(","),
+			};
+		},
 		watchSum(W) {
 			const m = W.ms,
 				f = (m && m.f) || {};

@@ -403,6 +403,7 @@ function homeHTML() {
     <button class="btn ghost" data-a="practice">🎮 Minigame practice</button>
     ${FINE && GFX.ok ? `<button class="btn ghost" data-a="editor">🛠 Map editor</button>` : ""}
     <div>${statusHTML()}</div>
+    <button class="btn ghost small" data-dbg="open">🐞 Report a bug</button>
   </section>
   <details class="sheet how"><summary>How to play</summary><ul>
     <li>On your turn, pick the standard die or your truck's special die and roll.</li>

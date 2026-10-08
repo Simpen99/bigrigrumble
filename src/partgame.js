@@ -1360,12 +1360,21 @@ function forcedSplit(g) {
 		ps = HG.players;
 	if (!mode || ps.length < 2) return null;
 	const tm = {},
-		hum = ps.find((p) => !p.bot),
+		hum = ps.find((p) => p.key === me.key) || ps.find((p) => !p.bot),
 		order = ps.slice().sort(() => Math.random() - 0.5);
 	if (mode === "1v3") {
-		/* TEST_SIDE (set by tools/watch.mjs --side) puts the host's truck on side 0 or 1 */
+		/* TEST_SIDE (tools/watch.mjs --side, nettest.mjs --solo) puts the host's truck on side 0 or 1, or names the solo player's key */
 		const others = order.filter((p) => p !== hum),
-			solo = TEST_SIDE === 0 && hum ? hum : TEST_SIDE === 1 ? others[0] : hum && Math.random() < 0.5 ? hum : order[0];
+			solo =
+				typeof TEST_SIDE === "string" && ps.some((p) => p.key === TEST_SIDE)
+					? ps.find((p) => p.key === TEST_SIDE)
+					: TEST_SIDE === 0 && hum
+						? hum
+						: TEST_SIDE === 1
+							? others[0]
+							: hum && Math.random() < 0.5
+								? hum
+								: order[0];
 		ps.forEach((p) => (tm[p.key] = p === solo ? 0 : 1));
 	} else order.forEach((p, i) => (tm[p.key] = i % 2));
 	return { mode, tm, tc: SIDE_COL.slice() };

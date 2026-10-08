@@ -253,7 +253,12 @@ const steer = (e, tx, tz, m = 1) => {
    truck; the engine logs knockouts (with the cause) and finishes. Off unless a tool sets MG_LOG. */
 var MG_LOG = false;
 function mgLog(W, txt) {
-	if (MG_LOG && W) (W.log || (W.log = [])).push(`${W.t.toFixed(1)} ${txt}`);
+	if (!W) return;
+	const l = `${W.t.toFixed(1)} ${txt}`;
+	if (MG_LOG) (W.log || (W.log = [])).push(l);
+	/* the last 40 also go into bug reports */
+	DBG.log.push(l);
+	if (DBG.log.length > 40) DBG.log.shift();
 }
 const mgName = (e) => (e && e.p ? e.p.name.replace(/^CPU /, "") : "?");
 function eliminate(W, e) {
