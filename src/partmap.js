@@ -4782,6 +4782,7 @@ addEventListener("keydown", (e) => {
 			if (!e.repeat) W.inp.boost = true;
 			W.inp.hold = true;
 		}
+		if (k === "e" && W.def.btn2) W.inp.b2 = true;
 	} else if ((k === " " || k === "enter" || k === "w" || k === "arrowup") && W.t >= 0 && !W.me.d && W.def.tap)
 		W.def.tap(W, W.me);
 });

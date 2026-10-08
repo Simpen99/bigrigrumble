@@ -278,6 +278,7 @@ body.trin #mg .m3top{animation:trtop .6s .35s ease-out both}body.trin #mg .m3lb,
 .ram{background:radial-gradient(circle at 38% 32%,#FF8A8D,#E5484D 55%,#B3262D)!important;box-shadow:0 0 0 5px #151B24,0 0 0 9px #FFC83D,0 12px 26px rgba(0,0,0,.45)!important;font-size:22px!important;letter-spacing:1px;text-shadow:0 2px 0 rgba(0,0,0,.3)}
 .ram .ramcd{position:absolute;inset:0;border-radius:50%;background:conic-gradient(rgba(16,22,31,.72) calc(var(--cd,0) * 360deg),transparent 0);pointer-events:none}.ram span{position:relative}
 .ram.cd{opacity:1!important}
+.ram.ram2{right:132px;bottom:calc(env(safe-area-inset-bottom,0px) + 34px);width:78px;height:78px;font-size:15px!important;background:radial-gradient(circle at 38% 32%,#FFE27A,#FF8A1F 55%,#C25E0B)!important}
 .ram.held{transform:translateY(4px) scale(.93);filter:brightness(.82);box-shadow:0 0 0 5px #151B24,0 0 0 9px #FFC83D,inset 0 6px 12px rgba(0,0,0,.35),0 4px 10px rgba(0,0,0,.35)!important}
 .tapall.kick{transform:translateY(2px)}
 .tp-pedal,.tp-launch,.tp-drop,.tp-jump{background:linear-gradient(180deg,#2A303C,#171C25)!important;border:2px solid #3A4150!important;box-shadow:0 10px 26px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.08);overflow:hidden;text-align:left}
@@ -710,7 +711,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-09 00:43 5763f36";
+const BUILD = "2026-10-09 01:23 180d23e";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -7420,6 +7421,7 @@ addEventListener("keydown", (e) => {
 			if (!e.repeat) W.inp.boost = true;
 			W.inp.hold = true;
 		}
+		if (k === "e" && W.def.btn2) W.inp.b2 = true;
 	} else if ((k === " " || k === "enter" || k === "w" || k === "arrowup") && W.t >= 0 && !W.me.d && W.def.tap)
 		W.def.tap(W, W.me);
 });
@@ -7624,6 +7626,12 @@ function noiseHit(d, vol = 0.3, f1 = 800, f2 = 200, at = 0, q = 1) {
 	g.connect(SFX.out);
 	s.start(t);
 }
+/* a short buzz on phones that support it (Android). iPhone Safari has no vibration API, not even as a home screen app */
+function buzz(ms) {
+	try {
+		if (navigator.vibrate) navigator.vibrate(ms);
+	} catch (e) {}
+}
 function sfx(n) {
 	if (!SFX.on || !SFX.ctx || SFX.ctx.state !== "running") return;
 	try {
@@ -7701,6 +7709,19 @@ function sfx(n) {
 			case "crush":
 				tone(90, 0.3, "sine", 0.35, 40);
 				noiseHit(0.25, 0.3, 500, 80);
+				break;
+			/* Monster Mash: tyre cannon (a deep thump with a hiss of air), pound wind-up (rising rumble), stun (dizzy chirps) */
+			case "cannon":
+				tone(140, 0.18, "sine", 0.32, 55);
+				noiseHit(0.14, 0.28, 2600, 300, 0, 1.5);
+				noiseHit(0.22, 0.1, 5000, 2000, 0.03, 1);
+				break;
+			case "windup":
+				tone(70, 0.6, "sawtooth", 0.08, 190);
+				noiseHit(0.55, 0.08, 300, 900, 0, 1);
+				break;
+			case "stun":
+				for (let i = 0; i < 3; i++) tone(1500 - i * 220, 0.08, "triangle", 0.06, 1900 - i * 220, i * 0.09);
 				break;
 		}
 	} catch (e) {}
@@ -12442,7 +12463,7 @@ function openMg(mg, p) {
       <div class="m3lb${def.lbTop ? " top" : ""}" id="m3lb"></div><div class="m3intro" id="m3in"><h3>${esc(def.name)}</h3><p>${esc(def.how)}</p>${teamLine(mg, p, def)}<p class="m3ctl">${def.ctrl === "stick" ? (def.stickHint ? def.stickHint(FINE) : FINE ? "WASD or arrow keys to drive, Space to ram." : "Drag anywhere to drive. Tap RAM to charge.") : esc(def.tapHint || "Tap the big button.") + (FINE ? " On a keyboard, press Space." : "")}</p>${!first ? `<p class="m3ctl">Practice run against CPU trucks. Your score still counts.</p>` : ""}</div>
       <div class="m3center${def.msgTop ? " hi" : ""}"><div class="m3big" id="m3c"></div><div class="m3msg" id="m3m" hidden></div></div>
       ${first ? `<div class="m3ready" id="m3r"><h3>Get ready</h3><div id="m3rl"></div><button class="btn go" id="m3rb">I'm ready${FINE ? " (Enter)" : ""}</button><button class="btn ghost" id="m3rs" hidden style="margin-top:8px">Start without the others</button></div>` : ""}
-      ${def.ctrl === "custom" ? def.ctlHTML() : def.ctrl === "stick" ? stickHTML(def, def.aim ? "Drive" : "") : `${tapCtlHTML(mg.g, def)}`}`;
+      ${def.ctrl === "custom" ? def.ctlHTML() : def.ctrl === "stick" ? stickHTML(def, def.aim ? "Drive" : "", mg.tm ? mg.tm[p.key] : undefined) : `${tapCtlHTML(mg.g, def)}`}`;
 		wireControls(def);
 		const rb = $("#m3rb");
 		if (rb)
@@ -13073,11 +13094,14 @@ function wireLightPanel() {
 	});
 }
 /* stick controls: drive pad plus the RAM button, or (def.aim) a drive pad on the left and an aim pad on the right */
-function stickHTML(def, hint) {
+/* the main button's label and the optional second button (def.btn2(side) -> label or null), per side in team games */
+const ramLbl = (def, side) => (typeof def.ramLabel === "function" ? def.ramLabel(side) : def.ramLabel) || "RAM";
+const btn2Lbl = (def, side) => (def.btn2 ? def.btn2(side) : null);
+function stickHTML(def, hint, side) {
 	const h = hint ? `<span class="tvchint">${hint}</span>` : "";
 	return def.aim
 		? `<div class="m3pad twin" id="m3pad">${h}<div class="knob" id="knob" hidden><i></i></div></div><div class="m3pad aim" id="m3aim">${hint ? `<span class="tvchint">${esc(def.aimHint || "Aim")}</span>` : ""}<div class="knob aim" id="knob2" hidden><i></i></div></div>`
-		: `<div class="m3pad" id="m3pad">${h}<div class="knob" id="knob" hidden><i></i></div></div><button class="ram" id="ram"><i class="ramcd"></i><span>${esc(def.ramLabel || "RAM")}</span></button>`;
+		: `<div class="m3pad" id="m3pad">${h}<div class="knob" id="knob" hidden><i></i></div></div><button class="ram" id="ram"><i class="ramcd"></i><span>${esc(ramLbl(def, side))}</span></button>${btn2Lbl(def, side) ? `<button class="ram ram2" id="ram2"><i class="ramcd"></i><span>${esc(btn2Lbl(def, side))}</span></button>` : ""}`;
 }
 function wireControls(def) {
 	wireLightPanel();
@@ -13101,6 +13125,12 @@ function wireControls(def) {
 				}
 			});
 			["pointerup", "pointercancel", "pointerleave"].forEach((ev) => rb.addEventListener(ev, up));
+			const r2 = $("#ram2");
+			if (r2)
+				r2.addEventListener("pointerdown", (e) => {
+					e.preventDefault();
+					if (W) W.inp.b2 = true;
+				});
 		}
 	} else wireTap(def);
 }
@@ -13256,6 +13286,11 @@ function hud3(dt) {
 		rb.classList.toggle("cd", W.def.ramReady ? !W.def.ramReady(W) : W.me.bcd > 0);
 		rb.style.setProperty("--cd", cd.toFixed(3));
 		rb.classList.toggle("held", !!W.inp.hold);
+	}
+	const r2 = $("#ram2");
+	if (r2 && W.def.btn2Cd) {
+		r2.style.setProperty("--cd", W.def.btn2Cd(W).toFixed(3));
+		r2.classList.toggle("cd", W.def.btn2Cd(W) > 0);
 	}
 }
 // times are stored in ms but shown as seconds with 2 decimals
@@ -13510,7 +13545,7 @@ function openTvMg(mg) {
 	rtJoin(mg.nonce);
 	start3D(mg, null, false, null);
 	box.innerHTML = `<div class="m3top"><span class="chip name">${esc(def.name)}</span><span class="chip" id="m3t"></span><span class="chip grow">📱 Play on your phones</span></div>
-    <div class="m3lb${def.lbTop ? " top" : ""}" id="m3lb"></div><div class="m3intro" id="m3in"><h3>${esc(def.name)}</h3><p>${esc(def.how)}</p><p class="m3ctl">${def.aim ? "Left side of your phone drives, right side aims." : `Drag on your phone to drive. Tap ${esc(def.ramLabel || "RAM")} to ${def.ramLabel ? "use it" : "charge into someone"}.`}</p></div>
+    <div class="m3lb${def.lbTop ? " top" : ""}" id="m3lb"></div><div class="m3intro" id="m3in"><h3>${esc(def.name)}</h3><p>${esc(def.how)}</p><p class="m3ctl">${def.aim ? "Left side of your phone drives, right side aims." : `Drag on your phone to drive. Tap ${esc(ramLbl(def))} to ${def.ramLabel ? "use it" : "charge into someone"}.`}</p></div>
     <div class="m3center${def.msgTop ? " hi" : ""}"><div class="m3big" id="m3c"></div><div class="m3msg" id="m3m" hidden></div></div>
     <div class="m3ready" id="m3r"><h3>Get ready</h3><div id="m3rl"></div><button class="btn ghost" id="m3rs" hidden style="margin-top:8px">Start without the others</button></div>`;
 	$("#m3rs").addEventListener("click", () => mgStartCountdown());
@@ -13575,6 +13610,11 @@ function tvRecv() {
 			e.lastB = r.b;
 			i.boost = true;
 		}
+		if (e.lastB2 === undefined) e.lastB2 = r.b2 || 0;
+		else if ((r.b2 || 0) !== e.lastB2) {
+			e.lastB2 = r.b2 || 0;
+			i.b2 = true;
+		}
 	}
 }
 function tvSend(force) {
@@ -13628,6 +13668,9 @@ function tvStatus(W, e, order) {
 			String(msg).slice(0, 90),
 			order.indexOf(e) + 1,
 			ld ? Math.round(ld.t * 10) : 0,
+			null,
+			D.btn2Cd ? Math.round(D.btn2Cd(W) * 100) / 100 : 0,
+			e.buzz || 0,
 		];
 	} catch (err) {
 		return ["", 0, 0, 0, "", 0, 0];
@@ -13670,7 +13713,7 @@ function openTvCtl(mg, p) {
 	box.innerHTML = `<div class="tvc${def.ctrl === "stick" ? " bare" : ""}" style="--c:${pcol(p)}"><div class="tvrot">🔄 Turn your phone sideways</div><div class="m3top"><span class="chip name">${esc(def.name)}</span><span class="chip" id="tvct">Waiting</span></div>
     <div class="tvcme"><img alt="" src="${thumb(p.truck)}"><div><b id="tvcs">0</b><small id="tvcr">${esc(p.name)}</small></div></div>
     <div class="tvcmsg" id="tvcm">📺 Watch the TV</div>
-    ${def.ctrl === "stick" ? stickHTML(def, def.aim ? "Drive" : "Drag anywhere here to drive") : `<div class="tvcctl" id="tvcctl">${def.ctrl === "custom" ? def.ctlHTML() : tapCtlHTML(mg.g, def)}</div>`}
+    ${def.ctrl === "stick" ? stickHTML(def, def.aim ? "Drive" : "Drag anywhere here to drive", mg.tm ? mg.tm[p.key] : undefined) : `<div class="tvcctl" id="tvcctl">${def.ctrl === "custom" ? def.ctlHTML() : tapCtlHTML(mg.g, def)}</div>`}
     <div class="m3ready" id="m3r"><h3>${esc(def.name)}</h3><p style="font-size:14px;line-height:1.45;margin-bottom:10px">${esc(def.how)}</p><div id="m3rl"></div><button class="btn go" id="m3rb">I'm ready</button></div></div>`;
 	if (def.ctrl === "stick") {
 		wireStick(() => TVC && TVC.inp);
@@ -13692,6 +13735,15 @@ function openTvCtl(mg, p) {
 				}
 			});
 		if (rb) ["pointerup", "pointercancel", "pointerleave"].forEach((ev) => rb.addEventListener(ev, up));
+		const r2 = $("#ram2");
+		if (r2)
+			r2.addEventListener("pointerdown", (e) => {
+				e.preventDefault();
+				if (TVC) {
+					TVC.b2 = (TVC.b2 || 0) + 1;
+					tvcTick();
+				}
+			});
 	} else {
 		const wrap = $("#tvcctl"),
 			downs = new Map(),
@@ -13763,7 +13815,7 @@ function tvcTick() {
 	if (!TVC || !G || !G.mg || G.mg.nonce !== TVC.mg.nonce) return;
 	const i = TVC.inp,
 		r = (v) => Math.round(v * 100) / 100,
-		key = [r(i.x), r(i.y), r(i.ax || 0), r(i.ay || 0), TVC.b, i.hold ? 1 : 0, TVC.seq].join(),
+		key = [r(i.x), r(i.y), r(i.ax || 0), r(i.ay || 0), TVC.b, TVC.b2 || 0, i.hold ? 1 : 0, TVC.seq].join(),
 		now = performance.now();
 	if (RT && (key !== TVC.last || now - TVC.lastT > 600)) {
 		TVC.last = key;
@@ -13777,6 +13829,7 @@ function tvcTick() {
 				ax: r(i.ax || 0),
 				ay: r(i.ay || 0),
 				b: TVC.b,
+				b2: TVC.b2 || 0,
 				h: i.hold ? 1 : 0,
 				ev: TVC.ev.slice(),
 			},
@@ -13848,6 +13901,15 @@ function tvcTick() {
 		rb.classList.toggle("cd", st ? !st[2] : false);
 		rb.style.setProperty("--cd", st ? String(st[1]) : "0");
 		rb.classList.toggle("held", !!i.hold);
+	}
+	const r2 = $("#ram2");
+	if (r2) {
+		r2.classList.toggle("cd", !!(st && st[8] > 0));
+		r2.style.setProperty("--cd", st ? String(st[8] || 0) : "0");
+	}
+	if (st && st[9] && st[9] !== TVC.buzz) {
+		if (TVC.buzz !== undefined) buzz(40);
+		TVC.buzz = st[9];
 	}
 }
 
@@ -26705,7 +26767,9 @@ const MM = {
 	R: 12.5,
 	TV: 12 /* tyre speed */,
 	CLAW: 1.1 /* seconds close before the magnet grabs */,
-	JUMP: 0.7 /* ground pound: jump time before the slam */,
+	WIND: 0.6 /* ground pound: wind-up after the button */,
+	JUMP: 0.7 /* then the jump before the slam */,
+	STUN: 1 /* shockwave stun */,
 	RING: 10 /* shockwave speed */,
 	hpMax: (n) => Math.min(14, Math.max(6, n * 3)),
 };
@@ -26781,6 +26845,33 @@ function mmMagnet() {
 	g.visible = false;
 	return g;
 }
+/* dizzy stars circling over a stunned truck: three chunky five-point stars */
+function mmStars() {
+	const g = new THREE.Group(),
+		sh = new THREE.Shape();
+	for (let i = 0; i < 10; i++) {
+		const a = (i / 10) * Math.PI * 2 - Math.PI / 2,
+			r = i % 2 ? 0.11 : 0.26;
+		if (i) sh.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+		else sh.moveTo(Math.cos(a) * r, Math.sin(a) * r);
+	}
+	const geo = new THREE.ExtrudeGeometry(sh, { depth: 0.08, bevelEnabled: false }).translate(0, 0, -0.04),
+		mat = new THREE.MeshStandardMaterial({
+			color: "#FFD23F",
+			emissive: "#FFB000",
+			emissiveIntensity: 0.6,
+			flatShading: true,
+		});
+	for (let i = 0; i < 3; i++) {
+		const m = new THREE.Mesh(geo, mat),
+			a = (i / 3) * Math.PI * 2;
+		m.position.set(Math.cos(a) * 0.75, Math.sin(i * 2.1) * 0.12, Math.sin(a) * 0.75);
+		m.rotation.y = -a;
+		g.add(m);
+	}
+	g.visible = false;
+	return g;
+}
 /* TNT bundle on a carrier's roof: three red sticks, two tape bands, a wick */
 function mmBundle() {
 	const g = new THREE.Group();
@@ -26813,12 +26904,18 @@ Object.assign(MG, {
 		how: "Boss fight! The monster truck fires tyres and ground-pounds from its turntable. Grab TNT crates and drive them into it: knock it out or survive to win as a team.",
 		teamHow: (s) =>
 			s === 0
-				? "You're the MONSTER: tap FIRE for tyres, hold it for a Ground Pound. Knock them all into the mud!"
-				: "Grab 🧨 TNT and drive it into the monster! DASH through shockwaves, and don't hang around it: the magnet grabs you.",
+				? "You're the MONSTER: FIRE shoots tyres, POUND sends out a shockwave. Knock them all into the mud!"
+				: "Grab 🧨 TNT and drive it into the monster! DASH through shockwaves (they stun you), and don't hang around it: the magnet grabs you.",
 		stickHint: (fine) =>
 			fine
-				? "WASD or arrows to drive (the monster aims with them). Space: fire / dash."
-				: "Drag to drive (the monster aims). The button fires (hold: Ground Pound) or dashes.",
+				? "WASD or arrows to drive (the monster aims with them). Space: fire / dash, E: ground pound."
+				: "Drag to drive (the monster aims). Buttons: FIRE + POUND for the monster, DASH for everyone else.",
+		ramLabel: (side) => (side === 0 ? "FIRE" : "DASH"),
+		btn2: (side) => (side === 0 ? "POUND" : null),
+		btn2Cd(W) {
+			const e = W.me;
+			return e.side !== 0 ? 0 : e.chgT !== undefined ? 1 : Math.min(1, (e.pcd || 0) / 6);
+		},
 		R: () => MM.R,
 		canRam: () => false,
 		ramCd(W) {
@@ -26953,6 +27050,9 @@ Object.assign(MG, {
 				e.tr.add(b);
 				e.bun = b;
 				e.topY = t.y;
+				e.stars = mmStars();
+				e.stars.position.y = t.y + 0.55;
+				e.g.add(e.stars);
 				return;
 			}
 			/* the monster: a giant on the turntable with a tyre cannon on its roof */
@@ -27053,8 +27153,9 @@ Object.assign(MG, {
 			else this.survPhys(W, e, inp, dt);
 		},
 		monPhys(W, e, inp, dt) {
-			const press = !!(inp && (inp.boost || inp.fire));
-			if (inp) inp.boost = false;
+			const press = !!(inp && (inp.boost || inp.fire)),
+				pound = !!(inp && (inp.b2 || inp.pound));
+			if (inp) inp.boost = inp.b2 = false;
 			if (W.ko !== undefined || e.d) {
 				e.vx = e.vz = 0;
 				return;
@@ -27099,19 +27200,23 @@ Object.assign(MG, {
 				});
 				e.fcd = ph === 1 ? 1 : 0.85;
 				e.recoil = 1;
+				if (e.isMe) buzz(25);
 			}
-			if (inp && inp.hold && e.pcd <= 0 && !jumping) {
-				e.chg += dt;
-				if (e.chg >= 0.8) {
+			/* POUND: a short wind-up (the warning ring grows), then the jump and the slam */
+			if (pound && e.pcd <= 0 && !jumping && e.chgT === undefined && W.t > 1.2) e.chgT = W.t;
+			if (e.chgT !== undefined) {
+				e.chg = W.t - e.chgT;
+				if (e.chg >= MM.WIND) {
 					const r = (v) => Math.round(v * 100) / 100;
 					e.chg = 0;
+					e.chgT = undefined;
 					e.pcd = ph === 3 ? 5 : 6;
 					e.f.gpn = (e.f.gpn | 0) + 1;
 					e.f.gp = [e.f.gpn, r(W.t), r(e.x), r(e.z)];
 					mgLog(W, "boss: ground pound");
 				}
 			} else e.chg = 0;
-			e.f.ch = Math.round((e.chg / 0.8) * 10) / 10;
+			e.f.ch = Math.round((e.chg / MM.WIND) * 10) / 10;
 			const sv = W.list.filter((o) => o.side !== 0 && !o.gone);
 			e.sc = sv.filter((o) => !o.al).length;
 			if (sv.length && W.t > 1 && sv.every((o) => !o.al)) {
@@ -27126,7 +27231,11 @@ Object.assign(MG, {
 			e.vz += nz * K;
 			e.slideT = sl;
 			e.hitAng = [nx, nz];
-			if (e.isMe) W.shake = 0.4;
+			e.buzz = (e.buzz || 0) + 1;
+			if (e.isMe) {
+				W.shake = 0.4;
+				if (!W.tv) buzz(70);
+			}
 			hitFx(e, e);
 		},
 		release(W, e, push) {
@@ -27184,6 +27293,11 @@ Object.assign(MG, {
 				e.y = Math.max(0, e.y + e.vy * dt);
 				if (!e.y) e.vy = 0;
 			}
+			if (e.stunT > 0) {
+				e.stunT -= dt;
+				if (inp) inp.boost = false;
+				inp = { x: 0, y: 0, boost: false };
+			}
 			arenaPhys(W, e, inp, dt);
 			if (!e.al || e.falling || e.d || W.t < 0) return;
 			e.tA = W.t;
@@ -27193,7 +27307,7 @@ Object.assign(MG, {
 					e.tyHit[t.id] = 1;
 					if (W.t - (e.tyT || -9) > 0.3) {
 						e.tyT = W.t;
-						this.knock(W, e, t.dx, t.dz, 9, 0.45, "tyre");
+						this.knock(W, e, t.dx, t.dz, 10.4, 0.45, "tyre");
 					}
 				}
 			const g = W.gpLive;
@@ -27216,7 +27330,12 @@ Object.assign(MG, {
 							W.mm.banner = "Dodged!";
 							W.mm.bannerT = W.t + 0.8;
 						}
-					} else this.knock(W, e, dx / d, dz / d, 11, 0.5, "shockwave");
+					} else {
+						this.knock(W, e, dx / d, dz / d, 11, 0.5, "shockwave");
+						e.stunT = MM.STUN;
+						e.f.stn = Math.round((W.t + MM.STUN) * 100) / 100;
+						if (e.isMe || Math.hypot(e.x - W.me.x, e.z - W.me.z) < 6) sfx("stun");
+					}
 				}
 			}
 			if (!e.f.dy)
@@ -27246,7 +27365,10 @@ Object.assign(MG, {
 				e.f.gr = 1;
 				e.fly = true;
 				mgLog(W, `magnet grabs ${mgName(e)}`);
-				if (e.isMe) sfx("magnet");
+				if (e.isMe) {
+					sfx("magnet");
+					buzz(120);
+				}
 			}
 			e.f.nr = Math.round(e.nr * 10) / 10;
 		},
@@ -27316,6 +27438,7 @@ Object.assign(MG, {
 			if (mm.banner && W.t < mm.bannerT) return mm.banner;
 			if (me.side === 0) return W.t < 4 ? "Tap FIRE for tyres, hold it for a Ground Pound!" : "";
 			if (me.gr) return "Tap DASH to break free!";
+			if (me.stunT > 0) return "Stunned!";
 			if (me.nr > 0.35) return "Too close! The magnet is coming!";
 			if (me.f.dy) return "Drive the TNT into the monster!";
 			return "";
@@ -27336,7 +27459,7 @@ Object.assign(MG, {
 				let y = 0.58 * (1 - drop);
 				if (gp && W.t < gp.slam) y += Math.sin(((W.t - gp.t0) / MM.JUMP) * Math.PI) * 2.2;
 				e.g.position.y += y;
-				const ch = (e.local ? e.chg / 0.8 : e.f && e.f.ch) || 0;
+				const ch = (e.local ? e.chg / MM.WIND : e.f && e.f.ch) || 0;
 				if (ch > 0) e.tr.rotation.z += (Math.random() - 0.5) * 0.06 * ch;
 				if (e.can) {
 					e.recoil = Math.max(0, (e.recoil || 0) - dt * 5);
@@ -27361,6 +27484,9 @@ Object.assign(MG, {
 				if (ph < 3) mm.top.rotation.y = e.yaw;
 			} else if (e.bun) {
 				e.bun.visible = !!(e.f && e.f.dy && e.al);
+				const st = e.local ? e.stunT > 0 : e.f && W.t < e.f.stn;
+				e.stars.visible = !!(st && e.al);
+				if (st) e.stars.rotation.y = W.t * 6;
 				if (e.wig) {
 					e.wig = Math.max(0, e.wig - dt);
 					e.tr.rotation.z += Math.sin(W.t * 60) * e.wig;
@@ -27396,6 +27522,24 @@ Object.assign(MG, {
 			/* tyres: arc out of the muzzle, roll with a bounce, drop off the edge into the mud */
 			const live = W.tyLive || [],
 				used = new Set();
+			const nw = live.filter((t) => t.id > (mm.tySeen || 0));
+			if (nw.length) {
+				mm.tySeen = Math.max(...nw.map((t) => t.id));
+				sfx("cannon");
+				nw.forEach((t) =>
+					burst(W.sc, t.x - t.dx * (t.s - 1.6), t.h, t.z - t.dz * (t.s - 1.6), {
+						n: 6,
+						shape: "ico",
+						cols: ["#C9CED8", "#8C95A5", "#F4F6F9"],
+						spd: 1.2,
+						up: 1.5,
+						grav: -1,
+						life: 0.7,
+						size: 1.1,
+						op: 0.7,
+					}),
+				);
+			}
 			live.forEach((t) => {
 				const sl =
 					mm.ty.find((q) => q.id === t.id) || mm.ty.find((q) => q.id === null || !live.some((l) => l.id === q.id));
@@ -27439,10 +27583,14 @@ Object.assign(MG, {
 				}
 			});
 			/* ground pound: a pulsing warning ring while it charges and jumps, then the shockwave */
-			const ch = m ? (m.local ? m.chg / 0.8 : (m.f && m.f.ch) || 0) : 0,
+			const ch = m ? (m.local ? m.chg / MM.WIND : (m.f && m.f.ch) || 0) : 0,
 				gp = W.gpLive,
 				wv = !!((gp && W.t < gp.slam) || ch > 0);
 			mm.warn.visible = wv;
+			if (ch > 0 && !mm.wu) {
+				mm.wu = true;
+				sfx("windup");
+			} else if (!ch) mm.wu = false;
 			if (wv) {
 				const s = W.ph < 3 ? 1 : 0.62;
 				mm.warn.position.set(m ? m.x : 0, 0.12, m ? m.z : 0);
@@ -27530,13 +27678,6 @@ Object.assign(MG, {
 				void bar.offsetWidth;
 				bar.classList.add("hit");
 			}
-			if (!mm.lbl) {
-				const sp = document.querySelector("#ram span");
-				if (sp) {
-					sp.textContent = W.me.side === 0 ? "FIRE" : "DASH";
-					mm.lbl = true;
-				}
-			}
 		},
 		bot(W, e, dt) {
 			const m = W.ms,
@@ -27547,7 +27688,7 @@ Object.assign(MG, {
 					tg =
 						sv.filter((o) => o.f && o.f.dy).sort((a, b) => near(a) - near(b))[0] ||
 						sv.sort((a, b) => near(a) - near(b))[0],
-					out = { x: 0, y: 0, fire: false, hold: false };
+					out = { x: 0, y: 0, fire: false, pound: false };
 				if (tg) {
 					const T = (near(tg) / MM.TV) * 0.6 + 0.1,
 						dx = tg.x + tg.vx * T - e.x,
@@ -27563,7 +27704,7 @@ Object.assign(MG, {
 					carrier = sv.some((o) => o.f && o.f.dy && near(o) < 6.5);
 				if (e.pcd <= 0 && (crowd >= 2 || carrier || sv.some((o) => near(o) < 4.8))) e.wantP = true;
 				if (e.pcd > 0) e.wantP = false;
-				out.hold = !!e.wantP;
+				out.pound = !!e.wantP;
 				return out;
 			}
 			/* survivors: fetch TNT and deliver it, keep clear of the monster otherwise, sidestep tyres, dash through rings */

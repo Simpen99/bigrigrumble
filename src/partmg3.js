@@ -1831,7 +1831,9 @@ const MM = {
 	R: 12.5,
 	TV: 12 /* tyre speed */,
 	CLAW: 1.1 /* seconds close before the magnet grabs */,
-	JUMP: 0.7 /* ground pound: jump time before the slam */,
+	WIND: 0.6 /* ground pound: wind-up after the button */,
+	JUMP: 0.7 /* then the jump before the slam */,
+	STUN: 1 /* shockwave stun */,
 	RING: 10 /* shockwave speed */,
 	hpMax: (n) => Math.min(14, Math.max(6, n * 3)),
 };
@@ -1907,6 +1909,33 @@ function mmMagnet() {
 	g.visible = false;
 	return g;
 }
+/* dizzy stars circling over a stunned truck: three chunky five-point stars */
+function mmStars() {
+	const g = new THREE.Group(),
+		sh = new THREE.Shape();
+	for (let i = 0; i < 10; i++) {
+		const a = (i / 10) * Math.PI * 2 - Math.PI / 2,
+			r = i % 2 ? 0.11 : 0.26;
+		if (i) sh.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+		else sh.moveTo(Math.cos(a) * r, Math.sin(a) * r);
+	}
+	const geo = new THREE.ExtrudeGeometry(sh, { depth: 0.08, bevelEnabled: false }).translate(0, 0, -0.04),
+		mat = new THREE.MeshStandardMaterial({
+			color: "#FFD23F",
+			emissive: "#FFB000",
+			emissiveIntensity: 0.6,
+			flatShading: true,
+		});
+	for (let i = 0; i < 3; i++) {
+		const m = new THREE.Mesh(geo, mat),
+			a = (i / 3) * Math.PI * 2;
+		m.position.set(Math.cos(a) * 0.75, Math.sin(i * 2.1) * 0.12, Math.sin(a) * 0.75);
+		m.rotation.y = -a;
+		g.add(m);
+	}
+	g.visible = false;
+	return g;
+}
 /* TNT bundle on a carrier's roof: three red sticks, two tape bands, a wick */
 function mmBundle() {
 	const g = new THREE.Group();
@@ -1939,12 +1968,18 @@ Object.assign(MG, {
 		how: "Boss fight! The monster truck fires tyres and ground-pounds from its turntable. Grab TNT crates and drive them into it: knock it out or survive to win as a team.",
 		teamHow: (s) =>
 			s === 0
-				? "You're the MONSTER: tap FIRE for tyres, hold it for a Ground Pound. Knock them all into the mud!"
-				: "Grab 🧨 TNT and drive it into the monster! DASH through shockwaves, and don't hang around it: the magnet grabs you.",
+				? "You're the MONSTER: FIRE shoots tyres, POUND sends out a shockwave. Knock them all into the mud!"
+				: "Grab 🧨 TNT and drive it into the monster! DASH through shockwaves (they stun you), and don't hang around it: the magnet grabs you.",
 		stickHint: (fine) =>
 			fine
-				? "WASD or arrows to drive (the monster aims with them). Space: fire / dash."
-				: "Drag to drive (the monster aims). The button fires (hold: Ground Pound) or dashes.",
+				? "WASD or arrows to drive (the monster aims with them). Space: fire / dash, E: ground pound."
+				: "Drag to drive (the monster aims). Buttons: FIRE + POUND for the monster, DASH for everyone else.",
+		ramLabel: (side) => (side === 0 ? "FIRE" : "DASH"),
+		btn2: (side) => (side === 0 ? "POUND" : null),
+		btn2Cd(W) {
+			const e = W.me;
+			return e.side !== 0 ? 0 : e.chgT !== undefined ? 1 : Math.min(1, (e.pcd || 0) / 6);
+		},
 		R: () => MM.R,
 		canRam: () => false,
 		ramCd(W) {
@@ -2079,6 +2114,9 @@ Object.assign(MG, {
 				e.tr.add(b);
 				e.bun = b;
 				e.topY = t.y;
+				e.stars = mmStars();
+				e.stars.position.y = t.y + 0.55;
+				e.g.add(e.stars);
 				return;
 			}
 			/* the monster: a giant on the turntable with a tyre cannon on its roof */
@@ -2179,8 +2217,9 @@ Object.assign(MG, {
 			else this.survPhys(W, e, inp, dt);
 		},
 		monPhys(W, e, inp, dt) {
-			const press = !!(inp && (inp.boost || inp.fire));
-			if (inp) inp.boost = false;
+			const press = !!(inp && (inp.boost || inp.fire)),
+				pound = !!(inp && (inp.b2 || inp.pound));
+			if (inp) inp.boost = inp.b2 = false;
 			if (W.ko !== undefined || e.d) {
 				e.vx = e.vz = 0;
 				return;
@@ -2225,19 +2264,23 @@ Object.assign(MG, {
 				});
 				e.fcd = ph === 1 ? 1 : 0.85;
 				e.recoil = 1;
+				if (e.isMe) buzz(25);
 			}
-			if (inp && inp.hold && e.pcd <= 0 && !jumping) {
-				e.chg += dt;
-				if (e.chg >= 0.8) {
+			/* POUND: a short wind-up (the warning ring grows), then the jump and the slam */
+			if (pound && e.pcd <= 0 && !jumping && e.chgT === undefined && W.t > 1.2) e.chgT = W.t;
+			if (e.chgT !== undefined) {
+				e.chg = W.t - e.chgT;
+				if (e.chg >= MM.WIND) {
 					const r = (v) => Math.round(v * 100) / 100;
 					e.chg = 0;
+					e.chgT = undefined;
 					e.pcd = ph === 3 ? 5 : 6;
 					e.f.gpn = (e.f.gpn | 0) + 1;
 					e.f.gp = [e.f.gpn, r(W.t), r(e.x), r(e.z)];
 					mgLog(W, "boss: ground pound");
 				}
 			} else e.chg = 0;
-			e.f.ch = Math.round((e.chg / 0.8) * 10) / 10;
+			e.f.ch = Math.round((e.chg / MM.WIND) * 10) / 10;
 			const sv = W.list.filter((o) => o.side !== 0 && !o.gone);
 			e.sc = sv.filter((o) => !o.al).length;
 			if (sv.length && W.t > 1 && sv.every((o) => !o.al)) {
@@ -2252,7 +2295,11 @@ Object.assign(MG, {
 			e.vz += nz * K;
 			e.slideT = sl;
 			e.hitAng = [nx, nz];
-			if (e.isMe) W.shake = 0.4;
+			e.buzz = (e.buzz || 0) + 1;
+			if (e.isMe) {
+				W.shake = 0.4;
+				if (!W.tv) buzz(70);
+			}
 			hitFx(e, e);
 		},
 		release(W, e, push) {
@@ -2310,6 +2357,11 @@ Object.assign(MG, {
 				e.y = Math.max(0, e.y + e.vy * dt);
 				if (!e.y) e.vy = 0;
 			}
+			if (e.stunT > 0) {
+				e.stunT -= dt;
+				if (inp) inp.boost = false;
+				inp = { x: 0, y: 0, boost: false };
+			}
 			arenaPhys(W, e, inp, dt);
 			if (!e.al || e.falling || e.d || W.t < 0) return;
 			e.tA = W.t;
@@ -2319,7 +2371,7 @@ Object.assign(MG, {
 					e.tyHit[t.id] = 1;
 					if (W.t - (e.tyT || -9) > 0.3) {
 						e.tyT = W.t;
-						this.knock(W, e, t.dx, t.dz, 9, 0.45, "tyre");
+						this.knock(W, e, t.dx, t.dz, 10.4, 0.45, "tyre");
 					}
 				}
 			const g = W.gpLive;
@@ -2342,7 +2394,12 @@ Object.assign(MG, {
 							W.mm.banner = "Dodged!";
 							W.mm.bannerT = W.t + 0.8;
 						}
-					} else this.knock(W, e, dx / d, dz / d, 11, 0.5, "shockwave");
+					} else {
+						this.knock(W, e, dx / d, dz / d, 11, 0.5, "shockwave");
+						e.stunT = MM.STUN;
+						e.f.stn = Math.round((W.t + MM.STUN) * 100) / 100;
+						if (e.isMe || Math.hypot(e.x - W.me.x, e.z - W.me.z) < 6) sfx("stun");
+					}
 				}
 			}
 			if (!e.f.dy)
@@ -2372,7 +2429,10 @@ Object.assign(MG, {
 				e.f.gr = 1;
 				e.fly = true;
 				mgLog(W, `magnet grabs ${mgName(e)}`);
-				if (e.isMe) sfx("magnet");
+				if (e.isMe) {
+					sfx("magnet");
+					buzz(120);
+				}
 			}
 			e.f.nr = Math.round(e.nr * 10) / 10;
 		},
@@ -2442,6 +2502,7 @@ Object.assign(MG, {
 			if (mm.banner && W.t < mm.bannerT) return mm.banner;
 			if (me.side === 0) return W.t < 4 ? "Tap FIRE for tyres, hold it for a Ground Pound!" : "";
 			if (me.gr) return "Tap DASH to break free!";
+			if (me.stunT > 0) return "Stunned!";
 			if (me.nr > 0.35) return "Too close! The magnet is coming!";
 			if (me.f.dy) return "Drive the TNT into the monster!";
 			return "";
@@ -2462,7 +2523,7 @@ Object.assign(MG, {
 				let y = 0.58 * (1 - drop);
 				if (gp && W.t < gp.slam) y += Math.sin(((W.t - gp.t0) / MM.JUMP) * Math.PI) * 2.2;
 				e.g.position.y += y;
-				const ch = (e.local ? e.chg / 0.8 : e.f && e.f.ch) || 0;
+				const ch = (e.local ? e.chg / MM.WIND : e.f && e.f.ch) || 0;
 				if (ch > 0) e.tr.rotation.z += (Math.random() - 0.5) * 0.06 * ch;
 				if (e.can) {
 					e.recoil = Math.max(0, (e.recoil || 0) - dt * 5);
@@ -2487,6 +2548,9 @@ Object.assign(MG, {
 				if (ph < 3) mm.top.rotation.y = e.yaw;
 			} else if (e.bun) {
 				e.bun.visible = !!(e.f && e.f.dy && e.al);
+				const st = e.local ? e.stunT > 0 : e.f && W.t < e.f.stn;
+				e.stars.visible = !!(st && e.al);
+				if (st) e.stars.rotation.y = W.t * 6;
 				if (e.wig) {
 					e.wig = Math.max(0, e.wig - dt);
 					e.tr.rotation.z += Math.sin(W.t * 60) * e.wig;
@@ -2522,6 +2586,24 @@ Object.assign(MG, {
 			/* tyres: arc out of the muzzle, roll with a bounce, drop off the edge into the mud */
 			const live = W.tyLive || [],
 				used = new Set();
+			const nw = live.filter((t) => t.id > (mm.tySeen || 0));
+			if (nw.length) {
+				mm.tySeen = Math.max(...nw.map((t) => t.id));
+				sfx("cannon");
+				nw.forEach((t) =>
+					burst(W.sc, t.x - t.dx * (t.s - 1.6), t.h, t.z - t.dz * (t.s - 1.6), {
+						n: 6,
+						shape: "ico",
+						cols: ["#C9CED8", "#8C95A5", "#F4F6F9"],
+						spd: 1.2,
+						up: 1.5,
+						grav: -1,
+						life: 0.7,
+						size: 1.1,
+						op: 0.7,
+					}),
+				);
+			}
 			live.forEach((t) => {
 				const sl =
 					mm.ty.find((q) => q.id === t.id) || mm.ty.find((q) => q.id === null || !live.some((l) => l.id === q.id));
@@ -2565,10 +2647,14 @@ Object.assign(MG, {
 				}
 			});
 			/* ground pound: a pulsing warning ring while it charges and jumps, then the shockwave */
-			const ch = m ? (m.local ? m.chg / 0.8 : (m.f && m.f.ch) || 0) : 0,
+			const ch = m ? (m.local ? m.chg / MM.WIND : (m.f && m.f.ch) || 0) : 0,
 				gp = W.gpLive,
 				wv = !!((gp && W.t < gp.slam) || ch > 0);
 			mm.warn.visible = wv;
+			if (ch > 0 && !mm.wu) {
+				mm.wu = true;
+				sfx("windup");
+			} else if (!ch) mm.wu = false;
 			if (wv) {
 				const s = W.ph < 3 ? 1 : 0.62;
 				mm.warn.position.set(m ? m.x : 0, 0.12, m ? m.z : 0);
@@ -2656,13 +2742,6 @@ Object.assign(MG, {
 				void bar.offsetWidth;
 				bar.classList.add("hit");
 			}
-			if (!mm.lbl) {
-				const sp = document.querySelector("#ram span");
-				if (sp) {
-					sp.textContent = W.me.side === 0 ? "FIRE" : "DASH";
-					mm.lbl = true;
-				}
-			}
 		},
 		bot(W, e, dt) {
 			const m = W.ms,
@@ -2673,7 +2752,7 @@ Object.assign(MG, {
 					tg =
 						sv.filter((o) => o.f && o.f.dy).sort((a, b) => near(a) - near(b))[0] ||
 						sv.sort((a, b) => near(a) - near(b))[0],
-					out = { x: 0, y: 0, fire: false, hold: false };
+					out = { x: 0, y: 0, fire: false, pound: false };
 				if (tg) {
 					const T = (near(tg) / MM.TV) * 0.6 + 0.1,
 						dx = tg.x + tg.vx * T - e.x,
@@ -2689,7 +2768,7 @@ Object.assign(MG, {
 					carrier = sv.some((o) => o.f && o.f.dy && near(o) < 6.5);
 				if (e.pcd <= 0 && (crowd >= 2 || carrier || sv.some((o) => near(o) < 4.8))) e.wantP = true;
 				if (e.pcd > 0) e.wantP = false;
-				out.hold = !!e.wantP;
+				out.pound = !!e.wantP;
 				return out;
 			}
 			/* survivors: fetch TNT and deliver it, keep clear of the monster otherwise, sidestep tyres, dash through rings */

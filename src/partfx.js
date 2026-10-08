@@ -192,6 +192,12 @@ function noiseHit(d, vol = 0.3, f1 = 800, f2 = 200, at = 0, q = 1) {
 	g.connect(SFX.out);
 	s.start(t);
 }
+/* a short buzz on phones that support it (Android). iPhone Safari has no vibration API, not even as a home screen app */
+function buzz(ms) {
+	try {
+		if (navigator.vibrate) navigator.vibrate(ms);
+	} catch (e) {}
+}
 function sfx(n) {
 	if (!SFX.on || !SFX.ctx || SFX.ctx.state !== "running") return;
 	try {
@@ -269,6 +275,19 @@ function sfx(n) {
 			case "crush":
 				tone(90, 0.3, "sine", 0.35, 40);
 				noiseHit(0.25, 0.3, 500, 80);
+				break;
+			/* Monster Mash: tyre cannon (a deep thump with a hiss of air), pound wind-up (rising rumble), stun (dizzy chirps) */
+			case "cannon":
+				tone(140, 0.18, "sine", 0.32, 55);
+				noiseHit(0.14, 0.28, 2600, 300, 0, 1.5);
+				noiseHit(0.22, 0.1, 5000, 2000, 0.03, 1);
+				break;
+			case "windup":
+				tone(70, 0.6, "sawtooth", 0.08, 190);
+				noiseHit(0.55, 0.08, 300, 900, 0, 1);
+				break;
+			case "stun":
+				for (let i = 0; i < 3; i++) tone(1500 - i * 220, 0.08, "triangle", 0.06, 1900 - i * 220, i * 0.09);
 				break;
 		}
 	} catch (e) {}

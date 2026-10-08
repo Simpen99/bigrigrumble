@@ -1101,7 +1101,7 @@ function openMg(mg, p) {
       <div class="m3lb${def.lbTop ? " top" : ""}" id="m3lb"></div><div class="m3intro" id="m3in"><h3>${esc(def.name)}</h3><p>${esc(def.how)}</p>${teamLine(mg, p, def)}<p class="m3ctl">${def.ctrl === "stick" ? (def.stickHint ? def.stickHint(FINE) : FINE ? "WASD or arrow keys to drive, Space to ram." : "Drag anywhere to drive. Tap RAM to charge.") : esc(def.tapHint || "Tap the big button.") + (FINE ? " On a keyboard, press Space." : "")}</p>${!first ? `<p class="m3ctl">Practice run against CPU trucks. Your score still counts.</p>` : ""}</div>
       <div class="m3center${def.msgTop ? " hi" : ""}"><div class="m3big" id="m3c"></div><div class="m3msg" id="m3m" hidden></div></div>
       ${first ? `<div class="m3ready" id="m3r"><h3>Get ready</h3><div id="m3rl"></div><button class="btn go" id="m3rb">I'm ready${FINE ? " (Enter)" : ""}</button><button class="btn ghost" id="m3rs" hidden style="margin-top:8px">Start without the others</button></div>` : ""}
-      ${def.ctrl === "custom" ? def.ctlHTML() : def.ctrl === "stick" ? stickHTML(def, def.aim ? "Drive" : "") : `${tapCtlHTML(mg.g, def)}`}`;
+      ${def.ctrl === "custom" ? def.ctlHTML() : def.ctrl === "stick" ? stickHTML(def, def.aim ? "Drive" : "", mg.tm ? mg.tm[p.key] : undefined) : `${tapCtlHTML(mg.g, def)}`}`;
 		wireControls(def);
 		const rb = $("#m3rb");
 		if (rb)
@@ -1732,11 +1732,14 @@ function wireLightPanel() {
 	});
 }
 /* stick controls: drive pad plus the RAM button, or (def.aim) a drive pad on the left and an aim pad on the right */
-function stickHTML(def, hint) {
+/* the main button's label and the optional second button (def.btn2(side) -> label or null), per side in team games */
+const ramLbl = (def, side) => (typeof def.ramLabel === "function" ? def.ramLabel(side) : def.ramLabel) || "RAM";
+const btn2Lbl = (def, side) => (def.btn2 ? def.btn2(side) : null);
+function stickHTML(def, hint, side) {
 	const h = hint ? `<span class="tvchint">${hint}</span>` : "";
 	return def.aim
 		? `<div class="m3pad twin" id="m3pad">${h}<div class="knob" id="knob" hidden><i></i></div></div><div class="m3pad aim" id="m3aim">${hint ? `<span class="tvchint">${esc(def.aimHint || "Aim")}</span>` : ""}<div class="knob aim" id="knob2" hidden><i></i></div></div>`
-		: `<div class="m3pad" id="m3pad">${h}<div class="knob" id="knob" hidden><i></i></div></div><button class="ram" id="ram"><i class="ramcd"></i><span>${esc(def.ramLabel || "RAM")}</span></button>`;
+		: `<div class="m3pad" id="m3pad">${h}<div class="knob" id="knob" hidden><i></i></div></div><button class="ram" id="ram"><i class="ramcd"></i><span>${esc(ramLbl(def, side))}</span></button>${btn2Lbl(def, side) ? `<button class="ram ram2" id="ram2"><i class="ramcd"></i><span>${esc(btn2Lbl(def, side))}</span></button>` : ""}`;
 }
 function wireControls(def) {
 	wireLightPanel();
@@ -1760,6 +1763,12 @@ function wireControls(def) {
 				}
 			});
 			["pointerup", "pointercancel", "pointerleave"].forEach((ev) => rb.addEventListener(ev, up));
+			const r2 = $("#ram2");
+			if (r2)
+				r2.addEventListener("pointerdown", (e) => {
+					e.preventDefault();
+					if (W) W.inp.b2 = true;
+				});
 		}
 	} else wireTap(def);
 }
@@ -1915,6 +1924,11 @@ function hud3(dt) {
 		rb.classList.toggle("cd", W.def.ramReady ? !W.def.ramReady(W) : W.me.bcd > 0);
 		rb.style.setProperty("--cd", cd.toFixed(3));
 		rb.classList.toggle("held", !!W.inp.hold);
+	}
+	const r2 = $("#ram2");
+	if (r2 && W.def.btn2Cd) {
+		r2.style.setProperty("--cd", W.def.btn2Cd(W).toFixed(3));
+		r2.classList.toggle("cd", W.def.btn2Cd(W) > 0);
 	}
 }
 // times are stored in ms but shown as seconds with 2 decimals
@@ -2169,7 +2183,7 @@ function openTvMg(mg) {
 	rtJoin(mg.nonce);
 	start3D(mg, null, false, null);
 	box.innerHTML = `<div class="m3top"><span class="chip name">${esc(def.name)}</span><span class="chip" id="m3t"></span><span class="chip grow">📱 Play on your phones</span></div>
-    <div class="m3lb${def.lbTop ? " top" : ""}" id="m3lb"></div><div class="m3intro" id="m3in"><h3>${esc(def.name)}</h3><p>${esc(def.how)}</p><p class="m3ctl">${def.aim ? "Left side of your phone drives, right side aims." : `Drag on your phone to drive. Tap ${esc(def.ramLabel || "RAM")} to ${def.ramLabel ? "use it" : "charge into someone"}.`}</p></div>
+    <div class="m3lb${def.lbTop ? " top" : ""}" id="m3lb"></div><div class="m3intro" id="m3in"><h3>${esc(def.name)}</h3><p>${esc(def.how)}</p><p class="m3ctl">${def.aim ? "Left side of your phone drives, right side aims." : `Drag on your phone to drive. Tap ${esc(ramLbl(def))} to ${def.ramLabel ? "use it" : "charge into someone"}.`}</p></div>
     <div class="m3center${def.msgTop ? " hi" : ""}"><div class="m3big" id="m3c"></div><div class="m3msg" id="m3m" hidden></div></div>
     <div class="m3ready" id="m3r"><h3>Get ready</h3><div id="m3rl"></div><button class="btn ghost" id="m3rs" hidden style="margin-top:8px">Start without the others</button></div>`;
 	$("#m3rs").addEventListener("click", () => mgStartCountdown());
@@ -2234,6 +2248,11 @@ function tvRecv() {
 			e.lastB = r.b;
 			i.boost = true;
 		}
+		if (e.lastB2 === undefined) e.lastB2 = r.b2 || 0;
+		else if ((r.b2 || 0) !== e.lastB2) {
+			e.lastB2 = r.b2 || 0;
+			i.b2 = true;
+		}
 	}
 }
 function tvSend(force) {
@@ -2287,6 +2306,9 @@ function tvStatus(W, e, order) {
 			String(msg).slice(0, 90),
 			order.indexOf(e) + 1,
 			ld ? Math.round(ld.t * 10) : 0,
+			null,
+			D.btn2Cd ? Math.round(D.btn2Cd(W) * 100) / 100 : 0,
+			e.buzz || 0,
 		];
 	} catch (err) {
 		return ["", 0, 0, 0, "", 0, 0];
@@ -2329,7 +2351,7 @@ function openTvCtl(mg, p) {
 	box.innerHTML = `<div class="tvc${def.ctrl === "stick" ? " bare" : ""}" style="--c:${pcol(p)}"><div class="tvrot">🔄 Turn your phone sideways</div><div class="m3top"><span class="chip name">${esc(def.name)}</span><span class="chip" id="tvct">Waiting</span></div>
     <div class="tvcme"><img alt="" src="${thumb(p.truck)}"><div><b id="tvcs">0</b><small id="tvcr">${esc(p.name)}</small></div></div>
     <div class="tvcmsg" id="tvcm">📺 Watch the TV</div>
-    ${def.ctrl === "stick" ? stickHTML(def, def.aim ? "Drive" : "Drag anywhere here to drive") : `<div class="tvcctl" id="tvcctl">${def.ctrl === "custom" ? def.ctlHTML() : tapCtlHTML(mg.g, def)}</div>`}
+    ${def.ctrl === "stick" ? stickHTML(def, def.aim ? "Drive" : "Drag anywhere here to drive", mg.tm ? mg.tm[p.key] : undefined) : `<div class="tvcctl" id="tvcctl">${def.ctrl === "custom" ? def.ctlHTML() : tapCtlHTML(mg.g, def)}</div>`}
     <div class="m3ready" id="m3r"><h3>${esc(def.name)}</h3><p style="font-size:14px;line-height:1.45;margin-bottom:10px">${esc(def.how)}</p><div id="m3rl"></div><button class="btn go" id="m3rb">I'm ready</button></div></div>`;
 	if (def.ctrl === "stick") {
 		wireStick(() => TVC && TVC.inp);
@@ -2351,6 +2373,15 @@ function openTvCtl(mg, p) {
 				}
 			});
 		if (rb) ["pointerup", "pointercancel", "pointerleave"].forEach((ev) => rb.addEventListener(ev, up));
+		const r2 = $("#ram2");
+		if (r2)
+			r2.addEventListener("pointerdown", (e) => {
+				e.preventDefault();
+				if (TVC) {
+					TVC.b2 = (TVC.b2 || 0) + 1;
+					tvcTick();
+				}
+			});
 	} else {
 		const wrap = $("#tvcctl"),
 			downs = new Map(),
@@ -2422,7 +2453,7 @@ function tvcTick() {
 	if (!TVC || !G || !G.mg || G.mg.nonce !== TVC.mg.nonce) return;
 	const i = TVC.inp,
 		r = (v) => Math.round(v * 100) / 100,
-		key = [r(i.x), r(i.y), r(i.ax || 0), r(i.ay || 0), TVC.b, i.hold ? 1 : 0, TVC.seq].join(),
+		key = [r(i.x), r(i.y), r(i.ax || 0), r(i.ay || 0), TVC.b, TVC.b2 || 0, i.hold ? 1 : 0, TVC.seq].join(),
 		now = performance.now();
 	if (RT && (key !== TVC.last || now - TVC.lastT > 600)) {
 		TVC.last = key;
@@ -2436,6 +2467,7 @@ function tvcTick() {
 				ax: r(i.ax || 0),
 				ay: r(i.ay || 0),
 				b: TVC.b,
+				b2: TVC.b2 || 0,
 				h: i.hold ? 1 : 0,
 				ev: TVC.ev.slice(),
 			},
@@ -2507,6 +2539,15 @@ function tvcTick() {
 		rb.classList.toggle("cd", st ? !st[2] : false);
 		rb.style.setProperty("--cd", st ? String(st[1]) : "0");
 		rb.classList.toggle("held", !!i.hold);
+	}
+	const r2 = $("#ram2");
+	if (r2) {
+		r2.classList.toggle("cd", !!(st && st[8] > 0));
+		r2.style.setProperty("--cd", st ? String(st[8] || 0) : "0");
+	}
+	if (st && st[9] && st[9] !== TVC.buzz) {
+		if (TVC.buzz !== undefined) buzz(40);
+		TVC.buzz = st[9];
 	}
 }
 
