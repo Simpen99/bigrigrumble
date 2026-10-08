@@ -1812,7 +1812,7 @@ Object.assign(MG, {
    The monster (side 0, a giant truck) sits on a turntable in the middle: tap FIRE to shoot tyres (aimed with the stick),
    hold it for a Ground Pound (a shockwave ring; DASH through it). Anyone who stays close too long gets lifted by a
    magnet and flung into the mud (tap DASH to break free; a TNT hit on the boss drops them too). The others grab TNT
-   crates and drive them into the monster: it has 2 HP per survivor, gets angrier each third, and in the last third the
+   crates and drive them into the monster: it has 3 HP per survivor, gets angrier each third, and in the last third the
    turntable drops and it drives. The team wins by knocking it out or surviving the timer.
    Sync: the monster's device shares its shots in e.f.ty = [[id, t0, x, z, angle, h]] and pounds in e.f.gp = [id, t0, x, z];
    every device moves the tyres and rings from those times and decides hits on its own trucks. Survivors share
@@ -1824,7 +1824,7 @@ const MM = {
 	CLAW: 1.1 /* seconds close before the magnet grabs */,
 	JUMP: 0.7 /* ground pound: jump time before the slam */,
 	RING: 10 /* shockwave speed */,
-	hpMax: (n) => Math.min(10, Math.max(4, n * 2)),
+	hpMax: (n) => Math.min(14, Math.max(6, n * 3)),
 };
 /* the highest roof along a truck's centre line (raycast down): {x, y} in the truck's parent space */
 function truckTop(tr) {
