@@ -2857,3 +2857,50 @@ function excavatorModel(col = "#FFC83D") {
 	Object.assign(g.userData, { house, boom, stick, bucket, dirt });
 	return g;
 }
+/* Paint the Lot: a one-gallon paint can, 1 tall, radius .42, standing on y 0. col = paint colour (label, lid, drips);
+   open = no lid, a paint surface inside instead (the bucket that tips over on a fill). userData.paint = that surface. */
+function paintCanModel(col, open) {
+	const g = new THREE.Group(),
+		T = "#C9CED6",
+		met = { metalness: 0.45, roughness: 0.45 };
+	g.add(Cy(0.42, 0.42, 0.88, 14, T, 0, 0.5, 0, met));
+	g.add(
+		Cy(0.445, 0.445, 0.07, 14, "#AEB4BE", 0, 0.035, 0, met),
+		Cy(0.445, 0.445, 0.06, 14, "#AEB4BE", 0, 0.94, 0, met),
+	);
+	g.add(Cy(0.45, 0.45, 0.5, 14, col, 0, 0.47, 0));
+	g.add(Cy(0.48, 0.48, 0.1, 14, "#F4F6F9", 0, 0.62, 0));
+	const top = Cy(
+		open ? 0.41 : 0.4,
+		open ? 0.41 : 0.4,
+		0.05,
+		14,
+		open ? col : T,
+		0,
+		0.975,
+		0,
+		open ? { roughness: 0.25 } : met,
+	);
+	g.add(top);
+	if (!open) g.add(Cy(0.2, 0.2, 0.05, 10, col, 0, 1.02, 0));
+	/* wire handle on two ears */
+	[-1, 1].forEach((sd) => g.add(B(0.06, 0.14, 0.12, "#AEB4BE", sd * 0.47, 0.86, 0, met)));
+	const h = new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.03, 5, 12, Math.PI), M("#8E96A3", met));
+	h.position.y = 0.9;
+	h.rotation.x = -0.35;
+	h.castShadow = true;
+	g.add(h);
+	/* drips over the rim and down the side */
+	[
+		[0.6, 0.34],
+		[1.9, 0.22],
+		[3.6, 0.28],
+	].forEach(([a, l]) => {
+		const x = Math.cos(a) * 0.47,
+			z = Math.sin(a) * 0.47,
+			d = Cy(0.055, 0.055, l, 6, col, x, 1 - l / 2, z);
+		g.add(d, Cy(0.075, 0.075, 0.08, 6, col, x, 1 - l, z));
+	});
+	g.userData.paint = open ? top : null;
+	return g;
+}

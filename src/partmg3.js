@@ -865,3 +865,944 @@ Object.assign(MG, {
 		botScore: () => 100 + rnd(400),
 	},
 });
+
+/* ---------- Paint the Lot ---------- */
+/* Tron / Paper.io style. The lot is a grid of 0.5 m cells (W.P.own = owner index per cell, -1 = bare). A truck outside its
+   own paint leaves a trail; driving back onto its paint (or its own trail) closes the loop: a bucket tips and everything the
+   loop encloses becomes its paint. Another truck crossing an open trail washes it away, and so does a rival's fill over it.
+   Each device runs its own trucks and shares closed loops as events in e.f.ev ([n, t * 100, ...trail cells], the last 6) and
+   the open trail as points in e.f.tp; every device replays all events in time order, so the paint ends up the same everywhere. */
+Object.assign(MG, {
+	paint: {
+		name: "Paint the Lot",
+		kind: "arena",
+		ctrl: "stick",
+		hi: true,
+		unit: "%",
+		dur: 50,
+		bound: { t: "sq", h: 17 },
+		water: false,
+		bare: true,
+		S: 17,
+		CS: 0.5,
+		ramLabel: "BOOST",
+		noAssist: true,
+		canRam: () => false,
+		CD: 4,
+		sun: [12, 19, 13],
+		look: {
+			exp: 0.85,
+			amb: 0.75,
+			sun: 1.4,
+			warm: 0.62,
+			env: 0.35,
+			paint: 0.5,
+			haze: 46,
+			glow: 1.01,
+			bloom: 0.25,
+			vig: 0,
+			sat: 0.08,
+			fill: ["#86AEEA", "#8E7A62"],
+			sky: ["#3D73C2", "#98BEE2", "#F6D2A0"],
+		},
+		how: "Drive out of your paint to draw a trail, then get back to it: the paint bucket fills everything inside your loop. Cross a rival's open trail to wash it away! Most paint at the end wins.",
+		kits() {
+			this.canKits();
+			bakeKit(lightTowerModel());
+		},
+		CANS: ["#E5484D", "#2F7DE1", "#FFC83D", "#1FA35C", "#8E5BE0", "#FF8A1F"],
+		canKits() {
+			return this.CANS.map((c) => bakeKit(paintCanModel(c)));
+		},
+		build(W) {
+			const S = this.S,
+				N = Math.round((2 * S) / this.CS),
+				n = W.plist.length;
+			this.yard(W);
+			const P = (W.P = {
+				N,
+				own: new Int8Array(N * N).fill(-1),
+				ct: new Float32Array(N * N).fill(-1e9),
+				disp: new Int8Array(N * N).fill(-1),
+				rev: new Float32Array(N * N),
+				base: null,
+				evs: [],
+				keys: new Set(),
+				fresh: [],
+				lastT: -1e9,
+				q: new Int32Array(N * N),
+				seen: new Uint8Array(N * N),
+				cols: W.plist.map((q) => pcol(q)),
+				cans: [],
+				box: [1e9, 1e9, -1, -1],
+				drawn: -1,
+			});
+			/* each truck starts on a round patch of its own paint */
+			W.plist.forEach((q, i) => {
+				const sp = this.spawn(W, i, n);
+				for (let cz = 0; cz < N; cz++)
+					for (let cx = 0; cx < N; cx++) {
+						const [x, z] = this.ctr(cx, cz);
+						if (Math.hypot(x - sp.x, z - sp.z) < 2.4) P.own[cz * N + cx] = i;
+					}
+			});
+			P.base = P.own.slice();
+			/* the paint layer: a canvas over the lot, redrawn when cells change */
+			const px = 6;
+			P.px = px;
+			P.cv = document.createElement("canvas");
+			P.cv.width = P.cv.height = N * px;
+			P.cx = P.cv.getContext("2d");
+			P.tex = new THREE.CanvasTexture(P.cv);
+			P.tex.anisotropy = 4;
+			const pm = new THREE.Mesh(
+				new THREE.PlaneGeometry(2 * S, 2 * S),
+				new THREE.MeshStandardMaterial({
+					map: P.tex,
+					transparent: true,
+					depthWrite: false,
+					roughness: 0.3,
+					metalness: 0,
+					polygonOffset: true,
+					polygonOffsetFactor: -3,
+					polygonOffsetUnits: -6,
+				}),
+			);
+			pm.rotation.x = -Math.PI / 2;
+			pm.position.y = 0.03;
+			pm.renderOrder = 3;
+			pm.receiveShadow = true;
+			W.sc.add(pm);
+			P.layer = pm;
+			/* one ribbon per truck for its open trail */
+			P.rib = W.plist.map((q, i) => {
+				const MX = 600,
+					geo = new THREE.BufferGeometry(),
+					pos = new Float32Array(MX * 2 * 3),
+					nor = new Float32Array(MX * 2 * 3),
+					idx = [];
+				for (let k = 0; k < MX * 2; k++) nor[k * 3 + 1] = 1;
+				for (let k = 0; k < MX - 1; k++) {
+					const a = k * 2;
+					idx.push(a, a + 2, a + 1, a + 1, a + 2, a + 3);
+				}
+				geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+				geo.setAttribute("normal", new THREE.BufferAttribute(nor, 3));
+				geo.setIndex(idx);
+				geo.setDrawRange(0, 0);
+				const m = new THREE.Mesh(
+					geo,
+					new THREE.MeshStandardMaterial({
+						color: P.cols[i],
+						emissive: P.cols[i],
+						emissiveIntensity: 0.5,
+						roughness: 0.25,
+						polygonOffset: true,
+						polygonOffsetFactor: -5,
+						polygonOffsetUnits: -10,
+					}),
+				);
+				m.frustumCulled = false;
+				m.renderOrder = 4;
+				m.receiveShadow = true;
+				W.sc.add(m);
+				return { geo, pos, m, MX };
+			});
+		},
+		yard(W) {
+			/* SPLASH PAINTS factory car park: asphalt lot with bay lines inside a kerb of paint-coloured blocks, the factory with its
+			   sign, drips and a giant tipped can behind, mixing tanks and pallets of cans at the sides, light towers, trees beyond */
+			const s = W.sc,
+				S = this.S,
+				r = mulberry((W.mg.seed || 1) + 31);
+			s.add(texBox(2 * S + 1, 1, 2 * S + 1, asphaltTex(), 8, 0, -0.5, 0, { color: "#F4F6F9" }));
+			s.add(texBox(90, 1, 90, concreteTex(), 8, 0, -0.56, 0, { color: "#D9DCE1" }));
+			s.add(texBox(320, 1, 320, grassTex(), 10, 0, -0.62, 0));
+			roadWear(s, -S, S, S, -S, 0.004, 1.2, 0.3);
+			/* parking bays round the edge and down the middle (the paint covers them) */
+			for (let i = -S + 2.6; i < S - 2; i += 2.6) {
+				decal(s, new THREE.PlaneGeometry(0.1, 3.2), "#E9EDF2", i, 0.008, -S + 1.9, 0.75);
+				decal(s, new THREE.PlaneGeometry(0.1, 3.2), "#E9EDF2", i, 0.008, S - 1.9, 0.75);
+			}
+			decal(s, new THREE.PlaneGeometry(2 * S - 5, 0.1), "#E9EDF2", 0, 0.008, -S + 3.5, 0.75);
+			decal(s, new THREE.PlaneGeometry(2 * S - 5, 0.1), "#E9EDF2", 0, 0.008, S - 3.5, 0.75);
+			/* kerb blocks, alternating white and the can colours */
+			{
+				const R = S + 0.45,
+					C = this.CANS;
+				let k = 0;
+				for (let i = -S; i < S - 0.01; i += 2)
+					[
+						[i + 1, -R, 0],
+						[i + 1, R, 0],
+						[-R, i + 1, 1],
+						[R, i + 1, 1],
+					].forEach(([x, z, rt], q) => {
+						const col = (k + q) % 2 ? "#F4F6F9" : C[(k + q) % C.length];
+						s.add(B(rt ? 0.6 : 1.94, 0.5, rt ? 1.94 : 0.6, col, x, 0.25, z));
+						k++;
+					});
+				[-1, 1].forEach((a) =>
+					[-1, 1].forEach((b) => s.add(B(0.7, 0.62, 0.7, "#3A3F48", a * (S + 0.45), 0.31, b * (S + 0.45)))),
+				);
+			}
+			/* the factory behind the lot */
+			const FZ = -(S + 9),
+				FD = 10,
+				FF = FZ + FD / 2;
+			s.add(B(46, 8, FD, "#E8E2D6", 0, 4, FZ), B(46.4, 0.5, FD + 0.4, "#5A6272", 0, 8.25, FZ));
+			for (let x = -22; x <= 22.01; x += 2.2) s.add(B(0.24, 7.4, 0.12, "#D6CFC2", x, 3.7, FF + 0.06));
+			[-14, 0, 14].forEach((x, j) => {
+				s.add(B(6.2, 5.6, 0.2, "#3A3F48", x, 2.8, FF + 0.1));
+				const dh = j === 1 ? 1.8 : 5.2;
+				s.add(B(5.6, dh, 0.14, "#A9B0B9", x, 5.6 - dh / 2 - 0.3, FF + 0.27));
+				for (let y = 5.3 - dh + 0.2; y < 5.25; y += 0.4) s.add(B(5.6, 0.1, 0.1, "#9AA1AB", x, y, FF + 0.39));
+				[-1, 1].forEach((sd) => s.add(B(0.4, 5.8, 0.1, "#FFC83D", x + sd * 3.15, 2.9, FF + 0.25)));
+			});
+			/* paint running down the facade from the roof edge */
+			this.CANS.forEach((c, i) => {
+				const x = -20 + i * 7.3 + (r() - 0.5) * 2,
+					l = 1.4 + r() * 2.4;
+				if ([-14, 0, 14].some((d) => Math.abs(x - d) < 3.6)) return;
+				s.add(B(0.9, l, 0.08, c, x, 8 - l / 2, FF + 0.17), B(0.4, 0.5, 0.08, c, x - 0.2, 8 - l - 0.15, FF + 0.17));
+				s.add(B(1.1, 0.18, 0.4, c, x, 8.1, FF + 0.05));
+			});
+			{
+				const sg = signBoard("SPLASH PAINTS", { style: "race", w: 15, h: 2.6, col: "#E5484D" });
+				sg.position.set(-6, 10.2, FF - 1.4);
+				s.add(sg);
+			}
+			{
+				/* giant can tipped on the roof, pouring onto the facade */
+				const gc = paintCanModel("#2F7DE1", true);
+				gc.scale.setScalar(3.2);
+				gc.rotation.set(0, 0.3, -0.5);
+				gc.position.set(12, 8.7, FZ + 1);
+				s.add(gc, B(2.6, 0.2, 2.2, "#2F7DE1", 13.4, 8.6, FF - 1.1), B(1.4, 2.2, 0.1, "#2F7DE1", 13.6, 7.3, FF + 0.21));
+			}
+			/* mixing tanks on the east side */
+			[
+				[S + 6, -6, "#E5484D"],
+				[S + 6, -1.5, "#FFC83D"],
+				[S + 6, 3, "#2F7DE1"],
+			].forEach(([x, z, c]) => {
+				s.add(Cy(1.8, 1.8, 6, 16, "#DDE1E6", x, 3.4, z, { metalness: 0.4, roughness: 0.4 }));
+				s.add(Cy(1.86, 1.86, 1.2, 16, c, x, 4.6, z), Cy(1.2, 1.8, 0.8, 16, "#C9CED6", x, 6.8, z));
+				s.add(Cy(0.4, 0.4, 0.4, 8, "#8E96A3", x, 7.4, z));
+				[0, 1, 2, 3].forEach((k) => {
+					const a = (k / 4) * 6.283 + 0.4;
+					s.add(B(0.18, 0.5, 0.18, "#5A6272", x + Math.cos(a) * 1.5, 0.25, z + Math.sin(a) * 1.5));
+				});
+				s.add(B(0.1, 6.2, 0.4, "#5A6272", x - 1.86, 3.4, z));
+				s.add(roundShadow(4.4, 0.32, x, z, 0.03));
+			});
+			s.add(B(0.4, 0.4, 10, "#8E96A3", S + 6, 7.6, -1.5));
+			/* pallets of cans: west side and the back corners */
+			{
+				const kits = this.canKits(),
+					L = [],
+					pal = (x, z, rows) => {
+						s.add(B(2.6, 0.18, 2.6, "#B07A45", x, 0.09, z));
+						s.add(contactShadow(2.8, 2.8, 0.3, x, z, 0.02));
+						for (let a = 0; a < 3; a++)
+							for (let b = 0; b < 3; b++) {
+								const h = Math.max(1, rows - ((a + b) % 2));
+								for (let y = 0; y < h; y++)
+									L.push({
+										k: Math.floor(r() * kits.length),
+										x: x - 0.86 + a * 0.86,
+										y: 0.18 + y * 1.04,
+										z: z - 0.86 + b * 0.86,
+										ry: r() * 6,
+									});
+							}
+					};
+				pal(-S - 3.6, -8, 2);
+				pal(-S - 3.6, -4.6, 1);
+				pal(-S - 6.6, -6.3, 2);
+				pal(-S - 3.6, 6.5, 1);
+				pal(S + 3.6, 8.5, 2);
+				pal(-11, -S - 3.4, 2);
+				pal(8, -S - 3.4, 1);
+				/* loose cans by the kerb, one knocked over in front */
+				[
+					[-S - 1.6, 1.5],
+					[-S - 1.8, 2.6],
+					[S + 1.7, -9],
+					[S + 1.6, 12],
+					[-6, S + 1.8],
+					[5.5, S + 1.7],
+				].forEach(([x, z]) => L.push({ k: Math.floor(r() * kits.length), x, y: 0, z, ry: r() * 6 }));
+				placeKits(s, kits, L, 0);
+				const sp = paintCanModel("#1FA35C", true);
+				sp.rotation.set(0, 0.6, Math.PI / 2);
+				sp.position.set(-2.2, 0.45, S + 2.2);
+				s.add(sp);
+				decal(s, new THREE.CircleGeometry(1.1, 18), "#1FA35C", -1.1, 0.012, S + 2.6, 0.95);
+			}
+			/* light towers in the back corners, trees beyond */
+			[-1, 1].forEach((sd) => {
+				const lt = kitGroup(bakeKit(lightTowerModel()));
+				lt.position.set(sd * (S + 3.5), 0, -S - 3.2);
+				lt.rotation.y = sd * 0.6;
+				s.add(lt);
+			});
+			for (let i = 0; i < 16; i++) {
+				const u = (r() - 0.5) * 90,
+					d = 40 + r() * 12,
+					[x, z] = i % 3 === 0 ? [-d, u] : i % 3 === 1 ? [d, u] : [u, d];
+				s.add(tree(x, z, 1.2 + r() * 0.8, i % 3));
+			}
+		},
+		spawn: ringSpawn(10),
+		cell(x, z) {
+			const N = W.P.N,
+				cx = Math.max(0, Math.min(N - 1, Math.floor((x + this.S) / this.CS))),
+				cz = Math.max(0, Math.min(N - 1, Math.floor((z + this.S) / this.CS)));
+			return cz * N + cx;
+		},
+		ctr(cx, cz) {
+			return [-this.S + (cx + 0.5) * this.CS, -this.S + (cz + 0.5) * this.CS];
+		},
+		phys(W, e, inp, dt) {
+			const was = e.bcd;
+			arenaPhys(W, e, inp, dt);
+			if (e.bcd > was + 0.5) e.bcd = this.CD;
+		},
+		ramCd: (W) => Math.min(1, W.me.bcd / MG.paint.CD),
+		/* ---- the grid: replay closed loops ---- */
+		fill(W, ev, keep) {
+			/* trail cells become q's, then everything the outside can't reach without crossing q's paint does too */
+			const P = W.P,
+				N = P.N,
+				own = P.own,
+				q = ev.q,
+				t = ev.t,
+				Q = P.q,
+				seen = P.seen,
+				ch = keep ? [] : null;
+			for (const c of ev.cells)
+				if (own[c] !== q) {
+					if (ch) ch.push(c);
+					own[c] = q;
+					P.ct[c] = t;
+				}
+			seen.fill(0);
+			let h = 0,
+				tl = 0;
+			const push = (c) => {
+				if (!seen[c] && own[c] !== q) {
+					seen[c] = 1;
+					Q[tl++] = c;
+				}
+			};
+			for (let k = 0; k < N; k++) {
+				push(k);
+				push((N - 1) * N + k);
+				push(k * N);
+				push(k * N + N - 1);
+			}
+			while (h < tl) {
+				const c = Q[h++],
+					x = c % N;
+				if (x > 0) push(c - 1);
+				if (x < N - 1) push(c + 1);
+				if (c >= N) push(c - N);
+				if (c < N * (N - 1)) push(c + N);
+			}
+			for (let c = 0; c < N * N; c++)
+				if (!seen[c] && own[c] !== q) {
+					if (ch) ch.push(c);
+					own[c] = q;
+					P.ct[c] = t;
+				}
+			return ch;
+		},
+		addEv(W, e, raw) {
+			const P = W.P;
+			if (!Array.isArray(raw) || raw.length < 3) return;
+			const key = e.k + ":" + raw[0];
+			if (P.keys.has(key)) return;
+			P.keys.add(key);
+			const ev = { q: e.i, n: raw[0], t: raw[1] / 100, cells: raw.slice(2).filter((c) => c >= 0 && c < P.N * P.N) };
+			P.evs.push(ev);
+			P.fresh.push(ev);
+		},
+		replay(W) {
+			const P = W.P;
+			if (!P.fresh.length) return;
+			const ord = (a, b) => a.t - b.t || a.q - b.q || a.n - b.n,
+				fresh = P.fresh.sort(ord),
+				newC = [];
+			P.fresh = [];
+			P.evs.sort(ord);
+			if (fresh[0].t < P.lastT) {
+				/* an event from the past arrived: replay everything from the start */
+				P.own.set(P.base);
+				P.ct.fill(-1e9);
+				P.evs.forEach((ev) => {
+					const ch = this.fill(W, ev, fresh.includes(ev));
+					if (ch) newC.push([ev, ch]);
+				});
+			} else fresh.forEach((ev) => newC.push([ev, this.fill(W, ev, true)]));
+			P.lastT = Math.max(P.lastT, fresh[fresh.length - 1].t);
+			newC.forEach(([ev, ch]) => {
+				if (!ch.length) return;
+				let sx = 0,
+					sz = 0;
+				const pts = ch.map((c) => this.ctr(c % P.N, Math.floor(c / P.N)));
+				pts.forEach(([x, z]) => {
+					sx += x;
+					sz += z;
+				});
+				sx /= pts.length;
+				sz /= pts.length;
+				let b = pts[0],
+					bd = 1e9;
+				pts.forEach((p) => {
+					const d = Math.hypot(p[0] - sx, p[1] - sz);
+					if (d < bd) {
+						bd = d;
+						b = p;
+					}
+				});
+				/* only a real loop gets a bucket; skimming the edge of your paint closes tiny ones that just paint in place */
+				const recent = W.t - ev.t < 1.5 && ch.length >= this.BUCKET,
+					t0 = W.t + 0.5;
+				ch.forEach((c, j) => {
+					const [x, z] = pts[j];
+					P.rev[c] = recent ? t0 + Math.hypot(x - b[0], z - b[1]) / 15 : 0;
+				});
+				if (recent) this.bucket(W, ev.q, b[0], b[1], ch.length);
+			});
+		},
+		/* ---- paint layer ---- */
+		draw(W, bx) {
+			/* each pixel blends the 2x2 nearest cells (bilinear weight per owner), so the outlines come out smooth instead of
+			   stepped; the sample point is pushed around by a fixed wobble field so the edges are wavy like spilled paint.
+			   The winner's lead over the runner-up gives soft edges and a darker wet rim. Only the changed box is redrawn. */
+			const P = W.P,
+				N = P.N,
+				px = P.px,
+				Z = N * px,
+				D = P.disp;
+			if (!P.img) {
+				P.img = P.cx.createImageData(Z, Z);
+				P.rgb = P.cols.map((c) => {
+					const k = new THREE.Color(c);
+					return [k.r * 255, k.g * 255, k.b * 255];
+				});
+				const r = mulberry(4242),
+					wv = Array.from({ length: 6 }, (_, i) => ({
+						a: r() * 6.283,
+						f: (i < 3 ? 0.55 : 1.3) * (0.8 + r() * 0.4),
+						p: r() * 6.283,
+						m: i < 3 ? 0.3 : 0.12,
+					}));
+				P.wx = new Float32Array(Z * Z);
+				P.wz = new Float32Array(Z * Z);
+				for (let v = 0; v < Z; v++)
+					for (let u = 0; u < Z; u++) {
+						const gx = (u + 0.5) / px,
+							gz = (v + 0.5) / px;
+						let ox = 0,
+							oz = 0;
+						wv.forEach((w, i) => {
+							const s = Math.sin((gx * Math.cos(w.a) + gz * Math.sin(w.a)) * w.f + w.p) * w.m;
+							if (i % 2) ox += s;
+							else oz += s;
+						});
+						P.wx[v * Z + u] = ox;
+						P.wz[v * Z + u] = oz;
+					}
+			}
+			const dat = P.img.data,
+				rgb = P.rgb,
+				u0 = Math.max(0, (bx[0] - 2) * px),
+				v0 = Math.max(0, (bx[1] - 2) * px),
+				u1 = Math.min(Z, (bx[2] + 3) * px),
+				v1 = Math.min(Z, (bx[3] + 3) * px),
+				ow = [0, 0, 0, 0],
+				wt = [0, 0, 0, 0];
+			let n = 0;
+			const add = (o, w) => {
+				for (let k = 0; k < n; k++)
+					if (ow[k] === o) {
+						wt[k] += w;
+						return;
+					}
+				ow[n] = o;
+				wt[n++] = w;
+			};
+			for (let v = v0; v < v1; v++)
+				for (let u = u0; u < u1; u++) {
+					const i = v * Z + u,
+						gx = Math.max(0, Math.min(N - 1.001, (u + 0.5) / px - 0.5 + P.wx[i])),
+						gz = Math.max(0, Math.min(N - 1.001, (v + 0.5) / px - 0.5 + P.wz[i])),
+						ix = Math.floor(gx),
+						iz = Math.floor(gz),
+						fx = gx - ix,
+						fz = gz - iz,
+						c = iz * N + ix,
+						cx1 = ix < N - 1 ? 1 : 0,
+						cz1 = iz < N - 1 ? N : 0;
+					n = 0;
+					add(D[c], (1 - fx) * (1 - fz));
+					add(D[c + cx1], fx * (1 - fz));
+					add(D[c + cz1], (1 - fx) * fz);
+					add(D[c + cx1 + cz1], fx * fz);
+					let b = 0,
+						s2 = 0,
+						wb = 0;
+					for (let k = 1; k < n; k++) if (wt[k] > wt[b]) b = k;
+					for (let k = 0; k < n; k++) {
+						if (k !== b && wt[k] > s2) s2 = wt[k];
+						if (ow[k] < 0) wb = wt[k];
+					}
+					const o = ow[b],
+						j = i * 4;
+					if (o < 0) {
+						dat[j + 3] = 0;
+						continue;
+					}
+					const lead = wt[b] - s2,
+						sh = 0.62 + 0.38 * Math.min(1, lead / 0.4),
+						cl = rgb[o];
+					dat[j] = cl[0] * sh;
+					dat[j + 1] = cl[1] * sh;
+					dat[j + 2] = cl[2] * sh;
+					dat[j + 3] = wb > 0 ? Math.min(255, (wt[b] - wb) * 1400) : 255;
+				}
+			P.cx.putImageData(P.img, 0, 0, u0, v0, u1 - u0, v1 - v0);
+			P.tex.needsUpdate = true;
+		},
+		bucket(W, q, x, z, size) {
+			const g = new THREE.Group(),
+				can = paintCanModel(W.P.cols[q], true),
+				sc = Math.min(2.2, 1.3 + size / 400);
+			can.position.x = -0.45;
+			g.add(can);
+			g.scale.setScalar(sc);
+			g.position.set(x + 0.45 * sc, 8, z);
+			W.sc.add(g);
+			W.P.cans.push({ g, t0: W.t, x, z, q, sc, sp: false });
+		},
+		cans(W) {
+			const P = W.P;
+			P.cans = P.cans.filter((b) => {
+				const a = W.t - b.t0;
+				if (a > 1.6 || a < -1) {
+					W.sc.remove(b.g);
+					return false;
+				}
+				const fall = Math.min(1, a / 0.3);
+				b.g.position.y = 8 * (1 - fall * fall);
+				b.g.rotation.z = a < 0.3 ? 0 : Math.min(1.95, (a - 0.3) * 9);
+				b.g.scale.setScalar(b.sc * (a > 1.25 ? Math.max(0.01, 1 - (a - 1.25) / 0.35) : 1));
+				if (!b.sp && a > 0.48) {
+					b.sp = true;
+					const c = P.cols[b.q];
+					burst(W.sc, b.x, 0.6, b.z, {
+						n: 26,
+						shape: "ico",
+						cols: [c, c, "#FFFFFF"],
+						spd: 6,
+						up: 6,
+						grav: 16,
+						life: 0.75,
+						size: 1.1,
+					});
+					if (W.tv || Math.hypot(b.x - W.me.x, b.z - W.me.z) < 14) sfx("splash");
+					if (!W.tv && W.me.i === b.q) W.shake = Math.max(W.shake, 0.18);
+				}
+				return true;
+			});
+		},
+		/* ---- trails ---- */
+		initEnt(W, e) {
+			e.pl = { cells: [], at: new Map(), vt: new Map(), pts: [], n: 0, ev: [], lx: e.x, lz: e.z, cut: 0 };
+			e.f.tp = [];
+			e.f.ev = [];
+			e.f.cut = 0;
+			this.mkRoller(W, e);
+		},
+		/* ---- paint roller towed behind each truck: a trailing arm from a hitch at the back, so it swings out on turns and
+		   settles back in line, and the open trail is drawn from it ---- */
+		RL: 1.25,
+		BUCKET: 16,
+		mkRoller(W, e) {
+			e.tr.updateMatrixWorld(true);
+			const bb = new THREE.Box3().setFromObject(e.tr),
+				col = W.P.cols[e.i],
+				L = this.RL,
+				A = new THREE.Group(),
+				spin = new THREE.Group(),
+				R = 0.2,
+				Y = 0.22,
+				D = "#3A3F48",
+				met = { metalness: 0.45, roughness: 0.4 };
+			/* arm group: hitch at the origin, roller axle at x = L, axle across z */
+			strut(A, [0, 0.42, 0], [L - 0.3, Y + 0.12, 0], 0.07, D, 1);
+			A.add(B(0.12, 0.14, 0.16, D, 0.02, 0.42, 0));
+			strut(A, [L - 0.3, Y + 0.12, -0.6], [L - 0.3, Y + 0.12, 0.6], 0.06, "#8E96A3", 2);
+			[-1, 1].forEach((sd) => strut(A, [L - 0.3, Y + 0.12, sd * 0.6], [L, Y, sd * 0.6], 0.06, "#8E96A3", 1));
+			spin.position.set(L, Y, 0);
+			const nap = Cy(R, R, 1.08, 12, col, 0, 0, 0, { roughness: 0.55 });
+			nap.rotation.x = Math.PI / 2;
+			spin.add(nap);
+			[-1, 1].forEach((sd) => {
+				const c = Cy(0.1, 0.1, 0.08, 8, "#C9CED6", 0, 0, sd * 0.58, met);
+				c.rotation.x = Math.PI / 2;
+				spin.add(c);
+			});
+			/* a raised stripe of paint round the nap so its spin shows */
+			const st = B(0.08, 0.05, 1.1, "#F4F6F9", 0, R + 0.01, 0);
+			spin.add(st);
+			A.add(spin);
+			A.traverse((o) => (o.userData.dyn = true));
+			e.g.add(A);
+			const hx = bb.min.x - 0.05,
+				hb = { x: e.x + Math.cos(e.yaw) * hx, z: e.z - Math.sin(e.yaw) * hx };
+			e.rl = { A, spin, hx, x: hb.x - Math.cos(e.yaw) * L, z: hb.z + Math.sin(e.yaw) * L, rot: 0 };
+		},
+		rollAt(e) {
+			return e.rl ? [e.rl.x, e.rl.z] : [e.x, e.z];
+		},
+		roller(W, e, dt) {
+			const r = e.rl;
+			if (!r) return;
+			const hx = e.x + Math.cos(e.yaw) * r.hx,
+				hz = e.z - Math.sin(e.yaw) * r.hx;
+			let dx = r.x - hx,
+				dz = r.z - hz;
+			const l = Math.hypot(dx, dz) || 1,
+				nx = hx + (dx / l) * this.RL,
+				nz = hz + (dz / l) * this.RL,
+				mv = Math.hypot(nx - r.x, nz - r.z);
+			/* roll forward or back depending on which way it moved along the arm */
+			r.rot += (mv / 0.2) * ((nx - r.x) * dx + (nz - r.z) * dz > 0 ? -1 : 1);
+			r.x = nx;
+			r.z = nz;
+			dx = r.x - hx;
+			dz = r.z - hz;
+			r.A.position.set(hx - e.x, 0, hz - e.z);
+			r.A.rotation.y = Math.atan2(-dz, dx);
+			r.spin.rotation.z = r.rot;
+		},
+		close(W, e) {
+			const pl = e.pl,
+				raw = [++pl.n, Math.round(W.t * 100)].concat(pl.cells);
+			pl.ev.push(raw);
+			e.f.ev = pl.ev.slice(-6);
+			this.addEv(W, e, raw);
+			this.clearTrail(e);
+		},
+		clearTrail(e) {
+			e.pl.cells = [];
+			e.pl.at = new Map();
+			e.pl.vt = new Map();
+			e.pl.pts = [];
+			e.f.tp = [];
+		},
+		cutTrail(W, e) {
+			this.washFx(W, e, e.pl.pts);
+			this.clearTrail(e);
+			e.f.cut = ++e.pl.cut;
+			e.pl.cutT = W.t;
+			if (e.isMe) W.shake = Math.max(W.shake, 0.3);
+		},
+		washFx(W, e, pts) {
+			const c = W.P.cols[e.i],
+				st = Math.max(1, Math.floor(pts.length / 14));
+			for (let k = 0; k < pts.length; k += st)
+				burst(W.sc, pts[k][0], 0.3, pts[k][1], {
+					n: 3,
+					shape: "ico",
+					cols: [c, "#FFFFFF"],
+					spd: 1.6,
+					up: 3,
+					grav: 9,
+					life: 0.5,
+					size: 0.6,
+				});
+			if (W.tv || e.isMe) sfx("crack");
+		},
+		visit(W, e, c) {
+			/* the truck reached cell c: close the loop, or extend the trail. Returns true when the loop closed */
+			const P = W.P,
+				pl = e.pl;
+			if (P.own[c] === e.i) {
+				if (pl.cells.length) {
+					this.close(W, e);
+					return true;
+				}
+				return false;
+			}
+			const j = pl.at.get(c);
+			if (j !== undefined) {
+				if (j < pl.cells.length - 5) {
+					this.close(W, e);
+					return true;
+				}
+				return false;
+			}
+			if (!pl.cells.length) pl.pts = [this.rollAt(e)];
+			pl.at.set(c, pl.cells.length);
+			pl.vt.set(c, W.t);
+			pl.cells.push(c);
+			return false;
+		},
+		rules(W, e) {
+			if (e.d || !W.P) return;
+			const P = W.P,
+				N = P.N,
+				pl = e.pl;
+			/* walk from the last position in small steps; a diagonal move adds the corner cell so the trail has no gaps */
+			const dx = e.x - pl.lx,
+				dz = e.z - pl.lz,
+				st = Math.max(1, Math.ceil(Math.hypot(dx, dz) / 0.2));
+			let last = this.cell(pl.lx, pl.lz);
+			for (let s = 1; s <= st; s++) {
+				const c = this.cell(pl.lx + (dx * s) / st, pl.lz + (dz * s) / st);
+				if (c === last) continue;
+				if (c % N !== last % N && Math.floor(c / N) !== Math.floor(last / N))
+					if (this.visit(W, e, Math.floor(last / N) * N + (c % N))) break;
+				last = c;
+				if (this.visit(W, e, c)) break;
+			}
+			{
+				const c = this.cell(e.x, e.z);
+				if (!pl.cells.length && P.own[c] !== e.i) this.visit(W, e, c);
+			}
+			pl.lx = e.x;
+			pl.lz = e.z;
+			if (pl.cells.length) {
+				const lp = pl.pts[pl.pts.length - 1],
+					ra = this.rollAt(e);
+				if (!lp || Math.hypot(lp[0] - ra[0], lp[1] - ra[1]) > 0.5) {
+					pl.pts.push(ra);
+					e.f.tp = [].concat(...pl.pts.map(([x, z]) => [Math.round(x * 10), Math.round(z * 10)]));
+				}
+				/* a rival touching the open trail washes it away */
+				for (const o of W.list) {
+					if (o === e || o.gone || !o.al || o.d || (!o.local && !o.seen)) continue;
+					const ox = Math.floor((o.x + this.S) / this.CS),
+						oz = Math.floor((o.z + this.S) / this.CS);
+					let hit = false;
+					for (let a = -1; a <= 1 && !hit; a++)
+						for (let b = -1; b <= 1 && !hit; b++) {
+							const cx = ox + a,
+								cz = oz + b;
+							if (cx < 0 || cz < 0 || cx >= N || cz >= N || !pl.at.has(cz * N + cx)) continue;
+							const [x, z] = this.ctr(cx, cz);
+							if (Math.hypot(x - o.x, z - o.z) < 0.55) hit = true;
+						}
+					if (hit) {
+						this.cutTrail(W, e);
+						break;
+					}
+				}
+			}
+			/* so does a rival's fill over it */
+			if (pl.cells.length)
+				for (const c of pl.cells)
+					if (P.own[c] !== e.i && P.own[c] >= 0 && P.ct[c] > pl.vt.get(c)) {
+						this.cutTrail(W, e);
+						break;
+					}
+		},
+		frame(W) {
+			const P = W.P;
+			for (const e of W.list) {
+				if (e.gone || e.local || !e.f) continue;
+				if (Array.isArray(e.f.ev)) e.f.ev.forEach((raw) => this.addEv(W, e, raw));
+				const ct = e.f.cut || 0;
+				if (e.seenCut === undefined) e.seenCut = ct;
+				if (ct > e.seenCut) {
+					e.seenCut = ct;
+					const tp = e.lastTp || [],
+						pts = [];
+					for (let k = 0; k + 1 < tp.length; k += 2) pts.push([tp[k] / 10, tp[k + 1] / 10]);
+					this.washFx(W, e, pts);
+				}
+				if (Array.isArray(e.f.tp) && e.f.tp.length) e.lastTp = e.f.tp;
+			}
+			this.replay(W);
+			/* reveal changed cells as the bucket's paint spreads */
+			const D = P.disp,
+				own = P.own;
+			const bx = P.box;
+			for (let c = 0; c < own.length; c++)
+				if (D[c] !== own[c] && W.t >= P.rev[c]) {
+					D[c] = own[c];
+					const cx = c % P.N,
+						cz = (c - cx) / P.N;
+					bx[0] = Math.min(bx[0], cx);
+					bx[1] = Math.min(bx[1], cz);
+					bx[2] = Math.max(bx[2], cx);
+					bx[3] = Math.max(bx[3], cz);
+				}
+			const now = performance.now();
+			if (bx[2] >= 0 && now - P.drawn > 50) {
+				P.drawn = now;
+				this.draw(W, bx);
+				P.box = [1e9, 1e9, -1, -1];
+			}
+			/* scores: share of the lot in your paint */
+			const cnt = new Array(P.cols.length).fill(0);
+			for (let c = 0; c < own.length; c++) if (own[c] >= 0) cnt[own[c]]++;
+			W.list.forEach((e) => {
+				if (e.local && !e.gone) e.sc = Math.round((cnt[e.i] / own.length) * 100);
+			});
+			this.cans(W);
+			W.list.forEach((e) => this.ribbon(W, e));
+		},
+		ribbon(W, e) {
+			const R = W.P.rib[e.i];
+			if (!R) return;
+			let pts = [];
+			if (e.gone) pts = [];
+			else if (e.local) pts = e.pl.pts;
+			else {
+				const tp = (e.f && e.f.tp) || [];
+				for (let k = 0; k + 1 < tp.length; k += 2) pts.push([tp[k] / 10, tp[k + 1] / 10]);
+			}
+			if (pts.length) pts = pts.slice(-(R.MX - 1)).concat([this.rollAt(e)]);
+			const n = pts.length,
+				p = R.pos,
+				w = 0.34,
+				y = 0.07;
+			for (let k = 0; k < n; k++) {
+				const a = pts[Math.max(0, k - 1)],
+					b = pts[Math.min(n - 1, k + 1)];
+				let tx = b[0] - a[0],
+					tz = b[1] - a[1];
+				const l = Math.hypot(tx, tz) || 1;
+				tx /= l;
+				tz /= l;
+				const o = k * 6;
+				p[o] = pts[k][0] - tz * w;
+				p[o + 1] = y;
+				p[o + 2] = pts[k][1] + tx * w;
+				p[o + 3] = pts[k][0] + tz * w;
+				p[o + 4] = y;
+				p[o + 5] = pts[k][1] - tx * w;
+			}
+			R.geo.attributes.position.needsUpdate = true;
+			R.geo.setDrawRange(0, Math.max(0, n - 1) * 6);
+		},
+		render(W, e, dt) {
+			this.roller(W, e, dt);
+			if (W.fxT === W.t) return;
+			W.fxT = W.t;
+			this.frame(W);
+		},
+		prompt(W, me) {
+			if (!me.pl || W.t < 0) return "";
+			if (me.pl.cutT !== undefined && W.t - me.pl.cutT < 1.6) return "✂️ Your trail got washed away!";
+			if (me.pl.cells.length) return "🎨 Get back to your paint to fill the loop!";
+			return W.t < 6 ? "Drive out of your paint, loop round and come back!" : "";
+		},
+		/* ---- CPUs: short loops out of their paint, cut nearby open trails, run home when a rival gets close ---- */
+		trailPts(o) {
+			if (o.local) return (o.pl && o.pl.pts) || [];
+			const tp = (o.f && o.f.tp) || [],
+				pts = [];
+			for (let k = 0; k + 1 < tp.length; k += 2) pts.push([tp[k] / 10, tp[k + 1] / 10]);
+			return pts;
+		},
+		home(W, e) {
+			/* nearest cell of its own paint, searched in growing squares */
+			const P = W.P,
+				N = P.N,
+				cx0 = Math.floor((e.x + this.S) / this.CS),
+				cz0 = Math.floor((e.z + this.S) / this.CS);
+			let hb = null,
+				hd = 1e9;
+			for (let r = 1; r < N && !hb; r++)
+				for (let a = -r; a <= r; a++)
+					for (const [cx, cz] of [
+						[cx0 + a, cz0 - r],
+						[cx0 + a, cz0 + r],
+						[cx0 - r, cz0 + a],
+						[cx0 + r, cz0 + a],
+					]) {
+						if (cx < 0 || cz < 0 || cx >= N || cz >= N || P.own[cz * N + cx] !== e.i) continue;
+						const [x, z] = this.ctr(cx, cz),
+							d = Math.hypot(x - e.x, z - e.z);
+						if (d < hd) {
+							hd = d;
+							hb = [x, z];
+						}
+					}
+			return hb;
+		},
+		bot(W, e) {
+			const pl = e.pl,
+				S = this.S - 1;
+			/* hunt an open rival trail close by */
+			let best = null,
+				bd = 1e9;
+			for (const o of W.list) {
+				if (o === e || o.gone || !o.al || o.d) continue;
+				const pts = this.trailPts(o);
+				if (pts.length < 4) continue;
+				for (let k = 0; k < pts.length - 2; k += 2) {
+					const d = Math.hypot(pts[k][0] - e.x, pts[k][1] - e.z);
+					if (d < bd) {
+						bd = d;
+						best = pts[k];
+					}
+				}
+			}
+			if (W.t > (e.huntT || 0)) {
+				e.hunt = Math.random() < 0.3;
+				e.huntT = W.t + 2.5 + Math.random() * 2;
+			}
+			if (e.hunt && best && bd < 2.5 + (e.i % 3) * 0.8 && pl.cells.length < 12) {
+				const s = steer(e, best[0], best[1], 1);
+				if (bd < 2.5 && e.bcd <= 0 && Math.random() < 0.02) s.boost = true;
+				return s;
+			}
+			/* head home when the trail is long or a rival is near it */
+			if (pl.cells.length) {
+				const threat = W.list.some(
+					(o) =>
+						o !== e &&
+						!o.gone &&
+						o.al &&
+						!o.d &&
+						pl.pts.some((p, k) => k % 3 === 0 && Math.hypot(p[0] - o.x, p[1] - o.z) < 4),
+				);
+				if (threat || pl.cells.length > (e.bLen || 30)) {
+					const h = this.home(W, e);
+					if (h) {
+						const s = steer(e, h[0], h[1], 1);
+						if (threat && e.bcd <= 0 && Math.random() < 0.03) s.boost = true;
+						return s;
+					}
+				}
+			}
+			/* otherwise follow a planned loop: out, sideways, then back home */
+			if (!e.plan || W.t > e.plan.until || (e.plan.k >= e.plan.w.length && !pl.cells.length)) {
+				const a0 = Math.random() * 6.283,
+					L = 3 + Math.random() * (3 + (e.i % 3)),
+					sd = Math.random() < 0.5 ? 1 : -1,
+					cl = (v) => Math.max(-S, Math.min(S, v)),
+					p1 = [cl(e.x + Math.cos(a0) * L), cl(e.z + Math.sin(a0) * L)],
+					p2 = [cl(p1[0] - Math.sin(a0) * L * sd), cl(p1[1] + Math.cos(a0) * L * sd)];
+				e.plan = { w: [p1, p2], k: 0, until: W.t + 5 };
+				e.bLen = 16 + Math.floor(Math.random() * 24);
+			}
+			const P_ = e.plan;
+			if (P_.k < P_.w.length) {
+				const wp = P_.w[P_.k];
+				if (Math.hypot(wp[0] - e.x, wp[1] - e.z) < 1.2) P_.k++;
+				return steer(e, wp[0], wp[1], 0.9);
+			}
+			const h = this.home(W, e);
+			return h ? steer(e, h[0], h[1], 0.9) : wander(W, e, 0.016, 8);
+		},
+		botScore: () => 8 + rnd(25),
+	},
+});

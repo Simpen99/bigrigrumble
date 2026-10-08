@@ -50,8 +50,7 @@
 - Mario Party style opening for every minigame: start high / tilted down over the whole arena (showing props like Dump Run's dirt piles behind the excavators), then sweep down to the game camera during the ready screen or countdown.
 
 ## Minigames picked (to build)
-- Done: Hot Load (`hotload`, partmg3).
-- **Paint the Lot** (free-for-all or teams, arena): trucks leave a trail in their colour; most of the car park covered wins.
+- Done: Hot Load (`hotload`, partmg3), Paint the Lot (`paint`, partmg3).
 - **Monster Mash** (1v3): the solo truck is a giant monster truck; the others must survive 30 s.
 - **Magnet Mike's Crane** (1v3): the solo player works a scrapyard magnet crane and lifts the others out of the arena.
 - **Truck Soccer** (2v2 / 4v4, arena): giant tyre ball, ramming physics. Needs a shared ball (host-simulated, like CPU trucks).
