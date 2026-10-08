@@ -711,7 +711,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-09 01:53 8d5bb39";
+const BUILD = "2026-10-09 01:54 31a343c";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -27545,7 +27545,7 @@ Object.assign(MG, {
 					e.tyHit[t.id] = 1;
 					if (W.t - (e.tyT || -9) > 0.3) {
 						e.tyT = W.t;
-						this.knock(W, e, t.dx, t.dz, 19, 0.7, "tyre");
+						this.knock(W, e, t.dx, t.dz, 16, 0.7, "tyre");
 						e.reelT = 0.35;
 					}
 				}

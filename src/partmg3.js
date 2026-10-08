@@ -2454,7 +2454,7 @@ Object.assign(MG, {
 					e.tyHit[t.id] = 1;
 					if (W.t - (e.tyT || -9) > 0.3) {
 						e.tyT = W.t;
-						this.knock(W, e, t.dx, t.dz, 19, 0.7, "tyre");
+						this.knock(W, e, t.dx, t.dz, 16, 0.7, "tyre");
 						e.reelT = 0.35;
 					}
 				}
