@@ -2197,8 +2197,12 @@ Object.assign(MG, {
 				return;
 			}
 			/* the monster: a giant on the turntable with a tyre cannon on its roof */
-			const k = 1.8,
+			/* the boss drives the monster version of its own truck (buildTruck mode "monster"), scaled up */
+			const k = 1.45,
 				sc = 0.8 * k;
+			e.g.remove(e.tr);
+			e.tr = buildTruck(e.p.truck, "monster");
+			e.g.add(e.tr);
 			e.tr.scale.setScalar(sc);
 			e.g.children.forEach((o) => {
 				if (o.userData.disc) o.visible = false;

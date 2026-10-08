@@ -104,7 +104,8 @@ function chamferPrism(P, d, r, cs) {
    catwalk, loads, roll bars, roof ornaments), stops parts that swing over the roof, and sets userData.mount =
    {x, y, s, host}: where the rig sits (truck coords, front at +x), its scale, and the group to add it to */
 function buildTruck(i, mode) {
-	const hose = mode === "hose";
+	const hose = mode === "hose",
+		mon = mode === "monster";
 	const B = (w, h, d, c, x, y, z, o) => {
 		let sq = null;
 		if (o && o.sq) {
@@ -112,6 +113,11 @@ function buildTruck(i, mode) {
 			o = Object.assign({}, o);
 			delete o.sq;
 			if (!Object.keys(o).length) o = undefined;
+		}
+		/* monster mode: every headlight becomes a red glowing eye */
+		if (mon && o === lamp) {
+			c = "#D81E1E";
+			o = MON.EYE;
 		}
 		const mn = Math.min(w, h, d),
 			r = Math.min(0.075, mn * 0.2),
@@ -127,7 +133,7 @@ function buildTruck(i, mode) {
 		HOOD = { sq: ["nx", "ny"] };
 	const t = TRUCKS[i] || TRUCKS[0],
 		g = new THREE.Group(),
-		c = t.color,
+		c = mon ? "#" + new THREE.Color(t.color).lerp(new THREE.Color("#1B1E26"), 0.22).getHexString() : t.color,
 		a = t.accent,
 		D = "#353A46",
 		GL = "#2F3B52",
@@ -154,19 +160,22 @@ function buildTruck(i, mode) {
 		g.add(q);
 		return q;
 	};
+	const monAx = [];
 	const wheels = (xs, r = 0.3, z = W / 2) =>
-		xs.forEach((x) =>
-			[-1, 1].forEach((s) => {
-				const w = Cy(r, r, 0.3, 16, "#2A2E36", 0, 0, 0);
-				w.rotation.x = Math.PI / 2;
-				const h = Cy(r * 0.6, r * 0.6, 0.32, 12, "#E3E6EB", 0, 0, 0);
-				h.rotation.x = Math.PI / 2;
-				const cp = Cy(r * 0.22, r * 0.22, 0.36, 8, "#9AA3AE", 0, 0, 0);
-				cp.rotation.x = Math.PI / 2;
-				const sp = new THREE.Mesh(new THREE.BoxGeometry(r * 1.05, 0.05, 0.34), M("#C3CAD4"));
-				wheelsL.push({ g: grp(x, r, s * z, w, h, cp, sp), r });
-			}),
-		);
+		mon
+			? monAx.push(...xs)
+			: xs.forEach((x) =>
+					[-1, 1].forEach((s) => {
+						const w = Cy(r, r, 0.3, 16, "#2A2E36", 0, 0, 0);
+						w.rotation.x = Math.PI / 2;
+						const h = Cy(r * 0.6, r * 0.6, 0.32, 12, "#E3E6EB", 0, 0, 0);
+						h.rotation.x = Math.PI / 2;
+						const cp = Cy(r * 0.22, r * 0.22, 0.36, 8, "#9AA3AE", 0, 0, 0);
+						cp.rotation.x = Math.PI / 2;
+						const sp = new THREE.Mesh(new THREE.BoxGeometry(r * 1.05, 0.05, 0.34), M("#C3CAD4"));
+						wheelsL.push({ g: grp(x, r, s * z, w, h, cp, sp), r });
+					}),
+				);
 	const chassis = (l = 2.1, x = 0) => {
 		tailX = x - l / 2;
 		add(B(l, 0.2, W * 0.78, D, x, 0.42, 0));
@@ -665,6 +674,7 @@ function buildTruck(i, mode) {
 		l2.position.set(tailX - 0.075, tailY + 0.01, -W * 0.33);
 		host.add(bp, l1, l2);
 	}
+	if (mon) monsterize(g, monAx, anims, wheelsL, t.kind === "monster");
 	{
 		/* paint (body and accent colour) gets its own materials per truck, tagged for the new look's slight shine (lookEnv) */
 		const pc = [c, a].map((x) => new THREE.Color(x).getHex()),
@@ -691,6 +701,151 @@ function buildTruck(i, mode) {
 	}
 	mergeTruck(g);
 	return g;
+}
+/* monster mode (Monster Mash's boss): the truck's own body, paint a shade darker, lifted on long shocks over huge
+   treaded tyres with spiked hubs, a toothed bull bar, red glowing eyes under angry brows, and exhaust stacks with flames */
+const MON = { R: 0.62, DY: 0.7, EYE: { emissive: "#FF2A1A", emissiveIntensity: 0.9 } };
+function monsterize(g, xs, anims, wheelsL, own) {
+	const DY = own ? 0.2 : MON.DY,
+		R = MON.R,
+		D = "#353A46",
+		ST = "#4A525C",
+		CH = "#C9CED8",
+		BONE = "#E8E2D0",
+		W2 = 0.55,
+		ZW = W2 + 0.27,
+		lift = new THREE.Group();
+	lift.position.y = DY;
+	[...g.children].forEach((o) => lift.add(o));
+	g.add(lift);
+	g.userData.lift = lift;
+	g.updateMatrixWorld(true);
+	const bb = new THREE.Box3().setFromObject(lift),
+		fx = bb.max.x,
+		top = bb.max.y - DY,
+		add = (p, ...m) => m.forEach((x) => p.add(x)),
+		cyl = (rt, rb, h, n, col, x, y, z, o) => Cy(rt, rb, h, n, col, x, y, z, o);
+	/* axles: close tandem axles share one big tyre, and the two ends stay a tyre apart */
+	const ax = [];
+	xs.slice()
+		.sort((a, b) => a - b)
+		.forEach((x) => {
+			const l = ax[ax.length - 1];
+			if (l && x - l[l.length - 1] < 1.2) l.push(x);
+			else ax.push([x]);
+		});
+	let axles = ax.map((l) => l.reduce((a, b) => a + b, 0) / l.length);
+	if (axles.length === 1) axles = [axles[0] - 0.7, axles[0] + 0.7];
+	if (axles.length === 2 && axles[1] - axles[0] < 1.34) {
+		const m = (axles[0] + axles[1]) / 2;
+		axles = [m - 0.67, m + 0.67];
+	}
+	axles.forEach((x) => {
+		/* axle beam, and per side a coil-over shock from the axle up to the frame */
+		const beam = cyl(0.09, 0.09, ZW * 2, 8, D, x, R, 0);
+		beam.rotation.x = Math.PI / 2;
+		g.add(beam);
+		const bot = 0.3 + DY;
+		[-1, 1].forEach((sd) => {
+			const zz = sd * 0.4,
+				h = bot - R,
+				rod = cyl(0.035, 0.035, h + 0.1, 6, CH, x, R + h / 2, zz),
+				spr = cyl(0.085, 0.085, h * 0.55, 8, "#FFC83D", x, R + h * 0.55, zz),
+				capT = cyl(0.07, 0.07, 0.08, 8, D, x, bot - 0.02, zz),
+				capB = cyl(0.07, 0.07, 0.08, 8, D, x, R + 0.1, zz);
+			add(g, rod, spr, capT, capB);
+			/* the tyre: tread, dark rim and cap stay still (merged), the tread blocks, spike and bolts turn */
+			const z = sd * ZW,
+				wg = new THREE.Group();
+			wg.position.set(x, R, z);
+			const tyre = Cy(R, R, 0.48, 14, "#2A2E36", 0, 0, 0),
+				rim = Cy(R * 0.56, R * 0.56, 0.5, 10, "#3D424C", 0, 0, 0),
+				cap = Cy(R * 0.3, R * 0.3, 0.54, 8, CH, 0, 0, 0);
+			[tyre, rim, cap].forEach((m) => (m.rotation.x = Math.PI / 2));
+			wg.add(tyre, rim, cap);
+			for (let i = 0; i < 14; i++) {
+				const a = (i / 14) * Math.PI * 2,
+					b = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.1, 0.46), M("#30343C"));
+				b.position.set(Math.cos(a) * (R + 0.03), Math.sin(a) * (R + 0.03), 0);
+				b.rotation.z = a + Math.PI / 2;
+				b.castShadow = true;
+				wg.add(b);
+			}
+			const sp = Cy(0, 0.1, 0.3, 6, CH, 0, 0, sd * 0.42);
+			sp.rotation.x = (sd * Math.PI) / 2;
+			wg.add(sp);
+			for (let i = 0; i < 5; i++) {
+				const a = (i / 5) * Math.PI * 2,
+					bt = Cy(0.04, 0.04, 0.06, 6, "#E3E6EB", Math.cos(a) * 0.24, Math.sin(a) * 0.24, sd * 0.28);
+				bt.rotation.x = Math.PI / 2;
+				wg.add(bt);
+			}
+			g.add(wg);
+			wheelsL.push({ g: wg, r: R });
+		});
+	});
+	/* toothed bull bar: two steel bars on brackets, bone teeth up from the lower bar, fangs down from the upper one,
+	   chrome spikes at the ends */
+	const bx = fx + 0.12;
+	add(
+		lift,
+		B_(0.1, 0.1, 1.2, ST, bx, 0.2, 0),
+		B_(0.1, 0.1, 1.2, ST, bx, 0.58, 0),
+		B_(0.08, 0.46, 0.08, ST, bx, 0.39, 0.44),
+		B_(0.08, 0.46, 0.08, ST, bx, 0.39, -0.44),
+		B_(0.14, 0.08, 0.08, D, fx + 0.02, 0.39, 0.3),
+		B_(0.14, 0.08, 0.08, D, fx + 0.02, 0.39, -0.3),
+	);
+	[-0.36, -0.18, 0, 0.18, 0.36].forEach((z) => lift.add(cyl(0, 0.05, 0.18, 4, BONE, bx, 0.34, z)));
+	[-0.27, -0.09, 0.09, 0.27].forEach((z) => {
+		const f = cyl(0, 0.05, 0.18, 4, BONE, bx, 0.44, z);
+		f.rotation.x = Math.PI;
+		lift.add(f);
+	});
+	[-0.5, 0.5].forEach((z) => {
+		const k = cyl(0, 0.06, 0.26, 5, CH, bx + 0.17, 0.58, z);
+		k.rotation.z = -Math.PI / 2;
+		lift.add(k);
+	});
+	/* angry brows over the eyes that look forward */
+	const eyes = [];
+	lift.traverse((o) => {
+		if (o.isMesh && o.material && o.material.emissive && o.material.emissive.getHex() === 0xff2a1a) eyes.push(o);
+	});
+	eyes.forEach((o) => {
+		const p = lift.worldToLocal(o.getWorldPosition(new THREE.Vector3()));
+		if (p.x < fx - 0.4 || Math.abs(p.z) < 0.15) return;
+		o.scale.set(1, 1.6, 1.35);
+		const br = B_(0.07, 0.05, 0.3, "#1D2230", p.x + 0.03, p.y + 0.13, p.z);
+		br.rotation.x = -Math.sign(p.z) * 0.45;
+		lift.add(br);
+	});
+	/* exhaust stacks behind the cab, sooty tips, flickering flames */
+	const ex = fx - 0.9,
+		ht = Math.min(Math.max(top + 0.05, 1.2), 1.75);
+	[-1, 1].forEach((sd) => {
+		const z = sd * (W2 + 0.1);
+		add(
+			lift,
+			cyl(0.08, 0.08, ht - 0.45, 8, CH, ex, 0.45 + (ht - 0.45) / 2, z),
+			cyl(0.1, 0.09, 0.1, 8, "#2E323A", ex, ht + 0.03, z),
+			B_(0.06, 0.06, 0.12, D, ex, 0.75, sd * (W2 + 0.03)),
+		);
+		const fl = cyl(0, 0.09, 0.24, 6, "#FF6A1F", ex, ht + 0.2, z, { emissive: "#FF4A10", emissiveIntensity: 1.6 });
+		fl.userData.dyn = true;
+		lift.add(fl);
+		anims.push((tm) => {
+			const k = 0.75 + Math.abs(Math.sin(tm * 17 + sd)) * 0.5;
+			fl.scale.set(1, k, 1);
+			fl.position.y = ht + 0.08 + 0.12 * k;
+		});
+	});
+}
+/* plain box for the monster kit (no chamfer: small parts stay crisp) */
+function B_(w, h, d, c, x, y, z) {
+	const m = mesh(new THREE.BoxGeometry(w, h, d), c);
+	m.position.set(x, y, z);
+	return m;
 }
 /* fewer draw calls: inside every group, the static meshes that share a material become one mesh (a truck drops from
    50-70 meshes to about 15, and the shadow pass with it). Meshes with userData (dyn: moved or toggled on their own)

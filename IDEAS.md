@@ -53,7 +53,7 @@
 - Done: Hot Load (`hotload`, partmg3), Paint the Lot (`paint`, partmg3), team mode + Monster Mash (`mash`, partmg3, 1v3).
 - **Magnet Mike's Crane** (1v3): the solo player works a scrapyard magnet crane and lifts the others out of the arena.
 - **Truck Soccer** (2v2 / 4v4, arena): giant tyre ball, ramming physics. Needs a shared ball (host-simulated, like CPU trucks).
-- Team mode is in (`spaceSplit` in partgame). 2v2 splits play free-for-all until a 2v2 game exists (Truck Soccer). Monster Mash follow-ups: a real monster-truck model (big tyres, lifted body) instead of the scaled-up truck; boss intro camera swoop + name card; TV-mode phone controllers still say RAM instead of FIRE / DASH.
+- Team mode is in (`spaceSplit` in partgame). 2v2 splits play free-for-all until a 2v2 game exists (Truck Soccer). Monster Mash follow-up: boss intro (camera swoop + name card during the countdown). Done: monster versions of all 12 trucks (`buildTruck(i, "monster")`), FIRE/POUND buttons (also on TV controllers), dusk stadium look.
 
 ## Volcano Quarry bridge ideas
 - Crumbling bridge: each crossing cracks it; the 4th collapses a section (truck drops to the crater floor, loses a shard); the eruption rebuilds it.
