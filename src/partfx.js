@@ -485,6 +485,20 @@ function showMike(ev) {
 		`<div class="mike${n === 1 ? " now" : ""}"><div class="mk-st"><div class="mk-box"><span class="mk-name">Magnet Mike</span><span class="mk-big">${line}</span>${n === 1 ? `<span class="mk-sub">Someone's getting hauled away…</span>` : ""}</div>${img ? `<img alt="" src="${img}">` : ""}</div></div>`,
 	);
 }
+/* team minigame reveal: "1 vs 3!" with each side's trucks on its colour */
+function showVs(ev) {
+	const side = (s) =>
+		G.players
+			.filter((p) => ev.vs[p.key] === s)
+			.map(
+				(p) =>
+					`<span class="vs-t${p.key === me.key ? " me" : ""}"><img alt="" src="${thumb(p.truck)}"><b>${esc(p.key === me.key ? "You" : p.name)}</b></span>`,
+			)
+			.join("");
+	stickerShow(
+		`<div class="vss"><div class="vs-box"><span class="vs-big">${esc(ev.title)}</span><div class="vs-row"><div class="vs-side" style="--sc:${ev.tc[0]}">${side(0)}</div><span class="vs-x">VS</span><div class="vs-side" style="--sc:${ev.tc[1]}">${side(1)}</div></div></div></div>`,
+	);
+}
 function boardFx(bd, dt) {
 	const ps = G.players;
 	ps.forEach((p) => {

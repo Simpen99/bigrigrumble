@@ -50,11 +50,10 @@
 - Mario Party style opening for every minigame: start high / tilted down over the whole arena (showing props like Dump Run's dirt piles behind the excavators), then sweep down to the game camera during the ready screen or countdown.
 
 ## Minigames picked (to build)
-- Done: Hot Load (`hotload`, partmg3), Paint the Lot (`paint`, partmg3).
-- **Monster Mash** (1v3): the solo truck is a giant monster truck; the others must survive 30 s.
+- Done: Hot Load (`hotload`, partmg3), Paint the Lot (`paint`, partmg3), team mode + Monster Mash (`mash`, partmg3, 1v3).
 - **Magnet Mike's Crane** (1v3): the solo player works a scrapyard magnet crane and lifts the others out of the arena.
 - **Truck Soccer** (2v2 / 4v4, arena): giant tyre ball, ramming physics. Needs a shared ball (host-simulated, like CPU trucks).
-- 1v3 / team games need a team-split minigame mode first (Mario Party style: teams from the colour of the space each truck landed on, a "1 vs 3!" reveal, shared payouts).
+- Team mode is in (`spaceSplit` in partgame). 2v2 splits play free-for-all until a 2v2 game exists (Truck Soccer). Monster Mash follow-up: a real monster-truck model (big tyres, lifted body) instead of the scaled-up truck.
 
 ## Volcano Quarry bridge ideas
 - Crumbling bridge: each crossing cracks it; the 4th collapses a section (truck drops to the crater floor, loses a shard); the eruption rebuilds it.

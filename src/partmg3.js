@@ -1806,3 +1806,139 @@ Object.assign(MG, {
 		botScore: () => 8 + rnd(25),
 	},
 });
+
+/* ---------- team minigames ---------- */
+/* Monster Mash (1 vs 3): the solo truck (side 0) is a giant monster truck: big, heavy (barely moved by the others) and
+   hard-hitting, and it can't fall off. The others must stay on the stage for 30 s; the team wins if anyone survives.
+   Runs on Mud Brawl's arena (MG.bumper: build, bowl, mud fall, stage shrink via this.R). */
+Object.assign(MG, {
+	mash: Object.assign({}, MG.bumper, {
+		name: "Monster Mash",
+		team: "1v3",
+		dur: 30,
+		lastStanding: false,
+		how: "The monster truck rams everyone off the stage into the mud. Survive 30 seconds to win as a team!",
+		teamHow: (s, solo) =>
+			s === 0
+				? "You're the MONSTER TRUCK: ram them all into the mud!"
+				: "Dodge the monster truck and stay on the stage!",
+		R: (t) => (t < 8 ? 11 : Math.max(8, 11 - (t - 8) * 0.14)),
+		BIG: 1.8,
+		spawn(W, i, n) {
+			const e = W.list[i];
+			if (e && e.side === 0) return { x: 0, z: 0, yaw: -Math.PI / 2 };
+			const solo = W.list[0] && W.list[0].side === 0,
+				j = solo ? i - 1 : i,
+				m = solo ? n - 1 : n,
+				a = (j / Math.max(1, m)) * Math.PI * 2 + Math.PI / 2;
+			return { x: Math.cos(a) * 7, z: Math.sin(a) * 7, yaw: Math.atan2(Math.sin(a), -Math.cos(a)) };
+		},
+		/* the monster: scaled-up truck, bigger disc and a higher name tag; tuning fields read by arenaPhys / collide */
+		initEnt(W, e) {
+			if (e.side !== 0) return;
+			const k = this.BIG;
+			e.tr.scale.setScalar(0.8 * k);
+			e.g.children.forEach((o) => {
+				if (o.userData.disc) o.scale.set(k, 1, k);
+				else if (o.isSprite) o.position.y = 2.5 * k;
+			});
+			e.rad = 0.95 * k;
+			e.mass = 4;
+			e.ramM = 1.45;
+			e.spd = 0.9;
+			e.ramCdT = 1.4;
+			e.bcd = 1.5; /* no ram for the first moments, so the others can get moving */
+		},
+		inside(W, x, z, e) {
+			return (e && e.side === 0) || Math.hypot(x, z) < this.R(Math.max(0, W.t)) + 0.15;
+		},
+		survivors: (W) => W.list.filter((o) => o.side !== 0 && !o.gone),
+		rules(W, e) {
+			if (e.side !== 0) {
+				if (e.al && !e.d) e.sc = Math.floor(W.t * 10);
+				return;
+			}
+			/* the monster stays on the stage: pushed back from the edge */
+			const lim = this.R(Math.max(0, W.t)) - 0.9,
+				d = Math.hypot(e.x, e.z);
+			if (d > lim) {
+				const nx = e.x / d,
+					nz = e.z / d,
+					vn = e.vx * nx + e.vz * nz;
+				e.x = nx * lim;
+				e.z = nz * lim;
+				if (vn > 0) {
+					e.vx -= vn * nx;
+					e.vz -= vn * nz;
+				}
+			}
+			const sv = this.survivors(W);
+			e.sc = sv.filter((o) => !o.al).length;
+			if (sv.length && W.t > 1 && sv.every((o) => !o.al) && !e.d) {
+				e.d = true;
+				e.won = true;
+			}
+		},
+		timeUp(W, e) {
+			if (e.side !== 0 && e.al) e.sc = this.dur * 10 + 100;
+		},
+		final: (W, e) => e.sc,
+		/* live board: the monster's crush count, everyone else's seconds on the stage */
+		fmtE(W, e) {
+			return e.side === 0 ? `${e.sc} 💥` : e.al ? `${Math.min(this.dur, Math.floor(e.sc / 10))} s` : "OUT";
+		},
+		fmtTeam(v, s) {
+			return s === 0 ? `Crushed ${v}` : v > this.dur * 10 ? "Survived!" : `Out after ${(v / 10).toFixed(1)} s`;
+		},
+		donePrompt(W, me) {
+			if (me.side === 0) return me.won ? "You crushed them all!" : "Time's up!";
+			return me.al ? "You survived!" : "Into the mud! Watch the others…";
+		},
+		teamWin(res, tm) {
+			const sv = Object.keys(tm).filter((k) => tm[k] === 1 && k in res);
+			return sv.some((k) => res[k] > this.dur * 10) ? 1 : 0;
+		},
+		bot(W, e, dt) {
+			const R = this.R(W.t);
+			if (e.side === 0) {
+				/* chase the nearest survivor, ram when close */
+				const t = this.survivors(W)
+					.filter((o) => o.al && !o.d && !o.falling)
+					.sort((a, b) => Math.hypot(a.x - e.x, a.z - e.z) - Math.hypot(b.x - e.x, b.z - e.z))[0];
+				if (!t) return steer(e, 0, 0, 0.4);
+				const s = steer(e, t.x, t.z, 0.9);
+				if (Math.hypot(t.x - e.x, t.z - e.z) < 4.5 && e.bcd <= 0 && Math.random() < dt * 2.5) s.boost = true;
+				return s;
+			}
+			/* survivors: keep away from the monster, sidestep its rams, stay off the edge */
+			const m = W.list.find((o) => o.side === 0 && !o.gone);
+			let x = Math.sin(W.t * 0.7 + e.i * 2.1) * 0.3,
+				z = Math.cos(W.t * 0.6 + e.i * 1.3) * 0.3;
+			if (m) {
+				const ax = e.x - m.x,
+					az = e.z - m.z,
+					d = Math.hypot(ax, az) || 1;
+				if (d < 8) {
+					const w = ((8 - d) / 8) * 1.6;
+					x += (ax / d) * w;
+					z += (az / d) * w;
+				}
+				if (m.boostT > 0 && d < 6) {
+					const sg = ax * -m.vz + az * m.vx > 0 ? 1 : -1,
+						l = Math.hypot(m.vx, m.vz) || 1;
+					x += (-m.vz / l) * sg * 1.4;
+					z += (m.vx / l) * sg * 1.4;
+				}
+			}
+			const r = Math.hypot(e.x, e.z);
+			if (r > R * 0.5) {
+				const w = ((r / R - 0.5) / 0.5) * 2;
+				x -= (e.x / r) * w;
+				z -= (e.z / r) * w;
+			}
+			const l = Math.hypot(x, z);
+			return l < 0.05 ? { x: 0, y: 0, boost: false } : { x: x / l, y: z / l, boost: false };
+		},
+		botScore: (s) => (s === 0 ? rnd(4) : rnd(2) ? 400 : 50 + rnd(250)),
+	}),
+});

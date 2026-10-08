@@ -203,16 +203,20 @@ function setFx(fx) {
 	});
 	loadPost().catch(() => {});
 }
-function mkEnt(p, isMe, named, mode) {
+function mkEnt(p, isMe, named, mode, col) {
 	const g = new THREE.Group(),
 		tr = buildTruck(p.truck, mode);
 	tr.scale.setScalar(0.8);
 	g.add(tr);
-	const disc = Cy(0.95, 0.95, 0.05, 20, pcol(p), 0, 0.03, 0, { transparent: true, opacity: 0.4, depthWrite: false });
+	const disc = Cy(0.95, 0.95, 0.05, 20, col || pcol(p), 0, 0.03, 0, {
+		transparent: true,
+		opacity: 0.4,
+		depthWrite: false,
+	});
 	disc.castShadow = false;
 	disc.userData.disc = true; /* the player-colour disc under the truck (a game can hide it) */
 	g.add(disc);
-	const tag = nameTag(isMe && !named ? "You" : p.name, pcol(p));
+	const tag = nameTag(isMe && !named ? "You" : p.name, col || pcol(p));
 	tag.position.y = 2.5;
 	g.add(tag);
 	return {
@@ -263,8 +267,8 @@ function arenaPhys(W, e, inp, dt) {
 		return;
 	}
 	if (e.al && !e.d && inp) {
-		e.vx += inp.x * 32 * dt;
-		e.vz += inp.y * 32 * dt;
+		e.vx += inp.x * 32 * (e.spd || 1) * dt;
+		e.vz += inp.y * 32 * (e.spd || 1) * dt;
 		if (inp.boost && e.bcd <= 0 && !def.aim) {
 			let dx = inp.x,
 				dz = inp.y,
@@ -284,7 +288,7 @@ function arenaPhys(W, e, inp, dt) {
 			}
 			e.vx += (dx / l) * 16;
 			e.vz += (dz / l) * 16;
-			e.bcd = 2;
+			e.bcd = e.ramCdT || 2;
 			e.boostT = 0.45;
 		}
 	}
@@ -296,7 +300,7 @@ function arenaPhys(W, e, inp, dt) {
 	e.vx *= damp;
 	e.vz *= damp;
 	const sp = Math.hypot(e.vx, e.vz),
-		max = e.boostT > 0 || e.slideT > 0 ? 23 : 11.5;
+		max = (e.boostT > 0 || e.slideT > 0 ? 23 : 11.5) * (e.spd || 1);
 	if (sp > max) {
 		e.vx *= max / sp;
 		e.vz *= max / sp;
@@ -333,6 +337,8 @@ function arenaPhys(W, e, inp, dt) {
 		if (def.deathY === undefined) eliminate(W, e);
 	}
 }
+/* per-truck tuning a game can set (Monster Mash's giant): e.rad (collision radius, 0.95), e.mass (1: heavier trucks
+   get pushed and knocked less), e.ramM (ram strength), e.spd (speed), e.ramCdT (ram cooldown, 2 s) */
 const RAMK = 17;
 function collide(W, a) {
 	if (!a.al || a.falling || a.fly) return;
@@ -352,11 +358,14 @@ function collide(W, a) {
 		const dx = a.x - b.x,
 			dz = a.z - b.z,
 			d = Math.hypot(dx, dz);
-		if (d > 1.9 || d < 0.001) continue;
-		const nx = dx / d,
+		const rr = (a.rad || 0.95) + (b.rad || 0.95);
+		if (d > rr || d < 0.001) continue;
+		const ma = a.mass || 1,
+			mb = b.mass || 1,
+			nx = dx / d,
 			nz = dz / d,
-			share = b.local ? 0.5 : 1,
-			ov = 1.9 - d;
+			share = b.local ? mb / (ma + mb) : Math.min(1, (2 * mb) / (ma + mb)),
+			ov = rr - d;
 		a.x += nx * ov * share;
 		a.z += nz * ov * share;
 		const rv = (b.vx - a.vx) * nx + (b.vz - a.vz) * nz,
@@ -364,7 +373,7 @@ function collide(W, a) {
 			bRam = b.boostT > 0 && (!cr || cr(b)),
 			aRam = a.boostT > 0 && (!cr || cr(a));
 		if (rv > 0 && !(bRam && !b.local)) {
-			const k = b.local ? 0.9 : 0.6;
+			const k = (b.local ? 0.9 : 0.6) * Math.min(1, (2 * mb) / (ma + mb));
 			a.vx += nx * rv * k;
 			a.vz += nz * rv * k;
 		}
@@ -374,7 +383,7 @@ function collide(W, a) {
 				b.hitT[a.k] = now;
 				a.hitAng = [nx, nz];
 				const D = W.def,
-					K = RAMK * (D.ramK || 1);
+					K = (RAMK * (D.ramK || 1) * (b.ramM || 1)) / ma;
 				a.vx += nx * K;
 				a.vz += nz * K;
 				a.slideT = D.ramSlide || 0.9;
@@ -388,7 +397,7 @@ function collide(W, a) {
 		}
 		if (!b.local && aRam && now - (a.hitT[b.k] || 0) > 400) {
 			a.hitT[b.k] = now;
-			const K = RAMK * (W.def.ramK || 1);
+			const K = RAMK * (W.def.ramK || 1) * (a.ramM || 1);
 			W.hitsOut.push({
 				k: b.k,
 				by: a.k,
@@ -480,8 +489,8 @@ function netApply(ps) {
 				if (e && e.local && e.al && !e.falling && !e.fly && W.t >= 0) {
 					const hl = Math.hypot(+x.x || 0, +x.z || 0) || 1;
 					e.hitAng = [(+x.x || 0) / hl, (+x.z || 0) / hl];
-					e.vx += +x.x || 0;
-					e.vz += +x.z || 0;
+					e.vx += (+x.x || 0) / (e.mass || 1);
+					e.vz += (+x.z || 0) / (e.mass || 1);
 					e.slideT = W.def.ramSlide || 0.9;
 					if (e.isMe) W.shake = 0.45;
 					hitFx(e, e);
@@ -522,7 +531,9 @@ function start3D(mg, p, localOnly, startAt, split) {
 	const sv = LS.get("trp_light", {})[mg.g];
 	if (!("sun0" in def)) def.sun0 = def.sun || null;
 	def.sun = sv && sv.sun ? sv.sun.slice() : def.sun0 || undefined;
-	const plist = mg.part ? G.players.filter((q) => mg.part.includes(q.key)) : G.players;
+	let plist = mg.part ? G.players.filter((q) => mg.part.includes(q.key)) : G.players;
+	/* team games: side 0 (the solo truck in 1 vs 3) spawns first, so def.spawn can tell the sides apart by index */
+	if (mg.tm) plist = plist.slice().sort((a, b) => (mg.tm[a.key] || 0) - (mg.tm[b.key] || 0));
 	const tv = !p;
 	W = {
 		plist,
@@ -604,8 +615,10 @@ function start3D(mg, p, localOnly, startAt, split) {
 	if (sv && sv.lt && sv.lt.glow) GFX.fx.bloom.th = sv.lt.glow;
 	const n = plist.length;
 	plist.forEach((q, i) => {
-		const e = mkEnt(q, !tv && q.key === p.key, !!split, def.truckMode);
+		const side = mg.tm ? mg.tm[q.key] || 0 : undefined,
+			e = mkEnt(q, !tv && q.key === p.key, !!split, def.truckMode, side === undefined ? null : mg.tc[side]);
 		e.i = i;
+		e.side = side; /* team games: 0 | 1 (0 = the solo truck in 1 vs 3) */
 		if (tv && !q.bot) {
 			e.isMe = true;
 			e.rem = true;
@@ -1059,7 +1072,7 @@ function openMg(mg, p) {
 		if (first) rtJoin(mg.nonce);
 		start3D(mg, p, !first, startAt);
 		box.innerHTML = `<div class="m3top"><span class="chip name">${esc(def.name)}</span><span class="chip" id="m3t"></span><span class="chip grow" id="m3s"></span>${G && G.practice ? '<button class="chip" id="m3light" aria-label="Lighting">💡</button>' : ""}</div>
-      <div class="m3lb${def.lbTop ? " top" : ""}" id="m3lb"></div><div class="m3intro" id="m3in"><h3>${esc(def.name)}</h3><p>${esc(def.how)}</p><p class="m3ctl">${def.ctrl === "stick" ? (def.stickHint ? def.stickHint(FINE) : FINE ? "WASD or arrow keys to drive, Space to ram." : "Drag anywhere to drive. Tap RAM to charge.") : esc(def.tapHint || "Tap the big button.") + (FINE ? " On a keyboard, press Space." : "")}</p>${!first ? `<p class="m3ctl">Practice run against CPU trucks. Your score still counts.</p>` : ""}</div>
+      <div class="m3lb${def.lbTop ? " top" : ""}" id="m3lb"></div><div class="m3intro" id="m3in"><h3>${esc(def.name)}</h3><p>${esc(def.how)}</p>${teamLine(mg, p, def)}<p class="m3ctl">${def.ctrl === "stick" ? (def.stickHint ? def.stickHint(FINE) : FINE ? "WASD or arrow keys to drive, Space to ram." : "Drag anywhere to drive. Tap RAM to charge.") : esc(def.tapHint || "Tap the big button.") + (FINE ? " On a keyboard, press Space." : "")}</p>${!first ? `<p class="m3ctl">Practice run against CPU trucks. Your score still counts.</p>` : ""}</div>
       <div class="m3center${def.msgTop ? " hi" : ""}"><div class="m3big" id="m3c"></div><div class="m3msg" id="m3m" hidden></div></div>
       ${first ? `<div class="m3ready" id="m3r"><h3>Get ready</h3><div id="m3rl"></div><button class="btn go" id="m3rb">I'm ready${FINE ? " (Enter)" : ""}</button><button class="btn ghost" id="m3rs" hidden style="margin-top:8px">Start without the others</button></div>` : ""}
       ${def.ctrl === "custom" ? def.ctlHTML() : def.ctrl === "stick" ? stickHTML(def, def.aim ? "Drive" : "") : `${tapCtlHTML(mg.g, def)}`}`;
@@ -1088,6 +1101,18 @@ function openMg(mg, p) {
 			go(Date.now() + 3500);
 		});
 	}
+}
+/* the intro card's team line: which side this player is on (def.teamHow(side, solo) gives a game's own wording) */
+function teamLine(mg, p, def) {
+	if (!mg.tm || !p || !(p.key in mg.tm)) return "";
+	const s = mg.tm[p.key],
+		solo = mg.team === "1v3" && Object.values(mg.tm).filter((x) => x === s).length === 1,
+		txt = def.teamHow
+			? def.teamHow(s, solo)
+			: solo
+				? "You're on your own against everyone!"
+				: `You're on the ${mg.tc[s] === SIDE_COL[0] ? "Blue" : "Red"} team.`;
+	return `<p class="m3team" style="--c:${mg.tc[s]}">${esc(vsLabel(mg.tm))} ${esc(txt)}</p>`;
 }
 function syncStart() {
 	if (!W || W.startAt || W.localOnly || !G || !G.mg || G.mg.nonce !== W.mg.nonce || !G.mg.t0) return;
@@ -1855,12 +1880,12 @@ function hud3(dt) {
 	$("#m3lb").innerHTML = rows
 		.map(
 			(e) =>
-				`<div style="--c:${pcol(e.p)}" class="${e.isMe && !W.tv ? "me" : ""} ${!e.al && def.lastStanding ? "out" : ""}"><i style="background:${pcol(e.p)}"></i><span>${esc(e.isMe && !W.tv && !W.split ? "You" : def.lbTop ? e.p.name.replace(/^CPU /, "") : e.p.name)}</span><b>${def.fmtV ? def.fmtV(Math.round(e.sc)) : def.unit === "ms" && !def.liveHi ? (e.sc / 1000).toFixed(2) : Math.round(e.sc)}</b></div>`,
+				`<div style="--c:${pcol(e.p)}" class="${e.isMe && !W.tv ? "me" : ""} ${!e.al && def.lastStanding ? "out" : ""}"><i style="background:${pcol(e.p)}"></i><span>${esc(e.isMe && !W.tv && !W.split ? "You" : def.lbTop ? e.p.name.replace(/^CPU /, "") : e.p.name)}</span><b>${def.fmtE ? def.fmtE(W, e) : def.fmtV ? def.fmtV(Math.round(e.sc)) : def.unit === "ms" && !def.liveHi ? (e.sc / 1000).toFixed(2) : Math.round(e.sc)}</b></div>`,
 		)
 		.join("");
 	const rb = $("#ram");
 	if (rb) {
-		const cd = W.def.ramCd ? W.def.ramCd(W) : Math.min(1, W.me.bcd / 2);
+		const cd = W.def.ramCd ? W.def.ramCd(W) : Math.min(1, W.me.bcd / (W.me.ramCdT || 2));
 		rb.classList.toggle("cd", W.def.ramReady ? !W.def.ramReady(W) : W.me.bcd > 0);
 		rb.style.setProperty("--cd", cd.toFixed(3));
 		rb.classList.toggle("held", !!W.inp.hold);
@@ -1882,16 +1907,24 @@ function showMgResults(mg) {
 	const box = $("#mg");
 	box.classList.add("on", "res");
 	box.classList.remove("live");
+	/* team games: the winning side on top, each row in its side colour, rank 1 for every winner */
+	const tm = mg.team && mg.tm,
+		win = tm ? mg.win : null;
 	const rows = (mg.order || [])
 		.map((k, i) => {
 			const p = G.players.find((x) => x.key === k);
 			if (!p) return "";
-			const place = i === 0 ? "p1" : i === 1 ? "p2" : i === 2 ? "p3" : "";
-			const s = k in mg.res ? fmtScore(def, mg.res[k]) : "No score";
-			return `<li class="${place}${k === me.key ? " you" : ""}" style="--d:${i * 110 + 250}ms;--c:${pcol(p)}"><span class="rk">${i + 1}</span><img alt="" src="${thumb(p.truck)}"><span class="rn">${esc(p.name)}${k === me.key ? " (you)" : ""}<small>${s}</small></span><span class="raw ${(mg.aw[k] || 0) < 0 ? "neg" : ""}">${(mg.aw[k] || 0) < 0 ? "−" + -mg.aw[k] : "+" + (mg.aw[k] || 0)}${coinIco}</span></li>`;
+			const rk = tm ? (win < 0 || tm[k] === win ? 1 : 2) : i + 1,
+				place = tm ? (rk === 1 && win >= 0 ? "p1" : "") : i === 0 ? "p1" : i === 1 ? "p2" : i === 2 ? "p3" : "";
+			const s = !(k in mg.res)
+				? "No score"
+				: tm && def.fmtTeam
+					? def.fmtTeam(mg.res[k], tm[k])
+					: fmtScore(def, mg.res[k]);
+			return `<li class="${place}${k === me.key ? " you" : ""}" style="--d:${i * 110 + 250}ms;--c:${tm ? mg.tc[tm[k]] : pcol(p)}"><span class="rk">${rk}</span><img alt="" src="${thumb(p.truck)}"><span class="rn">${esc(p.name)}${k === me.key ? " (you)" : ""}<small>${s}</small></span><span class="raw ${(mg.aw[k] || 0) < 0 ? "neg" : ""}">${(mg.aw[k] || 0) < 0 ? "−" + -mg.aw[k] : "+" + (mg.aw[k] || 0)}${coinIco}</span></li>`;
 		})
 		.join("");
-	box.innerHTML = `<div class="resx"><div class="rescard"><div class="reshz"></div><div class="reshead"><span class="resk">${mg.duel ? "Duel results" : "Minigame results"}</span><h2>${esc(def.name)}</h2></div><ol class="reslist">${rows}</ol><p class="resnext">Round ${Math.min(G.round + 1, G.rounds)} coming up…</p></div></div>`;
+	box.innerHTML = `<div class="resx"><div class="rescard"><div class="reshz"></div><div class="reshead"><span class="resk">${mg.duel ? "Duel results" : tm ? `Team results: ${vsLabel(tm).replace("!", "")}` : "Minigame results"}</span><h2>${esc(def.name)}</h2>${tm ? `<p class="reswin" style="--c:${win < 0 ? "#FFC83D" : mg.tc[win]};color:${win < 0 ? "#151B24" : "#fff"}">${win < 0 ? "It's a draw!" : `🏆 ${esc(sideName(mg, win))} wins!`}</p>` : ""}</div><ol class="reslist">${rows}</ol><p class="resnext">Round ${Math.min(G.round + 1, G.rounds)} coming up…</p></div></div>`;
 	if (mg.prac) {
 		box.querySelector(".resnext").textContent = "Practice round, back to the lobby…";
 		box.querySelectorAll(".raw").forEach((n) => n.remove());
@@ -2197,7 +2230,7 @@ function tvSend(force) {
 function tvStatus(W, e, order) {
 	const D = W.def;
 	try {
-		const cd = D.ramCd ? D.ramCd(W) : Math.min(1, e.bcd / 2),
+		const cd = D.ramCd ? D.ramCd(W) : Math.min(1, e.bcd / (e.ramCdT || 2)),
 			rdy = D.ramReady ? D.ramReady(W) : e.bcd <= 0,
 			ld = e.lastDrop;
 		const dm =

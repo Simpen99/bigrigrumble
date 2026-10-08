@@ -565,6 +565,16 @@ body.ctl .hudbot{touch-action:none}body.ctl .hcard{touch-action:pan-y;overscroll
 .ev-t{font-family:var(--display);font-weight:400;font-size:24px;line-height:1;color:#FFC83D;text-transform:uppercase;letter-spacing:.5px}
 .ev-x{font-family:var(--body);font-weight:800;font-size:15px;line-height:1.3;color:#fff}
 .mk-big.mk-mid{font-size:20px;white-space:normal;max-width:300px;line-height:1.15}
+.vss{transform:translateY(-14vh);animation:mkIn .45s cubic-bezier(.2,1.4,.4,1) both,mkOut .35s ease-in 2.3s forwards;padding:0 12px;max-width:100%}
+.vs-box{background:#182032;border-radius:16px;padding:12px 16px 14px;display:flex;flex-direction:column;align-items:center;gap:10px;box-shadow:0 0 0 3px #FFC83D,0 0 0 6px #151B24,0 8px 0 3px #151B24,0 14px 18px rgba(0,0,0,.35)}
+.vs-big{font-family:var(--display);font-size:40px;line-height:1;color:#FFC83D;letter-spacing:1px;animation:evPop .5s cubic-bezier(.2,1.8,.4,1) .12s both}
+.vs-row{display:flex;align-items:center;gap:8px}
+.vs-side{display:flex;flex-wrap:wrap;justify-content:center;gap:6px;max-width:220px;padding:6px;border-radius:12px;background:color-mix(in srgb,var(--sc) 28%,transparent);box-shadow:inset 0 0 0 3px var(--sc)}
+.vs-t{display:flex;flex-direction:column;align-items:center;width:58px}
+.vs-t img{width:52px;height:38px;object-fit:contain}
+.vs-t b{font-family:var(--body);font-weight:800;font-size:11px;color:#fff;max-width:58px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vs-t.me b{color:#FFC83D}
+.vs-x{font-family:var(--display);font-size:22px;color:#fff}
 @keyframes evPop{0%{transform:scale(0) rotate(-40deg)}100%{transform:scale(1) rotate(0)}}
 @media (max-width:520px){.ev-box{padding:10px 14px 12px 50px}.ev-ic{width:62px;height:62px;margin-top:-31px;left:-24px;font-size:32px}.ev-t{font-size:19px}.ev-x{font-size:13px}.evs{padding-left:28px}}
 
@@ -580,6 +590,8 @@ body[data-view=lobby]::before,body[data-view=home]::before,body[data-view=join]:
 .resk{font-family:var(--display);font-weight:400;font-size:12px!important;letter-spacing:1px!important;background:#FFC83D!important;color:#151B24;padding:4px 12px 3px!important;box-shadow:0 0 0 2.5px #151B24,0 3px 0 2px #151B24}
 .reshead h2{font-family:var(--display);font-weight:400;font-size:34px!important;line-height:1.05;margin-top:12px!important;color:#fff;-webkit-text-stroke:6px #151B24;paint-order:stroke fill;text-shadow:0 4px 0 #151B24!important}
 .reslist{gap:9px!important}
+.m3team{display:inline-block;margin:6px 0 2px;padding:4px 12px;border-radius:999px;background:var(--c);color:#fff;font-weight:800;font-size:14px}
+.reswin{display:inline-block;margin:10px 0 0;font-family:var(--display);font-size:18px;color:#151B24;background:var(--c);padding:5px 14px 4px;border-radius:999px;box-shadow:0 0 0 2.5px #151B24,0 3px 0 2px #151B24}
 .reslist li{background:#243049!important;border:2.5px solid var(--c,#3A4150);border-radius:14px!important;padding:6px 10px 6px 6px!important;box-shadow:0 4px 0 #151B24}
 .reslist li.p1{background:linear-gradient(100deg,rgba(255,200,61,.22),#243049 60%)!important}
 .reslist li.you{box-shadow:0 0 0 3px #FFC83D,0 4px 0 3px #151B24!important}
@@ -6341,7 +6353,7 @@ function stepBoard(dt, time) {
 	});
 	const cur = ps[G.turn],
 		ct = cur && GFX.tok[cur.key],
-		inMg = G.phase === "minigame" || G.phase === "mgres";
+		inMg = G.phase === "minigame" || G.phase === "mgres" || G.phase === "teams";
 	stepBadgeFor(bd, ct, time);
 	bd.hl.visible = !!ct && !inMg;
 	if (ct) {
@@ -7857,6 +7869,20 @@ function showMike(ev) {
 		`<div class="mike${n === 1 ? " now" : ""}"><div class="mk-st"><div class="mk-box"><span class="mk-name">Magnet Mike</span><span class="mk-big">${line}</span>${n === 1 ? `<span class="mk-sub">Someone's getting hauled away…</span>` : ""}</div>${img ? `<img alt="" src="${img}">` : ""}</div></div>`,
 	);
 }
+/* team minigame reveal: "1 vs 3!" with each side's trucks on its colour */
+function showVs(ev) {
+	const side = (s) =>
+		G.players
+			.filter((p) => ev.vs[p.key] === s)
+			.map(
+				(p) =>
+					`<span class="vs-t${p.key === me.key ? " me" : ""}"><img alt="" src="${thumb(p.truck)}"><b>${esc(p.key === me.key ? "You" : p.name)}</b></span>`,
+			)
+			.join("");
+	stickerShow(
+		`<div class="vss"><div class="vs-box"><span class="vs-big">${esc(ev.title)}</span><div class="vs-row"><div class="vs-side" style="--sc:${ev.tc[0]}">${side(0)}</div><span class="vs-x">VS</span><div class="vs-side" style="--sc:${ev.tc[1]}">${side(1)}</div></div></div></div>`,
+	);
+}
 function boardFx(bd, dt) {
 	const ps = G.players;
 	ps.forEach((p) => {
@@ -8567,7 +8593,7 @@ function hostResume(saved) {
 	startHub();
 	const p = HG.phase;
 	if (p === "lobby" || p === "over") push();
-	else if (p === "minigame") startMinigame();
+	else if (p === "minigame" || p === "teams") startMinigame();
 	else if (p === "mgres") afterMg();
 	else {
 		if (!HG.players[HG.turn]) HG.turn = 0;
@@ -9083,6 +9109,11 @@ function showBattery(fx) {
 function showEvent(ev) {
 	if (ev.k === "mike") {
 		showMike(ev);
+		return;
+	}
+	if (ev.vs) {
+		sfx("fanfare");
+		showVs(ev);
 		return;
 	}
 	sfx(
@@ -10426,21 +10457,80 @@ function eruption(done) {
 		later(done, 3200);
 	}, 3800);
 }
-function startMinigame(duel, forceG) {
+/* team minigames (Mario Party style): each truck's side is the colour of the space it stands on (blue or red, any other
+   space is a coin flip). 4+ trucks split 1 vs 3 (1 vs N) or 2 vs 2 (any even-ish split) pick a game from that pool;
+   everyone on one colour (or board team mode, or fewer than 4 trucks) plays free-for-all.
+   Returns {mode, tm: {key: side}, tc: [side colours]}, side 0 = the solo truck in a 1 vs N game. */
+const SIDE_COL = ["#2F7DE1", "#E5484D"];
+function spaceSplit() {
+	const ps = HG.players;
+	if (HG.teams || ps.length < 4) return null;
+	const tm = {};
+	ps.forEach((p) => {
+		const n = MAP.nodes[p.pos],
+			t = n && n.t;
+		tm[p.key] = t === "B" ? 0 : t === "R" ? 1 : rnd(2);
+	});
+	const n1 = ps.filter((p) => tm[p.key] === 1).length,
+		n0 = ps.length - n1;
+	if (!n0 || !n1) return null;
+	const mode = Math.min(n0, n1) === 1 ? "1v3" : "2v2";
+	const tc = SIDE_COL.slice();
+	if (mode === "1v3" && n1 === 1) {
+		ps.forEach((p) => (tm[p.key] = 1 - tm[p.key]));
+		tc.reverse();
+	}
+	return { mode, tm, tc };
+}
+/* a forced team game (practice, TV practice): the solo truck is random (the host's own truck half the time), the rest split evenly */
+function forcedSplit(g) {
+	const mode = MG[g].team,
+		ps = HG.players;
+	if (!mode || ps.length < 2) return null;
+	const tm = {},
+		hum = ps.find((p) => !p.bot),
+		order = ps.slice().sort(() => Math.random() - 0.5);
+	if (mode === "1v3") {
+		const solo = hum && Math.random() < 0.5 ? hum : order[0];
+		ps.forEach((p) => (tm[p.key] = p === solo ? 0 : 1));
+	} else order.forEach((p, i) => (tm[p.key] = i % 2));
+	return { mode, tm, tc: SIDE_COL.slice() };
+}
+const vsLabel = (tm) => {
+	const n0 = Object.values(tm).filter((s) => s === 0).length;
+	return `${n0} vs ${Object.keys(tm).length - n0}!`;
+};
+function startMinigame(duel, forceG, split) {
 	let g;
 	if (forceG) g = forceG;
 	else if (duel) g = DUEL_POOL[rnd(DUEL_POOL.length)];
 	else {
 		HG.used = HG.used || [];
-		let pool = Object.keys(MG).filter((k) => !HG.used.includes(k));
+		/* never the same game twice in a row: with a small team pool that falls back to free-for-all */
+		const pick = (mode) => Object.keys(MG).filter((k) => (MG[k].team || null) === mode && k !== HG.lastMg);
+		split = spaceSplit();
+		if (split && !pick(split.mode).length) split = null;
+		const all = pick(split ? split.mode : null);
+		let pool = all.filter((k) => !HG.used.includes(k));
 		if (!pool.length) {
-			HG.used = [];
-			pool = Object.keys(MG);
+			HG.used = HG.used.filter((k) => !all.includes(k));
+			pool = all;
 		}
 		g = pool[rnd(pool.length)];
 		HG.used.push(g);
 		HG.lastMg = g;
+		if (split) {
+			/* the reveal: a "1 vs 3!" sticker over the board, then the minigame */
+			HG.phase = "teams";
+			HG.seq++;
+			HG.ev = { title: vsLabel(split.tm), text: "", vs: split.tm, tc: split.tc, n: rid() };
+			HG.msg = `Team minigame: ${vsLabel(split.tm)}`;
+			push();
+			later(() => startMinigame(null, g, split), 3000);
+			return;
+		}
 	}
+	if (forceG && !split && MG[g].team) split = forcedSplit(g);
 	let simDev = "host";
 	const tvg = !HG.tv ? 0 : tvPlayable(g) ? 1 : "split";
 	if (tvg === 1) {
@@ -10470,10 +10560,13 @@ function startMinigame(duel, forceG) {
 		duel: !!duel,
 		simDev,
 		tv: tvg,
+		team: split ? split.mode : null,
+		tm: split ? split.tm : null,
+		tc: split ? split.tc : null,
 	};
 	if (!GFX.ok)
 		HG.players.forEach((p) => {
-			if (p.bot && inMg(p.key)) HG.mg.res[p.key] = MG[g].botScore();
+			if (p.bot && inMg(p.key)) HG.mg.res[p.key] = MG[g].botScore(split ? split.tm[p.key] : undefined);
 		});
 	HG.msg = duel ? `Duel: ${MG[g].name}!` : `Minigame: ${MG[g].name}!`;
 	mgDeadline = Infinity;
@@ -10507,7 +10600,7 @@ function finishMg() {
 		res = HG.mg.res,
 		part = HG.players.filter((p) => inMg(p.key));
 	part.forEach((p) => {
-		if (p.bot && !(p.key in res)) res[p.key] = def.botScore();
+		if (p.bot && !(p.key in res)) res[p.key] = def.botScore(HG.mg.tm ? HG.mg.tm[p.key] : undefined);
 	});
 	if (HG.mg.duel) {
 		const [a, b] = part,
@@ -10541,6 +10634,10 @@ function finishMg() {
 		later(afterMg, 6500);
 		return;
 	}
+	if (HG.mg.team) {
+		finishTeamMg(def, res, part);
+		return;
+	}
 	const rows = part.map((p) => ({ k: p.key, s: p.key in res ? res[p.key] : null }));
 	const hasS = rows.filter((r) => r.s !== null).sort((a, b) => (def.hi ? b.s - a.s : a.s - b.s));
 	const AW = [10, 6, 4, 2, 2, 2, 2, 2],
@@ -10557,6 +10654,53 @@ function finishMg() {
 	HG.phase = "mgres";
 	HG.seq++;
 	HG.msg = "Minigame results are in.";
+	push();
+	later(afterMg, 9000);
+}
+/* team payout: every truck on the winning side gets TEAM_WIN coins, a draw pays everyone TEAM_DRAW. The game picks the
+   winner with def.teamWin(res, tm) → 0 | 1 | -1 (draw); by default the side with the best single score wins */
+const TEAM_WIN = 10,
+	TEAM_DRAW = 3;
+const sideName = (mg, s) =>
+	mg.team === "1v3" && Object.values(mg.tm).filter((x) => x === s).length === 1
+		? (P_(Object.keys(mg.tm).find((k) => mg.tm[k] === s)) || {}).name || "The solo truck"
+		: `${mg.tc[s] === SIDE_COL[0] ? "Blue" : "Red"} team`;
+function finishTeamMg(def, res, part) {
+	const mg = HG.mg,
+		tm = mg.tm,
+		better = (a, b) => (def.hi ? a > b : a < b);
+	let w = -1;
+	if (def.teamWin) w = def.teamWin(res, tm);
+	else {
+		const best = [null, null];
+		part.forEach((p) => {
+			const s = tm[p.key],
+				v = res[p.key];
+			if (v !== undefined && (best[s] === null || better(v, best[s]))) best[s] = v;
+		});
+		if (best[0] !== null && (best[1] === null || better(best[0], best[1]))) w = 0;
+		else if (best[1] !== null && (best[0] === null || better(best[1], best[0]))) w = 1;
+	}
+	const aw = {};
+	part.forEach((p) => (aw[p.key] = w < 0 ? TEAM_DRAW : tm[p.key] === w ? TEAM_WIN : 0));
+	if (!mg.prac) HG.players.forEach((p) => (p.coins += aw[p.key] || 0));
+	const first = w < 0 ? 0 : w,
+		rank = (p) => (tm[p.key] === first ? 0 : 1);
+	mg.aw = aw;
+	mg.win = w;
+	mg.order = part
+		.slice()
+		.sort(
+			(a, b) =>
+				rank(a) - rank(b) ||
+				(b.key in res) - (a.key in res) ||
+				(def.hi ? res[b.key] - res[a.key] : res[a.key] - res[b.key]) ||
+				0,
+		)
+		.map((p) => p.key);
+	HG.phase = "mgres";
+	HG.seq++;
+	HG.msg = w < 0 ? "The team minigame ends in a draw!" : `${sideName(mg, w)} wins!`;
 	push();
 	later(afterMg, 9000);
 }
@@ -10781,6 +10925,7 @@ function panelHTML() {
 			return `<div class="pan"><p>Duel in progress: ${G.mg.part.map((k) => esc((P_(k) || {}).name || "")).join(" vs ")}. Hang tight!</p></div>`;
 		return `<div class="pan"><p>${mgPending().length ? "Minigame starting…" : "Waiting for the other drivers to finish…"}</p></div>`;
 	}
+	if (G.phase === "teams") return `<div class="pan"><p>🤝 Team minigame coming up…</p></div>`;
 	if (G.phase === "rival") return `<div class="pan"><p>🧲 Magnet Mike is on the move…</p></div>`;
 	if (G.phase === "erupt") return `<div class="pan"><p>🌋 The volcano is erupting…</p></div>`;
 	if (G.phase === "turn" && c)
@@ -10805,6 +10950,7 @@ function tvPanelHTML() {
 	if (G.phase === "shop" && G.shop) return ph(G.shop.pid, "is browsing the Scrap Shop");
 	if (G.phase === "buy" && G.buy) return ph(G.buy.pid, "is at the battery factory");
 	if (G.phase === "duelpick" && G.duelPick) return ph(G.duelPick.pid, "is picking a duel opponent");
+	if (G.phase === "teams") return `<div class="pan tvst"><p>🤝 Team minigame coming up…</p></div>`;
 	if (G.phase === "rival") return `<div class="pan tvst"><p>🧲 Magnet Mike is on the move…</p></div>`;
 	if (G.phase === "erupt") return `<div class="pan tvst"><p>🌋 The volcano is erupting…</p></div>`;
 	if (G.phase === "minigame" && G.mg) {
@@ -10874,7 +11020,7 @@ const cargoHTML = (p, bs, bc) =>
 function stripHTML() {
 	const st = standings(G.players),
 		c = G.players[G.turn],
-		inTurn = !["minigame", "mgres", "rival", "erupt"].includes(G.phase);
+		inTurn = !["minigame", "mgres", "rival", "erupt", "teams"].includes(G.phase);
 	let head = "";
 	if (G.teams) {
 		const T = teamTotals();
@@ -11054,7 +11200,7 @@ function practiceHTML() {
 			.filter((k) => (kind === "special" ? MG[k].special : MG[k].kind === kind && !MG[k].special))
 			.map((k) => {
 				const d = MG[k];
-				return `<button class="pgame" data-practice="${k}"><span><b>${esc(d.name)}</b><small>${esc(d.how)}</small></span><em>${d.dur}s<br>${d.hi ? "high score" : "low score"}</em></button>`;
+				return `<button class="pgame" data-practice="${k}"><span><b>${esc(d.name)}</b><small>${esc(d.how)}</small></span><em>${d.dur}s<br>${d.team ? d.team.replace("v", " vs ") : d.hi ? "high score" : "low score"}</em></button>`;
 			})
 			.join("");
 	return `<div class="stage short"><div class="brand"><i></i>Minigame practice</div></div>
@@ -11104,9 +11250,9 @@ function startPractice(g) {
 		HG.players.push(newPlayer(rid(), "CPU " + TRUCKS[tr].name.split(" ")[0], tr, true, false));
 	}
 	MAP = JUNK;
-	HG.used = Object.keys(MG).filter((k) => k !== g);
+	HG.used = [];
 	startHostLoops();
-	startMinigame();
+	startMinigame(null, g);
 }
 document.addEventListener("click", (e) => {
 	const b = e.target.closest("button");
@@ -11337,16 +11483,20 @@ function setFx(fx) {
 	});
 	loadPost().catch(() => {});
 }
-function mkEnt(p, isMe, named, mode) {
+function mkEnt(p, isMe, named, mode, col) {
 	const g = new THREE.Group(),
 		tr = buildTruck(p.truck, mode);
 	tr.scale.setScalar(0.8);
 	g.add(tr);
-	const disc = Cy(0.95, 0.95, 0.05, 20, pcol(p), 0, 0.03, 0, { transparent: true, opacity: 0.4, depthWrite: false });
+	const disc = Cy(0.95, 0.95, 0.05, 20, col || pcol(p), 0, 0.03, 0, {
+		transparent: true,
+		opacity: 0.4,
+		depthWrite: false,
+	});
 	disc.castShadow = false;
 	disc.userData.disc = true; /* the player-colour disc under the truck (a game can hide it) */
 	g.add(disc);
-	const tag = nameTag(isMe && !named ? "You" : p.name, pcol(p));
+	const tag = nameTag(isMe && !named ? "You" : p.name, col || pcol(p));
 	tag.position.y = 2.5;
 	g.add(tag);
 	return {
@@ -11397,8 +11547,8 @@ function arenaPhys(W, e, inp, dt) {
 		return;
 	}
 	if (e.al && !e.d && inp) {
-		e.vx += inp.x * 32 * dt;
-		e.vz += inp.y * 32 * dt;
+		e.vx += inp.x * 32 * (e.spd || 1) * dt;
+		e.vz += inp.y * 32 * (e.spd || 1) * dt;
 		if (inp.boost && e.bcd <= 0 && !def.aim) {
 			let dx = inp.x,
 				dz = inp.y,
@@ -11418,7 +11568,7 @@ function arenaPhys(W, e, inp, dt) {
 			}
 			e.vx += (dx / l) * 16;
 			e.vz += (dz / l) * 16;
-			e.bcd = 2;
+			e.bcd = e.ramCdT || 2;
 			e.boostT = 0.45;
 		}
 	}
@@ -11430,7 +11580,7 @@ function arenaPhys(W, e, inp, dt) {
 	e.vx *= damp;
 	e.vz *= damp;
 	const sp = Math.hypot(e.vx, e.vz),
-		max = e.boostT > 0 || e.slideT > 0 ? 23 : 11.5;
+		max = (e.boostT > 0 || e.slideT > 0 ? 23 : 11.5) * (e.spd || 1);
 	if (sp > max) {
 		e.vx *= max / sp;
 		e.vz *= max / sp;
@@ -11467,6 +11617,8 @@ function arenaPhys(W, e, inp, dt) {
 		if (def.deathY === undefined) eliminate(W, e);
 	}
 }
+/* per-truck tuning a game can set (Monster Mash's giant): e.rad (collision radius, 0.95), e.mass (1: heavier trucks
+   get pushed and knocked less), e.ramM (ram strength), e.spd (speed), e.ramCdT (ram cooldown, 2 s) */
 const RAMK = 17;
 function collide(W, a) {
 	if (!a.al || a.falling || a.fly) return;
@@ -11486,11 +11638,14 @@ function collide(W, a) {
 		const dx = a.x - b.x,
 			dz = a.z - b.z,
 			d = Math.hypot(dx, dz);
-		if (d > 1.9 || d < 0.001) continue;
-		const nx = dx / d,
+		const rr = (a.rad || 0.95) + (b.rad || 0.95);
+		if (d > rr || d < 0.001) continue;
+		const ma = a.mass || 1,
+			mb = b.mass || 1,
+			nx = dx / d,
 			nz = dz / d,
-			share = b.local ? 0.5 : 1,
-			ov = 1.9 - d;
+			share = b.local ? mb / (ma + mb) : Math.min(1, (2 * mb) / (ma + mb)),
+			ov = rr - d;
 		a.x += nx * ov * share;
 		a.z += nz * ov * share;
 		const rv = (b.vx - a.vx) * nx + (b.vz - a.vz) * nz,
@@ -11498,7 +11653,7 @@ function collide(W, a) {
 			bRam = b.boostT > 0 && (!cr || cr(b)),
 			aRam = a.boostT > 0 && (!cr || cr(a));
 		if (rv > 0 && !(bRam && !b.local)) {
-			const k = b.local ? 0.9 : 0.6;
+			const k = (b.local ? 0.9 : 0.6) * Math.min(1, (2 * mb) / (ma + mb));
 			a.vx += nx * rv * k;
 			a.vz += nz * rv * k;
 		}
@@ -11508,7 +11663,7 @@ function collide(W, a) {
 				b.hitT[a.k] = now;
 				a.hitAng = [nx, nz];
 				const D = W.def,
-					K = RAMK * (D.ramK || 1);
+					K = (RAMK * (D.ramK || 1) * (b.ramM || 1)) / ma;
 				a.vx += nx * K;
 				a.vz += nz * K;
 				a.slideT = D.ramSlide || 0.9;
@@ -11522,7 +11677,7 @@ function collide(W, a) {
 		}
 		if (!b.local && aRam && now - (a.hitT[b.k] || 0) > 400) {
 			a.hitT[b.k] = now;
-			const K = RAMK * (W.def.ramK || 1);
+			const K = RAMK * (W.def.ramK || 1) * (a.ramM || 1);
 			W.hitsOut.push({
 				k: b.k,
 				by: a.k,
@@ -11614,8 +11769,8 @@ function netApply(ps) {
 				if (e && e.local && e.al && !e.falling && !e.fly && W.t >= 0) {
 					const hl = Math.hypot(+x.x || 0, +x.z || 0) || 1;
 					e.hitAng = [(+x.x || 0) / hl, (+x.z || 0) / hl];
-					e.vx += +x.x || 0;
-					e.vz += +x.z || 0;
+					e.vx += (+x.x || 0) / (e.mass || 1);
+					e.vz += (+x.z || 0) / (e.mass || 1);
 					e.slideT = W.def.ramSlide || 0.9;
 					if (e.isMe) W.shake = 0.45;
 					hitFx(e, e);
@@ -11656,7 +11811,9 @@ function start3D(mg, p, localOnly, startAt, split) {
 	const sv = LS.get("trp_light", {})[mg.g];
 	if (!("sun0" in def)) def.sun0 = def.sun || null;
 	def.sun = sv && sv.sun ? sv.sun.slice() : def.sun0 || undefined;
-	const plist = mg.part ? G.players.filter((q) => mg.part.includes(q.key)) : G.players;
+	let plist = mg.part ? G.players.filter((q) => mg.part.includes(q.key)) : G.players;
+	/* team games: side 0 (the solo truck in 1 vs 3) spawns first, so def.spawn can tell the sides apart by index */
+	if (mg.tm) plist = plist.slice().sort((a, b) => (mg.tm[a.key] || 0) - (mg.tm[b.key] || 0));
 	const tv = !p;
 	W = {
 		plist,
@@ -11738,8 +11895,10 @@ function start3D(mg, p, localOnly, startAt, split) {
 	if (sv && sv.lt && sv.lt.glow) GFX.fx.bloom.th = sv.lt.glow;
 	const n = plist.length;
 	plist.forEach((q, i) => {
-		const e = mkEnt(q, !tv && q.key === p.key, !!split, def.truckMode);
+		const side = mg.tm ? mg.tm[q.key] || 0 : undefined,
+			e = mkEnt(q, !tv && q.key === p.key, !!split, def.truckMode, side === undefined ? null : mg.tc[side]);
 		e.i = i;
+		e.side = side; /* team games: 0 | 1 (0 = the solo truck in 1 vs 3) */
 		if (tv && !q.bot) {
 			e.isMe = true;
 			e.rem = true;
@@ -12193,7 +12352,7 @@ function openMg(mg, p) {
 		if (first) rtJoin(mg.nonce);
 		start3D(mg, p, !first, startAt);
 		box.innerHTML = `<div class="m3top"><span class="chip name">${esc(def.name)}</span><span class="chip" id="m3t"></span><span class="chip grow" id="m3s"></span>${G && G.practice ? '<button class="chip" id="m3light" aria-label="Lighting">💡</button>' : ""}</div>
-      <div class="m3lb${def.lbTop ? " top" : ""}" id="m3lb"></div><div class="m3intro" id="m3in"><h3>${esc(def.name)}</h3><p>${esc(def.how)}</p><p class="m3ctl">${def.ctrl === "stick" ? (def.stickHint ? def.stickHint(FINE) : FINE ? "WASD or arrow keys to drive, Space to ram." : "Drag anywhere to drive. Tap RAM to charge.") : esc(def.tapHint || "Tap the big button.") + (FINE ? " On a keyboard, press Space." : "")}</p>${!first ? `<p class="m3ctl">Practice run against CPU trucks. Your score still counts.</p>` : ""}</div>
+      <div class="m3lb${def.lbTop ? " top" : ""}" id="m3lb"></div><div class="m3intro" id="m3in"><h3>${esc(def.name)}</h3><p>${esc(def.how)}</p>${teamLine(mg, p, def)}<p class="m3ctl">${def.ctrl === "stick" ? (def.stickHint ? def.stickHint(FINE) : FINE ? "WASD or arrow keys to drive, Space to ram." : "Drag anywhere to drive. Tap RAM to charge.") : esc(def.tapHint || "Tap the big button.") + (FINE ? " On a keyboard, press Space." : "")}</p>${!first ? `<p class="m3ctl">Practice run against CPU trucks. Your score still counts.</p>` : ""}</div>
       <div class="m3center${def.msgTop ? " hi" : ""}"><div class="m3big" id="m3c"></div><div class="m3msg" id="m3m" hidden></div></div>
       ${first ? `<div class="m3ready" id="m3r"><h3>Get ready</h3><div id="m3rl"></div><button class="btn go" id="m3rb">I'm ready${FINE ? " (Enter)" : ""}</button><button class="btn ghost" id="m3rs" hidden style="margin-top:8px">Start without the others</button></div>` : ""}
       ${def.ctrl === "custom" ? def.ctlHTML() : def.ctrl === "stick" ? stickHTML(def, def.aim ? "Drive" : "") : `${tapCtlHTML(mg.g, def)}`}`;
@@ -12222,6 +12381,18 @@ function openMg(mg, p) {
 			go(Date.now() + 3500);
 		});
 	}
+}
+/* the intro card's team line: which side this player is on (def.teamHow(side, solo) gives a game's own wording) */
+function teamLine(mg, p, def) {
+	if (!mg.tm || !p || !(p.key in mg.tm)) return "";
+	const s = mg.tm[p.key],
+		solo = mg.team === "1v3" && Object.values(mg.tm).filter((x) => x === s).length === 1,
+		txt = def.teamHow
+			? def.teamHow(s, solo)
+			: solo
+				? "You're on your own against everyone!"
+				: `You're on the ${mg.tc[s] === SIDE_COL[0] ? "Blue" : "Red"} team.`;
+	return `<p class="m3team" style="--c:${mg.tc[s]}">${esc(vsLabel(mg.tm))} ${esc(txt)}</p>`;
 }
 function syncStart() {
 	if (!W || W.startAt || W.localOnly || !G || !G.mg || G.mg.nonce !== W.mg.nonce || !G.mg.t0) return;
@@ -12989,12 +13160,12 @@ function hud3(dt) {
 	$("#m3lb").innerHTML = rows
 		.map(
 			(e) =>
-				`<div style="--c:${pcol(e.p)}" class="${e.isMe && !W.tv ? "me" : ""} ${!e.al && def.lastStanding ? "out" : ""}"><i style="background:${pcol(e.p)}"></i><span>${esc(e.isMe && !W.tv && !W.split ? "You" : def.lbTop ? e.p.name.replace(/^CPU /, "") : e.p.name)}</span><b>${def.fmtV ? def.fmtV(Math.round(e.sc)) : def.unit === "ms" && !def.liveHi ? (e.sc / 1000).toFixed(2) : Math.round(e.sc)}</b></div>`,
+				`<div style="--c:${pcol(e.p)}" class="${e.isMe && !W.tv ? "me" : ""} ${!e.al && def.lastStanding ? "out" : ""}"><i style="background:${pcol(e.p)}"></i><span>${esc(e.isMe && !W.tv && !W.split ? "You" : def.lbTop ? e.p.name.replace(/^CPU /, "") : e.p.name)}</span><b>${def.fmtE ? def.fmtE(W, e) : def.fmtV ? def.fmtV(Math.round(e.sc)) : def.unit === "ms" && !def.liveHi ? (e.sc / 1000).toFixed(2) : Math.round(e.sc)}</b></div>`,
 		)
 		.join("");
 	const rb = $("#ram");
 	if (rb) {
-		const cd = W.def.ramCd ? W.def.ramCd(W) : Math.min(1, W.me.bcd / 2);
+		const cd = W.def.ramCd ? W.def.ramCd(W) : Math.min(1, W.me.bcd / (W.me.ramCdT || 2));
 		rb.classList.toggle("cd", W.def.ramReady ? !W.def.ramReady(W) : W.me.bcd > 0);
 		rb.style.setProperty("--cd", cd.toFixed(3));
 		rb.classList.toggle("held", !!W.inp.hold);
@@ -13016,16 +13187,24 @@ function showMgResults(mg) {
 	const box = $("#mg");
 	box.classList.add("on", "res");
 	box.classList.remove("live");
+	/* team games: the winning side on top, each row in its side colour, rank 1 for every winner */
+	const tm = mg.team && mg.tm,
+		win = tm ? mg.win : null;
 	const rows = (mg.order || [])
 		.map((k, i) => {
 			const p = G.players.find((x) => x.key === k);
 			if (!p) return "";
-			const place = i === 0 ? "p1" : i === 1 ? "p2" : i === 2 ? "p3" : "";
-			const s = k in mg.res ? fmtScore(def, mg.res[k]) : "No score";
-			return `<li class="${place}${k === me.key ? " you" : ""}" style="--d:${i * 110 + 250}ms;--c:${pcol(p)}"><span class="rk">${i + 1}</span><img alt="" src="${thumb(p.truck)}"><span class="rn">${esc(p.name)}${k === me.key ? " (you)" : ""}<small>${s}</small></span><span class="raw ${(mg.aw[k] || 0) < 0 ? "neg" : ""}">${(mg.aw[k] || 0) < 0 ? "−" + -mg.aw[k] : "+" + (mg.aw[k] || 0)}${coinIco}</span></li>`;
+			const rk = tm ? (win < 0 || tm[k] === win ? 1 : 2) : i + 1,
+				place = tm ? (rk === 1 && win >= 0 ? "p1" : "") : i === 0 ? "p1" : i === 1 ? "p2" : i === 2 ? "p3" : "";
+			const s = !(k in mg.res)
+				? "No score"
+				: tm && def.fmtTeam
+					? def.fmtTeam(mg.res[k], tm[k])
+					: fmtScore(def, mg.res[k]);
+			return `<li class="${place}${k === me.key ? " you" : ""}" style="--d:${i * 110 + 250}ms;--c:${tm ? mg.tc[tm[k]] : pcol(p)}"><span class="rk">${rk}</span><img alt="" src="${thumb(p.truck)}"><span class="rn">${esc(p.name)}${k === me.key ? " (you)" : ""}<small>${s}</small></span><span class="raw ${(mg.aw[k] || 0) < 0 ? "neg" : ""}">${(mg.aw[k] || 0) < 0 ? "−" + -mg.aw[k] : "+" + (mg.aw[k] || 0)}${coinIco}</span></li>`;
 		})
 		.join("");
-	box.innerHTML = `<div class="resx"><div class="rescard"><div class="reshz"></div><div class="reshead"><span class="resk">${mg.duel ? "Duel results" : "Minigame results"}</span><h2>${esc(def.name)}</h2></div><ol class="reslist">${rows}</ol><p class="resnext">Round ${Math.min(G.round + 1, G.rounds)} coming up…</p></div></div>`;
+	box.innerHTML = `<div class="resx"><div class="rescard"><div class="reshz"></div><div class="reshead"><span class="resk">${mg.duel ? "Duel results" : tm ? `Team results: ${vsLabel(tm).replace("!", "")}` : "Minigame results"}</span><h2>${esc(def.name)}</h2>${tm ? `<p class="reswin" style="--c:${win < 0 ? "#FFC83D" : mg.tc[win]};color:${win < 0 ? "#151B24" : "#fff"}">${win < 0 ? "It's a draw!" : `🏆 ${esc(sideName(mg, win))} wins!`}</p>` : ""}</div><ol class="reslist">${rows}</ol><p class="resnext">Round ${Math.min(G.round + 1, G.rounds)} coming up…</p></div></div>`;
 	if (mg.prac) {
 		box.querySelector(".resnext").textContent = "Practice round, back to the lobby…";
 		box.querySelectorAll(".raw").forEach((n) => n.remove());
@@ -13331,7 +13510,7 @@ function tvSend(force) {
 function tvStatus(W, e, order) {
 	const D = W.def;
 	try {
-		const cd = D.ramCd ? D.ramCd(W) : Math.min(1, e.bcd / 2),
+		const cd = D.ramCd ? D.ramCd(W) : Math.min(1, e.bcd / (e.ramCdT || 2)),
 			rdy = D.ramReady ? D.ramReady(W) : e.bcd <= 0,
 			ld = e.lastDrop;
 		const dm =
@@ -26413,6 +26592,142 @@ Object.assign(MG, {
 		},
 		botScore: () => 8 + rnd(25),
 	},
+});
+
+/* ---------- team minigames ---------- */
+/* Monster Mash (1 vs 3): the solo truck (side 0) is a giant monster truck: big, heavy (barely moved by the others) and
+   hard-hitting, and it can't fall off. The others must stay on the stage for 30 s; the team wins if anyone survives.
+   Runs on Mud Brawl's arena (MG.bumper: build, bowl, mud fall, stage shrink via this.R). */
+Object.assign(MG, {
+	mash: Object.assign({}, MG.bumper, {
+		name: "Monster Mash",
+		team: "1v3",
+		dur: 30,
+		lastStanding: false,
+		how: "The monster truck rams everyone off the stage into the mud. Survive 30 seconds to win as a team!",
+		teamHow: (s, solo) =>
+			s === 0
+				? "You're the MONSTER TRUCK: ram them all into the mud!"
+				: "Dodge the monster truck and stay on the stage!",
+		R: (t) => (t < 8 ? 11 : Math.max(8, 11 - (t - 8) * 0.14)),
+		BIG: 1.8,
+		spawn(W, i, n) {
+			const e = W.list[i];
+			if (e && e.side === 0) return { x: 0, z: 0, yaw: -Math.PI / 2 };
+			const solo = W.list[0] && W.list[0].side === 0,
+				j = solo ? i - 1 : i,
+				m = solo ? n - 1 : n,
+				a = (j / Math.max(1, m)) * Math.PI * 2 + Math.PI / 2;
+			return { x: Math.cos(a) * 7, z: Math.sin(a) * 7, yaw: Math.atan2(Math.sin(a), -Math.cos(a)) };
+		},
+		/* the monster: scaled-up truck, bigger disc and a higher name tag; tuning fields read by arenaPhys / collide */
+		initEnt(W, e) {
+			if (e.side !== 0) return;
+			const k = this.BIG;
+			e.tr.scale.setScalar(0.8 * k);
+			e.g.children.forEach((o) => {
+				if (o.userData.disc) o.scale.set(k, 1, k);
+				else if (o.isSprite) o.position.y = 2.5 * k;
+			});
+			e.rad = 0.95 * k;
+			e.mass = 4;
+			e.ramM = 1.45;
+			e.spd = 0.9;
+			e.ramCdT = 1.4;
+			e.bcd = 1.5; /* no ram for the first moments, so the others can get moving */
+		},
+		inside(W, x, z, e) {
+			return (e && e.side === 0) || Math.hypot(x, z) < this.R(Math.max(0, W.t)) + 0.15;
+		},
+		survivors: (W) => W.list.filter((o) => o.side !== 0 && !o.gone),
+		rules(W, e) {
+			if (e.side !== 0) {
+				if (e.al && !e.d) e.sc = Math.floor(W.t * 10);
+				return;
+			}
+			/* the monster stays on the stage: pushed back from the edge */
+			const lim = this.R(Math.max(0, W.t)) - 0.9,
+				d = Math.hypot(e.x, e.z);
+			if (d > lim) {
+				const nx = e.x / d,
+					nz = e.z / d,
+					vn = e.vx * nx + e.vz * nz;
+				e.x = nx * lim;
+				e.z = nz * lim;
+				if (vn > 0) {
+					e.vx -= vn * nx;
+					e.vz -= vn * nz;
+				}
+			}
+			const sv = this.survivors(W);
+			e.sc = sv.filter((o) => !o.al).length;
+			if (sv.length && W.t > 1 && sv.every((o) => !o.al) && !e.d) {
+				e.d = true;
+				e.won = true;
+			}
+		},
+		timeUp(W, e) {
+			if (e.side !== 0 && e.al) e.sc = this.dur * 10 + 100;
+		},
+		final: (W, e) => e.sc,
+		/* live board: the monster's crush count, everyone else's seconds on the stage */
+		fmtE(W, e) {
+			return e.side === 0 ? `${e.sc} 💥` : e.al ? `${Math.min(this.dur, Math.floor(e.sc / 10))} s` : "OUT";
+		},
+		fmtTeam(v, s) {
+			return s === 0 ? `Crushed ${v}` : v > this.dur * 10 ? "Survived!" : `Out after ${(v / 10).toFixed(1)} s`;
+		},
+		donePrompt(W, me) {
+			if (me.side === 0) return me.won ? "You crushed them all!" : "Time's up!";
+			return me.al ? "You survived!" : "Into the mud! Watch the others…";
+		},
+		teamWin(res, tm) {
+			const sv = Object.keys(tm).filter((k) => tm[k] === 1 && k in res);
+			return sv.some((k) => res[k] > this.dur * 10) ? 1 : 0;
+		},
+		bot(W, e, dt) {
+			const R = this.R(W.t);
+			if (e.side === 0) {
+				/* chase the nearest survivor, ram when close */
+				const t = this.survivors(W)
+					.filter((o) => o.al && !o.d && !o.falling)
+					.sort((a, b) => Math.hypot(a.x - e.x, a.z - e.z) - Math.hypot(b.x - e.x, b.z - e.z))[0];
+				if (!t) return steer(e, 0, 0, 0.4);
+				const s = steer(e, t.x, t.z, 0.9);
+				if (Math.hypot(t.x - e.x, t.z - e.z) < 4.5 && e.bcd <= 0 && Math.random() < dt * 2.5) s.boost = true;
+				return s;
+			}
+			/* survivors: keep away from the monster, sidestep its rams, stay off the edge */
+			const m = W.list.find((o) => o.side === 0 && !o.gone);
+			let x = Math.sin(W.t * 0.7 + e.i * 2.1) * 0.3,
+				z = Math.cos(W.t * 0.6 + e.i * 1.3) * 0.3;
+			if (m) {
+				const ax = e.x - m.x,
+					az = e.z - m.z,
+					d = Math.hypot(ax, az) || 1;
+				if (d < 8) {
+					const w = ((8 - d) / 8) * 1.6;
+					x += (ax / d) * w;
+					z += (az / d) * w;
+				}
+				if (m.boostT > 0 && d < 6) {
+					const sg = ax * -m.vz + az * m.vx > 0 ? 1 : -1,
+						l = Math.hypot(m.vx, m.vz) || 1;
+					x += (-m.vz / l) * sg * 1.4;
+					z += (m.vx / l) * sg * 1.4;
+				}
+			}
+			const r = Math.hypot(e.x, e.z);
+			if (r > R * 0.5) {
+				const w = ((r / R - 0.5) / 0.5) * 2;
+				x -= (e.x / r) * w;
+				z -= (e.z / r) * w;
+			}
+			const l = Math.hypot(x, z);
+			return l < 0.05 ? { x: 0, y: 0, boost: false } : { x: x / l, y: z / l, boost: false };
+		},
+		botScore: (s) => (s === 0 ? rnd(4) : rnd(2) ? 400 : 50 + rnd(250)),
+	}),
 });
 /* ---------- shared minigame scenery: ground textures, road wear, kerbs, verges, automatic tyre tracks ---------- */
 /* Textures are drawn once per kind and cached (cosmetic, so Math.random is fine); texRep() gives a mesh its own repeat. */

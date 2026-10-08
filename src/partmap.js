@@ -3763,7 +3763,7 @@ function stepBoard(dt, time) {
 	});
 	const cur = ps[G.turn],
 		ct = cur && GFX.tok[cur.key],
-		inMg = G.phase === "minigame" || G.phase === "mgres";
+		inMg = G.phase === "minigame" || G.phase === "mgres" || G.phase === "teams";
 	stepBadgeFor(bd, ct, time);
 	bd.hl.visible = !!ct && !inMg;
 	if (ct) {
