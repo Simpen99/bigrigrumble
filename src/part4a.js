@@ -188,19 +188,20 @@ function applyLook(W, extra) {
 		() => {},
 	);
 }
-/* minigame effects from {ao, bloom, tilt, vig, col, aa} (0 / missing = off), as baked in def.fx or saved from the light panel */
+/* minigame effects from {ao, bloom, tilt, vig, col, aa} (0 / missing = off, except smooth edges: on unless aa is 0), as
+   baked in def.fx or saved from the light panel */
 function setFx(fx) {
 	["ao", "bloom", "tilt", "vig", "col", "aa"].forEach((k) => {
-		const v = fx && fx[k];
+		const v = k === "aa" ? !fx || fx.aa === undefined || fx.aa : fx && fx[k];
 		GFX.fx[k].on = !!v;
 		if (v) {
 			if (k === "col") {
 				GFX.fx.col.sat = v * 0.6;
 				GFX.fx.col.con = v * 0.2;
-			} else GFX.fx[k].v = v;
+			} else if (k !== "aa") GFX.fx[k].v = v;
 		}
 	});
-	if (fx) loadPost().catch(() => {});
+	loadPost().catch(() => {});
 }
 function mkEnt(p, isMe, named, mode) {
 	const g = new THREE.Group(),
