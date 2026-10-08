@@ -27455,13 +27455,17 @@ Object.assign(MG, {
 				else go(Math.cos(W.t * 0.4 + e.i * 2) * 8, Math.sin(W.t * 0.4 + e.i * 2) * 8, 0.6);
 				if (m && md < (m.rad || 1.7) + 3) go(m.x, m.z, -1.8);
 			}
+			/* tyres: each CPU notices a given tyre only sometimes, and late, so aimed shots land */
+			e.tyNote = e.tyNote || {};
 			for (const t of W.tyLive || []) {
 				if (!t.on) continue;
 				const rx = e.x - t.x,
 					rz = e.z - t.z,
 					ahead = rx * t.dx + rz * t.dz,
 					side = rx * -t.dz + rz * t.dx;
-				if (ahead > 0 && ahead < 6 && Math.abs(side) < 1.8) {
+				if (ahead > 0 && ahead < 4.5 && Math.abs(side) < 1.8) {
+					if (e.tyNote[t.id] === undefined) e.tyNote[t.id] = Math.random() < 0.4;
+					if (!e.tyNote[t.id]) continue;
 					const sg = side >= 0 ? 1 : -1;
 					x += -t.dz * sg * 1.6;
 					z += t.dx * sg * 1.6;
