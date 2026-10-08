@@ -60,6 +60,7 @@ Use the scripts in `tools/` (see `tools/README.md`; `cd tools && npm i` once, th
 - `node tools/rig.mjs <models>`: a model from front, back, side and 3/4 above; look at it before shipping.
 - `node tools/sheet.mjs <games>|all [--landscape]`: minigames at iPhone size on one contact sheet.
 - `node tools/run.mjs <games>|all`: play minigames to the end and report page errors.
+- `node tools/watch.mjs <game> [--runs N --quiet --as human --side 0 --film]`: watch a minigame play out (play-by-play log, results, win and knockout-cause summary). **Use it for any tuning or "why does X happen" question instead of writing one-off scripts.** Games log events with `mgLog(W, text)` and set `e.lastHit = {k: cause, t: W.t}` when they knock a truck; optional `def.watchSum(W)` (one summary line) and `def.humanBot` (plays like a person, for `--as human`).
 Models are presets (`cars`, `taxi`, `houses`, `trucks`) or JS expressions returning an Object3D, facing -z (`faceZ(m)` turns +x-facing ones). Console hooks: `startPractice("taco")`, `W` (minigame world), `HG` (host state).
 
 Backlog ideas live in `IDEAS.md`. **Art style rules live in `STYLE.md`: read it before building or changing any model,

@@ -15,6 +15,7 @@ cd tools && npm i            # once: playwright + three@0.128.0 (served instead 
 | `node scenecheck.mjs <game ids>\|all` | Renders one frozen frame with the merged scenery (`mergeScene`) and again with the originals, and compares the pixels |
 | `node kitcheck.mjs` | Bakes every kit with and without the shared neutral materials and checks every vertex still matches |
 | `node mergecheck.mjs` | Builds every truck with and without `mergeTruck` and checks every vertex still matches (position, colour, finish); look for non-zero `unmatched` |
+| `node watch.mjs <game> [--runs N] [--as cpu\|human\|idle] [--side 0\|1] [--cpu N] [--quiet] [--film [s]]` | Plays a minigame with CPUs and prints a timestamped play-by-play (knockouts with their cause, plus the game's own `mgLog` events), the results, and a summary over all runs (wins, knockout causes, page errors). `--as human` drives your truck like a person (`def.humanBot`, else the CPU brain with a reaction lag); `--film` saves a filmstrip -> `out/watch_<run>.png`. Use it for tuning instead of one-off scripts |
 | `node run.mjs <game ids>\|all` | Plays minigames to the end with CPUs and reports time, page errors and merged scenery the game still changed (NOT STATIC). Exit code 1 on any of them |
 
 `<models>` are presets (`cars`, `taxi`, `houses`, `buildings`, `trucks`) or JS expressions evaluated in the game page that return a
