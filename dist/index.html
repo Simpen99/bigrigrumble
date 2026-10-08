@@ -25542,7 +25542,7 @@ Object.assign(MG, {
 				seen: new Uint8Array(N * N),
 				cols: W.plist.map((q) => pcol(q)),
 				cans: [],
-				dirty: true,
+				box: [1e9, 1e9, -1, -1],
 				drawn: -1,
 			});
 			/* each truck starts on a round patch of its own paint */
@@ -25556,7 +25556,7 @@ Object.assign(MG, {
 			});
 			P.base = P.own.slice();
 			/* the paint layer: a canvas over the lot, redrawn when cells change */
-			const px = 10;
+			const px = 6;
 			P.px = px;
 			P.cv = document.createElement("canvas");
 			P.cv.width = P.cv.height = N * px;
@@ -25592,7 +25592,7 @@ Object.assign(MG, {
 				for (let k = 0; k < MX * 2; k++) nor[k * 3 + 1] = 1;
 				for (let k = 0; k < MX - 1; k++) {
 					const a = k * 2;
-					idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
+					idx.push(a, a + 2, a + 1, a + 1, a + 2, a + 3);
 				}
 				geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
 				geo.setAttribute("normal", new THREE.BufferAttribute(nor, 3));
@@ -25616,7 +25616,6 @@ Object.assign(MG, {
 				W.sc.add(m);
 				return { geo, pos, m, MX };
 			});
-			this.draw(W);
 		},
 		yard(W) {
 			/* SPLASH PAINTS factory car park: asphalt lot with bay lines inside a kerb of paint-coloured blocks, the factory with its
@@ -25883,42 +25882,105 @@ Object.assign(MG, {
 				});
 				if (recent) this.bucket(W, ev.q, b[0], b[1], ch.length);
 			});
-			P.dirty = true;
 		},
 		/* ---- paint layer ---- */
-		draw(W) {
+		draw(W, bx) {
+			/* each pixel blends the 2x2 nearest cells (bilinear weight per owner), so the outlines come out smooth instead of
+			   stepped; the sample point is pushed around by a fixed wobble field so the edges are wavy like spilled paint.
+			   The winner's lead over the runner-up gives soft edges and a darker wet rim. Only the changed box is redrawn. */
 			const P = W.P,
 				N = P.N,
 				px = P.px,
-				x = P.cx,
+				Z = N * px,
 				D = P.disp;
-			if (!P.dk) P.dk = P.cols.map((c) => "#" + new THREE.Color(c).multiplyScalar(0.62).getHexString());
-			x.clearRect(0, 0, N * px, N * px);
-			/* darker rim first (bigger blobs on edge cells), then the paint, so every patch gets a wet outline */
-			for (let pass = 0; pass < 2; pass++)
-				for (let c = 0; c < N * N; c++) {
-					const o = D[c];
-					if (o < 0) continue;
-					const cx = c % N,
-						cz = Math.floor(c / N),
-						edge =
-							cx === 0 ||
-							cz === 0 ||
-							cx === N - 1 ||
-							cz === N - 1 ||
-							D[c - 1] !== o ||
-							D[c + 1] !== o ||
-							D[c - N] !== o ||
-							D[c + N] !== o;
-					if (pass === 0 && !edge) continue;
-					x.fillStyle = pass ? P.cols[o] : P.dk[o];
-					if (!edge) x.fillRect(cx * px - 1, cz * px - 1, px + 2, px + 2);
-					else {
-						x.beginPath();
-						x.arc((cx + 0.5) * px, (cz + 0.5) * px, px * (pass ? 0.74 : 0.9), 0, 6.283);
-						x.fill();
+			if (!P.img) {
+				P.img = P.cx.createImageData(Z, Z);
+				P.rgb = P.cols.map((c) => {
+					const k = new THREE.Color(c);
+					return [k.r * 255, k.g * 255, k.b * 255];
+				});
+				const r = mulberry(4242),
+					wv = Array.from({ length: 6 }, (_, i) => ({
+						a: r() * 6.283,
+						f: (i < 3 ? 0.55 : 1.3) * (0.8 + r() * 0.4),
+						p: r() * 6.283,
+						m: i < 3 ? 0.3 : 0.12,
+					}));
+				P.wx = new Float32Array(Z * Z);
+				P.wz = new Float32Array(Z * Z);
+				for (let v = 0; v < Z; v++)
+					for (let u = 0; u < Z; u++) {
+						const gx = (u + 0.5) / px,
+							gz = (v + 0.5) / px;
+						let ox = 0,
+							oz = 0;
+						wv.forEach((w, i) => {
+							const s = Math.sin((gx * Math.cos(w.a) + gz * Math.sin(w.a)) * w.f + w.p) * w.m;
+							if (i % 2) ox += s;
+							else oz += s;
+						});
+						P.wx[v * Z + u] = ox;
+						P.wz[v * Z + u] = oz;
 					}
+			}
+			const dat = P.img.data,
+				rgb = P.rgb,
+				u0 = Math.max(0, (bx[0] - 2) * px),
+				v0 = Math.max(0, (bx[1] - 2) * px),
+				u1 = Math.min(Z, (bx[2] + 3) * px),
+				v1 = Math.min(Z, (bx[3] + 3) * px),
+				ow = [0, 0, 0, 0],
+				wt = [0, 0, 0, 0];
+			let n = 0;
+			const add = (o, w) => {
+				for (let k = 0; k < n; k++)
+					if (ow[k] === o) {
+						wt[k] += w;
+						return;
+					}
+				ow[n] = o;
+				wt[n++] = w;
+			};
+			for (let v = v0; v < v1; v++)
+				for (let u = u0; u < u1; u++) {
+					const i = v * Z + u,
+						gx = Math.max(0, Math.min(N - 1.001, (u + 0.5) / px - 0.5 + P.wx[i])),
+						gz = Math.max(0, Math.min(N - 1.001, (v + 0.5) / px - 0.5 + P.wz[i])),
+						ix = Math.floor(gx),
+						iz = Math.floor(gz),
+						fx = gx - ix,
+						fz = gz - iz,
+						c = iz * N + ix,
+						cx1 = ix < N - 1 ? 1 : 0,
+						cz1 = iz < N - 1 ? N : 0;
+					n = 0;
+					add(D[c], (1 - fx) * (1 - fz));
+					add(D[c + cx1], fx * (1 - fz));
+					add(D[c + cz1], (1 - fx) * fz);
+					add(D[c + cx1 + cz1], fx * fz);
+					let b = 0,
+						s2 = 0,
+						wb = 0;
+					for (let k = 1; k < n; k++) if (wt[k] > wt[b]) b = k;
+					for (let k = 0; k < n; k++) {
+						if (k !== b && wt[k] > s2) s2 = wt[k];
+						if (ow[k] < 0) wb = wt[k];
+					}
+					const o = ow[b],
+						j = i * 4;
+					if (o < 0) {
+						dat[j + 3] = 0;
+						continue;
+					}
+					const lead = wt[b] - s2,
+						sh = 0.62 + 0.38 * Math.min(1, lead / 0.4),
+						cl = rgb[o];
+					dat[j] = cl[0] * sh;
+					dat[j + 1] = cl[1] * sh;
+					dat[j + 2] = cl[2] * sh;
+					dat[j + 3] = wb > 0 ? Math.min(255, (wt[b] - wb) * 1400) : 255;
 				}
+			P.cx.putImageData(P.img, 0, 0, u0, v0, u1 - u0, v1 - v0);
 			P.tex.needsUpdate = true;
 		},
 		bucket(W, q, x, z, size) {
@@ -26111,16 +26173,22 @@ Object.assign(MG, {
 			/* reveal changed cells as the bucket's paint spreads */
 			const D = P.disp,
 				own = P.own;
+			const bx = P.box;
 			for (let c = 0; c < own.length; c++)
 				if (D[c] !== own[c] && W.t >= P.rev[c]) {
 					D[c] = own[c];
-					P.dirty = true;
+					const cx = c % P.N,
+						cz = (c - cx) / P.N;
+					bx[0] = Math.min(bx[0], cx);
+					bx[1] = Math.min(bx[1], cz);
+					bx[2] = Math.max(bx[2], cx);
+					bx[3] = Math.max(bx[3], cz);
 				}
 			const now = performance.now();
-			if (P.dirty && now - P.drawn > 50) {
-				P.dirty = false;
+			if (bx[2] >= 0 && now - P.drawn > 50) {
 				P.drawn = now;
-				this.draw(W);
+				this.draw(W, bx);
+				P.box = [1e9, 1e9, -1, -1];
 			}
 			/* scores: share of the lot in your paint */
 			const cnt = new Array(P.cols.length).fill(0);
@@ -26144,7 +26212,7 @@ Object.assign(MG, {
 			if (pts.length) pts = pts.slice(-(R.MX - 1)).concat([[e.x, e.z]]);
 			const n = pts.length,
 				p = R.pos,
-				w = 0.3,
+				w = 0.34,
 				y = 0.07;
 			for (let k = 0; k < n; k++) {
 				const a = pts[Math.max(0, k - 1)],
