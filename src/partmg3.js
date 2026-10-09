@@ -1828,14 +1828,15 @@ Object.assign(MG, {
    e.f.dy (crate carried), e.f.dh (TNT hits; the boss HP is the sum), e.f.nr (magnet timer), e.f.gr (grabbed).
    Crates come from the seed (pickups through W.claim). */
 const MM = {
-	R: 12.5,
+	R: 15,
+	LIVES: 2 /* falls into the mud before a survivor is out */,
 	TV: 12 /* tyre speed */,
 	CLAW: 1.1 /* seconds close before the magnet grabs */,
 	WIND: 0.6 /* ground pound: wind-up after the button */,
 	JUMP: 0.7 /* then the jump before the slam */,
 	STUN: 1 /* shockwave stun */,
 	RING: 10 /* shockwave speed */,
-	hpMax: (n) => Math.min(14, Math.max(6, n * 3)),
+	hpMax: (n) => Math.min(16, Math.max(8, n * 4)),
 };
 /* the highest roof along a truck's centre line (raycast down): {x, y} in the truck's parent space */
 function truckTop(tr) {
@@ -1897,7 +1898,32 @@ function mmCannon() {
 	g.userData.bar = bar;
 	return g;
 }
-/* the electromagnet that comes down for anyone who stays too close (on a cable from a crane off screen) */
+/* a chain of alternating links, laid between two points each frame (mmChainSet) */
+function mmChain() {
+	const g = new THREE.Group(),
+		geo = new THREE.BoxGeometry(0.1, 0.22, 0.05),
+		mat = M("#3D424C");
+	for (let i = 0; i < 26; i++) g.add(new THREE.Mesh(geo, mat));
+	g.visible = false;
+	return g;
+}
+const _cy = new THREE.Vector3(0, 1, 0),
+	_cq = new THREE.Quaternion(),
+	_ct = new THREE.Quaternion();
+function mmChainSet(ch, a, b) {
+	const d = b.clone().sub(a),
+		len = d.length(),
+		n = Math.max(1, Math.min(ch.children.length, Math.ceil(len / 0.19)));
+	d.normalize();
+	_cq.setFromUnitVectors(_cy, d);
+	ch.children.forEach((l, i) => {
+		l.visible = i < n;
+		if (i >= n) return;
+		l.position.copy(a).addScaledVector(d, ((i + 0.5) / n) * len);
+		l.quaternion.copy(_cq).multiply(_ct.setFromAxisAngle(_cy, i % 2 ? Math.PI / 2 : 0));
+	});
+}
+/* the electromagnet the boss shoots out of its mouth at anyone who stays too close */
 function mmMagnet() {
 	const g = new THREE.Group();
 	g.add(Cy(0.95, 0.95, 0.42, 12, "#4A525C", 0, 0.21, 0));
@@ -1905,7 +1931,6 @@ function mmMagnet() {
 	g.add(Cy(0.85, 0.95, 0.12, 12, "#C9CED8", 0, -0.04, 0));
 	g.add(Cy(0.7, 0.9, 0.24, 12, "#E5484D", 0, 0.54, 0));
 	g.add(Cy(0.16, 0.16, 0.3, 6, "#3D424C", 0, 0.8, 0));
-	g.add(Cy(0.06, 0.06, 30, 5, "#3D424C", 0, 15.9, 0));
 	g.visible = false;
 	return g;
 }
@@ -1961,10 +1986,12 @@ Object.assign(MG, {
 	mash: Object.assign({}, MG.bumper, {
 		name: "Monster Mash",
 		team: "1v3",
-		dur: 45,
+		dur: 60,
 		lastStanding: false,
 		noAssist: true,
-		camZoom: 1.08,
+		camZoom: 1.15,
+		BOWL: 20.4 /* Mud Brawl's bowl, 20% bigger */,
+		deathY: -99 /* falling into the mud costs a life (fallen), it doesn't knock you out by itself */,
 		/* new look: a stadium at dusk, floodlights on the stage (starting values, tune in the light panel) */
 		sun: [14, 15, 11],
 		look: {
@@ -2114,7 +2141,7 @@ Object.assign(MG, {
 		   spotlights with fading beams from opposite poles onto the stage (more would cost phones too much) */
 		lights(W) {
 			const s = W.sc,
-				R0 = 17,
+				R0 = this.BOWL,
 				lin = (c) => new THREE.Color(c).convertSRGBToLinear(),
 				lens = { emissive: "#FFE6B8", emissiveIntensity: 2.2 };
 			W.lamps = [];
@@ -2176,7 +2203,7 @@ Object.assign(MG, {
 				j = solo ? i - 1 : i,
 				m = solo ? n - 1 : n,
 				a = (j / Math.max(1, m)) * Math.PI * 2 + Math.PI / 2;
-			return { x: Math.cos(a) * 8, z: Math.sin(a) * 8, yaw: Math.atan2(Math.sin(a), -Math.cos(a)) };
+			return { x: Math.cos(a) * 9.5, z: Math.sin(a) * 9.5, yaw: Math.atan2(Math.sin(a), -Math.cos(a)) };
 		},
 		initEnt(W, e) {
 			e.f = { dh: 0, dy: 0 };
@@ -2369,6 +2396,50 @@ Object.assign(MG, {
 				e.won = true;
 			}
 		},
+		/* a survivor in the mud: loses a life; with one left, back on the stage after 2.2 s where it fell off, a few
+		   metres in, blinking and safe from hits and the magnet for 2 s */
+		fallen(W, e) {
+			if (e.outT === undefined) {
+				e.outT = W.t;
+				e.lives = (e.lives === undefined ? MM.LIVES : e.lives) - 1;
+				e.f.lv = e.lives;
+				e.f.dy = 0;
+				e.gr = null;
+				e.f.gr = 0;
+				e.fly = false;
+				e.nr = e.f.nr = 0;
+				if (e.lives <= 0) {
+					eliminate(W, e);
+					return;
+				}
+				mgLog(W, `FALL ${mgName(e)} (${e.lastHit && W.t - e.lastHit.t < 2 ? e.lastHit.k : "own fault"})`);
+				e.buzz = (e.buzz || 0) + 1;
+				if (e.isMe && !W.tv) buzz(150);
+				return;
+			}
+			if (W.t - e.outT > 2.2) {
+				const a = Math.atan2(e.z, e.x),
+					r = MM.R * 0.62;
+				Object.assign(e, {
+					x: Math.cos(a) * r,
+					z: Math.sin(a) * r,
+					y: 0,
+					vx: 0,
+					vz: 0,
+					vy: 0,
+					falling: false,
+					mud: false,
+					splorch: false,
+					spin: 0,
+					outT: undefined,
+					stunT: 0,
+					reelT: 0,
+					inv: W.t + 2,
+				});
+				e.f.inv = Math.round((W.t + 2) * 100) / 100;
+				mgLog(W, `${mgName(e)} is back (${e.lives} life left)`);
+			}
+		},
 		knock(W, e, nx, nz, K, sl, why) {
 			e.lastHit = { k: why, t: W.t };
 			mgLog(W, `${why} hits ${mgName(e)}`);
@@ -2401,11 +2472,15 @@ Object.assign(MG, {
 			const m = W.ms;
 			if (e.gr) {
 				/* held up by the magnet: tap to break free, a TNT hit on the boss drops you, otherwise flung into the mud */
-				const g = e.gr;
+				const g = e.gr,
+					fx = m ? Math.cos(m.yaw) : 0,
+					fz = m ? -Math.sin(m.yaw) : 0,
+					tx = m ? m.x + fx * ((m.rad || 1.7) + 1.4) : g.x,
+					tz = m ? m.z + fz * ((m.rad || 1.7) + 1.4) : g.z;
 				e.vx = e.vz = 0;
-				e.x += (g.x - e.x) * Math.min(1, dt * 6);
-				e.z += (g.z - e.z) * Math.min(1, dt * 6);
-				e.y += (3 - e.y) * Math.min(1, dt * 5);
+				e.x += (tx - e.x) * Math.min(1, dt * 6);
+				e.z += (tz - e.z) * Math.min(1, dt * 6);
+				e.y += (3.2 - e.y) * Math.min(1, dt * 5);
 				if (inp && inp.boost) {
 					g.taps++;
 					inp.boost = false;
@@ -2415,8 +2490,8 @@ Object.assign(MG, {
 					mgLog(W, `${mgName(e)} ${g.taps >= 5 ? "breaks free" : "dropped (boss hit)"}`);
 					this.release(W, e, 5);
 				} else if (W.t - g.t0 >= 1.6) {
-					const dx = e.x - (m ? m.x : 0),
-						dz = e.z - (m ? m.z : 0),
+					const dx = m ? fx : e.x,
+						dz = m ? fz : e.z,
 						d = Math.hypot(dx, dz) || 1;
 					e.gr = null;
 					e.f.gr = 0;
@@ -2427,7 +2502,6 @@ Object.assign(MG, {
 					e.vy = 6;
 					e.falling = true;
 					e.lastHit = { k: "magnet fling", t: W.t };
-					eliminate(W, e);
 					if (e.isMe) W.shake = 0.5;
 					sfx("magnet");
 				}
@@ -2446,11 +2520,16 @@ Object.assign(MG, {
 				inp = { x: 0, y: 0, boost: false };
 			}
 			arenaPhys(W, e, inp, dt);
+			if (e.falling && e.al && W.t >= 0) {
+				this.fallen(W, e);
+				return;
+			}
 			if (!e.al || e.falling || e.d || W.t < 0) return;
 			e.tA = W.t;
+			const safe = W.t < (e.inv || 0);
 			e.sc = Math.floor(W.t * 10);
 			for (const t of W.tyLive || [])
-				if (t.hit && !e.tyHit[t.id] && Math.hypot(e.x - t.x, e.z - t.z) < 1.4) {
+				if (t.hit && !safe && !e.tyHit[t.id] && Math.hypot(e.x - t.x, e.z - t.z) < 1.4) {
 					e.tyHit[t.id] = 1;
 					if (W.t - (e.tyT || -9) > 0.3) {
 						e.tyT = W.t;
@@ -2459,7 +2538,7 @@ Object.assign(MG, {
 					}
 				}
 			const g = W.gpLive;
-			if (g && g.r > 0 && !e.gpHit[g.id]) {
+			if (g && g.r > 0 && !safe && !e.gpHit[g.id]) {
 				const dx = e.x - g.x,
 					dz = e.z - g.z,
 					d = Math.hypot(dx, dz) || 1;
@@ -2507,7 +2586,7 @@ Object.assign(MG, {
 				mgLog(W, `TNT ${mgName(e)} hits the boss (${W.hp - 1} HP left)`);
 			}
 			const cr = (W.ph < 3 ? 2.8 : 1.71) + 1.7;
-			e.nr = d < cr ? e.nr + dt : Math.max(0, e.nr - dt * 1.5);
+			e.nr = d < cr && !safe ? e.nr + dt : Math.max(0, e.nr - dt * 1.5);
 			if (e.nr >= MM.CLAW) {
 				e.gr = { t0: W.t, hp: W.hp, taps: 0, x: e.x, z: e.z };
 				e.f.gr = 1;
@@ -2563,7 +2642,14 @@ Object.assign(MG, {
 		},
 		fmtE(W, e) {
 			if (e.side === 0) return `${Math.max(0, W.hp)} HP`;
-			return !e.al ? "OUT" : e.f && e.f.dy ? "🧨" : `${(e.f && e.f.dh) | 0} 💥`;
+			const lv = e.local
+				? e.lives === undefined
+					? MM.LIVES
+					: e.lives
+				: e.f && e.f.lv !== undefined
+					? e.f.lv
+					: MM.LIVES;
+			return !e.al ? "OUT" : `${"♥".repeat(Math.max(0, lv))} ${e.f && e.f.dy ? "🧨" : ((e.f && e.f.dh) | 0) + " 💥"}`;
 		},
 		fmtTeam(v, s) {
 			if (s === 0) return `Crushed ${Math.floor(v / 100)}, ${v % 100} HP left`;
@@ -2585,6 +2671,9 @@ Object.assign(MG, {
 			const mm = W.mm;
 			if (mm.banner && W.t < mm.bannerT) return mm.banner;
 			if (me.side === 0) return W.t < 4 ? "Tap FIRE for tyres, hold it for a Ground Pound!" : "";
+			if (me.falling && me.al)
+				return `Into the mud! ${me.lives} ${me.lives === 1 ? "life" : "lives"} left, back in a moment…`;
+			if (W.t < (me.inv || 0)) return "Back in! Safe for a moment";
 			if (me.gr) return "Tap DASH to break free!";
 			if (me.stunT > 0) return "Stunned!";
 			if (me.nr > 0.35) return "Too close! The magnet is coming!";
@@ -2631,6 +2720,8 @@ Object.assign(MG, {
 				mm.tt.position.y = -0.46 * drop;
 				if (ph < 3) mm.top.rotation.y = e.yaw;
 			} else if (e.bun) {
+				const inv = e.local ? W.t < (e.inv || 0) : !!(e.f && W.t < (e.f.inv || 0));
+				e.tr.visible = !inv || Math.sin(W.t * 30) > 0;
 				e.bun.visible = !!(e.f && e.f.dy && e.al);
 				const st = e.local ? e.stunT > 0 : e.f && W.t < e.f.stn;
 				e.stars.visible = !!(st && e.al);
@@ -2769,7 +2860,14 @@ Object.assign(MG, {
 					}
 				}
 			}
-			/* magnets: a red ring under anyone who stays close, the magnet coming down, then holding them up */
+			/* the mouth: the boss's jaw opens as someone lingers close (a red ring under them), the magnet peeks out, then
+			   shoots out on a chain, grabs them and holds them up in front of the face */
+			let mouth = null,
+				open = 0;
+			if (m && m.tr.userData.mouth) {
+				m.g.updateMatrixWorld(true);
+				mouth = m.tr.localToWorld(m.tr.userData.mouth.clone());
+			}
 			W.list.forEach((e) => {
 				if (e.side === 0 || e.gone) return;
 				const nr = e.local ? e.nr : (e.f && e.f.nr) || 0,
@@ -2778,21 +2876,36 @@ Object.assign(MG, {
 				if (!g) {
 					g = mm.mag[e.k] = {
 						m: mmMagnet(),
+						ch: mmChain(),
 						w: new THREE.Mesh(new THREE.RingGeometry(1.1, 1.35, 28), mm.ringMat("#FF3B1F")),
 					};
 					g.w.rotation.x = -Math.PI / 2;
 					g.w.visible = false;
-					W.sc.add(g.m, g.w);
+					W.sc.add(g.m, g.ch, g.w);
 				}
-				const on = e.al && !e.falling && (gr || nr > 0.25);
-				g.m.visible = !!on;
+				if (gr && !g.grT) g.grT = W.t;
+				if (!gr) g.grT = 0;
+				const on = !!(mouth && e.al && !e.falling && (gr || nr > 0.25)),
+					k = gr ? 1 : Math.min(1, Math.max(0, (nr - 0.25) / (MM.CLAW - 0.25)));
+				if (on) open = Math.max(open, gr ? 1 : k);
+				g.m.visible = g.ch.visible = on;
 				g.w.visible = !!(on && !gr);
 				if (!on) return;
-				const top = e.y + (e.topY || 1.4) + 0.1;
-				g.m.position.set(e.x, gr ? top : Math.max(top, 16 - (nr / MM.CLAW) * (16 - top)), e.z);
+				const top = new THREE.Vector3(e.x, e.y + (e.topY || 1.4) + 0.1, e.z),
+					p = gr
+						? mouth.clone().lerp(top, Math.min(1, (W.t - g.grT) / 0.18))
+						: mouth.clone().addScaledVector(top.clone().sub(mouth).normalize(), 0.5 * k),
+					sc = gr ? 0.7 : 0.3 + 0.3 * k;
+				g.m.position.copy(p);
+				g.m.scale.setScalar(sc);
+				mmChainSet(g.ch, mouth, p.clone().add(new THREE.Vector3(0, 0.75 * sc, 0)));
 				g.w.position.set(e.x, 0.1, e.z);
 				g.w.material.opacity = Math.min(1, nr / MM.CLAW) * (0.6 + 0.4 * Math.sin(W.t * 20));
 			});
+			if (m && m.tr.userData.jaw) {
+				mm.jawK = (mm.jawK || 0) + (open - (mm.jawK || 0)) * Math.min(1, dt * 10);
+				m.tr.userData.jaw.rotation.z = -0.8 * mm.jawK;
+			}
 			/* crates: drop in, sit with a pulsing ring, blink before they vanish */
 			mm.crates.forEach((c) => {
 				const vis = W.t >= c.ts && W.t < c.te && !W.claimed.has(c.id);

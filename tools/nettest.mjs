@@ -187,12 +187,15 @@ const snap = () => {
 		ents,
 		extra: W.def.syncSnap ? JSON.stringify(W.def.syncSnap(W)) : "",
 		log: W.log ? W.log.splice(0) : [],
+		fps: parseInt((GFX.fps && GFX.fps.el && GFX.fps.el.textContent) || "0"),
 	};
 };
 const drift = {},
 	alBad = {},
 	extraBad = [],
 	t0 = Date.now();
+const fpsH = [],
+	fpsP = [];
 const sent = {},
 	got = {};
 let samples = 0,
@@ -214,6 +217,8 @@ while (Date.now() - t0 < 240000) {
 		}
 	if (h && p && h.t > 1) {
 		samples++;
+		fpsH.push(h.fps);
+		fpsP.push(p.fps);
 		lastT = h.t;
 		for (const n of Object.keys(h.ents)) {
 			const a = h.ents[n],
@@ -279,9 +284,14 @@ if (rh.length && rp.length && rh.join("|").replace(/ \(you\)/g, "") !== rp.join(
 if (rh.some((r) => /No score/.test(r))) issues.push("a player has No score (their result never reached the host)");
 unseen.forEach((n) => issues.push(`${n} was never seen on the other device`));
 issues.push(...extraBad);
+const avg = (a) => Math.round(a.reduce((x, y) => x + y, 0) / Math.max(1, a.length)),
+	slowFps = Math.min(avg(fpsH), avg(fpsP)) < 20;
 console.log(`\nsync over ${samples} samples (${stats.msgs} messages, ${Math.round(stats.bytes / 1024)} KB):`);
 console.log(
 	`  test relay: worst extra delay ${stats.worst} ms${stats.late ? `, ${stats.late} messages over 150 ms late (slow test machine: a short mismatch may be the test, not the game)` : ""}`,
+);
+console.log(
+	`  frame rate: host ${avg(fpsH)} fps, phone ${avg(fpsP)} fps${slowFps ? " (low: devices send an update per frame, so drift is inflated here; a phone runs far faster)" : ""}`,
 );
 for (const [n, s] of Object.entries(drift))
 	console.log(
@@ -306,7 +316,11 @@ if (keys.length) {
 }
 if (keyed) console.log(`  both devices held the same inputs ${keyed}×, and the result was compared each time`);
 const big = Object.entries(drift).filter(([, s]) => s.sum / s.n > 3 || s.max > 8);
-big.forEach(([n]) => issues.push(`${n} drifts far from where its own device has it`));
+big.forEach(([n]) =>
+	issues.push(
+		`${n} drifts far from where its own device has it${slowFps ? " (but the test ran at a low frame rate, see above)" : ""}`,
+	),
+);
 if (H.errs.length) issues.push("host page errors: " + H.errs.join(" | "));
 if (P.errs.length) issues.push("phone page errors: " + P.errs.join(" | "));
 console.log(issues.length ? "\nISSUES:\n- " + issues.join("\n- ") : "\nno sync issues found");

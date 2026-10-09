@@ -784,19 +784,31 @@ function monsterize(g, xs, anims, wheelsL, own) {
 			wheelsL.push({ g: wg, r: R });
 		});
 	});
-	/* toothed bull bar: two steel bars on brackets, bone teeth up from the lower bar, fangs down from the upper one,
-	   chrome spikes at the ends */
-	const bx = fx + 0.12;
+	/* toothed bull bar = the mouth: the upper bar with fangs is fixed, the lower bar with teeth is a jaw hinged at the
+	   back (userData.jaw, rotation.z < 0 opens it), a dark throat between them. userData.mouth = where things come out */
+	const bx = fx + 0.12,
+		jaw = new THREE.Group();
 	add(
 		lift,
-		B_(0.1, 0.1, 1.2, ST, bx, 0.2, 0),
 		B_(0.1, 0.1, 1.2, ST, bx, 0.58, 0),
-		B_(0.08, 0.46, 0.08, ST, bx, 0.39, 0.44),
-		B_(0.08, 0.46, 0.08, ST, bx, 0.39, -0.44),
-		B_(0.14, 0.08, 0.08, D, fx + 0.02, 0.39, 0.3),
-		B_(0.14, 0.08, 0.08, D, fx + 0.02, 0.39, -0.3),
+		B_(0.08, 0.32, 0.08, ST, bx, 0.46, 0.44),
+		B_(0.08, 0.32, 0.08, ST, bx, 0.46, -0.44),
+		B_(0.14, 0.08, 0.08, D, fx + 0.02, 0.46, 0.3),
+		B_(0.14, 0.08, 0.08, D, fx + 0.02, 0.46, -0.3),
+		B_(0.12, 0.08, 0.08, D, fx + 0.02, 0.27, 0.56),
+		B_(0.12, 0.08, 0.08, D, fx + 0.02, 0.27, -0.56),
+		B_(0.04, 0.28, 0.86, "#4A1418", fx + 0.06, 0.41, 0),
 	);
-	[-0.36, -0.18, 0, 0.18, 0.36].forEach((z) => lift.add(cyl(0, 0.05, 0.18, 4, BONE, bx, 0.34, z)));
+	jaw.position.set(fx + 0.04, 0.27, 0);
+	jaw.add(
+		B_(0.1, 0.1, 1.2, ST, bx - fx - 0.04, -0.07, 0),
+		B_(0.14, 0.06, 0.06, ST, 0.02, -0.04, 0.53),
+		B_(0.14, 0.06, 0.06, ST, 0.02, -0.04, -0.53),
+	);
+	[-0.36, -0.18, 0, 0.18, 0.36].forEach((z) => jaw.add(cyl(0, 0.05, 0.18, 4, BONE, bx - fx - 0.04, 0.07, z)));
+	lift.add(jaw);
+	g.userData.jaw = jaw;
+	g.userData.mouth = new THREE.Vector3(bx, 0.41 + DY, 0);
 	[-0.27, -0.09, 0.09, 0.27].forEach((z) => {
 		const f = cyl(0, 0.05, 0.18, 4, BONE, bx, 0.44, z);
 		f.rotation.x = Math.PI;

@@ -66,7 +66,7 @@ for (let r = 1; r <= runs; r++) {
 		}));
 		if (!opt.quiet) st.log.forEach((l) => console.log("  " + l));
 		st.log.forEach((l) => {
-			const m = l.match(/OUT .*\((.*)\)$/);
+			const m = l.match(/(?:OUT|FALL) .*\((.*)\)$/);
 			if (m) tally.causes[m[1]] = (tally.causes[m[1]] || 0) + 1;
 		});
 		if (st.sum) lastSum = st.sum;
