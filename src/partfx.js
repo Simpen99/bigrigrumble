@@ -912,7 +912,7 @@ const JINGLES = {
 			[1.5, "kick", 0.8],
 		],
 	},
-	/* dice roll: a snare roll while the die spins, a chord stab when it lands (1.15 s) */
+	/* dice roll: the song ducks while the die rattles (sfx "dice"), a chord stab when it lands (1.15 s) */
 	dice: {
 		bpm: 120,
 		len: 3,
@@ -920,7 +920,10 @@ const JINGLES = {
 			[2.3, [72, 79, 84], 0.6, "bell"],
 			[2.3, 48, 0.5, "bass", 0.8],
 		],
-		d: [...JROLL(0, 2.3, 0.125, 0.18, 0.55), [2.3, "crash", 0.6], [2.3, "kick", 0.9]],
+		d: [
+			[2.3, "crash", 0.5],
+			[2.3, "kick", 0.9],
+		],
 	},
 	/* game over, on the podium: a triumphant phrase over C F G C with a full band */
 	finale: {
