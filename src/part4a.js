@@ -756,6 +756,7 @@ function mergeReport() {
 		});
 }
 function stop3D() {
+	musStop();
 	if (TVS) {
 		tvsStop();
 		return;
