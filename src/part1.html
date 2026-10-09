@@ -496,6 +496,7 @@ body.ctl .btn{min-height:58px;font-size:18px}
 .tvc .m3pad{height:62%;border-top:2px dashed rgba(255,255,255,.12)}
 .tvchint{position:absolute;left:0;right:0;top:38%;text-align:center;color:rgba(255,255,255,.28);font-weight:800;font-size:15px;pointer-events:none}
 .tvc .ram{width:118px;height:118px}
+.tvc .ram.ram2{right:150px;bottom:calc(env(safe-area-inset-bottom,0px) + 40px);width:92px;height:92px}
 body.tv #mg .m3top,body.tv #mg .m3intro,body.tv #mg .m3ready,body.tv #mg .m3center{zoom:1.4}
 body.tv #mg .m3lb{zoom:1.5}
 body.tv #mg .m3top{max-width:900px}
@@ -632,6 +633,8 @@ body.mglive #fxs,body.mgres #fxs{display:none}
   .tvc .m3pad.twin{width:50%}
   .tvc .m3pad.aim{left:50%;width:50%;border-right:0}
   .tvc .ram{left:calc(79% - 75px);right:auto;top:calc(50% - 75px);bottom:auto;width:150px;height:150px;font-size:26px!important}
+  .tvc .ram:has(~ .ram2){left:calc(84% - 75px);top:calc(50% - 125px)}
+  .tvc .ram.ram2{left:calc(70% - 52px);top:calc(50% + 20px);width:104px;height:104px;font-size:19px!important}
   .tvc .tvcme{right:calc(56% + 8px);top:calc(env(safe-area-inset-top,0px) + 56px);padding:6px 12px 6px 6px}
   .tvc .tvcme img{width:70px;height:46px}.tvc .tvcme b{font-size:26px}
   .tvc .tvcmsg{right:calc(56% + 8px);top:auto;bottom:calc(env(safe-area-inset-bottom,0px) + 18px);font-size:17px}
