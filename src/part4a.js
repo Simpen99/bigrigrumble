@@ -265,6 +265,7 @@ function eliminate(W, e) {
 	if (e.d) return;
 	e.al = false;
 	e.d = true;
+	e.outAt = W.t;
 	if (MG_LOG) {
 		e.logD = true;
 		const h = e.lastHit && W.t - e.lastHit.t < 2 ? e.lastHit.k : "own fault";
@@ -975,10 +976,12 @@ function stepMG(dt) {
 	const me = W.me;
 	if (W.tv && def.kind === "arena" && !def.cam) [tgt, pos] = tvCam(W);
 	else if (def.kind === "arena") {
-		const a = me.al || me.y > -3 ? me : { x: 0, z: 0 };
-		tgt = new THREE.Vector3(a.x * 0.85, 0, a.z * 0.85);
-		const zm = def.camZoom || 1;
-		pos = tgt.clone().add(new THREE.Vector3(0, 23 * far * zm, 17 * far * zm));
+		if (mgSpec(W)) [tgt, pos] = specCam(W, far);
+		else {
+			tgt = new THREE.Vector3(me.x * 0.85, 0, me.z * 0.85);
+			const zm = def.camZoom || 1;
+			pos = tgt.clone().add(new THREE.Vector3(0, 23 * far * zm, 17 * far * zm));
+		}
 		if (def.cam) [tgt, pos] = def.cam(W, tgt, pos, far);
 	} else {
 		const lx = me.x * 0.6;
@@ -2197,6 +2200,27 @@ function openTvMg(mg) {
     <div class="m3ready" id="m3r"><h3>Get ready</h3><div id="m3rl"></div><button class="btn ghost" id="m3rs" hidden style="margin-top:8px">Start without the others</button></div>`;
 	$("#m3rs").addEventListener("click", () => mgStartCountdown());
 	syncStart();
+}
+/* knocked out of an arena game: after 1.2 s (you see yourself go down) the camera frames the trucks still in play */
+function mgSpec(W) {
+	const me = W.me;
+	return !!me && !me.al && (me.outAt !== undefined ? W.t - me.outAt > 1.2 : me.y <= -3);
+}
+function specCam(W, far) {
+	const L = W.list.filter((o) => !o.gone && o.al && o.y > -3);
+	if (!L.length) L.push({ x: 0, z: 0 });
+	let cx = 0,
+		cz = 0,
+		r = 0;
+	L.forEach((o) => {
+		cx += (o.x / L.length) * 0.6;
+		cz += (o.z / L.length) * 0.6;
+	});
+	L.forEach((o) => {
+		r = Math.max(r, Math.hypot(o.x - cx, o.z - cz));
+	});
+	const k = Math.max(1.3, (r + 6) / 9) * far * 0.85 * (W.def.camZoom || 1);
+	return [new THREE.Vector3(cx, 0, cz), new THREE.Vector3(cx, 23 * k, cz + 17 * k)];
 }
 function tvCam(W) {
 	const live = W.list.filter((e) => !e.gone && e.al && e.y > -3),
