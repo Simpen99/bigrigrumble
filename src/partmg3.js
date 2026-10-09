@@ -2781,6 +2781,18 @@ Object.assign(MG, {
 		renderShared(W, dt) {
 			const mm = W.mm,
 				m = W.ms;
+			/* boss music: starts with the fight, one level per phase, stops when the boss is down or the game ends */
+			if (!mm.mus && W.t > -0.5) {
+				mm.mus = 1;
+				musPlay("boss");
+			}
+			if (mm.mus === 1) {
+				musLevel(W.ph || 1);
+				if (W.ko !== undefined || W.over) {
+					mm.mus = 2;
+					musStop();
+				}
+			}
 			/* boss hit: explosion and a flinch */
 			if (mm.lastHp !== null && W.hp < mm.lastHp && m) {
 				burst(W.sc, m.x, 2, m.z, {
@@ -2795,6 +2807,7 @@ Object.assign(MG, {
 				sfx("thunder");
 				W.shake = Math.max(W.shake, 0.35);
 				mm.flinch = 1;
+				musHit();
 			}
 			mm.lastHp = W.hp;
 			if (m && mm.flinch > 0) {

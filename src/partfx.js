@@ -192,6 +192,83 @@ function noiseHit(d, vol = 0.3, f1 = 800, f2 = 200, at = 0, q = 1) {
 	g.connect(SFX.out);
 	s.start(t);
 }
+/* ---------- music: a small step sequencer on the sfx synth (16th-note steps, scheduled 0.12 s ahead) ----------
+   musPlay(song) starts a SONGS entry, musLevel(n) moves it to intensity n (the song's tempo and layers per level),
+   musHit() lands a crash + boom on the next beat, musStop() ends it. Muted with the sound button like everything else. */
+const NOTE = (n) => 440 * Math.pow(2, (n - 69) / 12);
+const SONGS = {
+	/* Monster Mash: E minor chug. Level 1 kick + bass + hats, 2 adds snare and power-chord stabs, 3 doubles the kick,
+	   adds a lead arpeggio and speeds up */
+	boss: {
+		bpm: [0, 118, 132, 150],
+		bass: [
+			40, 0, 40, 0, 43, 0, 40, 0, 45, 0, 43, 0, 40, 38, 40, 0, 40, 0, 40, 0, 43, 0, 47, 0, 45, 0, 43, 0, 38, 0, 35, 0,
+		],
+		kick: [
+			[0, 4, 8, 12],
+			[0, 4, 8, 12],
+			[0, 3, 4, 8, 11, 12, 14],
+		],
+		snare: [[], [4, 12], [4, 12]],
+		hat: [2, 2, 1],
+		stab: [[], [0, 6, 12], [0, 3, 6, 12, 14]],
+		lead: [64, 67, 71, 76, 71, 67, 64, 67, 62, 66, 69, 74, 69, 66, 62, 59],
+	},
+};
+const MUS = { song: null, lvl: 1, step: 0, next: 0, iv: 0, hit: false };
+function musPlay(name) {
+	musStop();
+	if (!SFX.ctx || !SONGS[name]) return;
+	MUS.song = SONGS[name];
+	MUS.lvl = 1;
+	MUS.step = 0;
+	MUS.next = SFX.ctx.currentTime + 0.1;
+	MUS.iv = setInterval(musTick, 25);
+}
+function musLevel(n) {
+	MUS.lvl = Math.max(1, Math.min(3, n | 0));
+}
+function musHit() {
+	MUS.hit = true;
+}
+function musStop() {
+	clearInterval(MUS.iv);
+	MUS.iv = 0;
+	MUS.song = null;
+}
+function musTick() {
+	const c = SFX.ctx,
+		S = MUS.song;
+	if (!c || !S) return;
+	/* catch up after a stall without a burst of notes */
+	if (MUS.next < c.currentTime - 0.2) MUS.next = c.currentTime + 0.05;
+	while (MUS.next < c.currentTime + 0.12) {
+		const l = MUS.lvl,
+			st = MUS.step % 16,
+			bar = MUS.step % 32,
+			dur = 60 / S.bpm[l] / 4,
+			at = Math.max(0, MUS.next - c.currentTime);
+		if (SFX.on && c.state === "running") {
+			if (MUS.hit && st % 4 === 0) {
+				MUS.hit = false;
+				noiseHit(1.1, 0.16, 6000, 2500, at, 0.6);
+				tone(70, 0.5, "sine", 0.35, 35, at);
+			}
+			if (S.kick[l - 1].includes(st)) tone(150, 0.16, "sine", 0.32, 45, at);
+			if (S.snare[l - 1].includes(st)) noiseHit(0.14, 0.14, 1900, 900, at, 0.9);
+			if (st % S.hat[l - 1] === 0) noiseHit(0.035, 0.05, 8000, 6000, at, 1.2);
+			const b = S.bass[bar];
+			if (b) tone(NOTE(b), dur * 1.6, "sawtooth", 0.07, 0, at);
+			if (S.stab[l - 1].includes(st)) {
+				const r = S.bass[bar - (bar % 8)] + 12;
+				[0, 7, 12].forEach((iv) => tone(NOTE(r + iv), dur * 1.2, "square", 0.025, 0, at));
+			}
+			if (l === 3) tone(NOTE(S.lead[st]), dur * 0.9, "triangle", 0.045, 0, at);
+		}
+		MUS.next += dur;
+		MUS.step++;
+	}
+}
 /* a short buzz on phones that support it (Android). iPhone Safari has no vibration API, not even as a home screen app */
 function buzz(ms) {
 	try {
