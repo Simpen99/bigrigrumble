@@ -2196,7 +2196,7 @@ function openTvMg(mg) {
 	document.body.classList.add("mglive");
 	rtJoin(mg.nonce);
 	start3D(mg, null, false, null);
-	box.innerHTML = `<div class="m3top"><span class="chip name">${esc(def.name)}</span><span class="chip" id="m3t"></span><span class="chip grow">📱 Play on your phones</span></div>
+	box.innerHTML = `<div class="m3top"><span class="chip name">${esc(def.name)}</span><span class="chip" id="m3t"></span></div>
     <div class="m3lb${def.lbTop ? " top" : ""}" id="m3lb"></div><div class="m3intro" id="m3in"><h3>${esc(def.name)}</h3><p>${esc(def.how)}</p><p class="m3ctl">${def.aim ? "Left side of your phone drives, right side aims." : `Drag on your phone to drive. Tap ${esc(ramLbl(def))} to ${def.ramLabel ? "use it" : "charge into someone"}.`}</p></div>
     <div class="m3center${def.msgTop ? " hi" : ""}"><div class="m3big" id="m3c"></div><div class="m3msg" id="m3m" hidden></div></div>
     <div class="m3ready" id="m3r"><h3>Get ready</h3><div id="m3rl"></div><button class="btn ghost" id="m3rs" hidden style="margin-top:8px">Start without the others</button></div>`;
@@ -2686,13 +2686,13 @@ function openTvSplit(mg) {
       <div class="m3lb${def.lbTop ? " top" : ""}" data-hid="m3lb"></div><div class="m3center${def.msgTop ? " hi" : ""}"><div class="m3big" data-hid="m3c"></div><div class="m3msg" data-hid="m3m" hidden></div></div></div>`;
 	box.innerHTML =
 		(mode === "shared"
-			? `<div class="m3top tvstop"><span class="chip name">${esc(def.name)}</span><span class="chip" id="tvsT"></span><span class="chip grow">📱 Play on your phones</span></div><div class="m3lb tvslb" id="tvsLB"></div><div class="m3center"><div class="m3big" id="tvsC"></div></div><div class="tvscards">${humans.map(hud).join("")}</div>`
+			? `<div class="m3top tvstop"><span class="chip name">${esc(def.name)}</span><span class="chip" id="tvsT"></span></div><div class="m3lb tvslb" id="tvsLB"></div><div class="m3center"><div class="m3big" id="tvsC"></div></div><div class="tvscards">${humans.map(hud).join("")}</div>`
 			: humans.map(hud).join("") +
 				cells
 					.slice(n)
 					.map(
 						() =>
-							`<div class="tvv tvempty"><div><b>${esc(def.name)}</b><span>📱 Play on your phones</span></div></div>`,
+							`<div class="tvv tvempty"><div><b>${esc(def.name)}</b></div></div>`,
 					)
 					.join("")) +
 		`<div class="m3intro tvsin" id="m3in"><h3>${esc(def.name)}</h3><p>${esc(def.how)}</p><p class="m3ctl">📱 Your phone is the controller.</p></div>

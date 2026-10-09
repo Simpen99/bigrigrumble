@@ -500,14 +500,17 @@ body.ctl .btn{min-height:58px;font-size:18px}
 /* TV controller swipe pad (Rush Hour, Sort It Out): the whole screen takes swipes, labels show what each direction does */
 .swpad{position:absolute;left:0;right:0;bottom:0;top:calc(env(safe-area-inset-top,0px) + 200px);touch-action:none;-webkit-user-select:none;user-select:none}
 .swpad .tvchint{top:45%;font-size:17px}
-.swl{position:absolute;padding:10px 16px;border-radius:16px;background:var(--bc);color:#fff;font-weight:800;display:flex;flex-direction:column;align-items:center;gap:1px;box-shadow:inset 0 -5px 0 rgba(0,0,0,.25);text-shadow:0 1px 0 rgba(0,0,0,.35);opacity:.85;pointer-events:none}
-.swl i{font-style:normal;font-size:18px}.swl b{font-size:14px}
-.sw-l{left:12px;top:50%;transform:translateY(-50%)}
-.sw-r{right:12px;top:50%;transform:translateY(-50%)}
-.sw-u{top:12px;left:50%;transform:translateX(-50%)}
-.sw-d{bottom:calc(env(safe-area-inset-bottom,0px) + 14px);left:50%;transform:translateX(-50%)}
+.swl{position:absolute;display:flex;align-items:center;gap:8px;color:#fff;font-weight:800;text-shadow:0 2px 0 rgba(0,0,0,.45);pointer-events:none;opacity:.9}
+.swl i{font-style:normal;font-size:40px;line-height:1;color:var(--bc);filter:drop-shadow(0 0 2px rgba(255,255,255,.75));animation:swn 1.1s ease-in-out infinite}
+.swl b{font-size:15px;letter-spacing:.04em;text-transform:uppercase}
+.sw-l{left:12px;top:50%;transform:translateY(-50%)}.sw-l i{--dx:-9px;--dy:0px}
+.sw-r{right:12px;top:50%;transform:translateY(-50%);flex-direction:row-reverse}.sw-r i{--dx:9px;--dy:0px}
+.sw-u{top:12px;left:50%;transform:translateX(-50%);flex-direction:column;gap:2px}.sw-u i{--dx:0px;--dy:-9px}
+.sw-d{bottom:calc(env(safe-area-inset-bottom,0px) + 14px);left:50%;transform:translateX(-50%);flex-direction:column-reverse;gap:2px}.sw-d i{--dx:0px;--dy:9px}
+@keyframes swn{0%,100%{transform:translate(0,0)}50%{transform:translate(var(--dx),var(--dy))}}
+@media (prefers-reduced-motion:reduce){.swl i{animation-iteration-count:1}}
 .swl.on{animation:swon .3s}
-@keyframes swon{from{opacity:1;filter:brightness(1.6);box-shadow:0 0 0 4px #fff,inset 0 -5px 0 rgba(0,0,0,.25)}to{opacity:.85;filter:none}}
+@keyframes swon{from{opacity:1;filter:brightness(1.9)}to{opacity:.9;filter:none}}
 body.tv #mg .m3top,body.tv #mg .m3intro,body.tv #mg .m3ready,body.tv #mg .m3center{zoom:1.4}
 body.tv #mg .m3lb{zoom:1.5}
 body.tv #mg .m3top{max-width:900px}
@@ -737,7 +740,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-10 01:41 340e904";
+const BUILD = "2026-10-10 01:55 57dd7a5";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -14692,7 +14695,7 @@ function openTvMg(mg) {
 	document.body.classList.add("mglive");
 	rtJoin(mg.nonce);
 	start3D(mg, null, false, null);
-	box.innerHTML = `<div class="m3top"><span class="chip name">${esc(def.name)}</span><span class="chip" id="m3t"></span><span class="chip grow">📱 Play on your phones</span></div>
+	box.innerHTML = `<div class="m3top"><span class="chip name">${esc(def.name)}</span><span class="chip" id="m3t"></span></div>
     <div class="m3lb${def.lbTop ? " top" : ""}" id="m3lb"></div><div class="m3intro" id="m3in"><h3>${esc(def.name)}</h3><p>${esc(def.how)}</p><p class="m3ctl">${def.aim ? "Left side of your phone drives, right side aims." : `Drag on your phone to drive. Tap ${esc(ramLbl(def))} to ${def.ramLabel ? "use it" : "charge into someone"}.`}</p></div>
     <div class="m3center${def.msgTop ? " hi" : ""}"><div class="m3big" id="m3c"></div><div class="m3msg" id="m3m" hidden></div></div>
     <div class="m3ready" id="m3r"><h3>Get ready</h3><div id="m3rl"></div><button class="btn ghost" id="m3rs" hidden style="margin-top:8px">Start without the others</button></div>`;
@@ -15182,13 +15185,13 @@ function openTvSplit(mg) {
       <div class="m3lb${def.lbTop ? " top" : ""}" data-hid="m3lb"></div><div class="m3center${def.msgTop ? " hi" : ""}"><div class="m3big" data-hid="m3c"></div><div class="m3msg" data-hid="m3m" hidden></div></div></div>`;
 	box.innerHTML =
 		(mode === "shared"
-			? `<div class="m3top tvstop"><span class="chip name">${esc(def.name)}</span><span class="chip" id="tvsT"></span><span class="chip grow">📱 Play on your phones</span></div><div class="m3lb tvslb" id="tvsLB"></div><div class="m3center"><div class="m3big" id="tvsC"></div></div><div class="tvscards">${humans.map(hud).join("")}</div>`
+			? `<div class="m3top tvstop"><span class="chip name">${esc(def.name)}</span><span class="chip" id="tvsT"></span></div><div class="m3lb tvslb" id="tvsLB"></div><div class="m3center"><div class="m3big" id="tvsC"></div></div><div class="tvscards">${humans.map(hud).join("")}</div>`
 			: humans.map(hud).join("") +
 				cells
 					.slice(n)
 					.map(
 						() =>
-							`<div class="tvv tvempty"><div><b>${esc(def.name)}</b><span>📱 Play on your phones</span></div></div>`,
+							`<div class="tvv tvempty"><div><b>${esc(def.name)}</b></div></div>`,
 					)
 					.join("")) +
 		`<div class="m3intro tvsin" id="m3in"><h3>${esc(def.name)}</h3><p>${esc(def.how)}</p><p class="m3ctl">📱 Your phone is the controller.</p></div>

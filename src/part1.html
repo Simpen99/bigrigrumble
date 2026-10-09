@@ -500,14 +500,17 @@ body.ctl .btn{min-height:58px;font-size:18px}
 /* TV controller swipe pad (Rush Hour, Sort It Out): the whole screen takes swipes, labels show what each direction does */
 .swpad{position:absolute;left:0;right:0;bottom:0;top:calc(env(safe-area-inset-top,0px) + 200px);touch-action:none;-webkit-user-select:none;user-select:none}
 .swpad .tvchint{top:45%;font-size:17px}
-.swl{position:absolute;padding:10px 16px;border-radius:16px;background:var(--bc);color:#fff;font-weight:800;display:flex;flex-direction:column;align-items:center;gap:1px;box-shadow:inset 0 -5px 0 rgba(0,0,0,.25);text-shadow:0 1px 0 rgba(0,0,0,.35);opacity:.85;pointer-events:none}
-.swl i{font-style:normal;font-size:18px}.swl b{font-size:14px}
-.sw-l{left:12px;top:50%;transform:translateY(-50%)}
-.sw-r{right:12px;top:50%;transform:translateY(-50%)}
-.sw-u{top:12px;left:50%;transform:translateX(-50%)}
-.sw-d{bottom:calc(env(safe-area-inset-bottom,0px) + 14px);left:50%;transform:translateX(-50%)}
+.swl{position:absolute;display:flex;align-items:center;gap:8px;color:#fff;font-weight:800;text-shadow:0 2px 0 rgba(0,0,0,.45);pointer-events:none;opacity:.9}
+.swl i{font-style:normal;font-size:40px;line-height:1;color:var(--bc);filter:drop-shadow(0 0 2px rgba(255,255,255,.75));animation:swn 1.1s ease-in-out infinite}
+.swl b{font-size:15px;letter-spacing:.04em;text-transform:uppercase}
+.sw-l{left:12px;top:50%;transform:translateY(-50%)}.sw-l i{--dx:-9px;--dy:0px}
+.sw-r{right:12px;top:50%;transform:translateY(-50%);flex-direction:row-reverse}.sw-r i{--dx:9px;--dy:0px}
+.sw-u{top:12px;left:50%;transform:translateX(-50%);flex-direction:column;gap:2px}.sw-u i{--dx:0px;--dy:-9px}
+.sw-d{bottom:calc(env(safe-area-inset-bottom,0px) + 14px);left:50%;transform:translateX(-50%);flex-direction:column-reverse;gap:2px}.sw-d i{--dx:0px;--dy:9px}
+@keyframes swn{0%,100%{transform:translate(0,0)}50%{transform:translate(var(--dx),var(--dy))}}
+@media (prefers-reduced-motion:reduce){.swl i{animation-iteration-count:1}}
 .swl.on{animation:swon .3s}
-@keyframes swon{from{opacity:1;filter:brightness(1.6);box-shadow:0 0 0 4px #fff,inset 0 -5px 0 rgba(0,0,0,.25)}to{opacity:.85;filter:none}}
+@keyframes swon{from{opacity:1;filter:brightness(1.9)}to{opacity:.9;filter:none}}
 body.tv #mg .m3top,body.tv #mg .m3intro,body.tv #mg .m3ready,body.tv #mg .m3center{zoom:1.4}
 body.tv #mg .m3lb{zoom:1.5}
 body.tv #mg .m3top{max-width:900px}
