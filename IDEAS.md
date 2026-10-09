@@ -50,7 +50,8 @@
 - Mario Party style opening for every minigame: start high / tilted down over the whole arena (showing props like Dump Run's dirt piles behind the excavators), then sweep down to the game camera during the ready screen or countdown.
 
 ## Music
-- Dynamic music for the whole game, on the step sequencer in partfx (`SONGS`, `musPlay` / `musLevel` / `musHit` / `musStop`): a board theme per map, and minigame tracks that build up (races: faster in the last lap). Done: Monster Mash boss track (level per phase, crash on every TNT hit).
+- On the step sequencer in partfx (`SONGS`, `JINGLES`, `musScene`). Done: Monster Mash boss track (anime opening, section per phase), board themes per map (level 2 in the last 3 rounds; Volcano by the lava cycle), jingles (minigame start, dice roll, result win / mid / lose, podium finale).
+- Next: minigame tracks that build up (races: faster on the last lap; survival games heavier as trucks drop out), a lobby / menu theme, a looping podium theme after the finale.
 
 ## Monster Mash: next ideas
 - Boss intro (camera swoop + name card, the jaw snaps), dramatic ending (wheels pop off, boss tips over smoking; boss victory donut).

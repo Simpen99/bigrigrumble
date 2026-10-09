@@ -1032,6 +1032,8 @@ function enterMg(mg, p) {
 	}
 	trNonce = mg.nonce;
 	mgBusy = true;
+	musStop(0.4);
+	musJingle("mgstart");
 	const c = trClouds();
 	prebakeKits(mg);
 	document.body.classList.add("trout");
@@ -1940,7 +1942,6 @@ function showMgResults(mg) {
 	stop3D();
 	tvcStop();
 	mgBusy = false;
-	sfx("fanfare");
 	document.body.classList.remove("mglive");
 	document.body.classList.add("mgres");
 	mgOpen = true;
@@ -1951,6 +1952,13 @@ function showMgResults(mg) {
 	/* team games: the winning side on top, each row in its side colour, rank 1 for every winner */
 	const tm = mg.team && mg.tm,
 		win = tm ? mg.win : null;
+	/* the result jingle for this device: win (1st or the winning side), lose (last or the losing side), mid; watchers hear win */
+	const ord = mg.order || [],
+		mi = ord.indexOf(me.key);
+	let jn = "win";
+	if (mi >= 0 && tm) jn = win < 0 ? "mid" : tm[me.key] === win ? "win" : "lose";
+	else if (mi > 0) jn = mi === ord.length - 1 ? "lose" : "mid";
+	musJingle(jn);
 	const rows = (mg.order || [])
 		.map((k, i) => {
 			const p = G.players.find((x) => x.key === k);

@@ -1703,6 +1703,7 @@ function showDice(r) {
 			: `No move${f.c ? `, ${f.c > 0 ? "+" : ""}${f.c} coins` : ""}`);
 	showDie3D(faces, r.idx, pcol(p), p.key);
 	sfx("dice");
+	musJingle("dice", MUS.song ? MUS.song.key : 0);
 	fxShow(`<div class="dlabel" id="dl">${esc(p.name)} is rolling…</div>`, 2400);
 	setTimeout(() => {
 		const d = $("#dl");

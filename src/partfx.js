@@ -198,18 +198,31 @@ function noiseHit(d, vol = 0.3, f1 = 800, f2 = 200, at = 0, q = 1) {
 	s.start(t);
 }
 /* ---------- music: a step sequencer with its own synth voices (16th-note steps, scheduled 0.12 s ahead) ----------
-   musPlay(song) starts a SONGS entry, musLevel(n) moves it to section n (a drum fill from the middle of the bar, a crash
-   on the next downbeat), musHit() lands a crash + chord stab on the next beat, musEnd(win) rings out a final chord (major
-   when win), musStop() cuts it. The music has its own bus (musBus: guitar overdrive, a tempo delay for the lead, a short
-   reverb, a glue compressor) straight into SFX.out, above the sound effects. Muted with the sound button like the rest. */
+   musPlay(song, lvl) starts a SONGS entry, musLevel(n) moves it to section n (a drum fill from the middle of the bar, a
+   crash on the next downbeat), musHit() lands a crash + chord stab on the next beat, musEnd(win) rings out a final chord
+   (major when win), musStop(fade) fades it out. musJingle(name, key) plays a short JINGLES entry over it (the song ducks).
+   musScene(view) (from render) picks the board theme of the map. Each song / jingle plays through its own output
+   (musOut: a gain + guitar overdrive, set in MO while notes are scheduled) into the shared bus (musBus: a tempo delay for
+   the lead, a short reverb, a glue compressor) straight into SFX.out, above the sound effects. Muted with the sound button
+   like the rest, silent in a background tab. */
 const NOTE = (n) => 440 * Math.pow(2, (n - 69) / 12);
+/* the 16th string ostinato through the chord: root, fifth, top, fifth, third, fifth, top, fifth */
+const OST = [0, 2, 3, 2, 1, 2, 3, 2];
+/* song: vol, key (semitones from C, for the jingles over it), sec = sections (levels). A section: bpm; ch = per bar
+   [bass root, 3 minor | 4 major, 7th (10 | 11) or 0]; kick / snare / ohat = steps; hat = 2 eighths | 1 sixteenths | 0;
+   tom = [step, pitch, ...]; crash = bars; swing = odd 16ths late by this share of a step; bass = "8" | "oct" | [step,
+   semitones, ...]; gtr = "hit" (3-3-2) | "chug" (palm-muted 8ths) | "drive" (open 8ths); str = ostinato (sv volume);
+   pad; keys = steps of a chord stab (kv "ep" electric piano | "clav"); mel = per bar [step, note, length in steps, ...]
+   played by lead voice lv (MV) */
 const SONGS = {
 	/* Monster Mash, an anime-opening rock track in E minor, one section per boss phase:
 	   1 verse: i VI VII V, rock beat, 16th string ostinato, 3-3-2 guitar hits, a lead hook in the second half
 	   2 pre-chorus: iv v VI VII climbing an octave higher, palm-muted chugs, a rising melody
-	   3 chorus: the royal road IV V iii vi, four on the floor with off-beat open hats, octave bass, driving guitar, soaring lead.
-	   ch = [bass root, 3 minor | 4 major] per bar; mel = per bar [step, note, length in steps, ...] */
+	   3 chorus: the royal road IV V iii vi, four on the floor with off-beat open hats, octave bass, driving guitar, soaring lead */
 	boss: {
+		vol: 1,
+		key: 4,
+		boom: 1,
 		sec: [
 			{
 				bpm: 168,
@@ -229,7 +242,9 @@ const SONGS = {
 				crash: [0],
 				gtr: "hit",
 				bass: "8",
-				pad: 0,
+				str: OST,
+				sv: 0.028,
+				lv: "anime",
 				mel: [
 					0,
 					0,
@@ -255,7 +270,10 @@ const SONGS = {
 				crash: [0],
 				gtr: "chug",
 				bass: "8",
+				str: OST,
+				sv: 0.028,
 				pad: 1,
+				lv: "anime",
 				mel: [
 					[0, 69, 4, 4, 72, 4, 8, 76, 6, 14, 74, 2],
 					[0, 71, 4, 4, 74, 4, 8, 78, 6, 14, 76, 2],
@@ -281,7 +299,10 @@ const SONGS = {
 				crash: [0, 4],
 				gtr: "drive",
 				bass: "oct",
+				str: OST,
+				sv: 0.022,
 				pad: 1,
+				lv: "anime",
 				mel: [
 					[0, 76, 6, 6, 74, 2, 8, 76, 4, 12, 79, 4],
 					[0, 78, 6, 6, 76, 2, 8, 74, 4, 12, 69, 4],
@@ -295,7 +316,216 @@ const SONGS = {
 			},
 		],
 	},
+	/* Classic board: bouncy city pop in C, IV V iii vi ii V I with sevenths, octave bass, off-beat electric piano, a bell
+	   melody. 2 = the last 3 rounds: faster, four on the floor, open hats, strings and pad */
+	classic: {
+		vol: 0.55,
+		key: 0,
+		sec: [
+			{
+				bpm: 126,
+				ch: [
+					[41, 4, 11],
+					[43, 4, 10],
+					[40, 3, 10],
+					[45, 3, 10],
+					[38, 3, 10],
+					[43, 4, 10],
+					[36, 4, 11],
+					[36, 4, 11],
+				],
+				kick: [0, 6, 8],
+				snare: [4, 12],
+				ohat: [],
+				crash: [0],
+				bass: [0, 0, 3, 12, 6, 0, 8, 0, 10, 12, 14, 7],
+				keys: [2, 6, 10, 14],
+				kv: "ep",
+				lv: "bell",
+				mel: [
+					[0, 72, 2, 2, 76, 2, 4, 77, 3, 7, 76, 1, 8, 72, 2, 10, 69, 2, 12, 72, 4],
+					[0, 74, 3, 3, 71, 1, 4, 74, 2, 6, 79, 2, 8, 77, 4, 12, 74, 4],
+					[0, 71, 2, 2, 74, 2, 4, 76, 3, 7, 79, 1, 8, 76, 4, 12, 74, 2, 14, 72, 2],
+					[0, 72, 4, 4, 76, 4, 8, 79, 6, 14, 81, 2],
+					[0, 81, 3, 3, 79, 1, 4, 77, 2, 6, 74, 2, 8, 77, 4, 12, 81, 4],
+					[0, 79, 3, 3, 77, 1, 4, 74, 2, 6, 71, 2, 8, 74, 4, 12, 77, 4],
+					[0, 76, 6, 6, 79, 2, 8, 83, 4, 12, 84, 4],
+					[0, 84, 8, 8, 79, 2, 10, 76, 2, 12, 74, 4],
+				],
+			},
+			{
+				bpm: 138,
+				ch: [
+					[41, 4, 11],
+					[43, 4, 10],
+					[40, 3, 10],
+					[45, 3, 10],
+					[38, 3, 10],
+					[43, 4, 10],
+					[36, 4, 11],
+					[36, 4, 11],
+				],
+				kick: [0, 4, 8, 12],
+				snare: [4, 12],
+				ohat: [2, 6, 10, 14],
+				crash: [0, 4],
+				bass: "oct",
+				keys: [2, 6, 10, 14],
+				kv: "ep",
+				str: OST,
+				sv: 0.018,
+				pad: 1,
+				lv: "bell",
+				mel: "same",
+			},
+		],
+	},
+	/* Junkyard Jumble: a scrappy swung funk groove in A, i i IV IV i i V IV with sevenths, slap-ish bass, clav, horn riffs.
+	   2 = the last 3 rounds: faster, busier kick, distorted guitar hits */
+	junk: {
+		vol: 0.55,
+		key: -3,
+		sec: [
+			{
+				bpm: 100,
+				swing: 0.3,
+				ch: [
+					[45, 3, 10],
+					[45, 3, 10],
+					[38, 4, 10],
+					[38, 4, 10],
+					[45, 3, 10],
+					[45, 3, 10],
+					[40, 4, 10],
+					[38, 4, 10],
+				],
+				kick: [0, 7, 10],
+				snare: [4, 12],
+				hat: 1,
+				ohat: [14],
+				crash: [0],
+				bass: [0, 0, 3, 0, 4, 12, 6, 0, 8, 0, 10, 7, 11, 10, 14, 12],
+				keys: [2, 3, 6, 10, 11, 14],
+				kv: "clav",
+				lv: "horn",
+				mel: [
+					[0, 69, 1, 2, 72, 1, 3, 74, 2, 6, 72, 1, 7, 69, 1, 10, 76, 2, 12, 74, 1, 13, 72, 1, 14, 69, 2],
+					0,
+					[0, 74, 1, 2, 78, 1, 3, 81, 2, 6, 78, 1, 7, 74, 1, 10, 72, 2, 12, 74, 4],
+					0,
+					[0, 69, 1, 2, 72, 1, 3, 74, 2, 6, 72, 1, 7, 69, 1, 10, 76, 2, 12, 74, 1, 13, 72, 1, 14, 69, 2],
+					[0, 81, 2, 2, 79, 1, 3, 76, 1, 4, 79, 2, 6, 76, 2, 8, 74, 2, 10, 72, 2, 12, 69, 4],
+					[0, 80, 2, 2, 76, 2, 4, 74, 2, 6, 71, 2, 8, 76, 4, 12, 74, 4],
+					[0, 74, 4, 4, 72, 2, 6, 69, 2, 8, 72, 2, 10, 74, 2, 12, 76, 4],
+				],
+			},
+			{
+				bpm: 108,
+				swing: 0.3,
+				ch: [
+					[45, 3, 10],
+					[45, 3, 10],
+					[38, 4, 10],
+					[38, 4, 10],
+					[45, 3, 10],
+					[45, 3, 10],
+					[40, 4, 10],
+					[38, 4, 10],
+				],
+				kick: [0, 3, 7, 10],
+				snare: [4, 12],
+				hat: 1,
+				ohat: [6, 14],
+				crash: [0, 4],
+				bass: [0, 0, 3, 0, 4, 12, 6, 0, 8, 0, 10, 7, 11, 10, 14, 12],
+				gtr: "hit",
+				keys: [2, 3, 6, 10, 11, 14],
+				kv: "clav",
+				lv: "horn",
+				mel: "same",
+			},
+		],
+	},
+	/* Volcano Quarry: brooding D minor, i VI iv V over a falling bass, taiko toms, a low string ostinato and a dark lead.
+	   2 = eruption coming (the 2 rounds before it): faster, rock beat, palm-muted guitar; 3 = erupting: the boss's chorus
+	   energy (four on the floor, driving guitar, octave bass) */
+	volcano: {
+		vol: 0.6,
+		key: 2,
+		boom: 1,
+		sec: [
+			{
+				bpm: 92,
+				ch: [
+					[38, 3],
+					[34, 4],
+					[31, 3],
+					[33, 4],
+				],
+				kick: [0, 10],
+				snare: [8],
+				hat: 0,
+				ohat: [],
+				tom: [0, 0.55, 3, 0.55, 6, 0.7, 14, 0.8],
+				crash: [0],
+				bass: "8",
+				str: [0, 1, 2, 1, 0, 1, 2, 3],
+				sv: 0.022,
+				pad: 1,
+				lv: "dark",
+				mel: [
+					[0, 62, 6, 6, 65, 2, 8, 69, 8],
+					[0, 70, 6, 6, 69, 2, 8, 65, 8],
+					[0, 67, 6, 6, 70, 2, 8, 74, 6, 14, 72, 2],
+					[0, 73, 8, 8, 69, 4, 12, 64, 4],
+				],
+			},
+			{
+				bpm: 112,
+				ch: [
+					[38, 3],
+					[34, 4],
+					[31, 3],
+					[33, 4],
+				],
+				kick: [0, 6, 10],
+				snare: [4, 12],
+				ohat: [],
+				tom: [14, 0.8, 15, 0.7],
+				crash: [0],
+				bass: "8",
+				gtr: "chug",
+				str: OST,
+				sv: 0.024,
+				pad: 1,
+				lv: "dark",
+				mel: "same",
+			},
+			{
+				bpm: 150,
+				ch: [
+					[38, 3],
+					[34, 4],
+					[31, 3],
+					[33, 4],
+				],
+				kick: [0, 4, 8, 12],
+				snare: [4, 12],
+				ohat: [2, 6, 10, 14],
+				crash: [0, 2],
+				bass: "oct",
+				gtr: "drive",
+				str: OST,
+				sv: 0.022,
+				pad: 1,
+				lv: "anime",
+				mel: "same",
+			},
+		],
+	},
 };
+/* sections with mel "same" reuse the first section's melody */
+Object.values(SONGS).forEach((S) => S.sec.forEach((s) => s.mel === "same" && (s.mel = S.sec[0].mel)));
 function musBus() {
 	if (SFX.mus) return SFX.mus;
 	const c = SFX.ctx,
@@ -312,7 +542,6 @@ function musBus() {
 	B.comp.attack.value = 0.004;
 	B.comp.release.value = 0.15;
 	B.comp.connect(gain(0.4, SFX.out));
-	B.dry = gain(1, B.comp);
 	/* one shared noise buffer for the drums */
 	B.noise = c.createBuffer(1, c.sampleRate * 2, c.sampleRate);
 	const nz = B.noise.getChannelData(0);
@@ -334,23 +563,45 @@ function musBus() {
 	dlp.frequency.value = 2600;
 	B.dl.connect(dlp);
 	dlp.connect(gain(0.3, B.dl));
-	dlp.connect(gain(0.32, B.dry));
-	/* guitar: overdrive, then a cabinet-ish lowpass */
-	const ws = c.createWaveShaper(),
-		cv = new Float32Array(1024),
-		cab = c.createBiquadFilter();
-	for (let i = 0; i < 1024; i++) cv[i] = Math.tanh((i / 511.5 - 1) * 6);
-	ws.curve = cv;
+	dlp.connect(gain(0.32, B.comp));
+	/* the guitar overdrive curve */
+	B.curve = new Float32Array(1024);
+	for (let i = 0; i < 1024; i++) B.curve[i] = Math.tanh((i / 511.5 - 1) * 6);
+	return (SFX.mus = B);
+}
+/* one song's or jingle's output: a gain (volume, fades, ducking) into the bus, with its own guitar overdrive in front */
+function musOut(v) {
+	const c = SFX.ctx,
+		B = musBus(),
+		g = c.createGain(),
+		gtr = c.createGain(),
+		ws = c.createWaveShaper(),
+		cab = c.createBiquadFilter(),
+		go = c.createGain();
+	g.gain.value = v;
+	g.connect(B.comp);
+	ws.curve = B.curve;
 	ws.oversample = "2x";
 	cab.type = "lowpass";
 	cab.frequency.value = 3400;
 	cab.Q.value = 0.8;
-	B.gtr = gain(1);
-	B.gtr.connect(ws);
+	go.gain.value = 0.11;
+	gtr.connect(ws);
 	ws.connect(cab);
-	cab.connect(gain(0.11, B.dry));
-	return (SFX.mus = B);
+	cab.connect(go);
+	go.connect(g);
+	return { g, gtr, v };
 }
+/* fade an output to 0 over about fade seconds and unplug it afterwards */
+function musFade(o, fade) {
+	const c = SFX.ctx,
+		t = c.currentTime;
+	o.g.gain.cancelScheduledValues(t);
+	o.g.gain.setValueAtTime(o.g.gain.value, t);
+	o.g.gain.setTargetAtTime(0, t, Math.max(0.01, fade / 3));
+	setTimeout(() => o.g.disconnect(), fade * 1000 + 500);
+}
+let MO = null;
 /* one music note: n detuned oscillators (waves w, spread det cents) through a lowpass; attack a, decay to sus over dec,
    held to d, release r; vib = vibrato depth in cents that fades in; to = "gtr" for the overdrive; rv / dl = reverb / delay
    sends */
@@ -394,7 +645,7 @@ function mv(m, d, at, o) {
 		os.stop(end);
 	}
 	lp.connect(g);
-	g.connect(o.to === "gtr" ? B.gtr : B.dry);
+	g.connect(o.to === "gtr" ? MO.gtr : MO.g);
 	if (o.rv) g.connect(B.rv);
 	if (o.dl) g.connect(B.dl);
 }
@@ -422,7 +673,7 @@ function mdrum(k, at, vm = 1, fm = 1) {
 		g.gain.setValueAtTime(D.tv * vm, t);
 		g.gain.exponentialRampToValueAtTime(0.0001, t + D.d);
 		o.connect(g);
-		g.connect(B.dry);
+		g.connect(MO.g);
 		o.start(t);
 		o.stop(t + D.d + 0.02);
 	}
@@ -437,43 +688,88 @@ function mdrum(k, at, vm = 1, fm = 1) {
 		g.gain.exponentialRampToValueAtTime(0.0001, t + D.n);
 		s.connect(hp);
 		hp.connect(g);
-		g.connect(B.dry);
+		g.connect(MO.g);
 		if (D.rv) g.connect(B.rv);
 		s.start(t, Math.random() * 0.3, D.n + 0.02);
 	}
 }
-/* chord tones: a power chord for the guitar, the triad + octave for the strings (from A3..G#4) and the pad (up) */
+/* chord tones: a power chord for the guitar; the triad + top (the 7th if the chord has one, else the octave) for the
+   strings (from A3..G#4), keys and pad (up) */
 const musPow = (ch) => [ch[0] + 12, ch[0] + 19, ch[0] + 24];
 const musTri = (ch, up = 0) => {
 	const b = 57 + ((((ch[0] - 57) % 12) + 12) % 12) + up;
-	return [b, b + ch[1], b + 7, b + 12];
+	return [b, b + ch[1], b + 7, b + (ch[2] || 12)];
 };
 function musGtr(ch, d, at, open, v = 0.22) {
 	musPow(ch).forEach((m) => mv(m, d, at, { to: "gtr", n: 2, det: 12, v, cut: open ? 3000 : 900 }));
 }
-function musLead(m, d, at, v = 1) {
-	mv(m, d, at, {
-		w: ["square", "sawtooth"],
-		n: 2,
-		det: 10,
-		v: 0.045 * v,
-		cut: 3800,
-		a: 0.012,
-		r: 0.08,
-		vib: 22,
-		rv: 1,
-		dl: 1,
-	});
-	mv(m - 12, d, at, { w: "triangle", v: 0.04 * v, a: 0.012, r: 0.08, vib: 22 });
-}
-const MUS = { song: null, lvl: 1, want: 1, step: 0, next: 0, iv: 0, hit: false, land: false, fill: false };
-function musPlay(name) {
+/* lead and jingle voices: (note, seconds, at, volume) */
+const MV = {
+	/* the boss lead: square + saw with vibrato, an octave-down triangle under it */
+	anime(m, d, at, v = 1) {
+		mv(m, d, at, {
+			w: ["square", "sawtooth"],
+			n: 2,
+			det: 10,
+			v: 0.045 * v,
+			cut: 3800,
+			a: 0.012,
+			r: 0.08,
+			vib: 22,
+			rv: 1,
+			dl: 1,
+		});
+		mv(m - 12, d, at, { w: "triangle", v: 0.04 * v, a: 0.012, r: 0.08, vib: 22 });
+	},
+	/* a plucky bell-ish lead (city pop) */
+	bell(m, d, at, v = 1) {
+		mv(m, d, at, {
+			w: ["triangle", "square"],
+			n: 2,
+			det: 6,
+			v: 0.05 * v,
+			cut: 4500,
+			a: 0.003,
+			sus: 0.45,
+			dec: 0.12,
+			r: 0.12,
+			vib: 12,
+			rv: 1,
+			dl: 1,
+		});
+		mv(m + 12, d * 0.5, at, { w: "sine", v: 0.018 * v, a: 0.002, sus: 0.2, dec: 0.06, r: 0.1 });
+	},
+	/* a horn section: three detuned saws, darker */
+	horn(m, d, at, v = 1) {
+		mv(m, d, at, { n: 3, det: 16, v: 0.04 * v, cut: 1900, a: 0.02, sus: 0.75, dec: 0.15, r: 0.07, vib: 14, rv: 1 });
+		mv(m - 12, d, at, { w: "square", v: 0.016 * v, cut: 1200, a: 0.02, r: 0.07 });
+	},
+	/* a dark, slow-attack lead (volcano) */
+	dark(m, d, at, v = 1) {
+		mv(m, d, at, { n: 2, det: 16, v: 0.042 * v, cut: 1800, a: 0.06, r: 0.15, vib: 18, rv: 1, dl: 1 });
+		mv(m - 12, d, at, { w: "triangle", v: 0.04 * v, a: 0.06, r: 0.15 });
+	},
+	/* jingles: brass stabs, a bass note */
+	brass(m, d, at, v = 1) {
+		mv(m, d, at, { n: 3, det: 14, v: 0.03 * v, cut: 2600, a: 0.025, sus: 0.7, dec: 0.3, r: 0.12, rv: 1 });
+	},
+	bass(m, d, at, v = 1) {
+		mv(m, d, at, { v: 0.09 * v, cut: 1100, r: 0.05 });
+		mv(m, d, at, { w: "sine", v: 0.1 * v, r: 0.05 });
+	},
+};
+const MUS = { song: null, name: null, o: null, lvl: 1, want: 1, step: 0, next: 0, iv: 0, hit: false, land: false };
+function musPlay(name, lvl = 1) {
 	musStop();
 	if (!SFX.ctx || !SONGS[name]) return;
-	MUS.song = SONGS[name];
-	MUS.lvl = MUS.want = 1;
+	const S = SONGS[name];
+	MUS.song = S;
+	MUS.name = name;
+	MUS.o = musOut(S.vol || 1);
+	MUS.lvl = MUS.want = Math.max(1, Math.min(S.sec.length, lvl | 0));
 	MUS.step = 0;
 	MUS.land = true;
+	MUS.fill = false;
 	MUS.next = SFX.ctx.currentTime + 0.1;
 	MUS.iv = setInterval(musTick, 25);
 }
@@ -483,16 +779,33 @@ function musLevel(n) {
 function musHit() {
 	MUS.hit = true;
 }
-function musStop() {
+function musStop(fade = 0.25) {
 	clearInterval(MUS.iv);
 	MUS.iv = 0;
-	MUS.song = null;
+	MUS.song = MUS.name = null;
+	if (MUS.o && SFX.ctx) musFade(MUS.o, fade);
+	MUS.o = null;
 }
-/* the final chord: crash, boom and a ringing E chord, major (with a high lead) when win */
+/* duck the song under a jingle for dur seconds */
+function musDuck(dur, to = 0.2) {
+	const o = MUS.o;
+	if (!o || !SFX.ctx) return;
+	const t = SFX.ctx.currentTime,
+		g = o.g.gain;
+	g.cancelScheduledValues(t);
+	g.setValueAtTime(g.value, t);
+	g.setTargetAtTime(o.v * to, t, 0.04);
+	g.setTargetAtTime(o.v, t + dur, 0.25);
+}
+/* the final chord: crash, boom and a ringing E chord, major (with a high lead) when win; the output stays until the next
+   musStop / musPlay fades it */
 function musEnd(win) {
 	const c = SFX.ctx;
-	musStop();
-	if (!c || !SFX.on || c.state !== "running") return;
+	clearInterval(MUS.iv);
+	MUS.iv = 0;
+	MUS.song = MUS.name = null;
+	if (!c || !MUS.o || !SFX.on || c.state !== "running") return;
+	MO = MUS.o;
 	const at = 0.04,
 		ch = [40, win ? 4 : 3];
 	mdrum("crash", at, 1.3);
@@ -501,7 +814,168 @@ function musEnd(win) {
 	musGtr(ch, 2.2, at, true, 0.25);
 	musTri(ch, 12).forEach((m) => mv(m, 2.2, at, { n: 2, det: 18, v: 0.03, a: 0.05, r: 0.5, cut: 2200, rv: 1 }));
 	mv(ch[0], 2, at, { w: "sine", v: 0.12, r: 0.4 });
-	if (win) musLead(76, 2, at, 1.2);
+	if (win) MV.anime(76, 2, at, 1.2);
+}
+/* jingles, written in C (transposed by key): bpm, len in beats, n = [beat, note or chord, length in beats, voice, vol],
+   d = [beat, drum, vol, pitch] */
+const JROLL = (a, b, step, v0, v1) => {
+	const r = [];
+	for (let x = a; x < b - 1e-6; x += step) r.push([x, "snare", v0 + ((v1 - v0) * (x - a)) / (b - a)]);
+	return r;
+};
+const JINGLES = {
+	/* board -> minigame (during the clouds): a snare roll up a C arpeggio into a big chord */
+	mgstart: {
+		bpm: 150,
+		len: 4,
+		n: [
+			[0, 67, 0.4, "brass"],
+			[0.5, 72, 0.4, "brass"],
+			[1, 76, 0.4, "brass"],
+			[1.5, [72, 76, 79, 84], 1.8, "brass", 1.2],
+			[1.5, 84, 1.8, "anime", 0.8],
+			[1.5, 36, 1.8, "bass"],
+		],
+		d: [...JROLL(0, 1.5, 0.25, 0.35, 0.9), [1.5, "crash", 1.2], [1.5, "kick", 1], [1.5, "boom", 0.6]],
+	},
+	/* minigame results: win (1st / winning team), mid (in between), lose (last / losing team) */
+	win: {
+		bpm: 140,
+		len: 6,
+		n: [
+			[0, [72, 76], 0.28, "brass"],
+			[0.33, [72, 76], 0.28, "brass"],
+			[0.67, [72, 76], 0.28, "brass"],
+			[1, [74, 77], 0.9, "brass"],
+			[2, [76, 79], 0.45, "brass"],
+			[2.5, [74, 77], 0.45, "brass"],
+			[3, [76, 79, 84], 2.2, "brass", 1.2],
+			[3, 84, 2.2, "anime", 0.8],
+			[3, 84, 0.25, "bell"],
+			[3.25, 88, 0.25, "bell"],
+			[3.5, 91, 0.25, "bell"],
+			[3.75, 96, 0.8, "bell"],
+			[0, 48, 0.9, "bass"],
+			[1, 41, 0.9, "bass"],
+			[2, 43, 0.9, "bass"],
+			[3, 36, 2.2, "bass"],
+		],
+		d: [
+			[0, "kick", 1],
+			[1, "kick", 1],
+			[2, "kick", 1],
+			[1, "snare", 0.8],
+			[2.5, "snare", 0.6],
+			...JROLL(2.5, 3, 0.125, 0.5, 0.9),
+			[3, "crash", 1.2],
+			[3, "kick", 1],
+			[3, "boom", 0.5],
+		],
+	},
+	mid: {
+		bpm: 140,
+		len: 3.5,
+		n: [
+			[0, [67, 72, 76], 0.4, "brass"],
+			[0.5, [69, 74, 77], 0.4, "brass"],
+			[1, [72, 76, 79], 1.4, "brass", 1.1],
+			[1, 79, 1.4, "bell"],
+			[0, 43, 0.45, "bass"],
+			[0.5, 41, 0.45, "bass"],
+			[1, 36, 1.4, "bass"],
+		],
+		d: [
+			[0, "kick", 1],
+			[0.5, "snare", 0.7],
+			[1, "kick", 1],
+			[1, "crash", 0.9],
+		],
+	},
+	lose: {
+		bpm: 104,
+		len: 4.5,
+		n: [
+			[0, 67, 0.45, "horn", 1.1],
+			[0.5, 66, 0.45, "horn", 1.1],
+			[1, 65, 0.45, "horn", 1.1],
+			[1.5, 64, 2, "horn", 1.2],
+			[0, 43, 0.45, "bass"],
+			[0.5, 42, 0.45, "bass"],
+			[1, 41, 0.45, "bass"],
+			[1.5, 40, 2, "bass"],
+		],
+		d: [
+			[0, "tom", 0.6, 1.2],
+			[0.5, "tom", 0.6, 1.1],
+			[1, "tom", 0.6, 1],
+			[1.5, "tom", 0.8, 0.8],
+			[1.5, "kick", 0.8],
+		],
+	},
+	/* dice roll: a snare roll while the die spins, a chord stab when it lands (1.15 s) */
+	dice: {
+		bpm: 120,
+		len: 3,
+		n: [
+			[2.3, [72, 79, 84], 0.6, "bell"],
+			[2.3, 48, 0.5, "bass", 0.8],
+		],
+		d: [...JROLL(0, 2.3, 0.125, 0.18, 0.55), [2.3, "crash", 0.6], [2.3, "kick", 0.9]],
+	},
+	/* game over, on the podium: a triumphant phrase over C F G C with a full band */
+	finale: {
+		bpm: 132,
+		len: 12,
+		n: [
+			[0, [64, 67, 72], 1.8, "brass"],
+			[0, 72, 0.75, "anime"],
+			[0.75, 74, 0.25, "anime"],
+			[1, 76, 1, "anime"],
+			[2, [64, 67, 72], 1.8, "brass"],
+			[2, 79, 1.5, "anime"],
+			[3.5, 77, 0.5, "anime"],
+			[4, [65, 69, 72], 1.8, "brass"],
+			[4, 81, 1.5, "anime"],
+			[5.5, 79, 0.5, "anime"],
+			[6, [67, 71, 74], 1.8, "brass"],
+			[6, 77, 0.75, "anime"],
+			[6.75, 76, 0.25, "anime"],
+			[7, 74, 1, "anime"],
+			[8, [72, 76, 79, 84], 3.5, "brass", 1.3],
+			[8, 84, 3.5, "anime", 1.1],
+			[8, 84, 0.25, "bell"],
+			[8.25, 88, 0.25, "bell"],
+			[8.5, 91, 0.25, "bell"],
+			[8.75, 96, 1.5, "bell"],
+			[0, 48, 1.9, "bass"],
+			[2, 48, 1.9, "bass"],
+			[4, 41, 1.9, "bass"],
+			[6, 43, 1.9, "bass"],
+			[8, 36, 3.5, "bass"],
+		],
+		d: [
+			[0, "crash", 1.1],
+			...[0, 1, 2, 3, 4, 5, 6].map((b) => [b, "kick", 1]),
+			...[1, 3, 5].map((b) => [b, "snare", 0.9]),
+			...JROLL(7, 8, 0.125, 0.5, 1),
+			[8, "crash", 1.3],
+			[8, "kick", 1],
+			[8, "boom", 0.7],
+		],
+	},
+};
+function musJingle(name, key = 0) {
+	const c = SFX.ctx,
+		J = JINGLES[name];
+	if (!c || !J || !SFX.on || c.state !== "running" || document.hidden) return;
+	const b = 60 / J.bpm,
+		o = musOut(0.9),
+		at = 0.03;
+	MO = o;
+	J.n.forEach(([bt, m, l, vc, v]) => [].concat(m).forEach((n) => MV[vc](n + key, l * b, at + bt * b, v)));
+	J.d.forEach(([bt, k, v, f]) => mdrum(k, at + bt * b, v, f));
+	musDuck(J.len * b, 0.2);
+	setTimeout(() => o.g.disconnect(), (J.len * b + 3) * 1000);
 }
 /* one 16th step: section sec at step count step (from the section start), at seconds from now */
 function musStep(sec, step, at) {
@@ -509,13 +983,13 @@ function musStep(sec, step, at) {
 		bar = (step >> 4) % sec.ch.length,
 		ch = sec.ch[bar],
 		dur = 60 / sec.bpm / 4,
-		turn = bar === sec.ch.length - 1 && st >= 12;
-	const B = musBus();
+		turn = bar === sec.ch.length - 1 && st >= 12,
+		B = musBus();
 	B.dl.delayTime.setValueAtTime(dur * 3, SFX.ctx.currentTime + at);
 	if (MUS.land && st === 0) {
 		MUS.land = false;
 		mdrum("crash", at, 1.2);
-		mdrum("boom", at, 0.8);
+		if (MUS.song.boom) mdrum("boom", at, 0.8);
 	} else if (st === 0 && sec.crash.includes(bar)) mdrum("crash", at);
 	if (MUS.hit && st % 4 === 0) {
 		MUS.hit = false;
@@ -529,49 +1003,67 @@ function musStep(sec, step, at) {
 		else mdrum("tom", at, 1, 1.4 - (st - 12) * 0.2);
 		if (st === 8 || st === 12) mdrum("kick", at);
 	} else {
+		const hat = sec.hat === undefined ? 2 : sec.hat;
 		if (sec.kick.includes(st)) mdrum("kick", at);
 		if (turn) mdrum("snare", at, 0.6 + (st - 12) * 0.12);
 		else if (sec.snare.includes(st)) mdrum("snare", at);
 		if (sec.ohat.includes(st)) mdrum("ohat", at);
-		else if (st % 2 === 0) mdrum("hat", at, st % 4 ? 0.7 : 1);
+		else if (hat && st % hat === 0) mdrum("hat", at, st % 4 ? 0.7 : 1);
+		if (sec.tom) for (let i = 0; i < sec.tom.length; i += 2) if (sec.tom[i] === st) mdrum("tom", at, 1, sec.tom[i + 1]);
 	}
-	/* bass: 8ths on the root (octave jumps in the chorus), a saw for phone speakers + a sine sub */
-	if (st % 2 === 0) {
-		const m = ch[0] + (sec.bass === "oct" && st % 4 === 2 ? 12 : 0);
-		mv(m, dur * 1.7, at, { v: 0.085, cut: 1100, r: 0.03 });
-		mv(m, dur * 1.7, at, { w: "sine", v: 0.1, r: 0.03 });
+	/* bass: 8ths on the root, octave jumps ("oct") or a pattern; a saw for phone speakers + a sine sub */
+	let bn = null;
+	if (Array.isArray(sec.bass)) {
+		for (let i = 0; i < sec.bass.length; i += 2) if (sec.bass[i] === st) bn = ch[0] + sec.bass[i + 1];
+	} else if (st % 2 === 0) bn = ch[0] + (sec.bass === "oct" && st % 4 === 2 ? 12 : 0);
+	if (bn !== null) {
+		mv(bn, dur * 1.7, at, { v: 0.085, cut: 1100, r: 0.03 });
+		mv(bn, dur * 1.7, at, { w: "sine", v: 0.1, r: 0.03 });
 	}
 	/* guitar */
 	if (sec.gtr === "hit" && (st === 0 || st === 6 || st === 12)) musGtr(ch, dur * (st === 12 ? 3.6 : 5.6), at, true);
 	if (sec.gtr === "chug" && st % 2 === 0) musGtr(ch, dur * (st ? 0.7 : 1.6), at, !st, st ? 0.18 : 0.24);
 	if (sec.gtr === "drive" && st % 2 === 0) musGtr(ch, dur * 1.8, at, true, st % 4 ? 0.17 : 0.22);
-	/* strings: a 16th ostinato through the chord (root, fifth, octave, fifth, third, ...) */
-	const tri = musTri(ch);
-	mv(tri[[0, 2, 3, 2, 1, 2, 3, 2][st % 8]], dur * 0.7, at, {
-		n: 2,
-		det: 12,
-		v: sec.bass === "oct" ? 0.022 : 0.028,
-		cut: 2400,
-		a: 0.004,
-		r: 0.04,
-		rv: 1,
-	});
+	/* keys: short chord stabs, electric piano or clav */
+	if (sec.keys && sec.keys.includes(st))
+		musTri(ch, 12).forEach((m) =>
+			sec.kv === "clav"
+				? mv(m, dur * 0.6, at, { w: "square", v: 0.014, cut: 1700, a: 0.002, r: 0.03 })
+				: mv(m, dur * 1.4, at, {
+						w: ["triangle", "sine"],
+						n: 2,
+						det: 6,
+						v: 0.022,
+						cut: 3000,
+						a: 0.003,
+						sus: 0.4,
+						dec: 0.1,
+						r: 0.08,
+						rv: 1,
+					}),
+		);
+	/* strings: a 16th ostinato through the chord */
+	if (sec.str) {
+		const tri = musTri(ch);
+		mv(tri[sec.str[st % 8]], dur * 0.7, at, { n: 2, det: 12, v: sec.sv, cut: 2400, a: 0.004, r: 0.04, rv: 1 });
+	}
 	/* pad: the chord held for the bar */
 	if (sec.pad && st === 0)
 		musTri(ch, 12)
-			.slice(0, 3)
+			.slice(0, ch[2] ? 4 : 3)
 			.forEach((m) => mv(m, dur * 16, at, { n: 2, det: 18, v: 0.016, a: 0.25, r: 0.2, cut: 1600, rv: 1 }));
 	/* lead */
-	const ml = sec.mel[bar];
-	if (ml) for (let i = 0; i < ml.length; i += 3) if (ml[i] === st) musLead(ml[i + 1], dur * ml[i + 2] * 0.92, at);
-	return dur;
+	const ml = sec.mel && sec.mel[bar];
+	if (ml) for (let i = 0; i < ml.length; i += 3) if (ml[i] === st) MV[sec.lv](ml[i + 1], dur * ml[i + 2] * 0.92, at);
 }
 function musTick() {
 	const c = SFX.ctx,
 		S = MUS.song;
-	if (!c || !S) return;
-	/* catch up after a stall without a burst of notes */
-	if (MUS.next < c.currentTime - 0.2) MUS.next = c.currentTime + 0.05;
+	if (!c || !S || !MUS.o) return;
+	/* catch up after a stall (or a background tab, which stays silent) without a burst of notes */
+	if (MUS.next < c.currentTime - 0.2 || document.hidden) MUS.next = c.currentTime + 0.05;
+	if (document.hidden) return;
+	MO = MUS.o;
 	while (MUS.next < c.currentTime + 0.12) {
 		/* a new section starts on the downbeat after its fill (the second half of a bar) */
 		if (MUS.step % 16 === 0 && MUS.fill) {
@@ -580,11 +1072,44 @@ function musTick() {
 			MUS.land = true;
 		}
 		MUS.fill = MUS.want !== MUS.lvl && MUS.step % 16 >= 8;
-		const sec = S.sec[MUS.lvl - 1];
-		if (SFX.on && c.state === "running") musStep(sec, MUS.step, Math.max(0, MUS.next - c.currentTime));
-		MUS.next += 60 / sec.bpm / 4;
+		const sec = S.sec[MUS.lvl - 1],
+			dur = 60 / sec.bpm / 4,
+			sw = sec.swing && MUS.step % 2 ? sec.swing * dur : 0;
+		if (SFX.on && c.state === "running") musStep(sec, MUS.step, Math.max(0, MUS.next - c.currentTime) + sw);
+		MUS.next += dur;
 		MUS.step++;
 	}
+}
+/* the music for what's on screen (called from render): the map's board theme on the board, level 2 in the last 3
+   rounds (Volcano Quarry: 2 in the 2 rounds before an eruption, 3 while it erupts); the podium fanfare when the game is
+   over; silence elsewhere. Minigames play their own (Monster Mash), TV controller phones stay quiet */
+let musOverSeen = false;
+function musScene(v) {
+	if (!SFX.ctx) return;
+	if (v === "over" && !musOverSeen) {
+		musOverSeen = true;
+		musStop(0.3);
+		musJingle("finale");
+	}
+	if (v !== "over") musOverSeen = false;
+	const board =
+		v === "game" &&
+		G &&
+		!G.practice &&
+		!(G.tv && role === "client") &&
+		!W &&
+		!mgOpen &&
+		!mgBusy &&
+		!["minigame", "mgres", "teams"].includes(G.phase);
+	if (!board) {
+		if (MUS.name && MUS.name !== "boss") musStop(0.6);
+		return;
+	}
+	const name = SONGS[G.map] ? G.map : "classic";
+	let lvl = G.round > G.rounds - 3 ? 2 : 1;
+	if (name === "volcano") lvl = G.phase === "erupt" ? 3 : lavaPh(G.round) >= 5 ? 2 : 1;
+	if (MUS.name !== name) musPlay(name, lvl);
+	else musLevel(lvl);
 }
 /* a short buzz on phones that support it (Android). iPhone Safari has no vibration API, not even as a home screen app */
 function buzz(ms) {
