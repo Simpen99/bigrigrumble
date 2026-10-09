@@ -2026,6 +2026,13 @@ Object.assign(MG, {
 		},
 		R: () => MM.R,
 		cam(W, tgt, pos, far) {
+			/* portrait phones: 30% further out, following you a bit closer (0.9 instead of 0.85) and looking 3 m further
+			   south, so the rim next to you and the near edge (above the buttons) stay on screen */
+			if (far > 1) {
+				const off = pos.clone().sub(tgt).multiplyScalar(1.3);
+				tgt.multiplyScalar(0.9 / 0.85).z += 3;
+				pos = tgt.clone().add(off);
+			}
 			const mm = W.mm,
 				m = W.ms,
 				t = mm && mm.phT !== undefined ? W.t - mm.phT : 9;

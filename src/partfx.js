@@ -917,12 +917,12 @@ const JINGLES = {
 		bpm: 120,
 		len: 3,
 		n: [
-			[2.3, [72, 79, 84], 0.6, "bell"],
-			[2.3, 48, 0.5, "bass", 0.8],
+			[2.3, [72, 79, 84], 0.6, "bell", 0.7],
+			[2.3, 48, 0.5, "bass", 0.56],
 		],
 		d: [
-			[2.3, "crash", 0.5],
-			[2.3, "kick", 0.9],
+			[2.3, "crash", 0.35],
+			[2.3, "kick", 0.63],
 		],
 	},
 	/* game over, on the podium: a triumphant phrase over C F G C with a full band */
