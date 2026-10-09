@@ -845,6 +845,7 @@ function monsterize(g, xs, anims, wheelsL, own) {
 		);
 		const fl = cyl(0, 0.09, 0.24, 6, "#FF6A1F", ex, ht + 0.2, z, { emissive: "#FF4A10", emissiveIntensity: 1.6 });
 		fl.userData.dyn = true;
+		(g.userData.flames || (g.userData.flames = [])).push(fl);
 		lift.add(fl);
 		anims.push((tm) => {
 			const k = 0.75 + Math.abs(Math.sin(tm * 17 + sd)) * 0.5;

@@ -286,6 +286,11 @@ function sfx(n) {
 				tone(70, 0.6, "sawtooth", 0.08, 190);
 				noiseHit(0.55, 0.08, 300, 900, 0, 1);
 				break;
+			case "roar":
+				tone(55, 0.9, "sawtooth", 0.16, 38);
+				tone(82, 0.8, "square", 0.06, 50, 0.05);
+				noiseHit(0.9, 0.22, 700, 120, 0, 1);
+				break;
 			case "stun":
 				for (let i = 0; i < 3; i++) tone(1500 - i * 220, 0.08, "triangle", 0.06, 1900 - i * 220, i * 0.09);
 				break;

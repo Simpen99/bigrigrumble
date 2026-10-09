@@ -303,8 +303,8 @@ function arenaPhys(W, e, inp, dt) {
 					l = 1;
 				}
 			}
-			e.vx += (dx / l) * 16;
-			e.vz += (dz / l) * 16;
+			e.vx += (dx / l) * 16 * (e.dashK || 1);
+			e.vz += (dz / l) * 16 * (e.dashK || 1);
 			e.bcd = e.ramCdT || 2;
 			e.boostT = 0.45;
 		}

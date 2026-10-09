@@ -2025,6 +2025,16 @@ Object.assign(MG, {
 			return e.side !== 0 ? 0 : e.chgT !== undefined ? 1 : Math.min(1, (e.pcd || 0) / 6);
 		},
 		R: () => MM.R,
+		cam(W, tgt, pos, far) {
+			const mm = W.mm,
+				m = W.ms,
+				t = mm && mm.phT !== undefined ? W.t - mm.phT : 9;
+			if (!m || t > 1.6) return [tgt, pos];
+			const k = Math.sin((t / 1.6) * Math.PI),
+				bt = new THREE.Vector3(m.x, 2, m.z),
+				bp = bt.clone().add(new THREE.Vector3(0, 8 * far, 9 * far));
+			return [tgt.lerp(bt, k), pos.lerp(bp, k)];
+		},
 		canRam: () => false,
 		ramCd(W) {
 			const e = W.me;
@@ -2207,6 +2217,7 @@ Object.assign(MG, {
 		},
 		initEnt(W, e) {
 			e.f = { dh: 0, dy: 0 };
+			e.dashK = 0.7;
 			e.tyHit = {};
 			e.gpHit = {};
 			e.nr = 0;
@@ -2244,7 +2255,7 @@ Object.assign(MG, {
 			e.muzY = t.y + 0.75;
 			e.rad = 2.8;
 			e.mass = 50;
-			e.spd = 0.85;
+			e.spd = 0.765;
 			e.fcd = 1.2;
 			e.pcd = 4;
 			e.chg = 0;
@@ -2263,6 +2274,20 @@ Object.assign(MG, {
 				W.mm.phT = W.t;
 				W.mm.banner = ph === 2 ? "ENRAGED! Double tyres!" : "The turntable drops: it's loose!";
 				W.mm.bannerT = W.t + 2.2;
+				sfx("roar");
+				W.shake = Math.max(W.shake, 0.6);
+				if (m)
+					for (let i = 0; i < 3; i++)
+						burst(W.sc, m.x, 3 + i, m.z, {
+							n: 14,
+							shape: "ico",
+							cols: ["#FFC83D", "#FF8A1F", "#E5484D", "#3D424C"],
+							spd: 4 + i * 2,
+							up: 7,
+							grav: 6,
+							life: 1.1,
+							size: 1.6,
+						});
 				mgLog(W, `PHASE ${ph} (${W.hp} HP)`);
 				if (m)
 					burst(W.sc, m.x, 2, m.z, {
@@ -2486,8 +2511,8 @@ Object.assign(MG, {
 					inp.boost = false;
 					e.wig = 0.25;
 				}
-				if (W.hp < g.hp || g.taps >= 5) {
-					mgLog(W, `${mgName(e)} ${g.taps >= 5 ? "breaks free" : "dropped (boss hit)"}`);
+				if (W.hp < g.hp || g.taps >= 7) {
+					mgLog(W, `${mgName(e)} ${g.taps >= 7 ? "breaks free" : "dropped (boss hit)"}`);
 					this.release(W, e, 5);
 				} else if (W.t - g.t0 >= 1.6) {
 					const dx = m ? fx : e.x,
@@ -2497,9 +2522,9 @@ Object.assign(MG, {
 					e.f.gr = 0;
 					e.fly = false;
 					e.f.dy = 0;
-					e.vx = (dx / d) * 20;
-					e.vz = (dz / d) * 20;
-					e.vy = 6;
+					e.vx = (dx / d) * 24;
+					e.vz = (dz / d) * 24;
+					e.vy = 8;
 					e.falling = true;
 					e.lastHit = { k: "magnet fling", t: W.t };
 					if (e.isMe) W.shake = 0.5;
@@ -2585,7 +2610,7 @@ Object.assign(MG, {
 				this.knock(W, e, dx / d, dz / d, 9, 0.45, "TNT bounce");
 				mgLog(W, `TNT ${mgName(e)} hits the boss (${W.hp - 1} HP left)`);
 			}
-			const cr = (W.ph < 3 ? 2.8 : 1.71) + 1.7;
+			const cr = ((W.ph < 3 ? 2.8 : 1.71) + 1.7) * 1.2;
 			e.nr = d < cr && !safe ? e.nr + dt : Math.max(0, e.nr - dt * 1.5);
 			if (e.nr >= MM.CLAW) {
 				e.gr = { t0: W.t, hp: W.hp, taps: 0, x: e.x, z: e.z };
@@ -2718,6 +2743,24 @@ Object.assign(MG, {
 						});
 				}
 				mm.tt.position.y = -0.46 * drop;
+				const fl = e.tr.userData.flames;
+				if (fl)
+					fl.forEach((f) => {
+						f.scale.multiplyScalar(ph === 3 ? 1.6 : 1);
+						if (ph === 3 && Math.random() < dt * 9) {
+							const p = f.getWorldPosition(new THREE.Vector3());
+							burst(W.sc, p.x, p.y + 0.3, p.z, {
+								n: 3,
+								shape: "ico",
+								cols: ["#FFC83D", "#FF8A1F", "#E5484D"],
+								spd: 0.5,
+								up: 7,
+								grav: -2,
+								life: 0.45,
+								size: 1.2,
+							});
+						}
+					});
 				if (ph < 3) mm.top.rotation.y = e.yaw;
 			} else if (e.bun) {
 				const inv = e.local ? W.t < (e.inv || 0) : !!(e.f && W.t < (e.f.inv || 0));
@@ -2969,7 +3012,7 @@ Object.assign(MG, {
 				return out;
 			}
 			/* survivors: fetch TNT and deliver it, keep clear of the monster otherwise, sidestep tyres, dash through rings */
-			if (e.gr) return { x: 0, y: 0, boost: Math.random() < dt * 3.2 };
+			if (e.gr) return { x: 0, y: 0, boost: Math.random() < dt * 2.2 };
 			let x = 0,
 				z = 0;
 			const go = (tx, tz, w) => {
