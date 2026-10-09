@@ -1328,21 +1328,92 @@ function eruption(done) {
 		later(done, 3200);
 	}, 3800);
 }
-function startMinigame(duel, forceG) {
+/* team minigames (Mario Party style): each truck's side is the colour of the space it stands on (blue or red, any other
+   space is a coin flip). 4+ trucks split 1 vs 3 (1 vs N) or 2 vs 2 (any even-ish split) pick a game from that pool;
+   everyone on one colour (or board team mode, or fewer than 4 trucks) plays free-for-all.
+   Returns {mode, tm: {key: side}, tc: [side colours]}, side 0 = the solo truck in a 1 vs N game. */
+const SIDE_COL = ["#2F7DE1", "#E5484D"];
+function spaceSplit() {
+	const ps = HG.players;
+	if (HG.teams || ps.length < 4) return null;
+	const tm = {};
+	ps.forEach((p) => {
+		const n = MAP.nodes[p.pos],
+			t = n && n.t;
+		tm[p.key] = t === "B" ? 0 : t === "R" ? 1 : rnd(2);
+	});
+	const n1 = ps.filter((p) => tm[p.key] === 1).length,
+		n0 = ps.length - n1;
+	if (!n0 || !n1) return null;
+	const mode = Math.min(n0, n1) === 1 ? "1v3" : "2v2";
+	const tc = SIDE_COL.slice();
+	if (mode === "1v3" && n1 === 1) {
+		ps.forEach((p) => (tm[p.key] = 1 - tm[p.key]));
+		tc.reverse();
+	}
+	return { mode, tm, tc };
+}
+/* a forced team game (practice, TV practice): the solo truck is random (the host's own truck half the time), the rest split evenly */
+var TEST_SIDE = null;
+function forcedSplit(g) {
+	const mode = MG[g].team,
+		ps = HG.players;
+	if (!mode || ps.length < 2) return null;
+	const tm = {},
+		hum = ps.find((p) => p.key === me.key) || ps.find((p) => !p.bot),
+		order = ps.slice().sort(() => Math.random() - 0.5);
+	if (mode === "1v3") {
+		/* TEST_SIDE (tools/watch.mjs --side, nettest.mjs --solo) puts the host's truck on side 0 or 1, or names the solo player's key */
+		const others = order.filter((p) => p !== hum),
+			solo =
+				typeof TEST_SIDE === "string" && ps.some((p) => p.key === TEST_SIDE)
+					? ps.find((p) => p.key === TEST_SIDE)
+					: TEST_SIDE === 0 && hum
+						? hum
+						: TEST_SIDE === 1
+							? others[0]
+							: hum && Math.random() < 0.5
+								? hum
+								: order[0];
+		ps.forEach((p) => (tm[p.key] = p === solo ? 0 : 1));
+	} else order.forEach((p, i) => (tm[p.key] = i % 2));
+	return { mode, tm, tc: SIDE_COL.slice() };
+}
+const vsLabel = (tm) => {
+	const n0 = Object.values(tm).filter((s) => s === 0).length;
+	return `${n0} vs ${Object.keys(tm).length - n0}!`;
+};
+function startMinigame(duel, forceG, split) {
 	let g;
 	if (forceG) g = forceG;
 	else if (duel) g = DUEL_POOL[rnd(DUEL_POOL.length)];
 	else {
 		HG.used = HG.used || [];
-		let pool = Object.keys(MG).filter((k) => !HG.used.includes(k));
+		/* never the same game twice in a row: with a small team pool that falls back to free-for-all */
+		const pick = (mode) => Object.keys(MG).filter((k) => (MG[k].team || null) === mode && k !== HG.lastMg);
+		split = spaceSplit();
+		if (split && !pick(split.mode).length) split = null;
+		const all = pick(split ? split.mode : null);
+		let pool = all.filter((k) => !HG.used.includes(k));
 		if (!pool.length) {
-			HG.used = [];
-			pool = Object.keys(MG);
+			HG.used = HG.used.filter((k) => !all.includes(k));
+			pool = all;
 		}
 		g = pool[rnd(pool.length)];
 		HG.used.push(g);
 		HG.lastMg = g;
+		if (split) {
+			/* the reveal: a "1 vs 3!" sticker over the board, then the minigame */
+			HG.phase = "teams";
+			HG.seq++;
+			HG.ev = { title: vsLabel(split.tm), text: "", vs: split.tm, tc: split.tc, n: rid() };
+			HG.msg = `Team minigame: ${vsLabel(split.tm)}`;
+			push();
+			later(() => startMinigame(null, g, split), 3000);
+			return;
+		}
 	}
+	if (forceG && !split && MG[g].team) split = forcedSplit(g);
 	let simDev = "host";
 	const tvg = !HG.tv ? 0 : tvPlayable(g) ? 1 : "split";
 	if (tvg === 1) {
@@ -1372,10 +1443,13 @@ function startMinigame(duel, forceG) {
 		duel: !!duel,
 		simDev,
 		tv: tvg,
+		team: split ? split.mode : null,
+		tm: split ? split.tm : null,
+		tc: split ? split.tc : null,
 	};
 	if (!GFX.ok)
 		HG.players.forEach((p) => {
-			if (p.bot && inMg(p.key)) HG.mg.res[p.key] = MG[g].botScore();
+			if (p.bot && inMg(p.key)) HG.mg.res[p.key] = MG[g].botScore(split ? split.tm[p.key] : undefined);
 		});
 	HG.msg = duel ? `Duel: ${MG[g].name}!` : `Minigame: ${MG[g].name}!`;
 	mgDeadline = Infinity;
@@ -1409,7 +1483,7 @@ function finishMg() {
 		res = HG.mg.res,
 		part = HG.players.filter((p) => inMg(p.key));
 	part.forEach((p) => {
-		if (p.bot && !(p.key in res)) res[p.key] = def.botScore();
+		if (p.bot && !(p.key in res)) res[p.key] = def.botScore(HG.mg.tm ? HG.mg.tm[p.key] : undefined);
 	});
 	if (HG.mg.duel) {
 		const [a, b] = part,
@@ -1443,6 +1517,10 @@ function finishMg() {
 		later(afterMg, 6500);
 		return;
 	}
+	if (HG.mg.team) {
+		finishTeamMg(def, res, part);
+		return;
+	}
 	const rows = part.map((p) => ({ k: p.key, s: p.key in res ? res[p.key] : null }));
 	const hasS = rows.filter((r) => r.s !== null).sort((a, b) => (def.hi ? b.s - a.s : a.s - b.s));
 	const AW = [10, 6, 4, 2, 2, 2, 2, 2],
@@ -1459,6 +1537,53 @@ function finishMg() {
 	HG.phase = "mgres";
 	HG.seq++;
 	HG.msg = "Minigame results are in.";
+	push();
+	later(afterMg, 9000);
+}
+/* team payout: every truck on the winning side gets TEAM_WIN coins, a draw pays everyone TEAM_DRAW. The game picks the
+   winner with def.teamWin(res, tm) → 0 | 1 | -1 (draw); by default the side with the best single score wins */
+const TEAM_WIN = 10,
+	TEAM_DRAW = 3;
+const sideName = (mg, s) =>
+	mg.team === "1v3" && Object.values(mg.tm).filter((x) => x === s).length === 1
+		? (P_(Object.keys(mg.tm).find((k) => mg.tm[k] === s)) || {}).name || "The solo truck"
+		: `${mg.tc[s] === SIDE_COL[0] ? "Blue" : "Red"} team`;
+function finishTeamMg(def, res, part) {
+	const mg = HG.mg,
+		tm = mg.tm,
+		better = (a, b) => (def.hi ? a > b : a < b);
+	let w = -1;
+	if (def.teamWin) w = def.teamWin(res, tm);
+	else {
+		const best = [null, null];
+		part.forEach((p) => {
+			const s = tm[p.key],
+				v = res[p.key];
+			if (v !== undefined && (best[s] === null || better(v, best[s]))) best[s] = v;
+		});
+		if (best[0] !== null && (best[1] === null || better(best[0], best[1]))) w = 0;
+		else if (best[1] !== null && (best[0] === null || better(best[1], best[0]))) w = 1;
+	}
+	const aw = {};
+	part.forEach((p) => (aw[p.key] = w < 0 ? TEAM_DRAW : tm[p.key] === w ? TEAM_WIN : 0));
+	if (!mg.prac) HG.players.forEach((p) => (p.coins += aw[p.key] || 0));
+	const first = w < 0 ? 0 : w,
+		rank = (p) => (tm[p.key] === first ? 0 : 1);
+	mg.aw = aw;
+	mg.win = w;
+	mg.order = part
+		.slice()
+		.sort(
+			(a, b) =>
+				rank(a) - rank(b) ||
+				(b.key in res) - (a.key in res) ||
+				(def.hi ? res[b.key] - res[a.key] : res[a.key] - res[b.key]) ||
+				0,
+		)
+		.map((p) => p.key);
+	HG.phase = "mgres";
+	HG.seq++;
+	HG.msg = w < 0 ? "The team minigame ends in a draw!" : `${sideName(mg, w)} wins!`;
 	push();
 	later(afterMg, 9000);
 }
@@ -1683,6 +1808,7 @@ function panelHTML() {
 			return `<div class="pan"><p>Duel in progress: ${G.mg.part.map((k) => esc((P_(k) || {}).name || "")).join(" vs ")}. Hang tight!</p></div>`;
 		return `<div class="pan"><p>${mgPending().length ? "Minigame starting…" : "Waiting for the other drivers to finish…"}</p></div>`;
 	}
+	if (G.phase === "teams") return `<div class="pan"><p>🤝 Team minigame coming up…</p></div>`;
 	if (G.phase === "rival") return `<div class="pan"><p>🧲 Magnet Mike is on the move…</p></div>`;
 	if (G.phase === "erupt") return `<div class="pan"><p>🌋 The volcano is erupting…</p></div>`;
 	if (G.phase === "turn" && c)
@@ -1707,6 +1833,7 @@ function tvPanelHTML() {
 	if (G.phase === "shop" && G.shop) return ph(G.shop.pid, "is browsing the Scrap Shop");
 	if (G.phase === "buy" && G.buy) return ph(G.buy.pid, "is at the battery factory");
 	if (G.phase === "duelpick" && G.duelPick) return ph(G.duelPick.pid, "is picking a duel opponent");
+	if (G.phase === "teams") return `<div class="pan tvst"><p>🤝 Team minigame coming up…</p></div>`;
 	if (G.phase === "rival") return `<div class="pan tvst"><p>🧲 Magnet Mike is on the move…</p></div>`;
 	if (G.phase === "erupt") return `<div class="pan tvst"><p>🌋 The volcano is erupting…</p></div>`;
 	if (G.phase === "minigame" && G.mg) {
@@ -1776,7 +1903,7 @@ const cargoHTML = (p, bs, bc) =>
 function stripHTML() {
 	const st = standings(G.players),
 		c = G.players[G.turn],
-		inTurn = !["minigame", "mgres", "rival", "erupt"].includes(G.phase);
+		inTurn = !["minigame", "mgres", "rival", "erupt", "teams"].includes(G.phase);
 	let head = "";
 	if (G.teams) {
 		const T = teamTotals();
@@ -1956,7 +2083,7 @@ function practiceHTML() {
 			.filter((k) => (kind === "special" ? MG[k].special : MG[k].kind === kind && !MG[k].special))
 			.map((k) => {
 				const d = MG[k];
-				return `<button class="pgame" data-practice="${k}"><span><b>${esc(d.name)}</b><small>${esc(d.how)}</small></span><em>${d.dur}s<br>${d.hi ? "high score" : "low score"}</em></button>`;
+				return `<button class="pgame" data-practice="${k}"><span><b>${esc(d.name)}</b><small>${esc(d.how)}</small></span><em>${d.dur}s<br>${d.team ? d.team.replace("v", " vs ") : d.hi ? "high score" : "low score"}</em></button>`;
 			})
 			.join("");
 	return `<div class="stage short"><div class="brand"><i></i>Minigame practice</div></div>
@@ -2006,9 +2133,9 @@ function startPractice(g) {
 		HG.players.push(newPlayer(rid(), "CPU " + TRUCKS[tr].name.split(" ")[0], tr, true, false));
 	}
 	MAP = JUNK;
-	HG.used = Object.keys(MG).filter((k) => k !== g);
+	HG.used = [];
 	startHostLoops();
-	startMinigame();
+	startMinigame(null, g);
 }
 document.addEventListener("click", (e) => {
 	const b = e.target.closest("button");

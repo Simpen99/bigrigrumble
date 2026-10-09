@@ -517,6 +517,7 @@ const MG = {
 		bare: true,
 		fallY: -5,
 		MUD: -2.2,
+		BOWL: 17 /* the bowl wall radius: everything round the stage scales with it (Monster Mash uses a bigger one) */,
 		how: "Ram everyone off the stage into the mud. The stage shrinks! Last truck standing wins.",
 		R: (t) => (t < 20 ? 11 : Math.max(5, 11 - (t - 20) * 0.15)),
 		/* baked props, also called by enterMg while the clouds cover the switch so their AO is ready by the start (partmodels) */
@@ -555,7 +556,7 @@ const MG = {
 			// Crusher's monster-truck arena: mud pit, ring of stands with a crowd, flags, crushed cars, fire jets, floodlights
 			const s = W.sc,
 				r = mulberry((W.mg.seed || 1) + 41),
-				R0 = 17;
+				R0 = this.BOWL;
 			const mud = new THREE.Mesh(
 				new THREE.CircleGeometry(R0 + 1, 44),
 				new THREE.MeshStandardMaterial({ color: "#4A3524", roughness: 0.28, metalness: 0.05, flatShading: true }),
@@ -742,7 +743,7 @@ const MG = {
 				if (b.t >= b.life) {
 					if (Math.random() < dt * 0.6) {
 						const a = Math.random() * 6.28,
-							r = 12 + Math.random() * 4.3;
+							r = this.BOWL - 5 + Math.random() * 4.3;
 						b.m.position.set(Math.cos(a) * r, this.MUD + 0.1, Math.sin(a) * r);
 						b.t = 0;
 						b.life = 1 + Math.random() * 1.5;
@@ -844,7 +845,7 @@ const MG = {
 				e.z += e.vz * dt;
 				e.spin = (e.spin || 0) + dt * (e.fly ? 9 : 4);
 				const d = Math.hypot(e.x, e.z) || 0.001,
-					hi = 15.3;
+					hi = this.BOWL - 1.7;
 				if (d > hi) {
 					const nx = e.x / d,
 						nz = e.z / d,
@@ -884,7 +885,7 @@ const MG = {
 				nx = e.x / d,
 				nz = e.z / d,
 				lo = this.R(Math.max(0, W.t)) * 1.04 + 1.3,
-				hi = 15.3;
+				hi = this.BOWL - 1.7;
 			if (d > hi || d < lo) {
 				const out = d > hi,
 					r = out ? hi : lo,

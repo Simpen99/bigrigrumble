@@ -30,7 +30,8 @@ export async function launch() {
 }
 
 /* open dist/index.html with three.js r128 + ConvexHull/ConvexGeometry from node_modules; resolves once GFX is ready */
-export async function openGame(browser, { width = 390, height = 844, mobile = false } = {}) {
+/* peerjs: script served in place of PeerJS (nettest's fake relay); before(p): runs before the page loads */
+export async function openGame(browser, { width = 390, height = 844, mobile = false, peerjs = "", before } = {}) {
 	const ctx = await browser.newContext({ viewport: { width, height }, hasTouch: mobile, isMobile: mobile }),
 		p = await ctx.newPage(),
 		errs = [];
@@ -47,7 +48,9 @@ export async function openGame(browser, { width = 390, height = 844, mobile = fa
 			contentType: "text/javascript",
 		}),
 	);
-	await p.route(/peerjs|qrcode/, (r) => r.fulfill({ body: "", contentType: "text/javascript" }));
+	await p.route(/peerjs/, (r) => r.fulfill({ body: peerjs, contentType: "text/javascript" }));
+	await p.route(/qrcode/, (r) => r.fulfill({ body: "", contentType: "text/javascript" }));
+	if (before) await before(p);
 	await p.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
 	await p.goto("file://" + path.join(ROOT, "dist/index.html"));
 	await p.waitForFunction(() => typeof GFX !== "undefined" && GFX.ok, null, { timeout: 30000 });

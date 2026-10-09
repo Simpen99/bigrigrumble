@@ -192,6 +192,12 @@ function noiseHit(d, vol = 0.3, f1 = 800, f2 = 200, at = 0, q = 1) {
 	g.connect(SFX.out);
 	s.start(t);
 }
+/* a short buzz on phones that support it (Android). iPhone Safari has no vibration API, not even as a home screen app */
+function buzz(ms) {
+	try {
+		if (navigator.vibrate) navigator.vibrate(ms);
+	} catch (e) {}
+}
 function sfx(n) {
 	if (!SFX.on || !SFX.ctx || SFX.ctx.state !== "running") return;
 	try {
@@ -269,6 +275,24 @@ function sfx(n) {
 			case "crush":
 				tone(90, 0.3, "sine", 0.35, 40);
 				noiseHit(0.25, 0.3, 500, 80);
+				break;
+			/* Monster Mash: tyre cannon (a deep thump with a hiss of air), pound wind-up (rising rumble), stun (dizzy chirps) */
+			case "cannon":
+				tone(140, 0.18, "sine", 0.32, 55);
+				noiseHit(0.14, 0.28, 2600, 300, 0, 1.5);
+				noiseHit(0.22, 0.1, 5000, 2000, 0.03, 1);
+				break;
+			case "windup":
+				tone(70, 0.6, "sawtooth", 0.08, 190);
+				noiseHit(0.55, 0.08, 300, 900, 0, 1);
+				break;
+			case "roar":
+				tone(55, 0.9, "sawtooth", 0.16, 38);
+				tone(82, 0.8, "square", 0.06, 50, 0.05);
+				noiseHit(0.9, 0.22, 700, 120, 0, 1);
+				break;
+			case "stun":
+				for (let i = 0; i < 3; i++) tone(1500 - i * 220, 0.08, "triangle", 0.06, 1900 - i * 220, i * 0.09);
 				break;
 		}
 	} catch (e) {}
@@ -483,6 +507,20 @@ function showMike(ev) {
 	const line = n === 1 ? `strikes <i>this round!</i>` : `strikes in <i>${n}</i> rounds`;
 	stickerShow(
 		`<div class="mike${n === 1 ? " now" : ""}"><div class="mk-st"><div class="mk-box"><span class="mk-name">Magnet Mike</span><span class="mk-big">${line}</span>${n === 1 ? `<span class="mk-sub">Someone's getting hauled away…</span>` : ""}</div>${img ? `<img alt="" src="${img}">` : ""}</div></div>`,
+	);
+}
+/* team minigame reveal: "1 vs 3!" with each side's trucks on its colour */
+function showVs(ev) {
+	const side = (s) =>
+		G.players
+			.filter((p) => ev.vs[p.key] === s)
+			.map(
+				(p) =>
+					`<span class="vs-t${p.key === me.key ? " me" : ""}"><img alt="" src="${thumb(p.truck)}"><b>${esc(p.key === me.key ? "You" : p.name)}</b></span>`,
+			)
+			.join("");
+	stickerShow(
+		`<div class="vss"><div class="vs-box"><span class="vs-big">${esc(ev.title)}</span><div class="vs-row"><div class="vs-side" style="--sc:${ev.tc[0]}">${side(0)}</div><span class="vs-x">VS</span><div class="vs-side" style="--sc:${ev.tc[1]}">${side(1)}</div></div></div></div>`,
 	);
 }
 function boardFx(bd, dt) {

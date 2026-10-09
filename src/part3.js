@@ -181,7 +181,7 @@ function hostResume(saved) {
 	startHub();
 	const p = HG.phase;
 	if (p === "lobby" || p === "over") push();
-	else if (p === "minigame") startMinigame();
+	else if (p === "minigame" || p === "teams") startMinigame();
 	else if (p === "mgres") afterMg();
 	else {
 		if (!HG.players[HG.turn]) HG.turn = 0;
@@ -403,6 +403,7 @@ function homeHTML() {
     <button class="btn ghost" data-a="practice">🎮 Minigame practice</button>
     ${FINE && GFX.ok ? `<button class="btn ghost" data-a="editor">🛠 Map editor</button>` : ""}
     <div>${statusHTML()}</div>
+    <button class="btn ghost small" data-dbg="open">🐞 Report a bug</button>
   </section>
   <details class="sheet how"><summary>How to play</summary><ul>
     <li>On your turn, pick the standard die or your truck's special die and roll.</li>
@@ -697,6 +698,11 @@ function showBattery(fx) {
 function showEvent(ev) {
 	if (ev.k === "mike") {
 		showMike(ev);
+		return;
+	}
+	if (ev.vs) {
+		sfx("fanfare");
+		showVs(ev);
 		return;
 	}
 	sfx(

@@ -278,6 +278,7 @@ body.trin #mg .m3top{animation:trtop .6s .35s ease-out both}body.trin #mg .m3lb,
 .ram{background:radial-gradient(circle at 38% 32%,#FF8A8D,#E5484D 55%,#B3262D)!important;box-shadow:0 0 0 5px #151B24,0 0 0 9px #FFC83D,0 12px 26px rgba(0,0,0,.45)!important;font-size:22px!important;letter-spacing:1px;text-shadow:0 2px 0 rgba(0,0,0,.3)}
 .ram .ramcd{position:absolute;inset:0;border-radius:50%;background:conic-gradient(rgba(16,22,31,.72) calc(var(--cd,0) * 360deg),transparent 0);pointer-events:none}.ram span{position:relative}
 .ram.cd{opacity:1!important}
+.ram.ram2{right:132px;bottom:calc(env(safe-area-inset-bottom,0px) + 34px);width:78px;height:78px;font-size:15px!important;background:radial-gradient(circle at 38% 32%,#FFE27A,#FF8A1F 55%,#C25E0B)!important}
 .ram.held{transform:translateY(4px) scale(.93);filter:brightness(.82);box-shadow:0 0 0 5px #151B24,0 0 0 9px #FFC83D,inset 0 6px 12px rgba(0,0,0,.35),0 4px 10px rgba(0,0,0,.35)!important}
 .tapall.kick{transform:translateY(2px)}
 .tp-pedal,.tp-launch,.tp-drop,.tp-jump{background:linear-gradient(180deg,#2A303C,#171C25)!important;border:2px solid #3A4150!important;box-shadow:0 10px 26px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.08);overflow:hidden;text-align:left}
@@ -565,6 +566,16 @@ body.ctl .hudbot{touch-action:none}body.ctl .hcard{touch-action:pan-y;overscroll
 .ev-t{font-family:var(--display);font-weight:400;font-size:24px;line-height:1;color:#FFC83D;text-transform:uppercase;letter-spacing:.5px}
 .ev-x{font-family:var(--body);font-weight:800;font-size:15px;line-height:1.3;color:#fff}
 .mk-big.mk-mid{font-size:20px;white-space:normal;max-width:300px;line-height:1.15}
+.vss{transform:translateY(-14vh);animation:mkIn .45s cubic-bezier(.2,1.4,.4,1) both,mkOut .35s ease-in 2.3s forwards;padding:0 12px;max-width:100%}
+.vs-box{background:#182032;border-radius:16px;padding:12px 16px 14px;display:flex;flex-direction:column;align-items:center;gap:10px;box-shadow:0 0 0 3px #FFC83D,0 0 0 6px #151B24,0 8px 0 3px #151B24,0 14px 18px rgba(0,0,0,.35)}
+.vs-big{font-family:var(--display);font-size:40px;line-height:1;color:#FFC83D;letter-spacing:1px;animation:evPop .5s cubic-bezier(.2,1.8,.4,1) .12s both}
+.vs-row{display:flex;align-items:center;gap:8px}
+.vs-side{display:flex;flex-wrap:wrap;justify-content:center;gap:6px;max-width:220px;padding:6px;border-radius:12px;background:color-mix(in srgb,var(--sc) 28%,transparent);box-shadow:inset 0 0 0 3px var(--sc)}
+.vs-t{display:flex;flex-direction:column;align-items:center;width:58px}
+.vs-t img{width:52px;height:38px;object-fit:contain}
+.vs-t b{font-family:var(--body);font-weight:800;font-size:11px;color:#fff;max-width:58px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vs-t.me b{color:#FFC83D}
+.vs-x{font-family:var(--display);font-size:22px;color:#fff}
 @keyframes evPop{0%{transform:scale(0) rotate(-40deg)}100%{transform:scale(1) rotate(0)}}
 @media (max-width:520px){.ev-box{padding:10px 14px 12px 50px}.ev-ic{width:62px;height:62px;margin-top:-31px;left:-24px;font-size:32px}.ev-t{font-size:19px}.ev-x{font-size:13px}.evs{padding-left:28px}}
 
@@ -580,6 +591,23 @@ body[data-view=lobby]::before,body[data-view=home]::before,body[data-view=join]:
 .resk{font-family:var(--display);font-weight:400;font-size:12px!important;letter-spacing:1px!important;background:#FFC83D!important;color:#151B24;padding:4px 12px 3px!important;box-shadow:0 0 0 2.5px #151B24,0 3px 0 2px #151B24}
 .reshead h2{font-family:var(--display);font-weight:400;font-size:34px!important;line-height:1.05;margin-top:12px!important;color:#fff;-webkit-text-stroke:6px #151B24;paint-order:stroke fill;text-shadow:0 4px 0 #151B24!important}
 .reslist{gap:9px!important}
+.m3team{display:inline-block;margin:6px 0 2px;padding:4px 12px;border-radius:999px;background:var(--c);color:#fff;font-weight:800;font-size:14px}
+#mmbar{position:absolute;left:10px;top:calc(env(safe-area-inset-top,0px) + 58px);background:var(--hb);border:2.5px solid #E5484D;border-radius:12px;box-shadow:0 3px 0 var(--ledge);padding:3px 8px 6px;pointer-events:none!important}
+#mmbar b{display:block;font-family:var(--display);font-weight:400;font-size:12px;letter-spacing:.5px;color:#FFC83D;text-transform:uppercase;white-space:nowrap}
+.mmhp{display:flex;gap:3px;margin-top:3px}
+.mmhp i{width:15px;height:10px;border-radius:3px;background:#3A4150;box-shadow:inset 0 -2px 0 rgba(0,0,0,.25)}
+.mmhp i.on{background:#E5484D}
+#mmbar.rage{border-color:#FF8A1F}
+#mmbar.rage .mmhp i.on{background:#FF8A1F}
+#mmbar.hit{animation:mmHit .35s ease-out}
+@keyframes mmHit{0%{transform:scale(1.15) rotate(-2deg)}100%{transform:none}}
+#dbgp{position:fixed;inset:0;z-index:200;background:rgba(10,14,20,.88);display:flex;align-items:center;justify-content:center;padding:14px}
+.dbgbox{background:#182032;color:#fff;border-radius:16px;width:100%;max-width:520px;max-height:92vh;overflow:auto;padding:14px;box-shadow:0 0 0 3px #FFC83D;display:grid;gap:10px}
+.dbgbox h2{margin:0;font-size:20px}
+.dbgbox img{width:100%;border-radius:10px;display:block}
+#dbgtx{width:100%;height:140px;font:11px/1.35 ui-monospace,Menlo,monospace;background:#0F1520;color:#CFD8E3;border:1px solid #3A4150;border-radius:10px;padding:8px;resize:vertical}
+.dbgbox .row{display:flex;gap:8px;flex-wrap:wrap}
+.reswin{display:inline-block;margin:10px 0 0;font-family:var(--display);font-size:18px;color:#151B24;background:var(--c);padding:5px 14px 4px;border-radius:999px;box-shadow:0 0 0 2.5px #151B24,0 3px 0 2px #151B24}
 .reslist li{background:#243049!important;border:2.5px solid var(--c,#3A4150);border-radius:14px!important;padding:6px 10px 6px 6px!important;box-shadow:0 4px 0 #151B24}
 .reslist li.p1{background:linear-gradient(100deg,rgba(255,200,61,.22),#243049 60%)!important}
 .reslist li.you{box-shadow:0 0 0 3px #FFC83D,0 4px 0 3px #151B24!important}
@@ -682,6 +710,37 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <script>
 "use strict";
+/* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
+const BUILD = "2026-10-09 02:24 d9793c7";
+const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
+(() => {
+	const add = (msg, src, line, col, stack) => {
+		DBG.errs.push({
+			at: Date.now(),
+			msg: String(msg).slice(0, 300),
+			where: src ? `${String(src).split("/").pop().split("?")[0]}:${line}:${col}` : "",
+			stack: stack ? String(stack).split("\n").slice(0, 4).join(" | ").slice(0, 400) : "",
+		});
+		if (DBG.errs.length > 15) DBG.errs.shift();
+	};
+	addEventListener(
+		"error",
+		(e) => {
+			const t = e.target;
+			if (t && t !== window && (t.src || t.href)) add("failed to load " + (t.src || t.href).slice(0, 120));
+			else add(e.message, e.filename, e.lineno, e.colno, e.error && e.error.stack);
+		},
+		true,
+	);
+	addEventListener("unhandledrejection", (e) =>
+		add("unhandled promise: " + ((e.reason && e.reason.message) || e.reason), "", 0, 0, e.reason && e.reason.stack),
+	);
+	const ce = console.error.bind(console);
+	console.error = (...a) => {
+		add("console.error: " + a.map((x) => (x && x.message) || String(x)).join(" "), "", 0, 0, a[0] && a[0].stack);
+		ce(...a);
+	};
+})();
 const PRICE = 20,
 	START_COINS = 10,
 	N = 32;
@@ -1662,6 +1721,8 @@ function gfxInit() {
 			r.render = (s, c) => {
 				if (s && s.isScene) gfxLook(s);
 				rr(s, c);
+				/* bug report screenshot: grab the frame right after it reaches the screen (no preserveDrawingBuffer needed) */
+				if (DBG.want && r.getRenderTarget() === null) dbgGrab(r.domElement);
 			};
 		}
 		GFX.cam = new THREE.PerspectiveCamera(40, 1, 0.5, 240);
@@ -1824,7 +1885,8 @@ function chamferPrism(P, d, r, cs) {
    catwalk, loads, roll bars, roof ornaments), stops parts that swing over the roof, and sets userData.mount =
    {x, y, s, host}: where the rig sits (truck coords, front at +x), its scale, and the group to add it to */
 function buildTruck(i, mode) {
-	const hose = mode === "hose";
+	const hose = mode === "hose",
+		mon = mode === "monster";
 	const B = (w, h, d, c, x, y, z, o) => {
 		let sq = null;
 		if (o && o.sq) {
@@ -1832,6 +1894,11 @@ function buildTruck(i, mode) {
 			o = Object.assign({}, o);
 			delete o.sq;
 			if (!Object.keys(o).length) o = undefined;
+		}
+		/* monster mode: every headlight becomes a red glowing eye */
+		if (mon && o === lamp) {
+			c = "#D81E1E";
+			o = MON.EYE;
 		}
 		const mn = Math.min(w, h, d),
 			r = Math.min(0.075, mn * 0.2),
@@ -1847,7 +1914,7 @@ function buildTruck(i, mode) {
 		HOOD = { sq: ["nx", "ny"] };
 	const t = TRUCKS[i] || TRUCKS[0],
 		g = new THREE.Group(),
-		c = t.color,
+		c = mon ? "#" + new THREE.Color(t.color).lerp(new THREE.Color("#1B1E26"), 0.22).getHexString() : t.color,
 		a = t.accent,
 		D = "#353A46",
 		GL = "#2F3B52",
@@ -1874,19 +1941,22 @@ function buildTruck(i, mode) {
 		g.add(q);
 		return q;
 	};
+	const monAx = [];
 	const wheels = (xs, r = 0.3, z = W / 2) =>
-		xs.forEach((x) =>
-			[-1, 1].forEach((s) => {
-				const w = Cy(r, r, 0.3, 16, "#2A2E36", 0, 0, 0);
-				w.rotation.x = Math.PI / 2;
-				const h = Cy(r * 0.6, r * 0.6, 0.32, 12, "#E3E6EB", 0, 0, 0);
-				h.rotation.x = Math.PI / 2;
-				const cp = Cy(r * 0.22, r * 0.22, 0.36, 8, "#9AA3AE", 0, 0, 0);
-				cp.rotation.x = Math.PI / 2;
-				const sp = new THREE.Mesh(new THREE.BoxGeometry(r * 1.05, 0.05, 0.34), M("#C3CAD4"));
-				wheelsL.push({ g: grp(x, r, s * z, w, h, cp, sp), r });
-			}),
-		);
+		mon
+			? monAx.push(...xs)
+			: xs.forEach((x) =>
+					[-1, 1].forEach((s) => {
+						const w = Cy(r, r, 0.3, 16, "#2A2E36", 0, 0, 0);
+						w.rotation.x = Math.PI / 2;
+						const h = Cy(r * 0.6, r * 0.6, 0.32, 12, "#E3E6EB", 0, 0, 0);
+						h.rotation.x = Math.PI / 2;
+						const cp = Cy(r * 0.22, r * 0.22, 0.36, 8, "#9AA3AE", 0, 0, 0);
+						cp.rotation.x = Math.PI / 2;
+						const sp = new THREE.Mesh(new THREE.BoxGeometry(r * 1.05, 0.05, 0.34), M("#C3CAD4"));
+						wheelsL.push({ g: grp(x, r, s * z, w, h, cp, sp), r });
+					}),
+				);
 	const chassis = (l = 2.1, x = 0) => {
 		tailX = x - l / 2;
 		add(B(l, 0.2, W * 0.78, D, x, 0.42, 0));
@@ -2385,6 +2455,7 @@ function buildTruck(i, mode) {
 		l2.position.set(tailX - 0.075, tailY + 0.01, -W * 0.33);
 		host.add(bp, l1, l2);
 	}
+	if (mon) monsterize(g, monAx, anims, wheelsL, t.kind === "monster");
 	{
 		/* paint (body and accent colour) gets its own materials per truck, tagged for the new look's slight shine (lookEnv) */
 		const pc = [c, a].map((x) => new THREE.Color(x).getHex()),
@@ -2411,6 +2482,164 @@ function buildTruck(i, mode) {
 	}
 	mergeTruck(g);
 	return g;
+}
+/* monster mode (Monster Mash's boss): the truck's own body, paint a shade darker, lifted on long shocks over huge
+   treaded tyres with spiked hubs, a toothed bull bar, red glowing eyes under angry brows, and exhaust stacks with flames */
+const MON = { R: 0.62, DY: 0.7, EYE: { emissive: "#FF2A1A", emissiveIntensity: 0.9 } };
+function monsterize(g, xs, anims, wheelsL, own) {
+	const DY = own ? 0.2 : MON.DY,
+		R = MON.R,
+		D = "#353A46",
+		ST = "#4A525C",
+		CH = "#C9CED8",
+		BONE = "#E8E2D0",
+		W2 = 0.55,
+		ZW = W2 + 0.27,
+		lift = new THREE.Group();
+	lift.position.y = DY;
+	[...g.children].forEach((o) => lift.add(o));
+	g.add(lift);
+	g.userData.lift = lift;
+	g.updateMatrixWorld(true);
+	const bb = new THREE.Box3().setFromObject(lift),
+		fx = bb.max.x,
+		top = bb.max.y - DY,
+		add = (p, ...m) => m.forEach((x) => p.add(x)),
+		cyl = (rt, rb, h, n, col, x, y, z, o) => Cy(rt, rb, h, n, col, x, y, z, o);
+	/* axles: close tandem axles share one big tyre, and the two ends stay a tyre apart */
+	const ax = [];
+	xs.slice()
+		.sort((a, b) => a - b)
+		.forEach((x) => {
+			const l = ax[ax.length - 1];
+			if (l && x - l[l.length - 1] < 1.2) l.push(x);
+			else ax.push([x]);
+		});
+	let axles = ax.map((l) => l.reduce((a, b) => a + b, 0) / l.length);
+	if (axles.length === 1) axles = [axles[0] - 0.7, axles[0] + 0.7];
+	if (axles.length === 2 && axles[1] - axles[0] < 1.34) {
+		const m = (axles[0] + axles[1]) / 2;
+		axles = [m - 0.67, m + 0.67];
+	}
+	axles.forEach((x) => {
+		/* axle beam, and per side a coil-over shock from the axle up to the frame */
+		const beam = cyl(0.09, 0.09, ZW * 2, 8, D, x, R, 0);
+		beam.rotation.x = Math.PI / 2;
+		g.add(beam);
+		const bot = 0.3 + DY;
+		[-1, 1].forEach((sd) => {
+			const zz = sd * 0.4,
+				h = bot - R,
+				rod = cyl(0.035, 0.035, h + 0.1, 6, CH, x, R + h / 2, zz),
+				spr = cyl(0.085, 0.085, h * 0.55, 8, "#FFC83D", x, R + h * 0.55, zz),
+				capT = cyl(0.07, 0.07, 0.08, 8, D, x, bot - 0.02, zz),
+				capB = cyl(0.07, 0.07, 0.08, 8, D, x, R + 0.1, zz);
+			add(g, rod, spr, capT, capB);
+			/* the tyre: tread, dark rim and cap stay still (merged), the tread blocks, spike and bolts turn */
+			const z = sd * ZW,
+				wg = new THREE.Group();
+			wg.position.set(x, R, z);
+			const tyre = Cy(R, R, 0.48, 14, "#2A2E36", 0, 0, 0),
+				rim = Cy(R * 0.56, R * 0.56, 0.5, 10, "#3D424C", 0, 0, 0),
+				cap = Cy(R * 0.3, R * 0.3, 0.54, 8, CH, 0, 0, 0);
+			[tyre, rim, cap].forEach((m) => (m.rotation.x = Math.PI / 2));
+			wg.add(tyre, rim, cap);
+			for (let i = 0; i < 14; i++) {
+				const a = (i / 14) * Math.PI * 2,
+					b = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.1, 0.46), M("#30343C"));
+				b.position.set(Math.cos(a) * (R + 0.03), Math.sin(a) * (R + 0.03), 0);
+				b.rotation.z = a + Math.PI / 2;
+				b.castShadow = true;
+				wg.add(b);
+			}
+			const sp = Cy(0, 0.1, 0.3, 6, CH, 0, 0, sd * 0.42);
+			sp.rotation.x = (sd * Math.PI) / 2;
+			wg.add(sp);
+			for (let i = 0; i < 5; i++) {
+				const a = (i / 5) * Math.PI * 2,
+					bt = Cy(0.04, 0.04, 0.06, 6, "#E3E6EB", Math.cos(a) * 0.24, Math.sin(a) * 0.24, sd * 0.28);
+				bt.rotation.x = Math.PI / 2;
+				wg.add(bt);
+			}
+			g.add(wg);
+			wheelsL.push({ g: wg, r: R });
+		});
+	});
+	/* toothed bull bar = the mouth: the upper bar with fangs is fixed, the lower bar with teeth is a jaw hinged at the
+	   back (userData.jaw, rotation.z < 0 opens it), a dark throat between them. userData.mouth = where things come out */
+	const bx = fx + 0.12,
+		jaw = new THREE.Group();
+	add(
+		lift,
+		B_(0.1, 0.1, 1.2, ST, bx, 0.58, 0),
+		B_(0.08, 0.32, 0.08, ST, bx, 0.46, 0.44),
+		B_(0.08, 0.32, 0.08, ST, bx, 0.46, -0.44),
+		B_(0.14, 0.08, 0.08, D, fx + 0.02, 0.46, 0.3),
+		B_(0.14, 0.08, 0.08, D, fx + 0.02, 0.46, -0.3),
+		B_(0.12, 0.08, 0.08, D, fx + 0.02, 0.27, 0.56),
+		B_(0.12, 0.08, 0.08, D, fx + 0.02, 0.27, -0.56),
+		B_(0.04, 0.28, 0.86, "#4A1418", fx + 0.06, 0.41, 0),
+	);
+	jaw.position.set(fx + 0.04, 0.27, 0);
+	jaw.add(
+		B_(0.1, 0.1, 1.2, ST, bx - fx - 0.04, -0.07, 0),
+		B_(0.14, 0.06, 0.06, ST, 0.02, -0.04, 0.53),
+		B_(0.14, 0.06, 0.06, ST, 0.02, -0.04, -0.53),
+	);
+	[-0.36, -0.18, 0, 0.18, 0.36].forEach((z) => jaw.add(cyl(0, 0.05, 0.18, 4, BONE, bx - fx - 0.04, 0.07, z)));
+	lift.add(jaw);
+	g.userData.jaw = jaw;
+	g.userData.mouth = new THREE.Vector3(bx, 0.41 + DY, 0);
+	[-0.27, -0.09, 0.09, 0.27].forEach((z) => {
+		const f = cyl(0, 0.05, 0.18, 4, BONE, bx, 0.44, z);
+		f.rotation.x = Math.PI;
+		lift.add(f);
+	});
+	[-0.5, 0.5].forEach((z) => {
+		const k = cyl(0, 0.06, 0.26, 5, CH, bx + 0.17, 0.58, z);
+		k.rotation.z = -Math.PI / 2;
+		lift.add(k);
+	});
+	/* angry brows over the eyes that look forward */
+	const eyes = [];
+	lift.traverse((o) => {
+		if (o.isMesh && o.material && o.material.emissive && o.material.emissive.getHex() === 0xff2a1a) eyes.push(o);
+	});
+	eyes.forEach((o) => {
+		const p = lift.worldToLocal(o.getWorldPosition(new THREE.Vector3()));
+		if (p.x < fx - 0.4 || Math.abs(p.z) < 0.15) return;
+		o.scale.set(1, 1.6, 1.35);
+		const br = B_(0.07, 0.05, 0.3, "#1D2230", p.x + 0.03, p.y + 0.13, p.z);
+		br.rotation.x = -Math.sign(p.z) * 0.45;
+		lift.add(br);
+	});
+	/* exhaust stacks behind the cab, sooty tips, flickering flames */
+	const ex = fx - 0.9,
+		ht = Math.min(Math.max(top + 0.05, 1.2), 1.75);
+	[-1, 1].forEach((sd) => {
+		const z = sd * (W2 + 0.1);
+		add(
+			lift,
+			cyl(0.08, 0.08, ht - 0.45, 8, CH, ex, 0.45 + (ht - 0.45) / 2, z),
+			cyl(0.1, 0.09, 0.1, 8, "#2E323A", ex, ht + 0.03, z),
+			B_(0.06, 0.06, 0.12, D, ex, 0.75, sd * (W2 + 0.03)),
+		);
+		const fl = cyl(0, 0.09, 0.24, 6, "#FF6A1F", ex, ht + 0.2, z, { emissive: "#FF4A10", emissiveIntensity: 1.6 });
+		fl.userData.dyn = true;
+		(g.userData.flames || (g.userData.flames = [])).push(fl);
+		lift.add(fl);
+		anims.push((tm) => {
+			const k = 0.75 + Math.abs(Math.sin(tm * 17 + sd)) * 0.5;
+			fl.scale.set(1, k, 1);
+			fl.position.y = ht + 0.08 + 0.12 * k;
+		});
+	});
+}
+/* plain box for the monster kit (no chamfer: small parts stay crisp) */
+function B_(w, h, d, c, x, y, z) {
+	const m = mesh(new THREE.BoxGeometry(w, h, d), c);
+	m.position.set(x, y, z);
+	return m;
 }
 /* fewer draw calls: inside every group, the static meshes that share a material become one mesh (a truck drops from
    50-70 meshes to about 15, and the shadow pass with it). Meshes with userData (dyn: moved or toggled on their own)
@@ -6341,7 +6570,7 @@ function stepBoard(dt, time) {
 	});
 	const cur = ps[G.turn],
 		ct = cur && GFX.tok[cur.key],
-		inMg = G.phase === "minigame" || G.phase === "mgres";
+		inMg = G.phase === "minigame" || G.phase === "mgres" || G.phase === "teams";
 	stepBadgeFor(bd, ct, time);
 	bd.hl.visible = !!ct && !inMg;
 	if (ct) {
@@ -7360,6 +7589,7 @@ addEventListener("keydown", (e) => {
 			if (!e.repeat) W.inp.boost = true;
 			W.inp.hold = true;
 		}
+		if (k === "e" && W.def.btn2) W.inp.b2 = true;
 	} else if ((k === " " || k === "enter" || k === "w" || k === "arrowup") && W.t >= 0 && !W.me.d && W.def.tap)
 		W.def.tap(W, W.me);
 });
@@ -7564,6 +7794,12 @@ function noiseHit(d, vol = 0.3, f1 = 800, f2 = 200, at = 0, q = 1) {
 	g.connect(SFX.out);
 	s.start(t);
 }
+/* a short buzz on phones that support it (Android). iPhone Safari has no vibration API, not even as a home screen app */
+function buzz(ms) {
+	try {
+		if (navigator.vibrate) navigator.vibrate(ms);
+	} catch (e) {}
+}
 function sfx(n) {
 	if (!SFX.on || !SFX.ctx || SFX.ctx.state !== "running") return;
 	try {
@@ -7641,6 +7877,24 @@ function sfx(n) {
 			case "crush":
 				tone(90, 0.3, "sine", 0.35, 40);
 				noiseHit(0.25, 0.3, 500, 80);
+				break;
+			/* Monster Mash: tyre cannon (a deep thump with a hiss of air), pound wind-up (rising rumble), stun (dizzy chirps) */
+			case "cannon":
+				tone(140, 0.18, "sine", 0.32, 55);
+				noiseHit(0.14, 0.28, 2600, 300, 0, 1.5);
+				noiseHit(0.22, 0.1, 5000, 2000, 0.03, 1);
+				break;
+			case "windup":
+				tone(70, 0.6, "sawtooth", 0.08, 190);
+				noiseHit(0.55, 0.08, 300, 900, 0, 1);
+				break;
+			case "roar":
+				tone(55, 0.9, "sawtooth", 0.16, 38);
+				tone(82, 0.8, "square", 0.06, 50, 0.05);
+				noiseHit(0.9, 0.22, 700, 120, 0, 1);
+				break;
+			case "stun":
+				for (let i = 0; i < 3; i++) tone(1500 - i * 220, 0.08, "triangle", 0.06, 1900 - i * 220, i * 0.09);
 				break;
 		}
 	} catch (e) {}
@@ -7855,6 +8109,20 @@ function showMike(ev) {
 	const line = n === 1 ? `strikes <i>this round!</i>` : `strikes in <i>${n}</i> rounds`;
 	stickerShow(
 		`<div class="mike${n === 1 ? " now" : ""}"><div class="mk-st"><div class="mk-box"><span class="mk-name">Magnet Mike</span><span class="mk-big">${line}</span>${n === 1 ? `<span class="mk-sub">Someone's getting hauled away…</span>` : ""}</div>${img ? `<img alt="" src="${img}">` : ""}</div></div>`,
+	);
+}
+/* team minigame reveal: "1 vs 3!" with each side's trucks on its colour */
+function showVs(ev) {
+	const side = (s) =>
+		G.players
+			.filter((p) => ev.vs[p.key] === s)
+			.map(
+				(p) =>
+					`<span class="vs-t${p.key === me.key ? " me" : ""}"><img alt="" src="${thumb(p.truck)}"><b>${esc(p.key === me.key ? "You" : p.name)}</b></span>`,
+			)
+			.join("");
+	stickerShow(
+		`<div class="vss"><div class="vs-box"><span class="vs-big">${esc(ev.title)}</span><div class="vs-row"><div class="vs-side" style="--sc:${ev.tc[0]}">${side(0)}</div><span class="vs-x">VS</span><div class="vs-side" style="--sc:${ev.tc[1]}">${side(1)}</div></div></div></div>`,
 	);
 }
 function boardFx(bd, dt) {
@@ -8567,7 +8835,7 @@ function hostResume(saved) {
 	startHub();
 	const p = HG.phase;
 	if (p === "lobby" || p === "over") push();
-	else if (p === "minigame") startMinigame();
+	else if (p === "minigame" || p === "teams") startMinigame();
 	else if (p === "mgres") afterMg();
 	else {
 		if (!HG.players[HG.turn]) HG.turn = 0;
@@ -8789,6 +9057,7 @@ function homeHTML() {
     <button class="btn ghost" data-a="practice">🎮 Minigame practice</button>
     ${FINE && GFX.ok ? `<button class="btn ghost" data-a="editor">🛠 Map editor</button>` : ""}
     <div>${statusHTML()}</div>
+    <button class="btn ghost small" data-dbg="open">🐞 Report a bug</button>
   </section>
   <details class="sheet how"><summary>How to play</summary><ul>
     <li>On your turn, pick the standard die or your truck's special die and roll.</li>
@@ -9083,6 +9352,11 @@ function showBattery(fx) {
 function showEvent(ev) {
 	if (ev.k === "mike") {
 		showMike(ev);
+		return;
+	}
+	if (ev.vs) {
+		sfx("fanfare");
+		showVs(ev);
 		return;
 	}
 	sfx(
@@ -10426,21 +10700,92 @@ function eruption(done) {
 		later(done, 3200);
 	}, 3800);
 }
-function startMinigame(duel, forceG) {
+/* team minigames (Mario Party style): each truck's side is the colour of the space it stands on (blue or red, any other
+   space is a coin flip). 4+ trucks split 1 vs 3 (1 vs N) or 2 vs 2 (any even-ish split) pick a game from that pool;
+   everyone on one colour (or board team mode, or fewer than 4 trucks) plays free-for-all.
+   Returns {mode, tm: {key: side}, tc: [side colours]}, side 0 = the solo truck in a 1 vs N game. */
+const SIDE_COL = ["#2F7DE1", "#E5484D"];
+function spaceSplit() {
+	const ps = HG.players;
+	if (HG.teams || ps.length < 4) return null;
+	const tm = {};
+	ps.forEach((p) => {
+		const n = MAP.nodes[p.pos],
+			t = n && n.t;
+		tm[p.key] = t === "B" ? 0 : t === "R" ? 1 : rnd(2);
+	});
+	const n1 = ps.filter((p) => tm[p.key] === 1).length,
+		n0 = ps.length - n1;
+	if (!n0 || !n1) return null;
+	const mode = Math.min(n0, n1) === 1 ? "1v3" : "2v2";
+	const tc = SIDE_COL.slice();
+	if (mode === "1v3" && n1 === 1) {
+		ps.forEach((p) => (tm[p.key] = 1 - tm[p.key]));
+		tc.reverse();
+	}
+	return { mode, tm, tc };
+}
+/* a forced team game (practice, TV practice): the solo truck is random (the host's own truck half the time), the rest split evenly */
+var TEST_SIDE = null;
+function forcedSplit(g) {
+	const mode = MG[g].team,
+		ps = HG.players;
+	if (!mode || ps.length < 2) return null;
+	const tm = {},
+		hum = ps.find((p) => p.key === me.key) || ps.find((p) => !p.bot),
+		order = ps.slice().sort(() => Math.random() - 0.5);
+	if (mode === "1v3") {
+		/* TEST_SIDE (tools/watch.mjs --side, nettest.mjs --solo) puts the host's truck on side 0 or 1, or names the solo player's key */
+		const others = order.filter((p) => p !== hum),
+			solo =
+				typeof TEST_SIDE === "string" && ps.some((p) => p.key === TEST_SIDE)
+					? ps.find((p) => p.key === TEST_SIDE)
+					: TEST_SIDE === 0 && hum
+						? hum
+						: TEST_SIDE === 1
+							? others[0]
+							: hum && Math.random() < 0.5
+								? hum
+								: order[0];
+		ps.forEach((p) => (tm[p.key] = p === solo ? 0 : 1));
+	} else order.forEach((p, i) => (tm[p.key] = i % 2));
+	return { mode, tm, tc: SIDE_COL.slice() };
+}
+const vsLabel = (tm) => {
+	const n0 = Object.values(tm).filter((s) => s === 0).length;
+	return `${n0} vs ${Object.keys(tm).length - n0}!`;
+};
+function startMinigame(duel, forceG, split) {
 	let g;
 	if (forceG) g = forceG;
 	else if (duel) g = DUEL_POOL[rnd(DUEL_POOL.length)];
 	else {
 		HG.used = HG.used || [];
-		let pool = Object.keys(MG).filter((k) => !HG.used.includes(k));
+		/* never the same game twice in a row: with a small team pool that falls back to free-for-all */
+		const pick = (mode) => Object.keys(MG).filter((k) => (MG[k].team || null) === mode && k !== HG.lastMg);
+		split = spaceSplit();
+		if (split && !pick(split.mode).length) split = null;
+		const all = pick(split ? split.mode : null);
+		let pool = all.filter((k) => !HG.used.includes(k));
 		if (!pool.length) {
-			HG.used = [];
-			pool = Object.keys(MG);
+			HG.used = HG.used.filter((k) => !all.includes(k));
+			pool = all;
 		}
 		g = pool[rnd(pool.length)];
 		HG.used.push(g);
 		HG.lastMg = g;
+		if (split) {
+			/* the reveal: a "1 vs 3!" sticker over the board, then the minigame */
+			HG.phase = "teams";
+			HG.seq++;
+			HG.ev = { title: vsLabel(split.tm), text: "", vs: split.tm, tc: split.tc, n: rid() };
+			HG.msg = `Team minigame: ${vsLabel(split.tm)}`;
+			push();
+			later(() => startMinigame(null, g, split), 3000);
+			return;
+		}
 	}
+	if (forceG && !split && MG[g].team) split = forcedSplit(g);
 	let simDev = "host";
 	const tvg = !HG.tv ? 0 : tvPlayable(g) ? 1 : "split";
 	if (tvg === 1) {
@@ -10470,10 +10815,13 @@ function startMinigame(duel, forceG) {
 		duel: !!duel,
 		simDev,
 		tv: tvg,
+		team: split ? split.mode : null,
+		tm: split ? split.tm : null,
+		tc: split ? split.tc : null,
 	};
 	if (!GFX.ok)
 		HG.players.forEach((p) => {
-			if (p.bot && inMg(p.key)) HG.mg.res[p.key] = MG[g].botScore();
+			if (p.bot && inMg(p.key)) HG.mg.res[p.key] = MG[g].botScore(split ? split.tm[p.key] : undefined);
 		});
 	HG.msg = duel ? `Duel: ${MG[g].name}!` : `Minigame: ${MG[g].name}!`;
 	mgDeadline = Infinity;
@@ -10507,7 +10855,7 @@ function finishMg() {
 		res = HG.mg.res,
 		part = HG.players.filter((p) => inMg(p.key));
 	part.forEach((p) => {
-		if (p.bot && !(p.key in res)) res[p.key] = def.botScore();
+		if (p.bot && !(p.key in res)) res[p.key] = def.botScore(HG.mg.tm ? HG.mg.tm[p.key] : undefined);
 	});
 	if (HG.mg.duel) {
 		const [a, b] = part,
@@ -10541,6 +10889,10 @@ function finishMg() {
 		later(afterMg, 6500);
 		return;
 	}
+	if (HG.mg.team) {
+		finishTeamMg(def, res, part);
+		return;
+	}
 	const rows = part.map((p) => ({ k: p.key, s: p.key in res ? res[p.key] : null }));
 	const hasS = rows.filter((r) => r.s !== null).sort((a, b) => (def.hi ? b.s - a.s : a.s - b.s));
 	const AW = [10, 6, 4, 2, 2, 2, 2, 2],
@@ -10557,6 +10909,53 @@ function finishMg() {
 	HG.phase = "mgres";
 	HG.seq++;
 	HG.msg = "Minigame results are in.";
+	push();
+	later(afterMg, 9000);
+}
+/* team payout: every truck on the winning side gets TEAM_WIN coins, a draw pays everyone TEAM_DRAW. The game picks the
+   winner with def.teamWin(res, tm) → 0 | 1 | -1 (draw); by default the side with the best single score wins */
+const TEAM_WIN = 10,
+	TEAM_DRAW = 3;
+const sideName = (mg, s) =>
+	mg.team === "1v3" && Object.values(mg.tm).filter((x) => x === s).length === 1
+		? (P_(Object.keys(mg.tm).find((k) => mg.tm[k] === s)) || {}).name || "The solo truck"
+		: `${mg.tc[s] === SIDE_COL[0] ? "Blue" : "Red"} team`;
+function finishTeamMg(def, res, part) {
+	const mg = HG.mg,
+		tm = mg.tm,
+		better = (a, b) => (def.hi ? a > b : a < b);
+	let w = -1;
+	if (def.teamWin) w = def.teamWin(res, tm);
+	else {
+		const best = [null, null];
+		part.forEach((p) => {
+			const s = tm[p.key],
+				v = res[p.key];
+			if (v !== undefined && (best[s] === null || better(v, best[s]))) best[s] = v;
+		});
+		if (best[0] !== null && (best[1] === null || better(best[0], best[1]))) w = 0;
+		else if (best[1] !== null && (best[0] === null || better(best[1], best[0]))) w = 1;
+	}
+	const aw = {};
+	part.forEach((p) => (aw[p.key] = w < 0 ? TEAM_DRAW : tm[p.key] === w ? TEAM_WIN : 0));
+	if (!mg.prac) HG.players.forEach((p) => (p.coins += aw[p.key] || 0));
+	const first = w < 0 ? 0 : w,
+		rank = (p) => (tm[p.key] === first ? 0 : 1);
+	mg.aw = aw;
+	mg.win = w;
+	mg.order = part
+		.slice()
+		.sort(
+			(a, b) =>
+				rank(a) - rank(b) ||
+				(b.key in res) - (a.key in res) ||
+				(def.hi ? res[b.key] - res[a.key] : res[a.key] - res[b.key]) ||
+				0,
+		)
+		.map((p) => p.key);
+	HG.phase = "mgres";
+	HG.seq++;
+	HG.msg = w < 0 ? "The team minigame ends in a draw!" : `${sideName(mg, w)} wins!`;
 	push();
 	later(afterMg, 9000);
 }
@@ -10781,6 +11180,7 @@ function panelHTML() {
 			return `<div class="pan"><p>Duel in progress: ${G.mg.part.map((k) => esc((P_(k) || {}).name || "")).join(" vs ")}. Hang tight!</p></div>`;
 		return `<div class="pan"><p>${mgPending().length ? "Minigame starting…" : "Waiting for the other drivers to finish…"}</p></div>`;
 	}
+	if (G.phase === "teams") return `<div class="pan"><p>🤝 Team minigame coming up…</p></div>`;
 	if (G.phase === "rival") return `<div class="pan"><p>🧲 Magnet Mike is on the move…</p></div>`;
 	if (G.phase === "erupt") return `<div class="pan"><p>🌋 The volcano is erupting…</p></div>`;
 	if (G.phase === "turn" && c)
@@ -10805,6 +11205,7 @@ function tvPanelHTML() {
 	if (G.phase === "shop" && G.shop) return ph(G.shop.pid, "is browsing the Scrap Shop");
 	if (G.phase === "buy" && G.buy) return ph(G.buy.pid, "is at the battery factory");
 	if (G.phase === "duelpick" && G.duelPick) return ph(G.duelPick.pid, "is picking a duel opponent");
+	if (G.phase === "teams") return `<div class="pan tvst"><p>🤝 Team minigame coming up…</p></div>`;
 	if (G.phase === "rival") return `<div class="pan tvst"><p>🧲 Magnet Mike is on the move…</p></div>`;
 	if (G.phase === "erupt") return `<div class="pan tvst"><p>🌋 The volcano is erupting…</p></div>`;
 	if (G.phase === "minigame" && G.mg) {
@@ -10874,7 +11275,7 @@ const cargoHTML = (p, bs, bc) =>
 function stripHTML() {
 	const st = standings(G.players),
 		c = G.players[G.turn],
-		inTurn = !["minigame", "mgres", "rival", "erupt"].includes(G.phase);
+		inTurn = !["minigame", "mgres", "rival", "erupt", "teams"].includes(G.phase);
 	let head = "";
 	if (G.teams) {
 		const T = teamTotals();
@@ -11054,7 +11455,7 @@ function practiceHTML() {
 			.filter((k) => (kind === "special" ? MG[k].special : MG[k].kind === kind && !MG[k].special))
 			.map((k) => {
 				const d = MG[k];
-				return `<button class="pgame" data-practice="${k}"><span><b>${esc(d.name)}</b><small>${esc(d.how)}</small></span><em>${d.dur}s<br>${d.hi ? "high score" : "low score"}</em></button>`;
+				return `<button class="pgame" data-practice="${k}"><span><b>${esc(d.name)}</b><small>${esc(d.how)}</small></span><em>${d.dur}s<br>${d.team ? d.team.replace("v", " vs ") : d.hi ? "high score" : "low score"}</em></button>`;
 			})
 			.join("");
 	return `<div class="stage short"><div class="brand"><i></i>Minigame practice</div></div>
@@ -11104,9 +11505,9 @@ function startPractice(g) {
 		HG.players.push(newPlayer(rid(), "CPU " + TRUCKS[tr].name.split(" ")[0], tr, true, false));
 	}
 	MAP = JUNK;
-	HG.used = Object.keys(MG).filter((k) => k !== g);
+	HG.used = [];
 	startHostLoops();
-	startMinigame();
+	startMinigame(null, g);
 }
 document.addEventListener("click", (e) => {
 	const b = e.target.closest("button");
@@ -11337,16 +11738,20 @@ function setFx(fx) {
 	});
 	loadPost().catch(() => {});
 }
-function mkEnt(p, isMe, named, mode) {
+function mkEnt(p, isMe, named, mode, col) {
 	const g = new THREE.Group(),
 		tr = buildTruck(p.truck, mode);
 	tr.scale.setScalar(0.8);
 	g.add(tr);
-	const disc = Cy(0.95, 0.95, 0.05, 20, pcol(p), 0, 0.03, 0, { transparent: true, opacity: 0.4, depthWrite: false });
+	const disc = Cy(0.95, 0.95, 0.05, 20, col || pcol(p), 0, 0.03, 0, {
+		transparent: true,
+		opacity: 0.4,
+		depthWrite: false,
+	});
 	disc.castShadow = false;
 	disc.userData.disc = true; /* the player-colour disc under the truck (a game can hide it) */
 	g.add(disc);
-	const tag = nameTag(isMe && !named ? "You" : p.name, pcol(p));
+	const tag = nameTag(isMe && !named ? "You" : p.name, col || pcol(p));
 	tag.position.y = 2.5;
 	g.add(tag);
 	return {
@@ -11379,10 +11784,27 @@ const steer = (e, tx, tz, m = 1) => {
 		l = Math.hypot(dx, dz) || 1;
 	return { x: (dx / l) * m, y: (dz / l) * m, boost: false };
 };
+/* play-by-play for tools/watch.mjs: games call mgLog(W, text) and set e.lastHit = {k: cause, t: W.t} when they knock a
+   truck; the engine logs knockouts (with the cause) and finishes. Off unless a tool sets MG_LOG. */
+var MG_LOG = false;
+function mgLog(W, txt) {
+	if (!W) return;
+	const l = `${W.t.toFixed(1)} ${txt}`;
+	if (MG_LOG) (W.log || (W.log = [])).push(l);
+	/* the last 40 also go into bug reports */
+	DBG.log.push(l);
+	if (DBG.log.length > 40) DBG.log.shift();
+}
+const mgName = (e) => (e && e.p ? e.p.name.replace(/^CPU /, "") : "?");
 function eliminate(W, e) {
 	if (e.d) return;
 	e.al = false;
 	e.d = true;
+	if (MG_LOG) {
+		e.logD = true;
+		const h = e.lastHit && W.t - e.lastHit.t < 2 ? e.lastHit.k : "own fault";
+		mgLog(W, `OUT ${mgName(e)} (${h})`);
+	}
 }
 function arenaPhys(W, e, inp, dt) {
 	const def = W.def;
@@ -11397,8 +11819,8 @@ function arenaPhys(W, e, inp, dt) {
 		return;
 	}
 	if (e.al && !e.d && inp) {
-		e.vx += inp.x * 32 * dt;
-		e.vz += inp.y * 32 * dt;
+		e.vx += inp.x * 32 * (e.spd || 1) * dt;
+		e.vz += inp.y * 32 * (e.spd || 1) * dt;
 		if (inp.boost && e.bcd <= 0 && !def.aim) {
 			let dx = inp.x,
 				dz = inp.y,
@@ -11416,9 +11838,9 @@ function arenaPhys(W, e, inp, dt) {
 					l = 1;
 				}
 			}
-			e.vx += (dx / l) * 16;
-			e.vz += (dz / l) * 16;
-			e.bcd = 2;
+			e.vx += (dx / l) * 16 * (e.dashK || 1);
+			e.vz += (dz / l) * 16 * (e.dashK || 1);
+			e.bcd = e.ramCdT || 2;
 			e.boostT = 0.45;
 		}
 	}
@@ -11430,7 +11852,7 @@ function arenaPhys(W, e, inp, dt) {
 	e.vx *= damp;
 	e.vz *= damp;
 	const sp = Math.hypot(e.vx, e.vz),
-		max = e.boostT > 0 || e.slideT > 0 ? 23 : 11.5;
+		max = (e.boostT > 0 || e.slideT > 0 ? 23 : 11.5) * (e.spd || 1);
 	if (sp > max) {
 		e.vx *= max / sp;
 		e.vz *= max / sp;
@@ -11467,6 +11889,8 @@ function arenaPhys(W, e, inp, dt) {
 		if (def.deathY === undefined) eliminate(W, e);
 	}
 }
+/* per-truck tuning a game can set (Monster Mash's giant): e.rad (collision radius, 0.95), e.mass (1: heavier trucks
+   get pushed and knocked less), e.ramM (ram strength), e.spd (speed), e.ramCdT (ram cooldown, 2 s) */
 const RAMK = 17;
 function collide(W, a) {
 	if (!a.al || a.falling || a.fly) return;
@@ -11486,11 +11910,14 @@ function collide(W, a) {
 		const dx = a.x - b.x,
 			dz = a.z - b.z,
 			d = Math.hypot(dx, dz);
-		if (d > 1.9 || d < 0.001) continue;
-		const nx = dx / d,
+		const rr = (a.rad || 0.95) + (b.rad || 0.95);
+		if (d > rr || d < 0.001) continue;
+		const ma = a.mass || 1,
+			mb = b.mass || 1,
+			nx = dx / d,
 			nz = dz / d,
-			share = b.local ? 0.5 : 1,
-			ov = 1.9 - d;
+			share = b.local ? mb / (ma + mb) : Math.min(1, (2 * mb) / (ma + mb)),
+			ov = rr - d;
 		a.x += nx * ov * share;
 		a.z += nz * ov * share;
 		const rv = (b.vx - a.vx) * nx + (b.vz - a.vz) * nz,
@@ -11498,7 +11925,7 @@ function collide(W, a) {
 			bRam = b.boostT > 0 && (!cr || cr(b)),
 			aRam = a.boostT > 0 && (!cr || cr(a));
 		if (rv > 0 && !(bRam && !b.local)) {
-			const k = b.local ? 0.9 : 0.6;
+			const k = (b.local ? 0.9 : 0.6) * Math.min(1, (2 * mb) / (ma + mb));
 			a.vx += nx * rv * k;
 			a.vz += nz * rv * k;
 		}
@@ -11507,8 +11934,9 @@ function collide(W, a) {
 			if (now - (b.hitT[a.k] || 0) > 400) {
 				b.hitT[a.k] = now;
 				a.hitAng = [nx, nz];
+				a.lastHit = { k: `rammed by ${mgName(b)}`, t: W.t };
 				const D = W.def,
-					K = RAMK * (D.ramK || 1);
+					K = (RAMK * (D.ramK || 1) * (b.ramM || 1)) / ma;
 				a.vx += nx * K;
 				a.vz += nz * K;
 				a.slideT = D.ramSlide || 0.9;
@@ -11522,7 +11950,7 @@ function collide(W, a) {
 		}
 		if (!b.local && aRam && now - (a.hitT[b.k] || 0) > 400) {
 			a.hitT[b.k] = now;
-			const K = RAMK * (W.def.ramK || 1);
+			const K = RAMK * (W.def.ramK || 1) * (a.ramM || 1);
 			W.hitsOut.push({
 				k: b.k,
 				by: a.k,
@@ -11614,8 +12042,9 @@ function netApply(ps) {
 				if (e && e.local && e.al && !e.falling && !e.fly && W.t >= 0) {
 					const hl = Math.hypot(+x.x || 0, +x.z || 0) || 1;
 					e.hitAng = [(+x.x || 0) / hl, (+x.z || 0) / hl];
-					e.vx += +x.x || 0;
-					e.vz += +x.z || 0;
+					e.lastHit = { k: `rammed by ${mgName(W.ents[x.by])}`, t: W.t };
+					e.vx += (+x.x || 0) / (e.mass || 1);
+					e.vz += (+x.z || 0) / (e.mass || 1);
 					e.slideT = W.def.ramSlide || 0.9;
 					if (e.isMe) W.shake = 0.45;
 					hitFx(e, e);
@@ -11656,7 +12085,9 @@ function start3D(mg, p, localOnly, startAt, split) {
 	const sv = LS.get("trp_light", {})[mg.g];
 	if (!("sun0" in def)) def.sun0 = def.sun || null;
 	def.sun = sv && sv.sun ? sv.sun.slice() : def.sun0 || undefined;
-	const plist = mg.part ? G.players.filter((q) => mg.part.includes(q.key)) : G.players;
+	let plist = mg.part ? G.players.filter((q) => mg.part.includes(q.key)) : G.players;
+	/* team games: side 0 (the solo truck in 1 vs 3) spawns first, so def.spawn can tell the sides apart by index */
+	if (mg.tm) plist = plist.slice().sort((a, b) => (mg.tm[a.key] || 0) - (mg.tm[b.key] || 0));
 	const tv = !p;
 	W = {
 		plist,
@@ -11738,8 +12169,10 @@ function start3D(mg, p, localOnly, startAt, split) {
 	if (sv && sv.lt && sv.lt.glow) GFX.fx.bloom.th = sv.lt.glow;
 	const n = plist.length;
 	plist.forEach((q, i) => {
-		const e = mkEnt(q, !tv && q.key === p.key, !!split, def.truckMode);
+		const side = mg.tm ? mg.tm[q.key] || 0 : undefined,
+			e = mkEnt(q, !tv && q.key === p.key, !!split, def.truckMode, side === undefined ? null : mg.tc[side]);
 		e.i = i;
+		e.side = side; /* team games: 0 | 1 (0 = the solo truck in 1 vs 3) */
 		if (tv && !q.bot) {
 			e.isMe = true;
 			e.rem = true;
@@ -11995,6 +12428,13 @@ function stepMG(dt) {
 				if (e.local) e.d = true;
 			});
 	}
+	if (MG_LOG)
+		W.list.forEach((e) => {
+			if (e.local && e.d && !e.logD) {
+				e.logD = true;
+				mgLog(W, `DONE ${mgName(e)} ${e.al ? "" : "(out) "}score ${Math.round(def.final ? def.final(W, e) : e.sc)}`);
+			}
+		});
 	if (!W.tv && W.me.d && !W.submitted && W.t >= 0) finishMe();
 	if (!W.over && W.t >= 0 && (W.list.every((e) => e.gone || e.d) || W.t >= def.dur + 2)) {
 		W.over = true;
@@ -12193,10 +12633,10 @@ function openMg(mg, p) {
 		if (first) rtJoin(mg.nonce);
 		start3D(mg, p, !first, startAt);
 		box.innerHTML = `<div class="m3top"><span class="chip name">${esc(def.name)}</span><span class="chip" id="m3t"></span><span class="chip grow" id="m3s"></span>${G && G.practice ? '<button class="chip" id="m3light" aria-label="Lighting">💡</button>' : ""}</div>
-      <div class="m3lb${def.lbTop ? " top" : ""}" id="m3lb"></div><div class="m3intro" id="m3in"><h3>${esc(def.name)}</h3><p>${esc(def.how)}</p><p class="m3ctl">${def.ctrl === "stick" ? (def.stickHint ? def.stickHint(FINE) : FINE ? "WASD or arrow keys to drive, Space to ram." : "Drag anywhere to drive. Tap RAM to charge.") : esc(def.tapHint || "Tap the big button.") + (FINE ? " On a keyboard, press Space." : "")}</p>${!first ? `<p class="m3ctl">Practice run against CPU trucks. Your score still counts.</p>` : ""}</div>
+      <div class="m3lb${def.lbTop ? " top" : ""}" id="m3lb"></div><div class="m3intro" id="m3in"><h3>${esc(def.name)}</h3><p>${esc(def.how)}</p>${teamLine(mg, p, def)}<p class="m3ctl">${def.ctrl === "stick" ? (def.stickHint ? def.stickHint(FINE) : FINE ? "WASD or arrow keys to drive, Space to ram." : "Drag anywhere to drive. Tap RAM to charge.") : esc(def.tapHint || "Tap the big button.") + (FINE ? " On a keyboard, press Space." : "")}</p>${!first ? `<p class="m3ctl">Practice run against CPU trucks. Your score still counts.</p>` : ""}</div>
       <div class="m3center${def.msgTop ? " hi" : ""}"><div class="m3big" id="m3c"></div><div class="m3msg" id="m3m" hidden></div></div>
       ${first ? `<div class="m3ready" id="m3r"><h3>Get ready</h3><div id="m3rl"></div><button class="btn go" id="m3rb">I'm ready${FINE ? " (Enter)" : ""}</button><button class="btn ghost" id="m3rs" hidden style="margin-top:8px">Start without the others</button></div>` : ""}
-      ${def.ctrl === "custom" ? def.ctlHTML() : def.ctrl === "stick" ? stickHTML(def, def.aim ? "Drive" : "") : `${tapCtlHTML(mg.g, def)}`}`;
+      ${def.ctrl === "custom" ? def.ctlHTML() : def.ctrl === "stick" ? stickHTML(def, def.aim ? "Drive" : "", mg.tm ? mg.tm[p.key] : undefined) : `${tapCtlHTML(mg.g, def)}`}`;
 		wireControls(def);
 		const rb = $("#m3rb");
 		if (rb)
@@ -12222,6 +12662,18 @@ function openMg(mg, p) {
 			go(Date.now() + 3500);
 		});
 	}
+}
+/* the intro card's team line: which side this player is on (def.teamHow(side, solo) gives a game's own wording) */
+function teamLine(mg, p, def) {
+	if (!mg.tm || !p || !(p.key in mg.tm)) return "";
+	const s = mg.tm[p.key],
+		solo = mg.team === "1v3" && Object.values(mg.tm).filter((x) => x === s).length === 1,
+		txt = def.teamHow
+			? def.teamHow(s, solo)
+			: solo
+				? "You're on your own against everyone!"
+				: `You're on the ${mg.tc[s] === SIDE_COL[0] ? "Blue" : "Red"} team.`;
+	return `<p class="m3team" style="--c:${mg.tc[s]}">${esc(vsLabel(mg.tm))} ${esc(txt)}</p>`;
 }
 function syncStart() {
 	if (!W || W.startAt || W.localOnly || !G || !G.mg || G.mg.nonce !== W.mg.nonce || !G.mg.t0) return;
@@ -12815,11 +13267,14 @@ function wireLightPanel() {
 	});
 }
 /* stick controls: drive pad plus the RAM button, or (def.aim) a drive pad on the left and an aim pad on the right */
-function stickHTML(def, hint) {
+/* the main button's label and the optional second button (def.btn2(side) -> label or null), per side in team games */
+const ramLbl = (def, side) => (typeof def.ramLabel === "function" ? def.ramLabel(side) : def.ramLabel) || "RAM";
+const btn2Lbl = (def, side) => (def.btn2 ? def.btn2(side) : null);
+function stickHTML(def, hint, side) {
 	const h = hint ? `<span class="tvchint">${hint}</span>` : "";
 	return def.aim
 		? `<div class="m3pad twin" id="m3pad">${h}<div class="knob" id="knob" hidden><i></i></div></div><div class="m3pad aim" id="m3aim">${hint ? `<span class="tvchint">${esc(def.aimHint || "Aim")}</span>` : ""}<div class="knob aim" id="knob2" hidden><i></i></div></div>`
-		: `<div class="m3pad" id="m3pad">${h}<div class="knob" id="knob" hidden><i></i></div></div><button class="ram" id="ram"><i class="ramcd"></i><span>${esc(def.ramLabel || "RAM")}</span></button>`;
+		: `<div class="m3pad" id="m3pad">${h}<div class="knob" id="knob" hidden><i></i></div></div><button class="ram" id="ram"><i class="ramcd"></i><span>${esc(ramLbl(def, side))}</span></button>${btn2Lbl(def, side) ? `<button class="ram ram2" id="ram2"><i class="ramcd"></i><span>${esc(btn2Lbl(def, side))}</span></button>` : ""}`;
 }
 function wireControls(def) {
 	wireLightPanel();
@@ -12843,6 +13298,12 @@ function wireControls(def) {
 				}
 			});
 			["pointerup", "pointercancel", "pointerleave"].forEach((ev) => rb.addEventListener(ev, up));
+			const r2 = $("#ram2");
+			if (r2)
+				r2.addEventListener("pointerdown", (e) => {
+					e.preventDefault();
+					if (W) W.inp.b2 = true;
+				});
 		}
 	} else wireTap(def);
 }
@@ -12989,15 +13450,20 @@ function hud3(dt) {
 	$("#m3lb").innerHTML = rows
 		.map(
 			(e) =>
-				`<div style="--c:${pcol(e.p)}" class="${e.isMe && !W.tv ? "me" : ""} ${!e.al && def.lastStanding ? "out" : ""}"><i style="background:${pcol(e.p)}"></i><span>${esc(e.isMe && !W.tv && !W.split ? "You" : def.lbTop ? e.p.name.replace(/^CPU /, "") : e.p.name)}</span><b>${def.fmtV ? def.fmtV(Math.round(e.sc)) : def.unit === "ms" && !def.liveHi ? (e.sc / 1000).toFixed(2) : Math.round(e.sc)}</b></div>`,
+				`<div style="--c:${pcol(e.p)}" class="${e.isMe && !W.tv ? "me" : ""} ${!e.al && def.lastStanding ? "out" : ""}"><i style="background:${pcol(e.p)}"></i><span>${esc(e.isMe && !W.tv && !W.split ? "You" : def.lbTop ? e.p.name.replace(/^CPU /, "") : e.p.name)}</span><b>${def.fmtE ? def.fmtE(W, e) : def.fmtV ? def.fmtV(Math.round(e.sc)) : def.unit === "ms" && !def.liveHi ? (e.sc / 1000).toFixed(2) : Math.round(e.sc)}</b></div>`,
 		)
 		.join("");
 	const rb = $("#ram");
 	if (rb) {
-		const cd = W.def.ramCd ? W.def.ramCd(W) : Math.min(1, W.me.bcd / 2);
+		const cd = W.def.ramCd ? W.def.ramCd(W) : Math.min(1, W.me.bcd / (W.me.ramCdT || 2));
 		rb.classList.toggle("cd", W.def.ramReady ? !W.def.ramReady(W) : W.me.bcd > 0);
 		rb.style.setProperty("--cd", cd.toFixed(3));
 		rb.classList.toggle("held", !!W.inp.hold);
+	}
+	const r2 = $("#ram2");
+	if (r2 && W.def.btn2Cd) {
+		r2.style.setProperty("--cd", W.def.btn2Cd(W).toFixed(3));
+		r2.classList.toggle("cd", W.def.btn2Cd(W) > 0);
 	}
 }
 // times are stored in ms but shown as seconds with 2 decimals
@@ -13016,16 +13482,24 @@ function showMgResults(mg) {
 	const box = $("#mg");
 	box.classList.add("on", "res");
 	box.classList.remove("live");
+	/* team games: the winning side on top, each row in its side colour, rank 1 for every winner */
+	const tm = mg.team && mg.tm,
+		win = tm ? mg.win : null;
 	const rows = (mg.order || [])
 		.map((k, i) => {
 			const p = G.players.find((x) => x.key === k);
 			if (!p) return "";
-			const place = i === 0 ? "p1" : i === 1 ? "p2" : i === 2 ? "p3" : "";
-			const s = k in mg.res ? fmtScore(def, mg.res[k]) : "No score";
-			return `<li class="${place}${k === me.key ? " you" : ""}" style="--d:${i * 110 + 250}ms;--c:${pcol(p)}"><span class="rk">${i + 1}</span><img alt="" src="${thumb(p.truck)}"><span class="rn">${esc(p.name)}${k === me.key ? " (you)" : ""}<small>${s}</small></span><span class="raw ${(mg.aw[k] || 0) < 0 ? "neg" : ""}">${(mg.aw[k] || 0) < 0 ? "−" + -mg.aw[k] : "+" + (mg.aw[k] || 0)}${coinIco}</span></li>`;
+			const rk = tm ? (win < 0 || tm[k] === win ? 1 : 2) : i + 1,
+				place = tm ? (rk === 1 && win >= 0 ? "p1" : "") : i === 0 ? "p1" : i === 1 ? "p2" : i === 2 ? "p3" : "";
+			const s = !(k in mg.res)
+				? "No score"
+				: tm && def.fmtTeam
+					? def.fmtTeam(mg.res[k], tm[k])
+					: fmtScore(def, mg.res[k]);
+			return `<li class="${place}${k === me.key ? " you" : ""}" style="--d:${i * 110 + 250}ms;--c:${tm ? mg.tc[tm[k]] : pcol(p)}"><span class="rk">${rk}</span><img alt="" src="${thumb(p.truck)}"><span class="rn">${esc(p.name)}${k === me.key ? " (you)" : ""}<small>${s}</small></span><span class="raw ${(mg.aw[k] || 0) < 0 ? "neg" : ""}">${(mg.aw[k] || 0) < 0 ? "−" + -mg.aw[k] : "+" + (mg.aw[k] || 0)}${coinIco}</span></li>`;
 		})
 		.join("");
-	box.innerHTML = `<div class="resx"><div class="rescard"><div class="reshz"></div><div class="reshead"><span class="resk">${mg.duel ? "Duel results" : "Minigame results"}</span><h2>${esc(def.name)}</h2></div><ol class="reslist">${rows}</ol><p class="resnext">Round ${Math.min(G.round + 1, G.rounds)} coming up…</p></div></div>`;
+	box.innerHTML = `<div class="resx"><div class="rescard"><div class="reshz"></div><div class="reshead"><span class="resk">${mg.duel ? "Duel results" : tm ? `Team results: ${vsLabel(tm).replace("!", "")}` : "Minigame results"}</span><h2>${esc(def.name)}</h2>${tm ? `<p class="reswin" style="--c:${win < 0 ? "#FFC83D" : mg.tc[win]};color:${win < 0 ? "#151B24" : "#fff"}">${win < 0 ? "It's a draw!" : `🏆 ${esc(sideName(mg, win))} wins!`}</p>` : ""}</div><ol class="reslist">${rows}</ol><p class="resnext">Round ${Math.min(G.round + 1, G.rounds)} coming up…</p></div></div>`;
 	if (mg.prac) {
 		box.querySelector(".resnext").textContent = "Practice round, back to the lobby…";
 		box.querySelectorAll(".raw").forEach((n) => n.remove());
@@ -13244,7 +13718,7 @@ function openTvMg(mg) {
 	rtJoin(mg.nonce);
 	start3D(mg, null, false, null);
 	box.innerHTML = `<div class="m3top"><span class="chip name">${esc(def.name)}</span><span class="chip" id="m3t"></span><span class="chip grow">📱 Play on your phones</span></div>
-    <div class="m3lb${def.lbTop ? " top" : ""}" id="m3lb"></div><div class="m3intro" id="m3in"><h3>${esc(def.name)}</h3><p>${esc(def.how)}</p><p class="m3ctl">${def.aim ? "Left side of your phone drives, right side aims." : `Drag on your phone to drive. Tap ${esc(def.ramLabel || "RAM")} to ${def.ramLabel ? "use it" : "charge into someone"}.`}</p></div>
+    <div class="m3lb${def.lbTop ? " top" : ""}" id="m3lb"></div><div class="m3intro" id="m3in"><h3>${esc(def.name)}</h3><p>${esc(def.how)}</p><p class="m3ctl">${def.aim ? "Left side of your phone drives, right side aims." : `Drag on your phone to drive. Tap ${esc(ramLbl(def))} to ${def.ramLabel ? "use it" : "charge into someone"}.`}</p></div>
     <div class="m3center${def.msgTop ? " hi" : ""}"><div class="m3big" id="m3c"></div><div class="m3msg" id="m3m" hidden></div></div>
     <div class="m3ready" id="m3r"><h3>Get ready</h3><div id="m3rl"></div><button class="btn ghost" id="m3rs" hidden style="margin-top:8px">Start without the others</button></div>`;
 	$("#m3rs").addEventListener("click", () => mgStartCountdown());
@@ -13309,6 +13783,11 @@ function tvRecv() {
 			e.lastB = r.b;
 			i.boost = true;
 		}
+		if (e.lastB2 === undefined) e.lastB2 = r.b2 || 0;
+		else if ((r.b2 || 0) !== e.lastB2) {
+			e.lastB2 = r.b2 || 0;
+			i.b2 = true;
+		}
 	}
 }
 function tvSend(force) {
@@ -13331,7 +13810,7 @@ function tvSend(force) {
 function tvStatus(W, e, order) {
 	const D = W.def;
 	try {
-		const cd = D.ramCd ? D.ramCd(W) : Math.min(1, e.bcd / 2),
+		const cd = D.ramCd ? D.ramCd(W) : Math.min(1, e.bcd / (e.ramCdT || 2)),
 			rdy = D.ramReady ? D.ramReady(W) : e.bcd <= 0,
 			ld = e.lastDrop;
 		const dm =
@@ -13362,6 +13841,9 @@ function tvStatus(W, e, order) {
 			String(msg).slice(0, 90),
 			order.indexOf(e) + 1,
 			ld ? Math.round(ld.t * 10) : 0,
+			null,
+			D.btn2Cd ? Math.round(D.btn2Cd(W) * 100) / 100 : 0,
+			e.buzz || 0,
 		];
 	} catch (err) {
 		return ["", 0, 0, 0, "", 0, 0];
@@ -13404,7 +13886,7 @@ function openTvCtl(mg, p) {
 	box.innerHTML = `<div class="tvc${def.ctrl === "stick" ? " bare" : ""}" style="--c:${pcol(p)}"><div class="tvrot">🔄 Turn your phone sideways</div><div class="m3top"><span class="chip name">${esc(def.name)}</span><span class="chip" id="tvct">Waiting</span></div>
     <div class="tvcme"><img alt="" src="${thumb(p.truck)}"><div><b id="tvcs">0</b><small id="tvcr">${esc(p.name)}</small></div></div>
     <div class="tvcmsg" id="tvcm">📺 Watch the TV</div>
-    ${def.ctrl === "stick" ? stickHTML(def, def.aim ? "Drive" : "Drag anywhere here to drive") : `<div class="tvcctl" id="tvcctl">${def.ctrl === "custom" ? def.ctlHTML() : tapCtlHTML(mg.g, def)}</div>`}
+    ${def.ctrl === "stick" ? stickHTML(def, def.aim ? "Drive" : "Drag anywhere here to drive", mg.tm ? mg.tm[p.key] : undefined) : `<div class="tvcctl" id="tvcctl">${def.ctrl === "custom" ? def.ctlHTML() : tapCtlHTML(mg.g, def)}</div>`}
     <div class="m3ready" id="m3r"><h3>${esc(def.name)}</h3><p style="font-size:14px;line-height:1.45;margin-bottom:10px">${esc(def.how)}</p><div id="m3rl"></div><button class="btn go" id="m3rb">I'm ready</button></div></div>`;
 	if (def.ctrl === "stick") {
 		wireStick(() => TVC && TVC.inp);
@@ -13426,6 +13908,15 @@ function openTvCtl(mg, p) {
 				}
 			});
 		if (rb) ["pointerup", "pointercancel", "pointerleave"].forEach((ev) => rb.addEventListener(ev, up));
+		const r2 = $("#ram2");
+		if (r2)
+			r2.addEventListener("pointerdown", (e) => {
+				e.preventDefault();
+				if (TVC) {
+					TVC.b2 = (TVC.b2 || 0) + 1;
+					tvcTick();
+				}
+			});
 	} else {
 		const wrap = $("#tvcctl"),
 			downs = new Map(),
@@ -13497,7 +13988,7 @@ function tvcTick() {
 	if (!TVC || !G || !G.mg || G.mg.nonce !== TVC.mg.nonce) return;
 	const i = TVC.inp,
 		r = (v) => Math.round(v * 100) / 100,
-		key = [r(i.x), r(i.y), r(i.ax || 0), r(i.ay || 0), TVC.b, i.hold ? 1 : 0, TVC.seq].join(),
+		key = [r(i.x), r(i.y), r(i.ax || 0), r(i.ay || 0), TVC.b, TVC.b2 || 0, i.hold ? 1 : 0, TVC.seq].join(),
 		now = performance.now();
 	if (RT && (key !== TVC.last || now - TVC.lastT > 600)) {
 		TVC.last = key;
@@ -13511,6 +14002,7 @@ function tvcTick() {
 				ax: r(i.ax || 0),
 				ay: r(i.ay || 0),
 				b: TVC.b,
+				b2: TVC.b2 || 0,
 				h: i.hold ? 1 : 0,
 				ev: TVC.ev.slice(),
 			},
@@ -13582,6 +14074,15 @@ function tvcTick() {
 		rb.classList.toggle("cd", st ? !st[2] : false);
 		rb.style.setProperty("--cd", st ? String(st[1]) : "0");
 		rb.classList.toggle("held", !!i.hold);
+	}
+	const r2 = $("#ram2");
+	if (r2) {
+		r2.classList.toggle("cd", !!(st && st[8] > 0));
+		r2.style.setProperty("--cd", st ? String(st[8] || 0) : "0");
+	}
+	if (st && st[9] && st[9] !== TVC.buzz) {
+		if (TVC.buzz !== undefined) buzz(40);
+		TVC.buzz = st[9];
 	}
 }
 
@@ -14591,6 +15092,7 @@ const MG = {
 		bare: true,
 		fallY: -5,
 		MUD: -2.2,
+		BOWL: 17 /* the bowl wall radius: everything round the stage scales with it (Monster Mash uses a bigger one) */,
 		how: "Ram everyone off the stage into the mud. The stage shrinks! Last truck standing wins.",
 		R: (t) => (t < 20 ? 11 : Math.max(5, 11 - (t - 20) * 0.15)),
 		/* baked props, also called by enterMg while the clouds cover the switch so their AO is ready by the start (partmodels) */
@@ -14629,7 +15131,7 @@ const MG = {
 			// Crusher's monster-truck arena: mud pit, ring of stands with a crowd, flags, crushed cars, fire jets, floodlights
 			const s = W.sc,
 				r = mulberry((W.mg.seed || 1) + 41),
-				R0 = 17;
+				R0 = this.BOWL;
 			const mud = new THREE.Mesh(
 				new THREE.CircleGeometry(R0 + 1, 44),
 				new THREE.MeshStandardMaterial({ color: "#4A3524", roughness: 0.28, metalness: 0.05, flatShading: true }),
@@ -14816,7 +15318,7 @@ const MG = {
 				if (b.t >= b.life) {
 					if (Math.random() < dt * 0.6) {
 						const a = Math.random() * 6.28,
-							r = 12 + Math.random() * 4.3;
+							r = this.BOWL - 5 + Math.random() * 4.3;
 						b.m.position.set(Math.cos(a) * r, this.MUD + 0.1, Math.sin(a) * r);
 						b.t = 0;
 						b.life = 1 + Math.random() * 1.5;
@@ -14918,7 +15420,7 @@ const MG = {
 				e.z += e.vz * dt;
 				e.spin = (e.spin || 0) + dt * (e.fly ? 9 : 4);
 				const d = Math.hypot(e.x, e.z) || 0.001,
-					hi = 15.3;
+					hi = this.BOWL - 1.7;
 				if (d > hi) {
 					const nx = e.x / d,
 						nz = e.z / d,
@@ -14958,7 +15460,7 @@ const MG = {
 				nx = e.x / d,
 				nz = e.z / d,
 				lo = this.R(Math.max(0, W.t)) * 1.04 + 1.3,
-				hi = 15.3;
+				hi = this.BOWL - 1.7;
 			if (d > hi || d < lo) {
 				const out = d > hi,
 					r = out ? hi : lo,
@@ -25835,6 +26337,7 @@ Object.assign(MG, {
 			const ev = { q: e.i, n: raw[0], t: raw[1] / 100, cells: raw.slice(2).filter((c) => c >= 0 && c < P.N * P.N) };
 			P.evs.push(ev);
 			P.fresh.push(ev);
+			mgLog(W, `${e.local ? "sends" : "got"} ${mgName(e)} loop #${raw[0]} (${ev.cells.length} cells)`);
 		},
 		replay(W) {
 			const P = W.P;
@@ -26412,7 +26915,1293 @@ Object.assign(MG, {
 			return h ? steer(e, h[0], h[1], 0.9) : wander(W, e, 0.016, 8);
 		},
 		botScore: () => 8 + rnd(25),
+		/* tools/nettest.mjs: the paint (cells per truck) must match whenever both devices hold the same loops (key) */
+		syncSnap(W) {
+			const c = {};
+			W.P.own.forEach((v) => {
+				if (v >= 0) c[mgName(W.list[v])] = (c[mgName(W.list[v])] || 0) + 1;
+			});
+			return { key: W.P.evs.map((v) => v.q + ":" + v.n).join(" "), state: c };
+		},
 	},
+});
+
+/* ---------- team minigames ---------- */
+/* Monster Mash (1 vs 3 boss fight) on Mud Brawl's arena (MG.bumper: build, bowl, mud fall).
+   The monster (side 0, a giant truck) sits on a turntable in the middle: tap FIRE to shoot tyres (aimed with the stick),
+   hold it for a Ground Pound (a shockwave ring; DASH through it). Anyone who stays close too long gets lifted by a
+   magnet and flung into the mud (tap DASH to break free; a TNT hit on the boss drops them too). The others grab TNT
+   crates and drive them into the monster: it has 3 HP per survivor, gets angrier each third, and in the last third the
+   turntable drops and it drives. The team wins by knocking it out or surviving the timer.
+   Sync: the monster's device shares its shots in e.f.ty = [[id, t0, x, z, angle, h]] and pounds in e.f.gp = [id, t0, x, z];
+   every device moves the tyres and rings from those times and decides hits on its own trucks. Survivors share
+   e.f.dy (crate carried), e.f.dh (TNT hits; the boss HP is the sum), e.f.nr (magnet timer), e.f.gr (grabbed).
+   Crates come from the seed (pickups through W.claim). */
+const MM = {
+	R: 15,
+	LIVES: 2 /* falls into the mud before a survivor is out */,
+	TV: 12 /* tyre speed */,
+	CLAW: 1.1 /* seconds close before the magnet grabs */,
+	WIND: 0.6 /* ground pound: wind-up after the button */,
+	JUMP: 0.7 /* then the jump before the slam */,
+	STUN: 1 /* shockwave stun */,
+	RING: 10 /* shockwave speed */,
+	hpMax: (n) => Math.min(16, Math.max(8, n * 4)),
+};
+/* the highest roof along a truck's centre line (raycast down): {x, y} in the truck's parent space */
+function truckTop(tr) {
+	tr.updateMatrixWorld(true);
+	const box = new THREE.Box3().setFromObject(tr),
+		rc = new THREE.Raycaster(),
+		hits = [];
+	for (let x = box.min.x + 0.15; x < box.max.x - 0.15; x += 0.12) {
+		rc.set(new THREE.Vector3(x, box.max.y + 1, 0), new THREE.Vector3(0, -1, 0));
+		const h = rc.intersectObject(tr, true)[0];
+		if (h) hits.push([x, h.point.y]);
+	}
+	if (!hits.length) return { x: 0, y: box.max.y };
+	const top = Math.max(...hits.map((h) => h[1])),
+		flat = hits.filter((h) => h[1] > top - 0.12);
+	return { x: (flat[0][0] + flat[flat.length - 1][0]) / 2, y: top };
+}
+/* chunky monster tyre, axle along x (rolls along z): tread, sidewalls, silver hub, yellow cap, tread blocks */
+function mmTyreKit() {
+	const g = new THREE.Group(),
+		cy = (r, w, col) => {
+			const c = Cy(r, r, w, 10, col, 0, 0, 0);
+			c.rotation.z = Math.PI / 2;
+			g.add(c);
+		};
+	cy(0.6, 0.5, "#2E323A");
+	cy(0.46, 0.56, "#3D424C");
+	cy(0.22, 0.62, "#C9CED8");
+	cy(0.1, 0.66, "#FFC83D");
+	for (let i = 0; i < 10; i++) {
+		const a = (i / 10) * Math.PI * 2,
+			b = B(0.5, 0.2, 0.1, "#2E323A", 0, Math.sin(a) * 0.62, Math.cos(a) * 0.62);
+		b.rotation.x = -a;
+		g.add(b);
+	}
+	return bakeKit(g, { ao: false, ground: false });
+}
+/* the tyre cannon on the monster's roof: turret ring, armoured base with a hazard band, a stout barrel with a tyre loaded */
+function mmCannon() {
+	const g = new THREE.Group(),
+		bar = new THREE.Group(),
+		cx = (rt, rb, l, col, x) => {
+			const c = Cy(rt, rb, l, 10, col, 0, 0, 0);
+			c.rotation.z = -Math.PI / 2;
+			c.position.x = x;
+			bar.add(c);
+		};
+	g.add(Cy(0.62, 0.7, 0.22, 10, "#3D424C", 0, 0.11, 0));
+	g.add(B(1.0, 0.42, 0.9, "#5A6272", 0, 0.42, 0));
+	g.add(B(1.04, 0.1, 0.94, "#FFC83D", 0, 0.5, 0));
+	[-0.5, 0.5].forEach((z) => g.add(B(0.7, 0.5, 0.08, "#4A525C", 0.05, 0.62, z)));
+	cx(0.4, 0.44, 1.7, "#4A525C", 0.55);
+	cx(0.47, 0.47, 0.12, "#FFC83D", 0.2);
+	cx(0.5, 0.5, 0.2, "#E5484D", 1.38);
+	cx(0.33, 0.33, 0.22, "#2E323A", 1.42);
+	bar.position.set(0, 0.68, 0);
+	bar.rotation.z = 0.12;
+	g.add(bar);
+	g.userData.bar = bar;
+	return g;
+}
+/* a chain of alternating links, laid between two points each frame (mmChainSet) */
+function mmChain() {
+	const g = new THREE.Group(),
+		geo = new THREE.BoxGeometry(0.1, 0.22, 0.05),
+		mat = M("#3D424C");
+	for (let i = 0; i < 26; i++) g.add(new THREE.Mesh(geo, mat));
+	g.visible = false;
+	return g;
+}
+const _cy = new THREE.Vector3(0, 1, 0),
+	_cq = new THREE.Quaternion(),
+	_ct = new THREE.Quaternion();
+function mmChainSet(ch, a, b) {
+	const d = b.clone().sub(a),
+		len = d.length(),
+		n = Math.max(1, Math.min(ch.children.length, Math.ceil(len / 0.19)));
+	d.normalize();
+	_cq.setFromUnitVectors(_cy, d);
+	ch.children.forEach((l, i) => {
+		l.visible = i < n;
+		if (i >= n) return;
+		l.position.copy(a).addScaledVector(d, ((i + 0.5) / n) * len);
+		l.quaternion.copy(_cq).multiply(_ct.setFromAxisAngle(_cy, i % 2 ? Math.PI / 2 : 0));
+	});
+}
+/* the electromagnet the boss shoots out of its mouth at anyone who stays too close */
+function mmMagnet() {
+	const g = new THREE.Group();
+	g.add(Cy(0.95, 0.95, 0.42, 12, "#4A525C", 0, 0.21, 0));
+	g.add(Cy(1.0, 1.0, 0.14, 12, "#FFC83D", 0, 0.25, 0));
+	g.add(Cy(0.85, 0.95, 0.12, 12, "#C9CED8", 0, -0.04, 0));
+	g.add(Cy(0.7, 0.9, 0.24, 12, "#E5484D", 0, 0.54, 0));
+	g.add(Cy(0.16, 0.16, 0.3, 6, "#3D424C", 0, 0.8, 0));
+	g.visible = false;
+	return g;
+}
+/* dizzy stars circling over a stunned truck: three chunky five-point stars */
+function mmStars() {
+	const g = new THREE.Group(),
+		sh = new THREE.Shape();
+	for (let i = 0; i < 10; i++) {
+		const a = (i / 10) * Math.PI * 2 - Math.PI / 2,
+			r = i % 2 ? 0.11 : 0.26;
+		if (i) sh.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+		else sh.moveTo(Math.cos(a) * r, Math.sin(a) * r);
+	}
+	const geo = new THREE.ExtrudeGeometry(sh, { depth: 0.08, bevelEnabled: false }).translate(0, 0, -0.04),
+		mat = new THREE.MeshStandardMaterial({
+			color: "#FFD23F",
+			emissive: "#FFB000",
+			emissiveIntensity: 0.6,
+			flatShading: true,
+		});
+	for (let i = 0; i < 3; i++) {
+		const m = new THREE.Mesh(geo, mat),
+			a = (i / 3) * Math.PI * 2;
+		m.position.set(Math.cos(a) * 0.75, Math.sin(i * 2.1) * 0.12, Math.sin(a) * 0.75);
+		m.rotation.y = -a;
+		g.add(m);
+	}
+	g.visible = false;
+	return g;
+}
+/* TNT bundle on a carrier's roof: three red sticks, two tape bands, a wick */
+function mmBundle() {
+	const g = new THREE.Group();
+	[
+		[-0.15, 0],
+		[0.15, 0],
+		[0, 0.25],
+	].forEach(([z, y]) => {
+		const c = Cy(0.15, 0.15, 0.8, 8, "#D7372B", 0, y + 0.15, z);
+		c.rotation.z = Math.PI / 2;
+		g.add(c);
+	});
+	[-0.22, 0.22].forEach((x) => {
+		const t = Cy(0.34, 0.34, 0.09, 10, "#2E323A", x, 0.24, 0);
+		t.rotation.z = Math.PI / 2;
+		g.add(t);
+	});
+	g.add(Cy(0.03, 0.03, 0.4, 5, "#E8DCC0", 0, 0.6, 0));
+	g.visible = false;
+	return g;
+}
+Object.assign(MG, {
+	mash: Object.assign({}, MG.bumper, {
+		name: "Monster Mash",
+		team: "1v3",
+		dur: 60,
+		lastStanding: false,
+		noAssist: true,
+		camZoom: 1.15,
+		BOWL: 20.4 /* Mud Brawl's bowl, 20% bigger */,
+		deathY: -99 /* falling into the mud costs a life (fallen), it doesn't knock you out by itself */,
+		/* new look: a stadium at dusk, floodlights on the stage (starting values, tune in the light panel) */
+		sun: [14, 15, 11],
+		look: {
+			exp: 0.85,
+			amb: 0.42,
+			sun: 0.36,
+			warm: 0.85,
+			env: 0.4,
+			haze: 60,
+			glow: 1.0,
+			bloom: 0.25,
+			vig: 0.15,
+			sat: 0.08,
+			lamp: 1,
+			fill: ["#8A95D8", "#5A4535"],
+			sky: ["#232D57", "#9E5876", "#EE925C"],
+		},
+		how: "Boss fight! The monster truck fires tyres and ground-pounds from its turntable. Grab TNT crates and drive them into it: knock it out or survive to win as a team.",
+		teamHow: (s) =>
+			s === 0
+				? "You're the MONSTER: FIRE shoots tyres, POUND sends out a shockwave. Knock them all into the mud!"
+				: "Grab 🧨 TNT and drive it into the monster! DASH through shockwaves (they stun you), and don't hang around it: the magnet grabs you.",
+		stickHint: (fine) =>
+			fine
+				? "WASD or arrows to drive (the monster aims with them). Space: fire / dash, E: ground pound."
+				: "Drag to drive (the monster aims). Buttons: FIRE + POUND for the monster, DASH for everyone else.",
+		ramLabel: (side) => (side === 0 ? "FIRE" : "DASH"),
+		btn2: (side) => (side === 0 ? "POUND" : null),
+		btn2Cd(W) {
+			const e = W.me;
+			return e.side !== 0 ? 0 : e.chgT !== undefined ? 1 : Math.min(1, (e.pcd || 0) / 6);
+		},
+		R: () => MM.R,
+		cam(W, tgt, pos, far) {
+			const mm = W.mm,
+				m = W.ms,
+				t = mm && mm.phT !== undefined ? W.t - mm.phT : 9;
+			if (!m || t > 1.6) return [tgt, pos];
+			const k = Math.sin((t / 1.6) * Math.PI),
+				bt = new THREE.Vector3(m.x, 2, m.z),
+				bp = bt.clone().add(new THREE.Vector3(0, 8 * far, 9 * far));
+			return [tgt.lerp(bt, k), pos.lerp(bp, k)];
+		},
+		canRam: () => false,
+		ramCd(W) {
+			const e = W.me;
+			return e.side === 0 ? Math.min(1, Math.max(0, e.fcd || 0)) : Math.min(1, e.bcd / 2);
+		},
+		ramReady(W) {
+			const e = W.me;
+			return e.side === 0 ? (e.fcd || 0) <= 0 : e.bcd <= 0 || !!e.gr;
+		},
+		build(W) {
+			MG.bumper.build.call(this, W);
+			W.plat.scale.set(MM.R / 11, 1, MM.R / 11);
+			const s = W.sc;
+			/* turntable: steel drum with a hazard band, a turning top plate with ribs and bolts, a skirt on the stage */
+			const tt = new THREE.Group(),
+				top = new THREE.Group();
+			tt.add(Cy(3.0, 3.1, 0.16, 28, "#3D424C", 0, 0.08, 0));
+			tt.add(Cy(2.8, 2.8, 0.5, 28, "#4A525C", 0, 0.25, 0));
+			const band = new THREE.Mesh(
+				new THREE.CylinderGeometry(2.84, 2.84, 0.2, 28, 1, true),
+				new THREE.MeshStandardMaterial({
+					map: canvasTex(256, 32, (x, w, h) => {
+						x.fillStyle = "#FFC83D";
+						x.fillRect(0, 0, w, h);
+						x.fillStyle = "#23272F";
+						for (let i = 0; i < 16; i++) {
+							x.beginPath();
+							x.moveTo(i * 16, h);
+							x.lineTo(i * 16 + 8, 0);
+							x.lineTo(i * 16 + 16, 0);
+							x.lineTo(i * 16 + 8, h);
+							x.fill();
+						}
+					}),
+					roughness: 0.7,
+				}),
+			);
+			band.position.y = 0.3;
+			tt.add(band);
+			top.add(Cy(2.65, 2.65, 0.08, 28, "#8C95A5", 0, 0.54, 0));
+			for (let i = 0; i < 8; i++) {
+				const a = (i / 8) * Math.PI * 2,
+					r = B(1.5, 0.06, 0.16, "#6B7380", Math.cos(a) * 1.55, 0.61, Math.sin(a) * 1.55);
+				r.rotation.y = -a;
+				top.add(r);
+			}
+			for (let i = 0; i < 16; i++) {
+				const a = (i / 16) * Math.PI * 2 + 0.2;
+				top.add(Cy(0.08, 0.08, 0.06, 6, "#C9CED8", Math.cos(a) * 2.45, 0.61, Math.sin(a) * 2.45));
+			}
+			tt.add(top);
+			s.add(tt);
+			/* pound warning ring round the monster, and the shockwave ring */
+			const ringMat = (c) =>
+				new THREE.MeshBasicMaterial({
+					color: c,
+					transparent: true,
+					opacity: 0,
+					depthWrite: false,
+					side: THREE.DoubleSide,
+					polygonOffset: true,
+					polygonOffsetFactor: -2,
+				});
+			const warn = new THREE.Mesh(new THREE.RingGeometry(3.05, 3.5, 40), ringMat("#FF3B1F"));
+			warn.rotation.x = -Math.PI / 2;
+			warn.visible = false;
+			s.add(warn);
+			const wave = new THREE.Mesh(new THREE.RingGeometry(0.9, 1, 56), ringMat("#FFE27A"));
+			wave.rotation.x = -Math.PI / 2;
+			wave.visible = false;
+			s.add(wave);
+			W.mm = { tt, top, warn, wave, ringMat, mag: {}, ty: [], slamSeen: 0, lastHp: null, ph: 1 };
+			/* tyre pool */
+			const kit = mmTyreKit();
+			for (let i = 0; i < 10; i++) {
+				const o = new THREE.Group(),
+					t = kitGroup(kit, 0);
+				o.add(t);
+				o.visible = false;
+				s.add(o);
+				W.mm.ty.push({ o, t, id: null });
+			}
+			/* boss HP: 2 per survivor */
+			const n = W.mg.tm ? Object.values(W.mg.tm).filter((x) => x === 1).length : Math.max(1, W.plist.length - 1);
+			W.HP = W.hp = MM.hpMax(n);
+			W.ph = 1;
+			/* TNT crates on a schedule from the seed, more often with fewer survivors */
+			const every = Math.min(6, Math.max(2, 10.5 / n)),
+				rr = mulberry((W.mg.seed || 1) + 907),
+				cm = new THREE.MeshStandardMaterial({ map: hlCrateTex(), roughness: 0.9 });
+			W.mm.crates = [];
+			for (let k = 0; 2.5 + k * every < this.dur; k++) {
+				const a = rr() * Math.PI * 2,
+					r = 6.5 + rr() * (MM.R - 7.7),
+					g = new THREE.Group(),
+					box = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.95, 0.95), cm);
+				box.castShadow = true;
+				g.add(box);
+				const sh = roundShadow(1.3, 0.35, 0, 0, 0.04);
+				g.add(sh);
+				const mark = new THREE.Mesh(new THREE.RingGeometry(0.85, 1.0, 24), ringMat("#FFC83D"));
+				mark.rotation.x = -Math.PI / 2;
+				mark.position.y = 0.06;
+				g.add(mark);
+				g.position.set(Math.cos(a) * r, 0, Math.sin(a) * r);
+				g.visible = false;
+				s.add(g);
+				const ts = 2.5 + k * every;
+				W.mm.crates.push({ id: k + 1, ts, te: ts + 14, x: g.position.x, z: g.position.z, g, box, sh, mark });
+			}
+			this.lights(W);
+		},
+		/* dusk stadium: a lamp bank on top of each of the bowl's 8 floodlight poles (glowing lenses), and two real
+		   spotlights with fading beams from opposite poles onto the stage (more would cost phones too much) */
+		lights(W) {
+			const s = W.sc,
+				R0 = this.BOWL,
+				lin = (c) => new THREE.Color(c).convertSRGBToLinear(),
+				lens = { emissive: "#FFE6B8", emissiveIntensity: 2.2 };
+			W.lamps = [];
+			W.lampFx = [];
+			for (let i = 0; i < 8; i++) {
+				const a = (i / 8) * 6.283 + 0.39,
+					x = Math.cos(a) * (R0 + 6.6),
+					z = Math.sin(a) * (R0 + 6.6),
+					g = new THREE.Group();
+				g.position.set(x, 0, z);
+				g.rotation.y = Math.atan2(x, z) + Math.PI;
+				g.add(B(0.34, 1.3, 0.34, "#5A6272", 0, 13.5, 0));
+				g.add(B(2.9, 1.2, 0.5, "#2E323A", 0, 14.6, 0.05));
+				for (let j = 0; j < 3; j++) g.add(B(0.78, 0.82, 0.06, "#FFF4D6", -0.92 + j * 0.92, 14.6, 0.34, lens));
+				g.add(B(3.1, 0.1, 0.7, "#3D424C", 0, 15.25, 0.1));
+				s.add(g);
+				if (i % 4 !== 1) continue;
+				const hy = 14.6,
+					sp = new THREE.SpotLight(lin("#FFE6B8"), 2.6, 70, 0.42, 0.55, 1);
+				sp.userData.base = 2.6;
+				sp.position.set(x * 0.97, hy, z * 0.97);
+				sp.target.position.set(0, 0, 0);
+				s.add(sp, sp.target);
+				W.lamps.push(sp);
+				const len = 26,
+					cone = new THREE.ConeGeometry(Math.tan(0.42) * len, len, 20, 1, true);
+				cone.translate(0, -len / 2, 0);
+				const beam = new THREE.Mesh(
+					cone,
+					new THREE.MeshBasicMaterial({
+						map: canvasTex(8, 64, (c, w, h) => {
+							const gr = c.createLinearGradient(0, 0, 0, h);
+							gr.addColorStop(0, "rgba(255,236,200,1)");
+							gr.addColorStop(0.35, "rgba(255,226,170,0.45)");
+							gr.addColorStop(0.8, "rgba(255,226,170,0.08)");
+							gr.addColorStop(1, "rgba(255,226,170,0)");
+							c.fillStyle = gr;
+							c.fillRect(0, 0, w, h);
+						}),
+						transparent: true,
+						opacity: 0.2,
+						blending: THREE.AdditiveBlending,
+						depthWrite: false,
+						fog: false,
+					}),
+				);
+				beam.position.copy(sp.position);
+				beam.quaternion.setFromUnitVectors(new THREE.Vector3(0, -1, 0), sp.position.clone().negate().normalize());
+				beam.castShadow = false;
+				beam.userData.base = 0.2;
+				W.lampFx.push(beam);
+				s.add(beam);
+			}
+		},
+		spawn(W, i, n) {
+			const e = W.list[i];
+			if (e && e.side === 0) return { x: 0, z: 0, yaw: -Math.PI / 2 };
+			const solo = W.list[0] && W.list[0].side === 0,
+				j = solo ? i - 1 : i,
+				m = solo ? n - 1 : n,
+				a = (j / Math.max(1, m)) * Math.PI * 2 + Math.PI / 2;
+			return { x: Math.cos(a) * 9.5, z: Math.sin(a) * 9.5, yaw: Math.atan2(Math.sin(a), -Math.cos(a)) };
+		},
+		initEnt(W, e) {
+			e.f = { dh: 0, dy: 0 };
+			e.dashK = 0.7;
+			e.tyHit = {};
+			e.gpHit = {};
+			e.nr = 0;
+			if (e.side !== 0) {
+				const t = truckTop(e.tr),
+					b = mmBundle();
+				b.position.set(t.x / 0.8, t.y / 0.8, 0);
+				b.scale.setScalar(1 / 0.8);
+				e.tr.add(b);
+				e.bun = b;
+				e.topY = t.y;
+				e.stars = mmStars();
+				e.stars.position.y = t.y + 0.55;
+				e.g.add(e.stars);
+				return;
+			}
+			/* the monster: a giant on the turntable with a tyre cannon on its roof */
+			/* the boss drives the monster version of its own truck (buildTruck mode "monster"), scaled up */
+			const k = 1.45,
+				sc = 0.8 * k;
+			e.g.remove(e.tr);
+			e.tr = buildTruck(e.p.truck, "monster");
+			e.g.add(e.tr);
+			e.tr.scale.setScalar(sc);
+			e.g.children.forEach((o) => {
+				if (o.userData.disc) o.visible = false;
+				else if (o.isSprite) o.position.y = 5.2;
+			});
+			const t = truckTop(e.tr),
+				c = mmCannon();
+			c.position.set(t.x / sc, t.y / sc - 0.02, 0);
+			c.scale.setScalar(1 / sc);
+			e.tr.add(c);
+			e.can = c;
+			e.muzY = t.y + 0.75;
+			e.rad = 2.8;
+			e.mass = 50;
+			e.spd = 0.765;
+			e.fcd = 1.2;
+			e.pcd = 4;
+			e.chg = 0;
+		},
+		inside(W, x, z, e) {
+			return (e && e.side === 0) || Math.hypot(x, z) < MM.R + 0.15;
+		},
+		/* shared per-frame state: boss HP and phase, live tyres and shockwave from the monster's shared fields */
+		tick(W) {
+			const m = (W.ms = W.list.find((o) => o.side === 0 && !o.gone)),
+				sv = W.list.filter((o) => o.side !== 0 && !o.gone);
+			W.hp = W.HP - sv.reduce((t, o) => t + ((o.f && o.f.dh) | 0), 0);
+			const ph = W.hp > (W.HP * 2) / 3 ? 1 : W.hp > W.HP / 3 ? 2 : 3;
+			if (ph !== W.mm.ph && W.hp > 0) {
+				W.mm.ph = ph;
+				W.mm.phT = W.t;
+				W.mm.banner = ph === 2 ? "ENRAGED! Double tyres!" : "The turntable drops: it's loose!";
+				W.mm.bannerT = W.t + 2.2;
+				sfx("roar");
+				W.shake = Math.max(W.shake, 0.6);
+				if (m)
+					for (let i = 0; i < 3; i++)
+						burst(W.sc, m.x, 3 + i, m.z, {
+							n: 14,
+							shape: "ico",
+							cols: ["#FFC83D", "#FF8A1F", "#E5484D", "#3D424C"],
+							spd: 4 + i * 2,
+							up: 7,
+							grav: 6,
+							life: 1.1,
+							size: 1.6,
+						});
+				mgLog(W, `PHASE ${ph} (${W.hp} HP)`);
+				if (m)
+					burst(W.sc, m.x, 2, m.z, {
+						n: 26,
+						shape: "ico",
+						cols: ["#E5484D", "#FF8A1F", "#5A6272"],
+						spd: 5,
+						up: 6,
+						life: 0.9,
+						size: 1.3,
+					});
+				sfx("thunder");
+			}
+			W.ph = W.mm.ph;
+			if (m) {
+				m.rad = W.ph < 3 ? 2.8 : 1.71;
+				m.mass = W.ph < 3 ? 50 : 4;
+			}
+			if (W.hp <= 0 && W.ko === undefined) {
+				W.ko = W.t;
+				mgLog(W, "BOSS KNOCKED OUT");
+				W.list.forEach((o) => {
+					if (o.local && !o.gone) {
+						if (o.gr) this.release(W, o, 4);
+						o.d = true;
+					}
+				});
+			}
+			const f = (m && m.f) || {};
+			W.tyLive = (f.ty || [])
+				.map(([id, t0, x0, z0, a, h]) => {
+					const age = W.t - t0;
+					if (age < 0 || age > 4) return null;
+					const dx = Math.cos(a),
+						dz = -Math.sin(a),
+						s = 1.4 + age * MM.TV,
+						pd = x0 * dx + z0 * dz,
+						Re = MM.R + 0.2,
+						sx = -pd + Math.sqrt(Math.max(0, pd * pd - (x0 * x0 + z0 * z0) + Re * Re)),
+						on = s < sx;
+					return { id, x: x0 + dx * s, z: z0 + dz * s, dx, dz, s, sx, h, on, hit: on && s > 3.2 };
+				})
+				.filter(Boolean);
+			const gp = f.gp;
+			W.gpLive = null;
+			if (gp && W.t < gp[1] + MM.JUMP + 1.5) {
+				const slam = gp[1] + MM.JUMP;
+				W.gpLive = {
+					id: gp[0],
+					t0: gp[1],
+					slam,
+					x: gp[2],
+					z: gp[3],
+					r: W.t >= slam ? 2.6 + (W.t - slam) * MM.RING : -1,
+				};
+			}
+		},
+		phys(W, e, inp, dt) {
+			if (e.side === 0) this.monPhys(W, e, inp, dt);
+			else this.survPhys(W, e, inp, dt);
+		},
+		monPhys(W, e, inp, dt) {
+			const press = !!(inp && (inp.boost || inp.fire)),
+				pound = !!(inp && (inp.b2 || inp.pound));
+			if (inp) inp.boost = inp.b2 = false;
+			if (W.ko !== undefined || e.d) {
+				e.vx = e.vz = 0;
+				return;
+			}
+			const ph = W.ph,
+				gp = e.f.gp,
+				jumping = gp && W.t < gp[1] + MM.JUMP;
+			if (ph < 3) {
+				/* on the turntable: the stick turns it */
+				e.x = e.z = e.vx = e.vz = 0;
+				if (inp && Math.hypot(inp.x, inp.y) > 0.3) {
+					const d = wrapA(Math.atan2(-inp.y, inp.x) - e.yaw),
+						rt = (ph === 2 ? 3.4 : 2.8) * dt;
+					e.yaw += Math.max(-rt, Math.min(rt, d));
+				}
+			} else {
+				/* loose: drives (no ram), can't leave the stage */
+				arenaPhys(W, e, inp && !jumping ? { x: inp.x, y: inp.y, boost: false } : null, dt);
+				if (jumping) e.vx = e.vz = 0;
+				const lim = MM.R - 1.2,
+					d = Math.hypot(e.x, e.z);
+				if (d > lim) {
+					const nx = e.x / d,
+						nz = e.z / d,
+						vn = e.vx * nx + e.vz * nz;
+					e.x = nx * lim;
+					e.z = nz * lim;
+					if (vn > 0) {
+						e.vx -= vn * nx;
+						e.vz -= vn * nz;
+					}
+				}
+			}
+			e.fcd = Math.max(0, e.fcd - dt);
+			e.pcd = Math.max(0, e.pcd - dt);
+			if (press && e.fcd <= 0 && !jumping && W.t > 1.2) {
+				const r = (v) => Math.round(v * 100) / 100;
+				e.f.ty = (e.f.ty || []).slice(-8);
+				(ph === 1 ? [0] : [-0.13, 0.13]).forEach((o) => {
+					e.f.tn = (e.f.tn | 0) + 1;
+					e.f.ty.push([e.f.tn, r(W.t), r(e.x), r(e.z), r(e.yaw + o), r(e.muzY + (ph < 3 ? 0.58 : 0))]);
+				});
+				e.fcd = ph === 1 ? 1 : 0.85;
+				e.recoil = 1;
+				if (e.isMe) buzz(25);
+			}
+			/* POUND: a short wind-up (the warning ring grows), then the jump and the slam */
+			if (pound && e.pcd <= 0 && !jumping && e.chgT === undefined && W.t > 1.2) e.chgT = W.t;
+			if (e.chgT !== undefined) {
+				e.chg = W.t - e.chgT;
+				if (e.chg >= MM.WIND) {
+					const r = (v) => Math.round(v * 100) / 100;
+					e.chg = 0;
+					e.chgT = undefined;
+					e.pcd = ph === 3 ? 5 : 6;
+					e.f.gpn = (e.f.gpn | 0) + 1;
+					e.f.gp = [e.f.gpn, r(W.t), r(e.x), r(e.z)];
+					mgLog(W, "boss: ground pound");
+				}
+			} else e.chg = 0;
+			e.f.ch = Math.round((e.chg / MM.WIND) * 10) / 10;
+			const sv = W.list.filter((o) => o.side !== 0 && !o.gone);
+			e.sc = sv.filter((o) => !o.al).length;
+			if (sv.length && W.t > 1 && sv.every((o) => !o.al)) {
+				e.d = true;
+				e.won = true;
+			}
+		},
+		/* a survivor in the mud: loses a life; with one left, back on the stage after 2.2 s where it fell off, a few
+		   metres in, blinking and safe from hits and the magnet for 2 s */
+		fallen(W, e) {
+			if (e.outT === undefined) {
+				e.outT = W.t;
+				e.lives = (e.lives === undefined ? MM.LIVES : e.lives) - 1;
+				e.f.lv = e.lives;
+				e.f.dy = 0;
+				e.gr = null;
+				e.f.gr = 0;
+				e.fly = false;
+				e.nr = e.f.nr = 0;
+				if (e.lives <= 0) {
+					eliminate(W, e);
+					return;
+				}
+				mgLog(W, `FALL ${mgName(e)} (${e.lastHit && W.t - e.lastHit.t < 2 ? e.lastHit.k : "own fault"})`);
+				e.buzz = (e.buzz || 0) + 1;
+				if (e.isMe && !W.tv) buzz(150);
+				return;
+			}
+			if (W.t - e.outT > 2.2) {
+				const a = Math.atan2(e.z, e.x),
+					r = MM.R * 0.62;
+				Object.assign(e, {
+					x: Math.cos(a) * r,
+					z: Math.sin(a) * r,
+					y: 0,
+					vx: 0,
+					vz: 0,
+					vy: 0,
+					falling: false,
+					mud: false,
+					splorch: false,
+					spin: 0,
+					outT: undefined,
+					stunT: 0,
+					reelT: 0,
+					inv: W.t + 2,
+				});
+				e.f.inv = Math.round((W.t + 2) * 100) / 100;
+				mgLog(W, `${mgName(e)} is back (${e.lives} life left)`);
+			}
+		},
+		knock(W, e, nx, nz, K, sl, why) {
+			e.lastHit = { k: why, t: W.t };
+			mgLog(W, `${why} hits ${mgName(e)}`);
+			e.vx += nx * K;
+			e.vz += nz * K;
+			e.slideT = sl;
+			e.hitAng = [nx, nz];
+			e.buzz = (e.buzz || 0) + 1;
+			if (e.isMe) {
+				W.shake = 0.4;
+				if (!W.tv) buzz(70);
+			}
+			hitFx(e, e);
+		},
+		release(W, e, push) {
+			e.gr = null;
+			e.f.gr = 0;
+			e.fly = false;
+			e.nr = 0;
+			const m = W.ms;
+			if (m) {
+				const dx = e.x - m.x,
+					dz = e.z - m.z,
+					d = Math.hypot(dx, dz) || 1;
+				e.vx = (dx / d) * push;
+				e.vz = (dz / d) * push;
+			}
+		},
+		survPhys(W, e, inp, dt) {
+			const m = W.ms;
+			if (e.gr) {
+				/* held up by the magnet: tap to break free, a TNT hit on the boss drops you, otherwise flung into the mud */
+				const g = e.gr,
+					fx = m ? Math.cos(m.yaw) : 0,
+					fz = m ? -Math.sin(m.yaw) : 0,
+					tx = m ? m.x + fx * ((m.rad || 1.7) + 1.4) : g.x,
+					tz = m ? m.z + fz * ((m.rad || 1.7) + 1.4) : g.z;
+				e.vx = e.vz = 0;
+				e.x += (tx - e.x) * Math.min(1, dt * 6);
+				e.z += (tz - e.z) * Math.min(1, dt * 6);
+				e.y += (3.2 - e.y) * Math.min(1, dt * 5);
+				if (inp && inp.boost) {
+					g.taps++;
+					inp.boost = false;
+					e.wig = 0.25;
+				}
+				if (W.hp < g.hp || g.taps >= 7) {
+					mgLog(W, `${mgName(e)} ${g.taps >= 7 ? "breaks free" : "dropped (boss hit)"}`);
+					this.release(W, e, 5);
+				} else if (W.t - g.t0 >= 1.6) {
+					const dx = m ? fx : e.x,
+						dz = m ? fz : e.z,
+						d = Math.hypot(dx, dz) || 1;
+					e.gr = null;
+					e.f.gr = 0;
+					e.fly = false;
+					e.f.dy = 0;
+					e.vx = (dx / d) * 24;
+					e.vz = (dz / d) * 24;
+					e.vy = 8;
+					e.falling = true;
+					e.lastHit = { k: "magnet fling", t: W.t };
+					if (e.isMe) W.shake = 0.5;
+					sfx("magnet");
+				}
+				return;
+			}
+			if (e.y > 0 && !e.falling) {
+				e.vy = (e.vy || 0) - 30 * dt;
+				e.y = Math.max(0, e.y + e.vy * dt);
+				if (!e.y) e.vy = 0;
+			}
+			/* stunned (shockwave), or reeling for a moment after a tyre hit so the push carries */
+			if (e.reelT > 0) e.reelT -= dt;
+			if (e.stunT > 0 || e.reelT > 0) {
+				e.stunT -= dt;
+				if (inp) inp.boost = false;
+				inp = { x: 0, y: 0, boost: false };
+			}
+			arenaPhys(W, e, inp, dt);
+			if (e.falling && e.al && W.t >= 0) {
+				this.fallen(W, e);
+				return;
+			}
+			if (!e.al || e.falling || e.d || W.t < 0) return;
+			e.tA = W.t;
+			const safe = W.t < (e.inv || 0);
+			e.sc = Math.floor(W.t * 10);
+			for (const t of W.tyLive || [])
+				if (t.hit && !safe && !e.tyHit[t.id] && Math.hypot(e.x - t.x, e.z - t.z) < 1.4) {
+					e.tyHit[t.id] = 1;
+					if (W.t - (e.tyT || -9) > 0.3) {
+						e.tyT = W.t;
+						this.knock(W, e, t.dx, t.dz, 16, 0.7, "tyre");
+						e.reelT = 0.35;
+					}
+				}
+			const g = W.gpLive;
+			if (g && g.r > 0 && !safe && !e.gpHit[g.id]) {
+				const dx = e.x - g.x,
+					dz = e.z - g.z,
+					d = Math.hypot(dx, dz) || 1;
+				if (Math.abs(d - g.r) < 0.8) {
+					e.gpHit[g.id] = 1;
+					if (e.boostT > 0) {
+						burst(W.sc, e.x, 1.2, e.z, {
+							n: 10,
+							shape: "cube",
+							cols: ["#F4F6F9", "#BFE6FF"],
+							spd: 3,
+							up: 3,
+							life: 0.4,
+						});
+						if (e.isMe) {
+							W.mm.banner = "Dodged!";
+							W.mm.bannerT = W.t + 0.8;
+						}
+					} else {
+						this.knock(W, e, dx / d, dz / d, 6, 0.5, "shockwave");
+						e.stunT = MM.STUN;
+						e.f.stn = Math.round((W.t + MM.STUN) * 100) / 100;
+						if (e.isMe || Math.hypot(e.x - W.me.x, e.z - W.me.z) < 6) sfx("stun");
+					}
+				}
+			}
+			if (!e.f.dy)
+				for (const c of W.mm.crates)
+					if (W.t >= c.ts + 0.5 && W.t < c.te && Math.hypot(e.x - c.x, e.z - c.z) < 1.6 && W.claim(c.id)) {
+						e.c.push(c.id);
+						e.f.dy = c.id;
+						mgLog(W, `${mgName(e)} picks up TNT`);
+						if (e.isMe) sfx("coin");
+						break;
+					}
+			if (!m || W.ko !== undefined) return;
+			const dx = e.x - m.x,
+				dz = e.z - m.z,
+				d = Math.hypot(dx, dz) || 1;
+			if (e.f.dy && d < (m.rad || 1.7) + 1.4) {
+				/* TNT delivered: the boss loses 1 HP (everyone sums e.f.dh), the blast bounces you off */
+				e.f.dy = 0;
+				e.f.dh = (e.f.dh | 0) + 1;
+				this.knock(W, e, dx / d, dz / d, 9, 0.45, "TNT bounce");
+				mgLog(W, `TNT ${mgName(e)} hits the boss (${W.hp - 1} HP left)`);
+			}
+			const cr = ((W.ph < 3 ? 2.8 : 1.71) + 1.7) * 1.2;
+			e.nr = d < cr && !safe ? e.nr + dt : Math.max(0, e.nr - dt * 1.5);
+			if (e.nr >= MM.CLAW) {
+				e.gr = { t0: W.t, hp: W.hp, taps: 0, x: e.x, z: e.z };
+				e.f.gr = 1;
+				e.fly = true;
+				mgLog(W, `magnet grabs ${mgName(e)}`);
+				if (e.isMe) {
+					sfx("magnet");
+					buzz(120);
+				}
+			}
+			e.f.nr = Math.round(e.nr * 10) / 10;
+		},
+		rules() {},
+		/* tools/watch.mjs: one summary line, and a rough stand-in for a human player (the boss aims straight at a truck, no
+		   leading; survivors play like the CPUs) */
+		/* tools/nettest.mjs: what must look the same on every device */
+		syncSnap(W) {
+			return {
+				hp: W.hp,
+				phase: W.ph,
+				ko: W.ko !== undefined,
+				crates: [...W.claimed].sort((a, b) => a - b).join(","),
+				grabbed: W.list
+					.filter((e) => e.f && e.f.gr)
+					.map(mgName)
+					.join(","),
+			};
+		},
+		watchSum(W) {
+			const m = W.ms,
+				f = (m && m.f) || {};
+			return `boss ${Math.max(0, W.hp)}/${W.HP} HP, ${f.tn | 0} tyres, ${f.gpn | 0} pounds`;
+		},
+		humanBot(W, e, dt) {
+			const o = this.bot(W, e, dt);
+			if (e.side !== 0 || W.ph === 3) return o;
+			const tg = W.list
+				.filter((q) => q.side === 1 && q.al && !q.falling && !q.gone)
+				.sort((a, b) => Math.hypot(a.x - e.x, a.z - e.z) - Math.hypot(b.x - e.x, b.z - e.z))[0];
+			if (tg) {
+				const a = Math.atan2(-(tg.z - e.z), tg.x - e.x);
+				o.x = Math.cos(a);
+				o.y = -Math.sin(a);
+				o.fire = Math.abs(wrapA(a - e.yaw)) < 0.12;
+			}
+			return o;
+		},
+		timeUp() {},
+		/* survivor: 1000 if still on the stage + 100 per TNT hit + seconds on the stage; monster: 100 per crushed + HP left */
+		final(W, e) {
+			if (e.side === 0) return e.sc * 100 + Math.max(0, W.hp);
+			return (e.al ? 1000 : 0) + ((e.f.dh | 0) % 10) * 100 + Math.min(99, Math.floor(e.tA || 0));
+		},
+		fmtE(W, e) {
+			if (e.side === 0) return `${Math.max(0, W.hp)} HP`;
+			const lv = e.local
+				? e.lives === undefined
+					? MM.LIVES
+					: e.lives
+				: e.f && e.f.lv !== undefined
+					? e.f.lv
+					: MM.LIVES;
+			return !e.al ? "OUT" : `${"♥".repeat(Math.max(0, lv))} ${e.f && e.f.dy ? "🧨" : ((e.f && e.f.dh) | 0) + " 💥"}`;
+		},
+		fmtTeam(v, s) {
+			if (s === 0) return `Crushed ${Math.floor(v / 100)}, ${v % 100} HP left`;
+			const h = Math.floor((v % 1000) / 100);
+			return `${v >= 1000 ? "Survived" : `Out after ${v % 100} s`}${h ? `, ${h} TNT hit${h > 1 ? "s" : ""}` : ""}`;
+		},
+		teamWin(res, tm) {
+			const sv = Object.keys(tm).filter((k) => tm[k] === 1);
+			let hits = 0,
+				ok = false;
+			sv.forEach((k) => {
+				if (!(k in res)) return;
+				if (res[k] >= 1000) ok = true;
+				hits += Math.floor((res[k] % 1000) / 100);
+			});
+			return ok || hits >= MM.hpMax(sv.length) ? 1 : 0;
+		},
+		prompt(W, me) {
+			const mm = W.mm;
+			if (mm.banner && W.t < mm.bannerT) return mm.banner;
+			if (me.side === 0) return W.t < 4 ? "Tap FIRE for tyres, hold it for a Ground Pound!" : "";
+			if (me.falling && me.al)
+				return `Into the mud! ${me.lives} ${me.lives === 1 ? "life" : "lives"} left, back in a moment…`;
+			if (W.t < (me.inv || 0)) return "Back in! Safe for a moment";
+			if (me.gr) return "Tap DASH to break free!";
+			if (me.stunT > 0) return "Stunned!";
+			if (me.nr > 0.35) return "Too close! The magnet is coming!";
+			if (me.f.dy) return "Drive the TNT into the monster!";
+			return "";
+		},
+		donePrompt(W, me) {
+			if (W.ko !== undefined) return me.side === 0 ? "KNOCKED OUT!" : "The monster is down!";
+			if (me.side === 0) return me.won ? "You crushed them all!" : "Time's up!";
+			return me.al ? "You survived!" : "Into the mud! Watch the others…";
+		},
+		/* visuals: the monster on its turntable (jump, recoil, KO), TNT on roofs, then the shared scene once a frame */
+		render(W, e, dt) {
+			MG.bumper.render.call(this, W, e, dt);
+			const mm = W.mm;
+			if (e.side === 0) {
+				const ph = W.ph || 1,
+					drop = ph < 3 ? 0 : Math.min(1, (W.t - (mm.phT || 0)) / 0.8),
+					gp = W.gpLive;
+				let y = 0.58 * (1 - drop);
+				if (gp && W.t < gp.slam) y += Math.sin(((W.t - gp.t0) / MM.JUMP) * Math.PI) * 2.2;
+				e.g.position.y += y;
+				const ch = (e.local ? e.chg / MM.WIND : e.f && e.f.ch) || 0;
+				if (ch > 0) e.tr.rotation.z += (Math.random() - 0.5) * 0.06 * ch;
+				if (e.can) {
+					e.recoil = Math.max(0, (e.recoil || 0) - dt * 5);
+					e.can.userData.bar.position.x = -0.35 * e.recoil;
+				}
+				if (W.ko !== undefined) {
+					e.tr.rotation.z = Math.min(1, (W.t - W.ko) / 0.8) * 1.1;
+					if (Math.random() < dt * 8)
+						burst(W.sc, e.x, 3, e.z, {
+							n: 2,
+							shape: "ico",
+							cols: ["#5A6272", "#3D424C"],
+							spd: 0.8,
+							up: 3,
+							grav: -1,
+							life: 1.4,
+							size: 1.6,
+							op: 0.6,
+						});
+				}
+				mm.tt.position.y = -0.46 * drop;
+				const fl = e.tr.userData.flames;
+				if (fl)
+					fl.forEach((f) => {
+						f.scale.multiplyScalar(ph === 3 ? 1.6 : 1);
+						if (ph === 3 && Math.random() < dt * 9) {
+							const p = f.getWorldPosition(new THREE.Vector3());
+							burst(W.sc, p.x, p.y + 0.3, p.z, {
+								n: 3,
+								shape: "ico",
+								cols: ["#FFC83D", "#FF8A1F", "#E5484D"],
+								spd: 0.5,
+								up: 7,
+								grav: -2,
+								life: 0.45,
+								size: 1.2,
+							});
+						}
+					});
+				if (ph < 3) mm.top.rotation.y = e.yaw;
+			} else if (e.bun) {
+				const inv = e.local ? W.t < (e.inv || 0) : !!(e.f && W.t < (e.f.inv || 0));
+				e.tr.visible = !inv || Math.sin(W.t * 30) > 0;
+				e.bun.visible = !!(e.f && e.f.dy && e.al);
+				const st = e.local ? e.stunT > 0 : e.f && W.t < e.f.stn;
+				e.stars.visible = !!(st && e.al);
+				if (st) e.stars.rotation.y = W.t * 6;
+				if (e.wig) {
+					e.wig = Math.max(0, e.wig - dt);
+					e.tr.rotation.z += Math.sin(W.t * 60) * e.wig;
+				}
+			}
+			if (mm.frame === W.t) return;
+			mm.frame = W.t;
+			this.renderShared(W, dt);
+		},
+		renderShared(W, dt) {
+			const mm = W.mm,
+				m = W.ms;
+			/* boss hit: explosion and a flinch */
+			if (mm.lastHp !== null && W.hp < mm.lastHp && m) {
+				burst(W.sc, m.x, 2, m.z, {
+					n: 34,
+					shape: "ico",
+					cols: ["#FFE27A", "#FF8A1F", "#E5484D", "#5A6272"],
+					spd: 7,
+					up: 8,
+					life: 0.9,
+					size: 1.4,
+				});
+				sfx("thunder");
+				W.shake = Math.max(W.shake, 0.35);
+				mm.flinch = 1;
+			}
+			mm.lastHp = W.hp;
+			if (m && mm.flinch > 0) {
+				mm.flinch = Math.max(0, mm.flinch - dt * 3);
+				m.tr.rotation.x += Math.sin(mm.flinch * 20) * 0.08 * mm.flinch;
+			}
+			/* tyres: arc out of the muzzle, roll with a bounce, drop off the edge into the mud */
+			const live = W.tyLive || [],
+				used = new Set();
+			const nw = live.filter((t) => t.id > (mm.tySeen || 0));
+			if (nw.length) {
+				mm.tySeen = Math.max(...nw.map((t) => t.id));
+				sfx("cannon");
+				nw.forEach((t) =>
+					burst(W.sc, t.x - t.dx * (t.s - 1.6), t.h, t.z - t.dz * (t.s - 1.6), {
+						n: 6,
+						shape: "ico",
+						cols: ["#C9CED8", "#8C95A5", "#F4F6F9"],
+						spd: 1.2,
+						up: 1.5,
+						grav: -1,
+						life: 0.7,
+						size: 1.1,
+						op: 0.7,
+					}),
+				);
+			}
+			live.forEach((t) => {
+				const sl =
+					mm.ty.find((q) => q.id === t.id) || mm.ty.find((q) => q.id === null || !live.some((l) => l.id === q.id));
+				if (!sl) return;
+				if (sl.id !== t.id) {
+					sl.id = t.id;
+					sl.spl = false;
+				}
+				used.add(sl);
+				let y;
+				if (t.s < 3.6) {
+					const k = (t.s - 1.4) / 2.2;
+					y = 0.6 + (t.h - 0.6) * (1 - k * k);
+				} else if (t.on) y = 0.6 + Math.abs(Math.sin(t.s * 0.9)) * 0.35;
+				else {
+					const tf = (t.s - t.sx) / MM.TV;
+					y = 0.6 - 15 * tf * tf;
+					if (y < this.MUD + 0.4 && !sl.spl) {
+						sl.spl = true;
+						burst(W.sc, t.x, this.MUD + 0.3, t.z, {
+							n: 10,
+							shape: "ico",
+							cols: ["#4A3524", "#6B4F35"],
+							spd: 2.5,
+							up: 4,
+							grav: 12,
+							life: 0.7,
+							size: 1,
+						});
+					}
+				}
+				sl.o.visible = y > this.MUD - 1;
+				sl.o.position.set(t.x, y, t.z);
+				sl.o.rotation.y = Math.atan2(t.dx, t.dz);
+				sl.t.rotation.x = t.s / 0.6;
+			});
+			mm.ty.forEach((q) => {
+				if (!used.has(q)) {
+					q.o.visible = false;
+					q.id = null;
+				}
+			});
+			/* ground pound: a pulsing warning ring while it charges and jumps, then the shockwave */
+			const ch = m ? (m.local ? m.chg / MM.WIND : (m.f && m.f.ch) || 0) : 0,
+				gp = W.gpLive,
+				wv = !!((gp && W.t < gp.slam) || ch > 0);
+			mm.warn.visible = wv;
+			if (ch > 0 && !mm.wu) {
+				mm.wu = true;
+				sfx("windup");
+			} else if (!ch) mm.wu = false;
+			if (wv) {
+				const s = W.ph < 3 ? 1 : 0.62;
+				mm.warn.position.set(m ? m.x : 0, 0.12, m ? m.z : 0);
+				mm.warn.scale.set(s, s, 1);
+				mm.warn.material.opacity = (gp && W.t < gp.slam ? 0.85 : ch * 0.7) * (0.65 + 0.35 * Math.sin(W.t * 24));
+			}
+			mm.wave.visible = !!(gp && gp.r > 0 && gp.r < MM.R + 2);
+			if (mm.wave.visible) {
+				mm.wave.position.set(gp.x, 0.25, gp.z);
+				mm.wave.scale.set(gp.r, gp.r, 1);
+				mm.wave.material.opacity = 0.9 * (1 - gp.r / (MM.R + 2));
+				if (mm.slamSeen !== gp.id) {
+					mm.slamSeen = gp.id;
+					sfx("crush");
+					if (Math.hypot(W.me.x - gp.x, W.me.z - gp.z) < 16) W.shake = Math.max(W.shake, 0.5);
+					for (let i = 0; i < 18; i++) {
+						const a = (i / 18) * Math.PI * 2;
+						burst(W.sc, gp.x + Math.cos(a) * 3, 0.4, gp.z + Math.sin(a) * 3, {
+							n: 2,
+							shape: "ico",
+							cols: ["#8A6A48", "#A88563"],
+							spd: 3,
+							up: 3,
+							grav: 12,
+							life: 0.7,
+							size: 1.1,
+						});
+					}
+				}
+			}
+			/* the mouth: the boss's jaw opens as someone lingers close (a red ring under them), the magnet peeks out, then
+			   shoots out on a chain, grabs them and holds them up in front of the face */
+			let mouth = null,
+				open = 0;
+			if (m && m.tr.userData.mouth) {
+				m.g.updateMatrixWorld(true);
+				mouth = m.tr.localToWorld(m.tr.userData.mouth.clone());
+			}
+			W.list.forEach((e) => {
+				if (e.side === 0 || e.gone) return;
+				const nr = e.local ? e.nr : (e.f && e.f.nr) || 0,
+					gr = !!(e.f && e.f.gr);
+				let g = mm.mag[e.k];
+				if (!g) {
+					g = mm.mag[e.k] = {
+						m: mmMagnet(),
+						ch: mmChain(),
+						w: new THREE.Mesh(new THREE.RingGeometry(1.1, 1.35, 28), mm.ringMat("#FF3B1F")),
+					};
+					g.w.rotation.x = -Math.PI / 2;
+					g.w.visible = false;
+					W.sc.add(g.m, g.ch, g.w);
+				}
+				if (gr && !g.grT) g.grT = W.t;
+				if (!gr) g.grT = 0;
+				const on = !!(mouth && e.al && !e.falling && (gr || nr > 0.25)),
+					k = gr ? 1 : Math.min(1, Math.max(0, (nr - 0.25) / (MM.CLAW - 0.25)));
+				if (on) open = Math.max(open, gr ? 1 : k);
+				g.m.visible = g.ch.visible = on;
+				g.w.visible = !!(on && !gr);
+				if (!on) return;
+				const top = new THREE.Vector3(e.x, e.y + (e.topY || 1.4) + 0.1, e.z),
+					p = gr
+						? mouth.clone().lerp(top, Math.min(1, (W.t - g.grT) / 0.18))
+						: mouth.clone().addScaledVector(top.clone().sub(mouth).normalize(), 0.5 * k),
+					sc = gr ? 0.7 : 0.3 + 0.3 * k;
+				g.m.position.copy(p);
+				g.m.scale.setScalar(sc);
+				mmChainSet(g.ch, mouth, p.clone().add(new THREE.Vector3(0, 0.75 * sc, 0)));
+				g.w.position.set(e.x, 0.1, e.z);
+				g.w.material.opacity = Math.min(1, nr / MM.CLAW) * (0.6 + 0.4 * Math.sin(W.t * 20));
+			});
+			if (m && m.tr.userData.jaw) {
+				mm.jawK = (mm.jawK || 0) + (open - (mm.jawK || 0)) * Math.min(1, dt * 10);
+				m.tr.userData.jaw.rotation.z = -0.8 * mm.jawK;
+			}
+			/* crates: drop in, sit with a pulsing ring, blink before they vanish */
+			mm.crates.forEach((c) => {
+				const vis = W.t >= c.ts && W.t < c.te && !W.claimed.has(c.id);
+				c.g.visible = !!vis;
+				if (!vis) return;
+				const k = Math.min(1, (W.t - c.ts) / 0.5);
+				c.box.position.y = 0.48 + (1 - k) * (1 - k) * 9;
+				c.box.rotation.y = W.t * 0.8 + c.id;
+				c.box.visible = !!(c.te - W.t > 2 || Math.sin(W.t * 18) > 0);
+				c.sh.scale.setScalar(0.4 + 0.6 * k);
+				c.mark.material.opacity = k * (0.45 + 0.3 * Math.sin(W.t * 6));
+			});
+			/* boss bar: the monster's name and one segment per HP */
+			let bar = document.getElementById("mmbar");
+			const box = document.getElementById("mg");
+			if (!bar && box && m) {
+				bar = document.createElement("div");
+				bar.id = "mmbar";
+				bar.innerHTML = `<b>${esc(TRUCKS[m.p.truck].name)}</b><div class="mmhp"></div>`;
+				box.appendChild(bar);
+				mm.barHp = null;
+			}
+			if (bar && mm.barHp !== W.hp) {
+				mm.barHp = W.hp;
+				bar.querySelector(".mmhp").innerHTML = Array.from(
+					{ length: W.HP },
+					(_, i) => `<i class="${i < W.hp ? "on" : ""}"></i>`,
+				).join("");
+				bar.classList.toggle("rage", W.ph === 3);
+				bar.classList.remove("hit");
+				void bar.offsetWidth;
+				bar.classList.add("hit");
+			}
+		},
+		bot(W, e, dt) {
+			const m = W.ms,
+				sv = W.list.filter((o) => o.side !== 0 && !o.gone && o.al && !o.d && !o.falling && !o.gr);
+			if (e.side === 0) {
+				/* aim ahead of a target (TNT carriers first), fire when lined up, pound when trucks crowd in */
+				const near = (o) => Math.hypot(o.x - e.x, o.z - e.z),
+					tg =
+						sv.filter((o) => o.f && o.f.dy).sort((a, b) => near(a) - near(b))[0] ||
+						sv.sort((a, b) => near(a) - near(b))[0],
+					out = { x: 0, y: 0, fire: false, pound: false };
+				if (tg) {
+					const T = (near(tg) / MM.TV) * 0.6 + 0.1,
+						dx = tg.x + tg.vx * T - e.x,
+						dz = tg.z + tg.vz * T - e.z,
+						l = Math.hypot(dx, dz) || 1;
+					if (e.aimErr === undefined || Math.random() < dt * 1.5) e.aimErr = (Math.random() - 0.5) * 0.36;
+					const a = Math.atan2(-dz, dx) + e.aimErr;
+					out.x = W.ph === 3 ? dx / l : Math.cos(a);
+					out.y = W.ph === 3 ? dz / l : -Math.sin(a);
+					out.fire = Math.abs(wrapA(a - e.yaw)) < 0.14 && Math.random() < dt * 12;
+				}
+				const crowd = sv.filter((o) => near(o) < 7.5).length,
+					carrier = sv.some((o) => o.f && o.f.dy && near(o) < 6.5);
+				if (e.pcd <= 0 && (crowd >= 2 || carrier || sv.some((o) => near(o) < 4.8))) e.wantP = true;
+				if (e.pcd > 0) e.wantP = false;
+				out.pound = !!e.wantP;
+				return out;
+			}
+			/* survivors: fetch TNT and deliver it, keep clear of the monster otherwise, sidestep tyres, dash through rings */
+			if (e.gr) return { x: 0, y: 0, boost: Math.random() < dt * 2.2 };
+			let x = 0,
+				z = 0;
+			const go = (tx, tz, w) => {
+				const dx = tx - e.x,
+					dz = tz - e.z,
+					l = Math.hypot(dx, dz) || 1;
+				x += (dx / l) * w;
+				z += (dz / l) * w;
+			};
+			const md = m ? Math.hypot(e.x - m.x, e.z - m.z) : 99;
+			let edge = MM.R * 0.72;
+			if (e.f.dy && m) go(m.x, m.z, 1.4);
+			else {
+				/* stick with the chosen crate while it's there, so two equally near crates don't flip the CPU back and forth */
+				const ok = (c) => c && W.t >= c.ts && W.t < c.te - 1 && !W.claimed.has(c.id);
+				let c = W.mm.crates.find((q) => q.id === e.tgC);
+				if (!ok(c))
+					c = W.mm.crates
+						.filter(ok)
+						.sort((a, b) => Math.hypot(a.x - e.x, a.z - e.z) - Math.hypot(b.x - e.x, b.z - e.z))[0];
+				e.tgC = c ? c.id : null;
+				if (c) {
+					go(c.x, c.z, 1);
+					/* a crate out near the edge: the edge pull mustn't fight the trip there */
+					edge = Math.max(edge, Math.min(MM.R - 1.6, Math.hypot(c.x, c.z) + 0.6));
+				} else go(Math.cos(W.t * 0.4 + e.i * 2) * 8, Math.sin(W.t * 0.4 + e.i * 2) * 8, 0.6);
+				if (m && md < (m.rad || 1.7) + 3) go(m.x, m.z, -1.8);
+			}
+			/* tyres: each CPU notices a given tyre only sometimes, and late, so aimed shots land */
+			e.tyNote = e.tyNote || {};
+			for (const t of W.tyLive || []) {
+				if (!t.on) continue;
+				const rx = e.x - t.x,
+					rz = e.z - t.z,
+					ahead = rx * t.dx + rz * t.dz,
+					side = rx * -t.dz + rz * t.dx;
+				if (ahead > 0 && ahead < 4.5 && Math.abs(side) < 1.8) {
+					if (e.tyNote[t.id] === undefined) e.tyNote[t.id] = Math.random() < 0.5;
+					if (!e.tyNote[t.id]) continue;
+					const sg = side >= 0 ? 1 : -1;
+					x += -t.dz * sg * 1.6;
+					z += t.dx * sg * 1.6;
+				}
+			}
+			const r = Math.hypot(e.x, e.z);
+			if (r > edge) go(0, 0, ((r - edge) / Math.max(1, MM.R - edge)) * 2);
+			let boost = false;
+			const g = W.gpLive;
+			if (g && e.bcd <= 0) {
+				const d = Math.hypot(e.x - g.x, e.z - g.z),
+					eta = g.r > 0 ? (d - g.r) / MM.RING : g.slam - W.t + (d - 2.6) / MM.RING;
+				if (eta > 0 && eta < 0.12) {
+					if (e.dodgeRoll === undefined) e.dodgeRoll = Math.random() < 0.7;
+					boost = e.dodgeRoll;
+				}
+				if (g.r > d + 1) e.dodgeRoll = undefined;
+			}
+			/* smooth the steering (~0.25 s) so CPUs drive in arcs instead of flicking back and forth */
+			const l = Math.hypot(x, z),
+				k = 1 - Math.exp(-dt * 4);
+			e.bsx = (e.bsx || 0) + ((l < 0.05 ? 0 : x / l) - (e.bsx || 0)) * k;
+			e.bsz = (e.bsz || 0) + ((l < 0.05 ? 0 : z / l) - (e.bsz || 0)) * k;
+			/* knocked about, or right at the rim: steer straight back towards the middle, like a player would */
+			if ((e.slideT > 0 && r > MM.R * 0.5) || r > MM.R - 1.3) {
+				e.bsx = -e.x / r;
+				e.bsz = -e.z / r;
+			}
+			/* dodging the shockwave: dash inwards through the ring, never towards the edge */
+			if (boost && g) {
+				const d = Math.hypot(e.x - g.x, e.z - g.z) || 1;
+				e.bsx = (g.x - e.x) / d;
+				e.bsz = (g.z - e.z) / d;
+			}
+			const sl = Math.hypot(e.bsx, e.bsz);
+			return sl < 0.05 ? { x: 0, y: 0, boost } : { x: e.bsx / sl, y: e.bsz / sl, boost };
+		},
+		botScore: (s) =>
+			s === 0 ? rnd(4) * 100 + rnd(6) : rnd(2) ? 1000 + rnd(3) * 100 + 45 : rnd(3) * 100 + 10 + rnd(30),
+	}),
 });
 /* ---------- shared minigame scenery: ground textures, road wear, kerbs, verges, automatic tyre tracks ---------- */
 /* Textures are drawn once per kind and cached (cosmetic, so Math.random is fine); texRep() gives a mesh its own repeat. */
@@ -30720,6 +32509,184 @@ setInterval(() => {
 	render.last = null;
 	render();
 })();
+
+/* ---------- bug reports: three-finger tap (F8 on a keyboard, or the home screen button) opens a panel with a
+   screenshot of the game view, recent errors and the game state; Share sends it all (iPhone), Copy copies the text ---------- */
+function dbgGrab(cv) {
+	DBG.want = false;
+	try {
+		const k = Math.min(1, 540 / cv.width),
+			c = document.createElement("canvas");
+		c.width = Math.round(cv.width * k);
+		c.height = Math.round(cv.height * k);
+		c.getContext("2d").drawImage(cv, 0, 0, c.width, c.height);
+		DBG.shot = c.toDataURL("image/jpeg", 0.75);
+	} catch (e) {
+		DBG.shot = null;
+	}
+}
+/* where the player is, for the crash marker and the report */
+function dbgWhere() {
+	if (W && W.def) return `minigame ${W.def.name} at ${W.t.toFixed(1)} s`;
+	if (G)
+		return `${G.practice ? "practice" : G.tv ? "TV game" : "game"}, ${G.phase}${G.round ? ` round ${G.round}/${G.rounds}` : ""}`;
+	return `home (${homeSub})`;
+}
+/* the crash marker: refreshed while the page is on screen, marked clean when it's hidden or left. If the next load
+   finds it unclean, the page died on screen (a crash, or iOS killing it for memory) */
+{
+	const prev = LS.get("trp_live", null);
+	if (prev && !prev.clean && Date.now() - prev.at < 30 * 60000)
+		DBG.crash = `the page stopped on screen during: ${prev.where} (${Math.round((Date.now() - prev.at) / 60000)} min before this load)`;
+	const beat = () => {
+		if (!document.hidden) LS.set("trp_live", { at: Date.now(), where: dbgWhere(), clean: false });
+	};
+	const clean = () => LS.set("trp_live", { at: Date.now(), where: dbgWhere(), clean: true });
+	setInterval(beat, 3000);
+	addEventListener("pagehide", clean);
+	document.addEventListener("visibilitychange", () => (document.hidden ? clean() : beat()));
+}
+function dbgText(note) {
+	const L = [],
+		tr = (f) => {
+			try {
+				f();
+			} catch (e) {
+				L.push("(" + e.message + ")");
+			}
+		};
+	L.push(`Big Rig Rumble bug report, build ${BUILD}`);
+	if (note) L.push(`Note: ${note}`);
+	tr(() => {
+		let gpu = "";
+		try {
+			const gl = GFX.r && GFX.r.getContext(),
+				x = gl && gl.getExtension("WEBGL_debug_renderer_info");
+			gpu = x ? gl.getParameter(x.UNMASKED_RENDERER_WEBGL) : "";
+		} catch (e) {}
+		const fps = (GFX.fps && GFX.fps.el && GFX.fps.el.textContent) || "? fps";
+		L.push(
+			`Device: ${innerWidth}x${innerHeight} @${devicePixelRatio}x, ${GFX.touch ? "touch" : "mouse"}, ${gpu || "GPU ?"}, ${fps}`,
+		);
+		L.push(`Browser: ${navigator.userAgent.slice(0, 170)}`);
+	});
+	tr(() => L.push(`Where: ${dbgWhere()}, page open ${Math.round((Date.now() - DBG.t0) / 1000)} s`));
+	tr(() => {
+		L.push(
+			`Net: role ${role}, ${NET.status}${NET.err ? ` (${NET.err})` : ""}, code ${NET.code || "-"}, ${peers.length} peers`,
+		);
+		if (!G) return;
+		const tag = (p) => (p.bot ? " (CPU)" : p.local ? " (same phone)" : G === HG && !online(p.key) ? " OFFLINE" : "");
+		L.push(`Game: phase ${G.phase}, turn ${G.turn}, players ${G.players.map((p) => p.name + tag(p)).join(", ")}`);
+		if (G.mg) {
+			const mg = G.mg;
+			L.push(
+				`Minigame state: ${mg.g}${mg.team ? " " + mg.team : ""}${mg.duel ? " duel" : ""}, started ${mg.t0 ? "yes" : "no"}, ready [${Object.keys(mg.ready || {}).join(" ")}], scores from [${Object.keys(mg.res || {}).join(" ")}]`,
+			);
+		}
+	});
+	tr(() => {
+		if (!W) return;
+		const e = W.me,
+			flags = [W.tv && "TV", W.split && "split", W.localOnly && "practice run"].filter(Boolean).join(", ");
+		L.push(
+			`World: ${W.def.name}, t ${W.t.toFixed(1)}, ${W.list.length} trucks, over ${!!W.over}, sent ${!!W.submitted}${flags ? ", " + flags : ""}`,
+		);
+		if (e)
+			L.push(
+				`Me: ${e.p.name} at ${e.x.toFixed(1)}, ${e.z.toFixed(1)}, y ${e.y.toFixed(1)}, ${e.al ? "alive" : "out"}${e.d ? ", done" : ""}${e.side !== undefined ? ", side " + e.side : ""}, score ${Math.round(e.sc)}`,
+			);
+		const age = (x) =>
+			x.local ? "" : x.net ? ` (${Math.round(performance.now() - x.net.at)} ms old)` : " (never seen)";
+		L.push(
+			`Others: ${W.list
+				.filter((x) => x !== e)
+				.map((x) => mgName(x) + age(x) + (x.al ? "" : " out"))
+				.join(", ")}`,
+		);
+	});
+	if (DBG.crash) L.push(`Last session: ${DBG.crash}`);
+	L.push(DBG.errs.length ? `Errors (${DBG.errs.length}):` : "Errors: none");
+	DBG.errs.forEach((e) =>
+		L.push(
+			`  ${Math.round((Date.now() - e.at) / 1000)} s ago: ${e.msg}${e.where ? " @ " + e.where : ""}${e.stack ? "\n    " + e.stack : ""}`,
+		),
+	);
+	if (DBG.log.length) {
+		L.push("Last game events:");
+		DBG.log.slice(-15).forEach((l) => L.push("  " + l));
+	}
+	return L.join("\n");
+}
+function dbgOpen() {
+	if (document.getElementById("dbgp")) return;
+	DBG.shot = null;
+	DBG.want = true;
+	/* give the next frame a moment to be grabbed (if anything is rendering), then show the panel */
+	setTimeout(() => {
+		DBG.want = false;
+		const p = document.createElement("div");
+		p.id = "dbgp";
+		p.innerHTML = `<div class="dbgbox"><h2>🐞 Bug report</h2>${DBG.shot ? `<img alt="Screenshot of the game" src="${DBG.shot}">` : `<p class="note">No game view to capture here.</p>`}
+      <label class="field">What went wrong? (optional)<input id="dbgnote" maxlength="200" placeholder="e.g. my truck froze after the TNT"></label>
+      <textarea id="dbgtx" readonly></textarea>
+      <div class="row"><button class="btn go" data-dbg="share">${navigator.share ? "Share" : "Save screenshot"}</button><button class="btn ghost" data-dbg="copy">Copy text</button><button class="btn ghost" data-dbg="close">Close</button></div></div>`;
+		document.body.appendChild(p);
+		const tx = $("#dbgtx"),
+			up = () => (tx.value = dbgText($("#dbgnote").value.trim()));
+		up();
+		$("#dbgnote").addEventListener("input", up);
+	}, 150);
+}
+async function dbgAct(a) {
+	const tx = $("#dbgtx"),
+		text = tx ? tx.value : "";
+	if (a === "open") dbgOpen();
+	else if (a === "close") {
+		const p = $("#dbgp");
+		if (p) p.remove();
+	} else if (a === "copy") {
+		try {
+			await navigator.clipboard.writeText(text);
+		} catch (e) {
+			tx.select();
+			document.execCommand("copy");
+		}
+		$('[data-dbg="copy"]').textContent = "Copied ✓";
+	} else if (a === "share") {
+		let file = null;
+		if (DBG.shot) {
+			const blob = await (await fetch(DBG.shot)).blob();
+			file = new File([blob], "bigrig-bug.jpg", { type: "image/jpeg" });
+		}
+		if (navigator.share) {
+			try {
+				if (file && navigator.canShare && navigator.canShare({ files: [file] }))
+					await navigator.share({ files: [file], text, title: "Big Rig Rumble bug" });
+				else await navigator.share({ text, title: "Big Rig Rumble bug" });
+			} catch (e) {}
+		} else if (DBG.shot) {
+			const l = document.createElement("a");
+			l.href = DBG.shot;
+			l.download = "bigrig-bug.jpg";
+			l.click();
+		}
+	}
+}
+document.addEventListener("click", (e) => {
+	const b = e.target.closest("[data-dbg]");
+	if (b) dbgAct(b.dataset.dbg);
+});
+document.addEventListener(
+	"touchstart",
+	(e) => {
+		if (e.touches.length === 3) dbgOpen();
+	},
+	{ passive: true },
+);
+addEventListener("keydown", (e) => {
+	if (e.key === "F8") dbgOpen();
+});
 </script>
 </body>
 </html>
