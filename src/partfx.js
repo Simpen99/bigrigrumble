@@ -135,6 +135,11 @@ function sfxInit() {
 		SFX.out = SFX.ctx.createGain();
 		SFX.out.gain.value = 0.32;
 		SFX.out.connect(SFX.ctx.destination);
+		/* sound effects go through their own bus, 25% under the music */
+		SFX.fx = SFX.ctx.createGain();
+		SFX.fx.gain.value = 0.75;
+		SFX.fx.connect(SFX.out);
+		SFX.to = SFX.fx;
 	} catch (e) {
 		SFX.ctx = null;
 	}
@@ -167,7 +172,7 @@ function tone(f, d, type = "sine", vol = 0.25, f2 = 0, at = 0) {
 	g.gain.exponentialRampToValueAtTime(vol, t + 0.012);
 	g.gain.exponentialRampToValueAtTime(0.0001, t + d);
 	o.connect(g);
-	g.connect(SFX.out);
+	g.connect(SFX.to || SFX.out);
 	o.start(t);
 	o.stop(t + d + 0.02);
 }
@@ -189,7 +194,7 @@ function noiseHit(d, vol = 0.3, f1 = 800, f2 = 200, at = 0, q = 1) {
 	g.gain.value = vol;
 	s.connect(fl);
 	fl.connect(g);
-	g.connect(SFX.out);
+	g.connect(SFX.to || SFX.out);
 	s.start(t);
 }
 /* ---------- music: a small step sequencer on the sfx synth (16th-note steps, scheduled 0.12 s ahead) ----------
@@ -240,6 +245,8 @@ function musTick() {
 	const c = SFX.ctx,
 		S = MUS.song;
 	if (!c || !S) return;
+	/* music skips the sound effects bus */
+	SFX.to = SFX.out;
 	/* catch up after a stall without a burst of notes */
 	if (MUS.next < c.currentTime - 0.2) MUS.next = c.currentTime + 0.05;
 	while (MUS.next < c.currentTime + 0.12) {
@@ -268,6 +275,7 @@ function musTick() {
 		MUS.next += dur;
 		MUS.step++;
 	}
+	SFX.to = SFX.fx;
 }
 /* a short buzz on phones that support it (Android). iPhone Safari has no vibration API, not even as a home screen app */
 function buzz(ms) {
