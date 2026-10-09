@@ -1836,6 +1836,7 @@ const MM = {
 	JUMP: 0.7 /* then the jump before the slam */,
 	STUN: 1 /* shockwave stun */,
 	RING: 10 /* shockwave speed */,
+	CUT: 1.6 /* phase change: everyone freezes while the camera visits the monster */,
 	hpMax: (n) => Math.min(16, Math.max(8, n * 4)),
 };
 /* the highest roof along a truck's centre line (raycast down): {x, y} in the truck's parent space */
@@ -2026,11 +2027,18 @@ Object.assign(MG, {
 		},
 		R: () => MM.R,
 		cam(W, tgt, pos, far) {
+			/* portrait phones: 30% further out, following you a bit closer (0.9 instead of 0.85) and looking 3 m further
+			   south, so the rim next to you and the near edge (above the buttons) stay on screen */
+			if (far > 1) {
+				const off = pos.clone().sub(tgt).multiplyScalar(1.3);
+				tgt.multiplyScalar(0.9 / 0.85).z += 3;
+				pos = tgt.clone().add(off);
+			}
 			const mm = W.mm,
 				m = W.ms,
 				t = mm && mm.phT !== undefined ? W.t - mm.phT : 9;
-			if (!m || t > 1.6) return [tgt, pos];
-			const k = Math.sin((t / 1.6) * Math.PI),
+			if (!m || t > MM.CUT) return [tgt, pos];
+			const k = Math.sin((t / MM.CUT) * Math.PI),
 				bt = new THREE.Vector3(m.x, 2, m.z),
 				bp = bt.clone().add(new THREE.Vector3(0, 8 * far, 9 * far));
 			return [tgt.lerp(bt, k), pos.lerp(bp, k)];
@@ -2346,6 +2354,15 @@ Object.assign(MG, {
 			}
 		},
 		phys(W, e, inp, dt) {
+			/* phase change: every truck stops (no firing or pounding either) while the camera visits the monster, survivors
+			   can't be hit until 0.5 s after; trucks already falling or held by the magnet carry on */
+			const mm = W.mm;
+			if (mm.phT !== undefined && W.t - mm.phT < MM.CUT && !e.falling && !e.gr && e.outT === undefined) {
+				e.vx = e.vz = 0;
+				if (inp) inp.boost = inp.b2 = false;
+				e.cutInv = mm.phT + MM.CUT + 0.5;
+				return;
+			}
 			if (e.side === 0) this.monPhys(W, e, inp, dt);
 			else this.survPhys(W, e, inp, dt);
 		},
@@ -2551,7 +2568,7 @@ Object.assign(MG, {
 			}
 			if (!e.al || e.falling || e.d || W.t < 0) return;
 			e.tA = W.t;
-			const safe = W.t < (e.inv || 0);
+			const safe = W.t < (e.inv || 0) || W.t < (e.cutInv || 0);
 			e.sc = Math.floor(W.t * 10);
 			for (const t of W.tyLive || [])
 				if (t.hit && !safe && !e.tyHit[t.id] && Math.hypot(e.x - t.x, e.z - t.z) < 1.4) {
@@ -2793,6 +2810,13 @@ Object.assign(MG, {
 					mm.mus = 2;
 					musEnd(W.ko !== undefined);
 				}
+			}
+			/* the phase change freeze is over: GO! */
+			if (mm.phT !== undefined && mm.goT !== mm.phT && W.t - mm.phT >= MM.CUT) {
+				mm.goT = mm.phT;
+				mm.banner = "GO!";
+				mm.bannerT = W.t + 0.8;
+				sfx("go");
 			}
 			/* boss hit: explosion and a flinch */
 			if (mm.lastHp !== null && W.hp < mm.lastHp && m) {

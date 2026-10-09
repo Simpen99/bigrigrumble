@@ -329,8 +329,10 @@ function render() {
 		if (!$("#hudbot")) buildGame();
 		updateGame();
 		handleFx();
+		musScene(v);
 		return;
 	}
+	musScene(v);
 	let key =
 		v +
 		"|" +
