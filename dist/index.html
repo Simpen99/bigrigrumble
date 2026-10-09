@@ -737,7 +737,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-10 01:31 ac8db59";
+const BUILD = "2026-10-10 01:41 340e904";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -13470,8 +13470,10 @@ function stepMG(dt) {
 		far = asp < 1 ? 1.35 : 1;
 	let tgt, pos;
 	const me = W.me;
-	if (W.tv && def.kind === "arena" && !def.cam) [tgt, pos] = tvCam(W);
-	else if (def.kind === "arena") {
+	if (W.tv && def.kind === "arena") {
+		[tgt, pos] = tvCam(W);
+		if (def.cam) [tgt, pos] = def.cam(W, tgt, pos, far);
+	} else if (def.kind === "arena") {
 		if (mgSpec(W)) [tgt, pos] = specCam(W, far);
 		else {
 			tgt = new THREE.Vector3(me.x * 0.85, 0, me.z * 0.85);
@@ -14700,7 +14702,7 @@ function openTvMg(mg) {
 /* knocked out of an arena game: after 1.2 s (you see yourself go down) the camera frames the trucks still in play */
 function mgSpec(W) {
 	const me = W.me;
-	return !!me && !me.al && (me.outAt !== undefined ? W.t - me.outAt > 1.2 : me.y <= -3);
+	return !W.tv && !!me && !me.al && (me.outAt !== undefined ? W.t - me.outAt > 1.2 : me.y <= -3);
 }
 function specCam(W, far) {
 	const L = W.list.filter((o) => !o.gone && o.al && o.y > -3);
@@ -14718,6 +14720,7 @@ function specCam(W, far) {
 	const k = Math.max(1.3, (r + 6) / 9) * far * 0.85 * (W.def.camZoom || 1);
 	return [new THREE.Vector3(cx, 0, cz), new THREE.Vector3(cx, 23 * k, cz + 17 * k)];
 }
+const TV_ZOOM = 0.83;
 function tvCam(W) {
 	const live = W.list.filter((e) => !e.gone && e.al && e.y > -3),
 		L = live.length ? live : W.list;
@@ -14735,7 +14738,7 @@ function tvCam(W) {
 	});
 	const b = W.def.bound || {},
 		size = b.t === "sq" ? b.h : b.t === "circ" ? b.r : 0;
-	let zm = Math.max(0.88, Math.min(2.3, (r + 5) / 12)),
+	let zm = Math.max(0.88, Math.min(1.9, (r + 5) / 12)),
 		tx = cx * 0.75,
 		tz = cz * 0.75;
 	if (size && size <= 14) {
@@ -14743,7 +14746,8 @@ function tvCam(W) {
 		tx *= 0.25;
 		tz = tz * 0.25 + 2;
 	}
-	zm *= W.def.camZoom || 1;
+	/* TV_ZOOM: TVs show arena games 20% closer than the fit above */
+	zm *= (W.def.camZoom || 1) * TV_ZOOM;
 	const tgt = new THREE.Vector3(tx, 0, tz);
 	return [tgt, tgt.clone().add(new THREE.Vector3(0, 23 * zm, 17 * zm))];
 }
