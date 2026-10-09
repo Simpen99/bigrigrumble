@@ -2360,7 +2360,7 @@ function openTvCtl(mg, p) {
 	box.innerHTML = `<div class="tvc${def.ctrl === "stick" ? " bare" : ""}" style="--c:${pcol(p)}"><div class="tvrot">🔄 Turn your phone sideways</div><div class="m3top"><span class="chip name">${esc(def.name)}</span><span class="chip" id="tvct">Waiting</span></div>
     <div class="tvcme"><img alt="" src="${thumb(p.truck)}"><div><b id="tvcs">0</b><small id="tvcr">${esc(p.name)}</small></div></div>
     <div class="tvcmsg" id="tvcm">📺 Watch the TV</div>
-    ${def.ctrl === "stick" ? stickHTML(def, def.aim ? "Drive" : "Drag anywhere here to drive", mg.tm ? mg.tm[p.key] : undefined) : `<div class="tvcctl" id="tvcctl">${def.ctrl === "custom" ? def.ctlHTML() : tapCtlHTML(mg.g, def)}</div>`}
+    ${def.ctrl === "stick" ? stickHTML(def, def.aim ? "Drive" : "Drag anywhere here to drive", mg.tm ? mg.tm[p.key] : undefined) : `<div class="tvcctl${def.swipe ? " swc" : ""}" id="tvcctl">${def.swipe ? swipeHTML(def) : def.ctrl === "custom" ? def.ctlHTML() : tapCtlHTML(mg.g, def)}</div>`}
     <div class="m3ready" id="m3r"><h3>${esc(def.name)}</h3><p style="font-size:14px;line-height:1.45;margin-bottom:10px">${esc(def.how)}</p><div id="m3rl"></div><button class="btn go" id="m3rb">I'm ready</button></div></div>`;
 	if (def.ctrl === "stick") {
 		wireStick(() => TVC && TVC.inp);
@@ -2400,15 +2400,17 @@ function openTvCtl(mg, p) {
 				if (TVC.ev.length > 16) TVC.ev.shift();
 				tvcTick();
 			};
-		wrap.addEventListener("pointerdown", (e) => {
-			const b = e.target.closest("button");
-			if (!b || !wrap.contains(b)) return;
-			e.preventDefault();
-			const idx = [...wrap.querySelectorAll("button")].indexOf(b);
-			downs.set(e.pointerId, idx);
-			b.classList.add("kick");
-			send(idx, 1);
-		});
+		if (def.swipe) wireSwipe(def, send);
+		else
+			wrap.addEventListener("pointerdown", (e) => {
+				const b = e.target.closest("button");
+				if (!b || !wrap.contains(b)) return;
+				e.preventDefault();
+				const idx = [...wrap.querySelectorAll("button")].indexOf(b);
+				downs.set(e.pointerId, idx);
+				b.classList.add("kick");
+				send(idx, 1);
+			});
 		TVC.up = (e) => {
 			if (!downs.has(e.pointerId)) return;
 			const idx = downs.get(e.pointerId);
@@ -2428,6 +2430,49 @@ function openTvCtl(mg, p) {
 	$("#m3rb").addEventListener("click", tvcLand);
 	TVC.iv = setInterval(tvcTick, 50);
 	tvcTick();
+}
+/* TV controller swipe pad (def.swipe = {l, r, u, d: index of the button in ctlHTML}, like Subway Surfers): one swipe per
+   touch, sent as a press of that button; the edge labels copy those buttons */
+function swipeHTML(def) {
+	const t = document.createElement("div");
+	t.innerHTML = def.ctlHTML();
+	const bs = t.querySelectorAll("button");
+	return `<div class="swpad" id="swpad"><span class="tvchint">${esc(def.swipeHint || "Swipe")}</span>${Object.entries(
+		def.swipe,
+	)
+		.map(
+			([d, i]) =>
+				`<div class="swl sw-${d}" style="--bc:${bs[i].style.getPropertyValue("--bc")}">${bs[i].innerHTML}</div>`,
+		)
+		.join("")}</div>`;
+}
+function wireSwipe(def, send) {
+	const pad = $("#swpad"),
+		st = new Map();
+	pad.addEventListener("pointerdown", (e) => {
+		e.preventDefault();
+		st.set(e.pointerId, [e.clientX, e.clientY]);
+	});
+	pad.addEventListener("pointermove", (e) => {
+		const s = st.get(e.pointerId);
+		if (!s) return;
+		const dx = e.clientX - s[0],
+			dy = e.clientY - s[1];
+		if (Math.hypot(dx, dy) < 24) return;
+		st.delete(e.pointerId);
+		const d = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "r" : "l") : dy > 0 ? "d" : "u",
+			i = def.swipe[d],
+			l = pad.querySelector(".sw-" + d);
+		if (i === undefined) return;
+		send(i, 1);
+		send(i, 0);
+		if (l) {
+			l.classList.remove("on");
+			void l.offsetWidth;
+			l.classList.add("on");
+		}
+	});
+	["pointerup", "pointercancel"].forEach((ev) => pad.addEventListener(ev, (e) => st.delete(e.pointerId)));
 }
 function tvcLand() {
 	try {

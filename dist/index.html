@@ -497,6 +497,17 @@ body.ctl .btn{min-height:58px;font-size:18px}
 .tvchint{position:absolute;left:0;right:0;top:38%;text-align:center;color:rgba(255,255,255,.28);font-weight:800;font-size:15px;pointer-events:none}
 .tvc .ram{width:118px;height:118px}
 .tvc .ram.ram2{right:150px;bottom:calc(env(safe-area-inset-bottom,0px) + 40px);width:92px;height:92px}
+/* TV controller swipe pad (Rush Hour, Sort It Out): the whole screen takes swipes, labels show what each direction does */
+.swpad{position:absolute;left:0;right:0;bottom:0;top:calc(env(safe-area-inset-top,0px) + 200px);touch-action:none;-webkit-user-select:none;user-select:none}
+.swpad .tvchint{top:45%;font-size:17px}
+.swl{position:absolute;padding:10px 16px;border-radius:16px;background:var(--bc);color:#fff;font-weight:800;display:flex;flex-direction:column;align-items:center;gap:1px;box-shadow:inset 0 -5px 0 rgba(0,0,0,.25);text-shadow:0 1px 0 rgba(0,0,0,.35);opacity:.85;pointer-events:none}
+.swl i{font-style:normal;font-size:18px}.swl b{font-size:14px}
+.sw-l{left:12px;top:50%;transform:translateY(-50%)}
+.sw-r{right:12px;top:50%;transform:translateY(-50%)}
+.sw-u{top:12px;left:50%;transform:translateX(-50%)}
+.sw-d{bottom:calc(env(safe-area-inset-bottom,0px) + 14px);left:50%;transform:translateX(-50%)}
+.swl.on{animation:swon .3s}
+@keyframes swon{from{opacity:1;filter:brightness(1.6);box-shadow:0 0 0 4px #fff,inset 0 -5px 0 rgba(0,0,0,.25)}to{opacity:.85;filter:none}}
 body.tv #mg .m3top,body.tv #mg .m3intro,body.tv #mg .m3ready,body.tv #mg .m3center{zoom:1.4}
 body.tv #mg .m3lb{zoom:1.5}
 body.tv #mg .m3top{max-width:900px}
@@ -632,9 +643,21 @@ body.mglive #fxs,body.mgres #fxs{display:none}
   .tvc .tvchint{top:46%}
   .tvc .m3pad.twin{width:50%}
   .tvc .m3pad.aim{left:50%;width:50%;border-right:0}
-  .tvc .ram{left:calc(79% - 75px);right:auto;top:calc(50% - 75px);bottom:auto;width:150px;height:150px;font-size:26px!important}
-  .tvc .ram:has(~ .ram2){left:calc(84% - 75px);top:calc(50% - 125px)}
-  .tvc .ram.ram2{left:calc(70% - 52px);top:calc(50% + 20px);width:104px;height:104px;font-size:19px!important}
+  /* the button fills the whole right side; two buttons split it along the diagonal (top left to bottom right): the main one
+     below it, the second one above */
+  .tvc .ram{left:58%;right:0;top:0;bottom:0;width:auto;height:auto;border-radius:0;font-size:32px!important;background:linear-gradient(160deg,#F0686C,#C7343A)!important;box-shadow:inset 4px 0 0 rgba(0,0,0,.22)!important}
+  .tvc .ram .ramcd{border-radius:0}
+  .tvc .ram.held{transform:none;filter:brightness(.8)}
+  .tvc .ram:has(~ .ram2){clip-path:polygon(0 0,0 100%,100% 100%)}
+  .tvc .ram:has(~ .ram2) span{position:absolute;left:30%;top:70%;transform:translate(-50%,-50%)}
+  .tvc .ram.ram2{left:58%;right:0;top:0;bottom:0;width:auto;height:auto;background:linear-gradient(160deg,#FFC24A,#E0700F)!important;clip-path:polygon(18px 0,100% 0,100% calc(100% - 18px));font-size:26px!important}
+  .tvc .ram.ram2 span{position:absolute;left:70%;top:30%;transform:translate(-50%,-50%)}
+  .tvcctl.swc{left:0}
+  .swpad{top:0}
+  .swpad .tvchint{left:44%}
+  .swpad .sw-l{left:calc(44% + 12px)}
+  .swpad .sw-u{top:calc(env(safe-area-inset-top,0px) + 56px)}
+  .swpad .sw-u,.swpad .sw-d{left:72%}
   .tvc .tvcme{right:calc(56% + 8px);top:calc(env(safe-area-inset-top,0px) + 56px);padding:6px 12px 6px 6px}
   .tvc .tvcme img{width:70px;height:46px}.tvc .tvcme b{font-size:26px}
   .tvc .tvcmsg{right:calc(56% + 8px);top:auto;bottom:calc(env(safe-area-inset-bottom,0px) + 18px);font-size:17px}
@@ -714,7 +737,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-10 01:07 bae3c83";
+const BUILD = "2026-10-10 01:24 55c946f";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -14833,7 +14856,7 @@ function openTvCtl(mg, p) {
 	box.innerHTML = `<div class="tvc${def.ctrl === "stick" ? " bare" : ""}" style="--c:${pcol(p)}"><div class="tvrot">🔄 Turn your phone sideways</div><div class="m3top"><span class="chip name">${esc(def.name)}</span><span class="chip" id="tvct">Waiting</span></div>
     <div class="tvcme"><img alt="" src="${thumb(p.truck)}"><div><b id="tvcs">0</b><small id="tvcr">${esc(p.name)}</small></div></div>
     <div class="tvcmsg" id="tvcm">📺 Watch the TV</div>
-    ${def.ctrl === "stick" ? stickHTML(def, def.aim ? "Drive" : "Drag anywhere here to drive", mg.tm ? mg.tm[p.key] : undefined) : `<div class="tvcctl" id="tvcctl">${def.ctrl === "custom" ? def.ctlHTML() : tapCtlHTML(mg.g, def)}</div>`}
+    ${def.ctrl === "stick" ? stickHTML(def, def.aim ? "Drive" : "Drag anywhere here to drive", mg.tm ? mg.tm[p.key] : undefined) : `<div class="tvcctl${def.swipe ? " swc" : ""}" id="tvcctl">${def.swipe ? swipeHTML(def) : def.ctrl === "custom" ? def.ctlHTML() : tapCtlHTML(mg.g, def)}</div>`}
     <div class="m3ready" id="m3r"><h3>${esc(def.name)}</h3><p style="font-size:14px;line-height:1.45;margin-bottom:10px">${esc(def.how)}</p><div id="m3rl"></div><button class="btn go" id="m3rb">I'm ready</button></div></div>`;
 	if (def.ctrl === "stick") {
 		wireStick(() => TVC && TVC.inp);
@@ -14873,15 +14896,17 @@ function openTvCtl(mg, p) {
 				if (TVC.ev.length > 16) TVC.ev.shift();
 				tvcTick();
 			};
-		wrap.addEventListener("pointerdown", (e) => {
-			const b = e.target.closest("button");
-			if (!b || !wrap.contains(b)) return;
-			e.preventDefault();
-			const idx = [...wrap.querySelectorAll("button")].indexOf(b);
-			downs.set(e.pointerId, idx);
-			b.classList.add("kick");
-			send(idx, 1);
-		});
+		if (def.swipe) wireSwipe(def, send);
+		else
+			wrap.addEventListener("pointerdown", (e) => {
+				const b = e.target.closest("button");
+				if (!b || !wrap.contains(b)) return;
+				e.preventDefault();
+				const idx = [...wrap.querySelectorAll("button")].indexOf(b);
+				downs.set(e.pointerId, idx);
+				b.classList.add("kick");
+				send(idx, 1);
+			});
 		TVC.up = (e) => {
 			if (!downs.has(e.pointerId)) return;
 			const idx = downs.get(e.pointerId);
@@ -14901,6 +14926,49 @@ function openTvCtl(mg, p) {
 	$("#m3rb").addEventListener("click", tvcLand);
 	TVC.iv = setInterval(tvcTick, 50);
 	tvcTick();
+}
+/* TV controller swipe pad (def.swipe = {l, r, u, d: index of the button in ctlHTML}, like Subway Surfers): one swipe per
+   touch, sent as a press of that button; the edge labels copy those buttons */
+function swipeHTML(def) {
+	const t = document.createElement("div");
+	t.innerHTML = def.ctlHTML();
+	const bs = t.querySelectorAll("button");
+	return `<div class="swpad" id="swpad"><span class="tvchint">${esc(def.swipeHint || "Swipe")}</span>${Object.entries(
+		def.swipe,
+	)
+		.map(
+			([d, i]) =>
+				`<div class="swl sw-${d}" style="--bc:${bs[i].style.getPropertyValue("--bc")}">${bs[i].innerHTML}</div>`,
+		)
+		.join("")}</div>`;
+}
+function wireSwipe(def, send) {
+	const pad = $("#swpad"),
+		st = new Map();
+	pad.addEventListener("pointerdown", (e) => {
+		e.preventDefault();
+		st.set(e.pointerId, [e.clientX, e.clientY]);
+	});
+	pad.addEventListener("pointermove", (e) => {
+		const s = st.get(e.pointerId);
+		if (!s) return;
+		const dx = e.clientX - s[0],
+			dy = e.clientY - s[1];
+		if (Math.hypot(dx, dy) < 24) return;
+		st.delete(e.pointerId);
+		const d = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "r" : "l") : dy > 0 ? "d" : "u",
+			i = def.swipe[d],
+			l = pad.querySelector(".sw-" + d);
+		if (i === undefined) return;
+		send(i, 1);
+		send(i, 0);
+		if (l) {
+			l.classList.remove("on");
+			void l.offsetWidth;
+			l.classList.add("on");
+		}
+	});
+	["pointerup", "pointercancel"].forEach((ev) => pad.addEventListener(ev, (e) => st.delete(e.pointerId)));
 }
 function tvcLand() {
 	try {
@@ -20597,6 +20665,8 @@ const MG = {
 		CARV: 6,
 		how: "Dodge traffic, jump potholes, grab parcels. Most parcels wins.",
 		tapHint: "◀ ▶ to change lanes, Jump for potholes.",
+		swipe: { l: 0, u: 1, r: 2 },
+		swipeHint: "Swipe ◀ ▶ to change lanes, ▲ to jump",
 		lx(l) {
 			return (l - (this.LANES - 1) / 2) * this.LW;
 		},
@@ -22831,6 +22901,9 @@ Object.assign(MG, {
 		},
 		how: "Send each piece of trash to the right bin. Wrong bin costs points.",
 		tapHint: "Tap a bin, or use the arrow keys / WASD.",
+		/* TV controller: swipe toward the bin (button order in ctlHTML: metal, plastic, compost, wood) */
+		swipe: { u: 0, l: 1, d: 2, r: 3 },
+		swipeHint: "Swipe toward the bin",
 		CATS: [
 			{ k: "plastic", n: "Plastic", c: "#2F7DE1", pos: [-2.25, 0.2], keys: ["arrowleft", "a"], i: "◀" },
 			{ k: "metal", n: "Metal", c: "#8E96A3", pos: [0, -3.2], keys: ["arrowup", "w"], i: "▲" },
@@ -33495,7 +33568,7 @@ setInterval(() => {
 	render();
 })();
 
-/* ---------- bug reports: three-finger tap (F8 on a keyboard, or the home screen button) opens a panel with a
+/* ---------- bug reports: three fingers held (F8 on a keyboard, or the home screen button) opens a panel with a
    screenshot of the game view, recent errors and the game state; Share sends it all (iPhone), Copy copies the text ---------- */
 function dbgGrab(cv) {
 	DBG.want = false;
@@ -33662,12 +33735,30 @@ document.addEventListener("click", (e) => {
 	const b = e.target.closest("[data-dbg]");
 	if (b) dbgAct(b.dataset.dbg);
 });
+/* three fingers held still for 0.9 s (a quick three-finger tap happens when mashing a tap game) */
+let dbgHold = 0;
 document.addEventListener(
 	"touchstart",
 	(e) => {
-		if (e.touches.length === 3) dbgOpen();
+		if (e.touches.length >= 3 && !dbgHold)
+			dbgHold = setTimeout(() => {
+				dbgHold = 0;
+				dbgOpen();
+			}, 900);
 	},
 	{ passive: true },
+);
+["touchend", "touchcancel"].forEach((ev) =>
+	document.addEventListener(
+		ev,
+		(e) => {
+			if (e.touches.length < 3 && dbgHold) {
+				clearTimeout(dbgHold);
+				dbgHold = 0;
+			}
+		},
+		{ passive: true },
+	),
 );
 addEventListener("keydown", (e) => {
 	if (e.key === "F8") dbgOpen();

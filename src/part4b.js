@@ -5075,6 +5075,8 @@ const MG = {
 		CARV: 6,
 		how: "Dodge traffic, jump potholes, grab parcels. Most parcels wins.",
 		tapHint: "◀ ▶ to change lanes, Jump for potholes.",
+		swipe: { l: 0, u: 1, r: 2 },
+		swipeHint: "Swipe ◀ ▶ to change lanes, ▲ to jump",
 		lx(l) {
 			return (l - (this.LANES - 1) / 2) * this.LW;
 		},
