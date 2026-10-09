@@ -2781,7 +2781,8 @@ Object.assign(MG, {
 		renderShared(W, dt) {
 			const mm = W.mm,
 				m = W.ms;
-			/* boss music: starts with the fight, one level per phase, stops when the boss is down or the game ends */
+			/* boss music: starts with the fight, one section per phase, ends on a chord when the boss is down (major) or the
+			   game ends (minor) */
 			if (!mm.mus && W.t > -0.5) {
 				mm.mus = 1;
 				musPlay("boss");
@@ -2790,7 +2791,7 @@ Object.assign(MG, {
 				musLevel(W.ph || 1);
 				if (W.ko !== undefined || W.over) {
 					mm.mus = 2;
-					musStop();
+					musEnd(W.ko !== undefined);
 				}
 			}
 			/* boss hit: explosion and a flinch */
