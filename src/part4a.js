@@ -2489,7 +2489,7 @@ function ctlUpdate() {
 							: "ROLLING…",
 		);
 	} else if (ui === "shift") {
-		/* Drag Race: the burnout needle on the countdown (lit in the green), then the race revs and gear */
+		/* Drag Race: the charge needle (lit in the zone), then the race revs and gear */
 		const g = e.gr || 0,
 			r = e.rs || 0,
 			D = W.def,
@@ -2498,7 +2498,7 @@ function ctlUpdate() {
 		el.style.setProperty("--p", r.toFixed(3));
 		el.classList.toggle("hot", !!(inZ || (t >= 0 && g)) && !e.d);
 		set("tpread", g ? `GEAR ${g}` : "N");
-		set("tplab", e.d ? "FINISHED" : t < 0 ? (b >= 0 ? "BURNOUT" : "GET READY") : g ? "TAP!" : "STALLED");
+		set("tplab", e.d ? "FINISHED" : t < 0 ? (b >= 0 ? "CHARGE" : "GET READY") : "TAP!");
 	} else if (ui === "brake") {
 		const on = e.brk || e.st === "stop" || e.st === "crash";
 		el.style.setProperty("--p", on ? "1" : "0");

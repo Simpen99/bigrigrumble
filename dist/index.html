@@ -751,7 +751,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-10 19:24 a84e87a";
+const BUILD = "2026-10-10 19:50 22f7c7b";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -15007,7 +15007,7 @@ function ctlUpdate() {
 							: "ROLLING…",
 		);
 	} else if (ui === "shift") {
-		/* Drag Race: the burnout needle on the countdown (lit in the green), then the race revs and gear */
+		/* Drag Race: the charge needle (lit in the zone), then the race revs and gear */
 		const g = e.gr || 0,
 			r = e.rs || 0,
 			D = W.def,
@@ -15016,7 +15016,7 @@ function ctlUpdate() {
 		el.style.setProperty("--p", r.toFixed(3));
 		el.classList.toggle("hot", !!(inZ || (t >= 0 && g)) && !e.d);
 		set("tpread", g ? `GEAR ${g}` : "N");
-		set("tplab", e.d ? "FINISHED" : t < 0 ? (b >= 0 ? "BURNOUT" : "GET READY") : g ? "TAP!" : "STALLED");
+		set("tplab", e.d ? "FINISHED" : t < 0 ? (b >= 0 ? "CHARGE" : "GET READY") : "TAP!");
 	} else if (ui === "brake") {
 		const on = e.brk || e.st === "stop" || e.st === "crash";
 		el.style.setProperty("--p", on ? "1" : "0");
@@ -16233,10 +16233,11 @@ function crowdStep(W, focusZ, hype) {
 	C.body.instanceMatrix.needsUpdate = C.head.instanceMatrix.needsUpdate = C.arms.instanceMatrix.needsUpdate = true;
 }
 /* looping synth engine + crowd noise, pitched by speed */
-/* Drag Race rev dial: a flat gauge that faces the camera (green shift zone, red line, needle, gear number), parts
+/* Drag Race rev dial: a flat gauge that faces the camera (amber good zone with the green perfect band, red line,
+   needle, gear number), parts
    0.04 apart so nothing z-fights. set(r, gear, state): state 0 normal, 1 in the green, 2 on the limiter */
 const DIAL_TH = (r) => (1.25 - 1.5 * r) * Math.PI;
-function revDial(zone) {
+function revDial(zone, perf) {
 	const g = new THREE.Group(),
 		bm = (c) => new THREE.MeshBasicMaterial({ color: c }),
 		ring = (r0, r1, a, b, c, z) => {
@@ -16250,7 +16251,11 @@ function revDial(zone) {
 	const rim = new THREE.Mesh(new THREE.RingGeometry(1, 1.14, 32), bm("#F4F6F9"));
 	g.add(rim);
 	ring(0.72, 0.9, 0, zone[0], "#4A5263", 0.04);
-	ring(0.68, 0.94, zone[0], zone[1], "#1FA35C", 0.04);
+	if (perf) {
+		ring(0.68, 0.94, zone[0], perf[0], "#F0A91B", 0.04);
+		ring(0.68, 0.94, perf[0], perf[1], "#1FA35C", 0.04);
+		ring(0.68, 0.94, perf[1], zone[1], "#F0A91B", 0.04);
+	} else ring(0.68, 0.94, zone[0], zone[1], "#1FA35C", 0.04);
 	ring(0.68, 0.94, zone[1], 1, "#E5484D", 0.04);
 	const pv = new THREE.Group();
 	pv.position.z = 0.08;
@@ -19639,39 +19644,51 @@ const MG = {
 		unit: "ms",
 		dur: 35,
 		tapLabel: "TAP",
-		tvHint: "Tap your phone when your dial hits the green, once per count. After GO: tap as fast as you can!",
-		tapHint: "On each count tap when the needle is in the green, then after GO tap as fast as you can.",
-		how: "Time three burnouts in the green on the countdown, then mash to the line. A good start beats fast thumbs!",
-		/* the countdown is three 2 s beats (3, 2, 1); each beat the needle sweeps up (faster every beat) and one tap in
-		   the green scores burnout points (PERFECT 1, green 0.6, early 0); past the green, or no tap before the limiter,
-		   is a red: no points and a stall after GO (STALL by number of reds). The points set the launch speed and a
-		   short nitro push, then speed comes from the tap rate (tapF saturates, so a good start beats slightly faster
-		   thumbs); the gears shift by themselves. Balance check: node tools/watch.mjs drag --runs 20 */
-		cd: 6.6,
-		BEAT: 2,
-		RISE: [1.6, 1.35, 1.1],
-		ZONE: [0.82, 0.95],
-		PERF: [0.86, 0.93],
-		STALL: [0, 0.35, 0.8, 1.4],
+		tvHint:
+			"Charge the burnout: tap your phone when your dial hits the green, 5 times. After GO: tap as fast as you can!",
+		tapHint: "Charge: tap when the needle is in the green (5 times). After GO tap as fast as you can.",
+		how: "Charge a burnout by tapping in the green, then mash to the line. A red resets your charge!",
+		/* 3-2-1, then the charge: 5 steps of STEP s; each step the needle sweeps up (faster every step) and one tap
+		   grades it: PERFECT (green band) +1 charge, good (amber edges) +0.6, early +0, red (past the zone, or no tap
+		   before the limiter) resets the charge to 0. The burnout gets wilder with the charge. At GO the charge sets the
+		   launch speed and a short nitro push (5 = 3 launch points), then speed comes from the tap rate (tapF saturates,
+		   so a good start beats slightly faster thumbs); 6 gears that shift by themselves. Taps are graded where the
+		   needle was LAG s earlier (input and display delay, longer from a TV controller).
+		   Balance check: node tools/watch.mjs drag --runs 6 --quiet */
+		LEN: 240,
+		STEP: 1.5,
+		cd: 3.2 + 5 * 1.5,
+		RISE: [1.2, 1.15, 1.1, 1.05, 1],
+		ZONE: [0.8, 0.97],
+		PERF: [0.85, 0.94],
+		LAG: [0.04, 0.1],
 		V0: 2,
-		VQ: 2.4 /* launch speed per burnout point (m/s) */,
-		NB: 2 /* nitro push per point (m/s²) */,
-		TB: [0.6, 0.3] /* nitro time: base + per point */,
-		VT: [15, 21.5, 28, 34, 39],
-		ACC: [11.3, 9.1, 7.5, 6.1, 5.2],
-		DRAG: 0.0026,
+		VQ: 2.4 /* launch speed per launch point (m/s) */,
+		NB: 2 /* nitro push per launch point (m/s²) */,
+		TB: [0.6, 0.3] /* nitro time: base + per launch point */,
+		VT: [16, 23, 30, 37, 44, 51],
+		ACC: [12.5, 10.4, 8.8, 7.5, 6.4, 5.6],
+		DRAG: 0.0015,
 		TAPK: 3.6 /* tap rate (taps/s) that gives 63% of the pull */,
 		WIN: 0.8 /* tap rate window (s) */,
 		tapF(R) {
 			return 1 - Math.exp(-R / this.TAPK);
 		},
+		/* 3, 2, 1, then REV! as the charge starts */
 		cdText(t) {
-			return t < -3 * this.BEAT ? "" : String(3 - Math.floor((t + 3 * this.BEAT) / this.BEAT));
+			const k = t + this.cd;
+			return k < 0.2 ? "" : k < 3.2 ? String(3 - Math.floor(k - 0.2)) : k < 3.9 ? "REV!" : "";
 		},
-		/* which burnout beat countdown time t is in (0..2), -1 outside */
+		/* which charging step countdown time t is in (0..4), -1 outside */
 		beat(t) {
-			const b = Math.floor((t + 3 * this.BEAT) / this.BEAT);
-			return t < 0 && b >= 0 && b < 3 ? b : -1;
+			const b = Math.floor((t + 5 * this.STEP) / this.STEP);
+			return t < 0 && b >= 0 && b < 5 ? b : -1;
+		},
+		/* the needle in step b at time t: idle, then a straight sweep up to the limiter */
+		needle(b, t) {
+			if (b < 0) return 0.12;
+			const u = (t + (5 - b) * this.STEP - 0.1) / this.RISE[b];
+			return 0.12 + 0.88 * Math.min(1, Math.max(0, u));
 		},
 		/* grades pop up above the rev dial */
 		say(W, e, m, tone) {
@@ -19679,8 +19696,8 @@ const MG = {
 		},
 		build(W) {
 			const s = W.sc,
-				wid = laneWorld(W, 220, { noTrees: true });
-			gantry(s, wid, -200, 5, "#151B24");
+				wid = laneWorld(W, this.LEN + 30, { noTrees: true });
+			gantry(s, wid, -this.LEN, 5, "#151B24");
 			{
 				// laid-down rubber in the launch zone of every lane, darkest at the line
 				const rub = canvasTex(32, 256, (x, w, h) => {
@@ -19727,9 +19744,9 @@ const MG = {
 			f.rotation.x = -Math.PI / 2;
 			f.material.polygonOffset = true;
 			f.material.polygonOffsetFactor = -2;
-			f.position.set(0, 0.106, -200);
+			f.position.set(0, 0.106, -this.LEN);
 			s.add(f);
-			grandstands(W, wid, 14, -232);
+			grandstands(W, wid, 14, -this.LEN - 42);
 			// run-off past the finish: a crash cushion per lane in front of a concrete wall
 			const wall = B(wid + 2.4, 3.2, 1, "#C9CED8", 0, 1.6, this.PADZ - 3.65);
 			s.add(wall);
@@ -19762,11 +19779,11 @@ const MG = {
 				s,
 				W.plist.map((p, i) => W.laneX(i)),
 				-3.9,
-				-198,
+				-this.LEN + 2,
 				0.106,
 				{ w: 0.16, dash: 2.2, gap: 3.8 },
 			);
-			for (let d = 25; d < 200; d += 25) {
+			for (let d = 25; d < this.LEN; d += 25) {
 				const tex = canvasTex(96, 48, (x, w, h) => {
 					x.fillStyle = "#FFC83D";
 					x.fillRect(0, 0, w, h);
@@ -19776,7 +19793,7 @@ const MG = {
 					x.textAlign = "center";
 					x.textBaseline = "middle";
 					x.fillStyle = "#FFFFFF";
-					x.fillText(String(200 - d), w / 2, h / 2 + 2);
+					x.fillText(String(this.LEN - d), w / 2, h / 2 + 2);
 				});
 				[-1, 1].forEach((sd) => {
 					const x = sd * (wid / 2 + 1.1);
@@ -19809,18 +19826,21 @@ const MG = {
 		},
 		spawn: laneSpawn,
 		fmt: (W, e) => `${Math.round(-e.z)} m`,
-		/* after GO every tap counts toward the tap rate (also while stalled) */
+		/* after GO every tap counts toward the tap rate */
 		tap(W, e) {
 			if (e.d) return;
 			(e.tp || (e.tp = [])).push(W.t);
 			if (e.tp.length > 40) e.tp.splice(0, e.tp.length - 40);
 		},
-		/* a tap during the countdown: grades this beat's burnout by where the needle is */
-		tapEarly(W, e) {
+		/* a tap during the charge: graded by where the needle was a moment ago (what the player saw) */
+		tapEarly(W, e, r) {
 			const b = this.beat(W.t),
 				bo = this.bo(e);
 			if (b < 0 || bo.res[b] !== undefined) return;
-			const r = bo.r;
+			if (r === undefined) {
+				const st = -(5 - b) * this.STEP;
+				r = this.needle(b, Math.max(st, W.t - this.LAG[W.split || W.tv ? 1 : 0]));
+			}
 			this.grade(
 				W,
 				e,
@@ -19832,62 +19852,72 @@ const MG = {
 						: r >= this.PERF[0] && r <= this.PERF[1]
 							? "perf"
 							: "good",
+				r,
 			);
 		},
 		bo(e) {
-			return e.bo || (e.bo = { res: [], r: 0.12, pts: 0, reds: 0 });
+			return e.bo || (e.bo = { res: [], r: 0.12, reds: 0 });
 		},
-		grade(W, e, b, g) {
+		/* perfect +1 charge, good +0.6, early +0, red: back to 0 */
+		grade(W, e, b, g, r) {
 			const bo = this.bo(e);
 			bo.res[b] = g;
-			bo.pts += g === "perf" ? 1 : g === "good" ? 0.6 : 0;
+			e.ch = g === "red" ? 0 : Math.min(5, (e.ch || 0) + (g === "perf" ? 1 : g === "good" ? 0.6 : 0));
 			if (g === "red") bo.reds++;
-			e.f.bo = bo.res.map((x) => (x === "perf" ? 3 : x === "good" ? 2 : x === "red" ? 1 : 0)).join("");
+			e.f.ch = Math.round(e.ch * 10) / 10;
 			this.say(
 				W,
 				e,
 				g === "perf" ? "PERFECT!" : g === "good" ? "Good" : g === "red" ? "Over-rev" : "Early",
 				g === "perf" ? "good" : g === "good" ? "" : "bad",
 			);
-			mgLog(W, `${mgName(e)} burnout ${b + 1}: ${g} (needle ${Math.round(bo.r * 100)}%)`);
+			mgLog(
+				W,
+				`${mgName(e)} step ${b + 1}: ${g} (needle ${Math.round((r || bo.r) * 100)}%), charge ${e.ch.toFixed(1)}`,
+			);
 			if (e.isMe) sfx(g === "perf" ? "coin" : g === "good" ? "click" : "loss");
-			if (g === "red") e.cough = 0.5;
+			/* over-rev: the engine bogs with a black cough */
+			if (g === "red")
+				burst(W.sc, e.x + 0.5, 1.9, e.z + 1.2, {
+					n: 8,
+					shape: "ico",
+					cols: ["#2A2F3A", "#151B24", "#4A5263"],
+					spd: 0.9,
+					up: 2,
+					grav: -1,
+					life: 0.8,
+					size: 0.9,
+				});
 		},
-		/* countdown: the needle sweeps up each beat; no tap by the limiter is a red */
+		/* the charge: the needle sweeps up each step; no tap by the limiter is a red */
 		pre(W, e, dt) {
 			const b = this.beat(W.t),
 				bo = this.bo(e);
-			/* a beat that ended without a tap was a red */
-			for (let k = 0; k < (b < 0 ? (W.t < -3 * this.BEAT ? 0 : 3) : b); k++)
-				if (bo.res[k] === undefined) this.grade(W, e, k, "red");
-			if (b < 0) {
-				bo.r = 0.12;
-			} else if (bo.res[b] !== undefined) {
-				bo.r = Math.max(0.12, bo.r - dt * 3);
-			} else {
-				const u = Math.max(0, W.t + (3 - b) * this.BEAT - 0.15) / this.RISE[b];
-				bo.r = 0.12 + 0.88 * Math.min(1, u) ** 1.25;
-				if (u >= 1 + 0.3 / this.RISE[b]) this.grade(W, e, b, "red");
+			/* a step that ended without a tap was a red */
+			for (let k = 0; k < (b < 0 ? (W.t < -5 * this.STEP ? 0 : 5) : b); k++)
+				if (bo.res[k] === undefined) this.grade(W, e, k, "red", 1);
+			if (b < 0) bo.r = 0.12;
+			else if (bo.res[b] !== undefined) bo.r = Math.max(0.12, bo.r - dt * 3);
+			else {
+				bo.r = this.needle(b, W.t);
+				if (W.t + (5 - b) * this.STEP - 0.1 >= this.RISE[b] + 0.35) this.grade(W, e, b, "red", 1);
 				else if (e.bot) {
-					/* CPUs: a target needle per beat from their skill */
-					if (bo.tg === undefined || bo.tb !== b) {
+					/* CPUs: a target needle per step from their skill (a red is rare: it costs the whole charge) */
+					if (bo.tb !== b) {
 						const q = Math.random(),
 							sk = e.sk === undefined ? (e.sk = 0.35 + Math.random() * 0.6) : e.sk;
 						bo.tb = b;
 						bo.tg =
-							q < sk * 0.55
-								? 0.865 + Math.random() * 0.06
+							q < sk * 0.6
+								? 0.86 + Math.random() * 0.07
 								: q < sk * 0.95
-									? (Math.random() < 0.5 ? 0.825 : 0.935) + Math.random() * 0.012
-									: q < 0.9
-										? 0.6 + Math.random() * 0.2
+									? (Math.random() < 0.5 ? 0.805 : 0.945) + Math.random() * 0.02
+									: q < 0.95
+										? 0.55 + Math.random() * 0.22
 										: 2;
 					}
 					/* a long frame can jump the needle past the target: tap as if right on it */
-					if (bo.r >= bo.tg) {
-						bo.r = Math.min(bo.r, bo.tg);
-						this.tapEarly(W, e);
-					}
+					if (bo.r >= bo.tg) this.tapEarly(W, e, bo.tg);
 				}
 			}
 			e.r = bo.r;
@@ -19934,9 +19964,85 @@ const MG = {
 				sfx("crush");
 			} else if (Math.abs(e.z - W.me.z) < 30) sfx("ram");
 		},
+		/* the burnout while charging, wilder with the charge (k 0..1): rear tyre smoke, rubber laid down under the rear
+		   wheels, the back end swinging (pivoting on the front wheels), sparks and exhaust flames near a full charge */
+		burnout(W, e, dt, burn, rv) {
+			const c = (e.local ? e.ch : e.f && e.f.ch) || 0;
+			e.chS = (e.chS || 0) + (c - (e.chS || 0)) * Math.min(1, dt * 4);
+			const k = e.chS / 5;
+			e.bj = burn ? 0.02 + 0.08 * k : 0;
+			if (!burn) {
+				e.tr.position.x = 0;
+				return;
+			}
+			if (Math.random() < dt * (7 + 30 * k + 8 * rv))
+				burst(W.sc, e.x + (Math.random() < 0.5 ? -0.55 : 0.55) + (Math.random() - 0.5) * 0.5, 0.4, e.z + 1.4, {
+					n: 1 + (k > 0.5),
+					shape: "ico",
+					cols: k > 0.6 ? ["#F4F6F9", "#E8ECF2", "#C9CED8"] : ["#C9CED8", "#E8ECF2", "#9AA1AD"],
+					spd: 0.8 + k,
+					up: 1.2 + k * 1.5,
+					grav: -0.6,
+					life: 1.1 + k * 0.8,
+					size: 0.7 + k * 1.1 + rv * 0.3,
+				});
+			if (k > 0.6 && Math.random() < dt * 20 * (k - 0.6))
+				burst(W.sc, e.x + 0.5, 1.9, e.z + 1.2, {
+					n: 2,
+					shape: "ico",
+					cols: ["#FF8A1F", "#FFC83D", "#E5484D"],
+					spd: 0.8,
+					up: 1.6,
+					grav: -1,
+					life: 0.3,
+					size: 0.6,
+				});
+			if (!e.tmk) {
+				const tex =
+					W.tmTex ||
+					(W.tmTex = canvasTex(32, 128, (x, w, h) => {
+						const q = x.createLinearGradient(0, 0, 0, h);
+						q.addColorStop(0, "rgba(14,14,16,.95)");
+						q.addColorStop(0.55, "rgba(14,14,16,.6)");
+						q.addColorStop(1, "rgba(14,14,16,0)");
+						x.fillStyle = q;
+						x.fillRect(3, 0, w - 6, h);
+						x.fillStyle = "rgba(0,0,0,.35)";
+						for (let i = 0; i < 4; i++) x.fillRect(6 + i * 6, 0, 2, h);
+					}));
+				e.tmk = new THREE.Group();
+				[-0.55, 0.55].forEach((o) => {
+					const m = new THREE.Mesh(
+						new THREE.PlaneGeometry(0.42, 2.6),
+						new THREE.MeshBasicMaterial({
+							map: tex,
+							transparent: true,
+							opacity: 0,
+							depthWrite: false,
+							polygonOffset: true,
+							polygonOffsetFactor: -4,
+						}),
+					);
+					m.rotation.x = -Math.PI / 2;
+					m.position.set(o, 0, 0);
+					m.renderOrder = 2;
+					e.tmk.add(m);
+				});
+				e.tmk.position.set(e.x, 0.13, e.z + 2.2);
+				W.sc.add(e.tmk);
+			}
+			const op = Math.min(0.7, 0.1 + k * 0.5 + (e.tmk.userData.t = (e.tmk.userData.t || 0) + dt) * 0.02);
+			e.tmk.children.forEach((m) => (m.material.opacity = Math.max(m.material.opacity, op)));
+			/* the back end swings from side to side on the front wheels, and the body shakes */
+			const A = 0.012 + 0.06 * k + 0.012 * rv,
+				a = A * Math.sin(W.t * 10 + e.i * 1.7) + A * 0.35 * Math.sin(W.t * 23 + e.i);
+			e.tr.rotation.y += a;
+			e.tr.position.x = 1.5 * Math.sin(a);
+			e.tr.rotation.z += (Math.random() - 0.5) * (0.02 + 0.04 * k) * (0.5 + rv);
+		},
 		render(W, e, dt) {
 			const v = e.v || 0,
-				sp = v / 36,
+				sp = Math.min(1.15, v / 40),
 				gr = e.local ? e.gr || 0 : (e.f && e.f.g) || 0,
 				rv = e.local ? e.r || 0 : (e.f && e.f.r) || 0,
 				burn = W.t < 0 && this.beat(W.t) >= 0,
@@ -19944,39 +20050,12 @@ const MG = {
 			if (e.local && e.crossed) this.coast(W, e, dt);
 			/* shown revs: the burnout needle on the countdown, the gear's revs in the race, a bounce on the limiter */
 			e.rs = Math.max(0.1, rv) - (lim ? Math.abs(Math.sin(W.t * 40)) * 0.04 : 0);
-			/* burnout: the rear tyres smoke harder as the needle climbs, and the body shakes */
-			if (burn && Math.random() < dt * 34 * rv * rv)
-				burst(W.sc, e.x + (Math.random() - 0.5) * 1.4, 0.45, e.z + 1.5, {
-					n: 1,
-					shape: "ico",
-					cols: ["#C9CED8", "#E8ECF2", "#9AA1AD"],
-					spd: 0.7,
-					up: 1.4,
-					grav: -0.6,
-					life: 1.2,
-					size: 0.9 + rv,
-				});
-			if (burn) e.tr.rotation.z += (Math.random() - 0.5) * 0.04 * rv;
-			/* stalled after a red: the engine coughs black smoke and rocks while the others leave */
-			if (W.t >= 0 && !gr && !e.d) {
-				if (Math.random() < dt * 9)
-					burst(W.sc, e.x + 0.5, 1.9, e.z + 1.2, {
-						n: 2,
-						shape: "ico",
-						cols: ["#2A2F3A", "#151B24", "#4A5263"],
-						spd: 0.6,
-						up: 1.8,
-						grav: -1,
-						life: 0.7,
-						size: 0.8,
-					});
-				e.tr.rotation.x += Math.sin(W.t * 23) * 0.04;
-			}
+			this.burnout(W, e, dt, burn, rv);
 			/* the race is a mash: a hammered mini TAP button by the truck */
 			if (W.t >= 0 && !e.d) inputHint(W, e, "TAP", "mash");
 			if ((e.isMe || W.split) && !e.d) {
 				if (!e.dial) {
-					e.dial = revDial(this.ZONE);
+					e.dial = revDial(this.ZONE, this.PERF);
 					e.dial.g.scale.setScalar(0.85);
 					W.sc.add(e.dial.g);
 				}
@@ -20045,7 +20124,7 @@ const MG = {
 			const tgt = e.d ? 0 : sp;
 			W.spd += (tgt - W.spd) * Math.min(1, dt * 3);
 			const S = W.spd;
-			W.jit = S * S * 0.14 + (W.kick || 0);
+			W.jit = S * S * 0.14 + (W.kick || 0) + (e.bj || 0);
 			W.kick = Math.max(0, (W.kick || 0) - dt * 0.8);
 			W.lineMat.opacity = Math.max(0, Math.min(0.6, (S - 0.35) * 1.3));
 			W.lines.forEach((m) => {
@@ -20058,7 +20137,7 @@ const MG = {
 			if (W.vig) W.vig.style.opacity = (Math.max(0, S - 0.3) * 1.4).toFixed(3);
 			if (e.d && !W.cheered) {
 				W.cheered = true;
-				burst(W.sc, e.x, 3, -200, {
+				burst(W.sc, e.x, 3, -this.LEN, {
 					n: 36,
 					shape: "cube",
 					cols: ["#FFC83D", "#FF6FAE", "#2F7DE1", "#1FA35C", "#FFFFFF"],
@@ -20072,7 +20151,7 @@ const MG = {
 			}
 			W.roar = Math.max(0, (W.roar || 0) - dt * 0.4);
 			crowdStep(W, e.z, Math.max(S, W.roar));
-			if (!W.eng && W.t >= -6.5) W.eng = engineSnd() || { set() {}, stop() {} };
+			if (!W.eng && W.t >= -this.cd) W.eng = engineSnd() || { set() {}, stop() {} };
 			/* the engine sings with the revs (drops on every shift), so the shift point can be heard */
 			if (W.eng) W.eng.set(e.d ? S : 0.1 + e.rs * 0.9, 0.012 + S * 0.03 + W.roar * 0.05, !e.d || W.roar > 0.2);
 		},
@@ -20088,26 +20167,20 @@ const MG = {
 			if (W.eng) W.eng.stop();
 			if (W.vig) W.vig.remove();
 		},
-		PADZ: -224.3,
-		BRAKE: 27 /* from about 130 km/h at the line (flat-out mashing) the truck reaches the cushion */,
+		PADZ: -274.3 /* the cushion, 34.3 m past the line */,
+		BRAKE: 31 /* from about 165 km/h at the line (flat-out mashing) the truck reaches the cushion */,
 		rules(W, e, dt) {
 			if (e.d) return;
 			const bo = this.bo(e);
 			if (!e.gr) {
-				e.v = 0;
-				e.vz = 0;
-				e.sc = 0;
-				e.f.g = 0;
-				e.r = 0.12;
-				e.f.r = 0.12;
-				/* reds stall the start while the others leave */
-				for (let k = 0; k < 3; k++) if (bo.res[k] === undefined) this.grade(W, e, k, "red");
-				if (W.t < this.STALL[Math.min(3, bo.reds)]) return;
+				for (let k = 0; k < 5; k++) if (bo.res[k] === undefined) this.grade(W, e, k, "red", 1);
+				/* launch: a full charge (5) is 3 launch points */
 				e.gr = 1;
-				e.v = this.V0 + this.VQ * bo.pts;
-				e.nbT = W.t + this.TB[0] + this.TB[1] * bo.pts;
-				mgLog(W, `${mgName(e)} launches: ${bo.pts.toFixed(1)} burnout points, ${bo.reds} red`);
-				if (bo.pts >= 2.9) this.say(W, e, "PERFECT LAUNCH", "good");
+				e.lp = (e.ch || 0) * 0.6;
+				e.v = this.V0 + this.VQ * e.lp;
+				e.nbT = W.t + this.TB[0] + this.TB[1] * e.lp;
+				mgLog(W, `${mgName(e)} launches with charge ${(e.ch || 0).toFixed(1)} (${bo.reds} red)`);
+				if (e.ch >= 4.95) this.say(W, e, "PERFECT LAUNCH", "good");
 			}
 			/* tap rate over the last WIN seconds (a shorter window just after GO) */
 			const tp = e.tp || [];
@@ -20117,7 +20190,7 @@ const MG = {
 			e.rSum = (e.rSum || 0) + e.rate * dt;
 			e.rT = (e.rT || 0) + dt;
 			const g = e.gr,
-				a = e.clutch > 0 ? 0 : this.ACC[g - 1] * this.tapF(e.rate) + (W.t < e.nbT ? this.NB * bo.pts : 0);
+				a = e.clutch > 0 ? 0 : this.ACC[g - 1] * this.tapF(e.rate) + (W.t < e.nbT ? this.NB * e.lp : 0);
 			e.v = Math.max(0, e.v + (a - this.DRAG * e.v * e.v) * dt);
 			e.clutch = (e.clutch || 0) - dt;
 			/* automatic gearbox: shifts at the top of each gear (a short clutch dip, a puff and a nose bob) */
@@ -20127,7 +20200,7 @@ const MG = {
 				e.f.sh = (e.f.sh || 0) + 1;
 				if (e.isMe) {
 					sfx("click");
-					W.kick = 0.12;
+					W.kick = 0.22;
 				}
 			}
 			e.r = Math.min(1, e.v / this.VT[e.gr - 1]);
@@ -20136,8 +20209,8 @@ const MG = {
 			e.z -= e.v * dt;
 			e.vz = -e.v;
 			e.sc = Math.round(-e.z);
-			if (-e.z >= 200) {
-				e.z = -200;
+			if (-e.z >= this.LEN) {
+				e.z = -this.LEN;
 				e.d = true;
 				e.crossed = true;
 				e.fin = Math.round(W.t * 1000);
@@ -20145,9 +20218,11 @@ const MG = {
 			}
 		},
 		timeUp(W, e) {
-			e.fin = 35000 + Math.round((200 + e.z) * 100);
+			e.fin = 35000 + Math.round((this.LEN + e.z) * 100);
 		},
-		final: (W, e) => e.fin || 35000 + Math.round((200 + e.z) * 100),
+		final(W, e) {
+			return e.fin || 35000 + Math.round((this.LEN + e.z) * 100);
+		},
 		/* CPUs: their burnout taps come from pre(); in the race each has its own tap rate */
 		bot(W, e) {
 			if (e.d) return;
@@ -20165,7 +20240,7 @@ const MG = {
 				.sort((a, b) => (a.fin || 1e9) - (b.fin || 1e9))
 				.map(
 					(e) =>
-						`${mgName(e)} ${e.bo ? e.bo.pts.toFixed(1) : "?"}pt/${e.bo ? e.bo.reds : 0}red ${e.rT ? (e.rSum / e.rT).toFixed(1) : "?"}/s ${e.fin ? (e.fin / 1000).toFixed(2) : "--"}`,
+						`${mgName(e)} charge ${(e.ch || 0).toFixed(1)}/${e.bo ? e.bo.reds : 0}red ${e.rT ? (e.rSum / e.rT).toFixed(1) : "?"}/s ${e.fin ? (e.fin / 1000).toFixed(2) : "--"}`,
 				)
 				.join(" | ");
 		},
