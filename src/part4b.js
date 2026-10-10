@@ -254,10 +254,12 @@ function crowdStep(W, focusZ, hype) {
 	C.body.instanceMatrix.needsUpdate = C.head.instanceMatrix.needsUpdate = C.arms.instanceMatrix.needsUpdate = true;
 }
 /* looping synth engine + crowd noise, pitched by speed */
-/* Drag Race rev dial: a flat gauge that faces the camera (green shift zone, red line, needle, gear number), parts
-   0.04 apart so nothing z-fights. set(r, gear, state): state 0 normal, 1 in the green, 2 on the limiter */
+/* Drag Race rev dial: a flat gauge that faces the camera (amber good zone with the green perfect band, red line,
+   needle, gear number), parts
+   0.04 apart so nothing z-fights. set(r, gear, state): state 0 normal, 1 in the green (perfect), 2 on the limiter,
+   3 in the amber (good) */
 const DIAL_TH = (r) => (1.25 - 1.5 * r) * Math.PI;
-function revDial(zone) {
+function revDial(zone, perf) {
 	const g = new THREE.Group(),
 		bm = (c) => new THREE.MeshBasicMaterial({ color: c }),
 		ring = (r0, r1, a, b, c, z) => {
@@ -271,7 +273,11 @@ function revDial(zone) {
 	const rim = new THREE.Mesh(new THREE.RingGeometry(1, 1.14, 32), bm("#F4F6F9"));
 	g.add(rim);
 	ring(0.72, 0.9, 0, zone[0], "#4A5263", 0.04);
-	ring(0.68, 0.94, zone[0], zone[1], "#1FA35C", 0.04);
+	if (perf) {
+		ring(0.68, 0.94, zone[0], perf[0], "#F0A91B", 0.04);
+		ring(0.68, 0.94, perf[0], perf[1], "#1FA35C", 0.04);
+		ring(0.68, 0.94, perf[1], zone[1], "#F0A91B", 0.04);
+	} else ring(0.68, 0.94, zone[0], zone[1], "#1FA35C", 0.04);
 	ring(0.68, 0.94, zone[1], 1, "#E5484D", 0.04);
 	const pv = new THREE.Group();
 	pv.position.z = 0.08;
@@ -293,7 +299,7 @@ function revDial(zone) {
 		g,
 		set(r, gr, st) {
 			pv.rotation.z = DIAL_TH(Math.max(0, Math.min(1, r))) - Math.PI / 2;
-			rim.material.color.set(st === 2 ? "#E5484D" : st === 1 ? "#7CF0A8" : "#F4F6F9");
+			rim.material.color.set(st === 2 ? "#E5484D" : st === 1 ? "#7CF0A8" : st === 3 ? "#FFC83D" : "#F4F6F9");
 			if (gr !== lastG) {
 				lastG = gr;
 				gear.material.map = dialGearTex(gr);
@@ -3659,29 +3665,61 @@ const MG = {
 		liveHi: true,
 		unit: "ms",
 		dur: 35,
-		tapLabel: "LAUNCH",
-		tvHint: "Tap anywhere on your phone to launch on GO, then tap to shift when your dial hits the green.",
-		tapHint: "Tap on GO to launch, then tap to shift up when the needle is in the green.",
-		how: "Launch on GO, then shift up in the green. Fastest to 200 m wins.",
-		/* five gears: top speed (m/s) and pull of each; the engine pulls hardest just below the green zone's end and
-		   fades above 88% revs, so shifting in the green (ZONE) is fastest and mashing bogs every gear down */
-		VT: [14, 20, 26, 31, 36],
-		ACC: [9.5, 8, 7, 6, 5],
-		ZONE: [0.82, 0.95],
-		PERF: [0.86, 0.93],
-		tq(r, g) {
-			let q = Math.max(g === 1 ? 0.62 : 0.18, 1 - ((r - 0.8) / 0.6) ** 2);
-			if (r > 0.88) q *= 1 - ((r - 0.88) / 0.12) * 0.6;
-			return q;
+		tapLabel: "TAP",
+		tvHint:
+			"Charge the burnout: tap your phone when your dial hits the green, 5 times. After GO: tap as fast as you can!",
+		tapHint: "Charge: tap when the needle is in the green (5 times). After GO tap as fast as you can.",
+		how: "Charge a burnout by tapping in the green, then mash to the line. A red resets your charge!",
+		/* 3-2-1, then the charge: 5 steps of STEP s; each step the needle sweeps up (faster every step) and one tap
+		   grades it: PERFECT (green band) +1 charge, good (amber edges) +0.6, early +0, red (past the zone, or no tap
+		   before the limiter) resets the charge to 0. The burnout gets wilder with the charge. At GO the charge sets the
+		   launch speed and a short nitro push (5 = 3 launch points), then speed comes from the tap rate (tapF saturates,
+		   so a good start beats slightly faster thumbs); 6 gears that shift by themselves. Taps are graded where the
+		   needle was LAG s earlier (input and display delay, longer from a TV controller).
+		   Balance check: node tools/watch.mjs drag --runs 6 --quiet */
+		LEN: 240,
+		STEP: 1.5,
+		cd: 3.2 + 5 * 1.5,
+		RISE: [1.2, 1.15, 1.1, 1.05, 1],
+		ZONE: [0.79, 0.975],
+		PERF: [0.84, 0.945],
+		LAG: [0.04, 0.1],
+		V0: 2,
+		VQ: 2.4 /* launch speed per launch point (m/s) */,
+		NB: 2 /* nitro push per launch point (m/s²) */,
+		TB: [0.6, 0.3] /* nitro time: base + per launch point */,
+		VT: [16, 23, 30, 37, 44, 51],
+		ACC: [12.5, 10.4, 8.8, 7.5, 6.4, 5.6],
+		DRAG: 0.0015,
+		TAPK: 3.6 /* tap rate (taps/s) that gives 63% of the pull */,
+		WIN: 0.8 /* tap rate window (s) */,
+		tapF(R) {
+			return 1 - Math.exp(-R / this.TAPK);
 		},
-		/* start and shift grades pop up above the rev dial */
+		/* 3, 2, 1, then REV! as the charge starts */
+		cdText(t) {
+			const k = t + this.cd;
+			return k < 0.2 ? "" : k < 3.2 ? String(3 - Math.floor(k - 0.2)) : k < 3.9 ? "REV!" : "";
+		},
+		/* which charging step countdown time t is in (0..4), -1 outside */
+		beat(t) {
+			const b = Math.floor((t + 5 * this.STEP) / this.STEP);
+			return t < 0 && b >= 0 && b < 5 ? b : -1;
+		},
+		/* the needle in step b at time t: idle, then a straight sweep up to the limiter */
+		needle(b, t) {
+			if (b < 0) return 0.12;
+			const u = (t + (5 - b) * this.STEP - 0.1) / this.RISE[b];
+			return 0.12 + 0.88 * Math.min(1, Math.max(0, u));
+		},
+		/* grades pop up above the rev dial */
 		say(W, e, m, tone) {
 			fb(W, e, m, { h: 5.5, tone });
 		},
 		build(W) {
 			const s = W.sc,
-				wid = laneWorld(W, 220, { noTrees: true });
-			gantry(s, wid, -200, 5, "#151B24");
+				wid = laneWorld(W, this.LEN + 30, { noTrees: true });
+			gantry(s, wid, -this.LEN, 5, "#151B24");
 			{
 				// laid-down rubber in the launch zone of every lane, darkest at the line
 				const rub = canvasTex(32, 256, (x, w, h) => {
@@ -3728,9 +3766,9 @@ const MG = {
 			f.rotation.x = -Math.PI / 2;
 			f.material.polygonOffset = true;
 			f.material.polygonOffsetFactor = -2;
-			f.position.set(0, 0.106, -200);
+			f.position.set(0, 0.106, -this.LEN);
 			s.add(f);
-			grandstands(W, wid, 14, -232);
+			grandstands(W, wid, 14, -this.LEN - 42);
 			// run-off past the finish: a crash cushion per lane in front of a concrete wall
 			const wall = B(wid + 2.4, 3.2, 1, "#C9CED8", 0, 1.6, this.PADZ - 3.65);
 			s.add(wall);
@@ -3763,11 +3801,11 @@ const MG = {
 				s,
 				W.plist.map((p, i) => W.laneX(i)),
 				-3.9,
-				-198,
+				-this.LEN + 2,
 				0.106,
 				{ w: 0.16, dash: 2.2, gap: 3.8 },
 			);
-			for (let d = 25; d < 200; d += 25) {
+			for (let d = 25; d < this.LEN; d += 25) {
 				const tex = canvasTex(96, 48, (x, w, h) => {
 					x.fillStyle = "#FFC83D";
 					x.fillRect(0, 0, w, h);
@@ -3777,7 +3815,7 @@ const MG = {
 					x.textAlign = "center";
 					x.textBaseline = "middle";
 					x.fillStyle = "#FFFFFF";
-					x.fillText(String(200 - d), w / 2, h / 2 + 2);
+					x.fillText(String(this.LEN - d), w / 2, h / 2 + 2);
 				});
 				[-1, 1].forEach((sd) => {
 					const x = sd * (wid / 2 + 1.1);
@@ -3810,70 +3848,111 @@ const MG = {
 		},
 		spawn: laneSpawn,
 		fmt: (W, e) => `${Math.round(-e.z)} m`,
-		/* the first tap after GO launches, every later one shifts up */
+		/* after GO every tap counts toward the tap rate */
 		tap(W, e) {
-			if (e.d) return;
-			if (!e.gr) {
-				if (W.t < (e.stall || 0)) return;
-				const rt = W.t - (e.stall || 0);
-				e.gr = 1;
-				e.v = 0.6;
-				e.shT = W.t;
-				if (!e.fs)
-					this.say(
-						W,
-						e,
-						rt < 0.25 ? "LIGHTNING START!" : rt < 0.5 ? "Good start" : "Slow start",
-						rt < 0.25 ? "good" : rt < 0.5 ? "" : "bad",
-					);
-				if (e.isMe) sfx("click");
-				return;
+			if (e.d || e.crossed) return;
+			(e.tp || (e.tp = [])).push(W.t);
+			if (e.tp.length > 40) e.tp.splice(0, e.tp.length - 40);
+		},
+		/* a tap during the charge: graded by where the needle was a moment ago (what the player saw) */
+		tapEarly(W, e, r) {
+			const b = this.beat(W.t),
+				bo = this.bo(e);
+			if (b < 0 || bo.res[b] !== undefined) return;
+			if (r === undefined) {
+				const st = -(5 - b) * this.STEP;
+				r = this.needle(b, Math.max(st, W.t - this.LAG[W.split || W.tv ? 1 : 0]));
 			}
-			if (e.gr >= this.VT.length || W.t - e.shT < 0.25) return;
-			const r = e.r || 0,
-				[lo, hi] = this.ZONE,
-				perf = r >= this.PERF[0] && r <= this.PERF[1];
-			if (perf) e.v *= 1.03;
-			const ok = r >= lo && r <= hi;
+			this.grade(
+				W,
+				e,
+				b,
+				r < this.ZONE[0]
+					? "early"
+					: r > this.ZONE[1]
+						? "red"
+						: r >= this.PERF[0] && r <= this.PERF[1]
+							? "perf"
+							: "good",
+				r,
+			);
+		},
+		bo(e) {
+			return e.bo || (e.bo = { res: [], r: 0.12, reds: 0 });
+		},
+		/* perfect +1 charge, good +0.6, early +0, red: back to 0 */
+		grade(W, e, b, g, r) {
+			const bo = this.bo(e);
+			bo.res[b] = g;
+			e.ch = g === "red" ? 0 : Math.min(5, (e.ch || 0) + (g === "perf" ? 1 : g === "good" ? 0.6 : 0));
+			if (g === "red") bo.reds++;
+			e.f.ch = Math.round(e.ch * 10) / 10;
 			this.say(
 				W,
 				e,
-				perf
-					? "PERFECT!"
-					: ok
-						? "Good"
-						: r < 0.6
-							? "Way too early"
-							: r < lo
-								? "Early"
-								: e.limT > 0.3
-									? "Over-rev"
-									: "Late",
-				perf ? "good" : ok ? "" : "bad",
+				g === "perf" ? "PERFECT!" : g === "good" ? "Good" : g === "red" ? "Over-rev" : "Early",
+				g === "perf" ? "good" : g === "good" ? "" : "bad",
 			);
-			e.gr++;
-			e.shT = W.t;
-			e.clutch = 0.12;
-			e.f.sh = (e.f.sh || 0) + 1;
-			if (e.isMe) {
-				sfx(perf ? "coin" : "click");
-				W.kick = perf ? 0.22 : 0.1;
-			}
+			mgLog(
+				W,
+				`${mgName(e)} step ${b + 1}: ${g} (needle ${Math.round((r || bo.r) * 100)}%), charge ${e.ch.toFixed(1)}`,
+			);
+			if (e.isMe) sfx(g === "perf" ? "coin" : g === "good" ? "click" : "loss");
+			/* over-rev: the engine bogs with a black cough */
+			if (g === "red")
+				burst(W.sc, e.x + 0.5, 1.9, e.z + 1.2, {
+					n: 8,
+					shape: "ico",
+					cols: ["#2A2F3A", "#151B24", "#4A5263"],
+					spd: 0.9,
+					up: 2,
+					grav: -1,
+					life: 0.8,
+					size: 0.9,
+				});
 		},
-		/* a tap during the countdown: false start, the truck stays put for the first second after GO */
-		tapEarly(W, e) {
-			if (e.gr || e.fs || W.t < -3) return;
-			e.fs = true;
-			e.stall = 1;
-			fb(W, e, "FALSE START", { stamp: true });
-			if (e.isMe) sfx("loss");
+		/* the charge: the needle sweeps up each step; no tap by the limiter is a red */
+		pre(W, e, dt) {
+			const b = this.beat(W.t),
+				bo = this.bo(e);
+			/* a step that ended without a tap was a red */
+			for (let k = 0; k < (b < 0 ? (W.t < -5 * this.STEP ? 0 : 5) : b); k++)
+				if (bo.res[k] === undefined) this.grade(W, e, k, "red", 1);
+			if (b < 0) bo.r = 0.12;
+			else if (bo.res[b] !== undefined) bo.r = Math.max(0.12, bo.r - dt * 3);
+			else {
+				bo.r = this.needle(b, W.t);
+				if (W.t + (5 - b) * this.STEP - 0.1 >= this.RISE[b] + 0.35) this.grade(W, e, b, "red", 1);
+				else if (e.bot) {
+					/* CPUs: a target needle per step from their skill (a red is rare: it costs the whole charge) */
+					if (bo.tb !== b) {
+						const q = Math.random(),
+							sk = e.sk === undefined ? (e.sk = 0.35 + Math.random() * 0.6) : e.sk;
+						bo.tb = b;
+						bo.tg =
+							q < sk * 0.6
+								? 0.86 + Math.random() * 0.07
+								: q < sk * 0.95
+									? (Math.random() < 0.5 ? 0.805 : 0.945) + Math.random() * 0.02
+									: q < 0.95
+										? 0.55 + Math.random() * 0.22
+										: 2;
+					}
+					/* a long frame can jump the needle past the target: tap as if right on it */
+					if (bo.r >= bo.tg) this.tapEarly(W, e, bo.tg);
+				}
+			}
+			e.r = bo.r;
+			e.f.r = Math.round(bo.r * 100) / 100;
 		},
 		coast(W, e, dt) {
 			// after the line: brake to a stop, or bounce off the cushion
 			const v0 = e.v || 0;
-			if (Math.abs(v0) < 0.05) {
+			/* the truck only counts as done once it has stopped, so the round waits for everyone to pull up */
+			if (Math.abs(v0) < 0.05 || W.t * 1000 - e.fin > 9000) {
 				e.v = 0;
 				e.vz = 0;
+				e.d = true;
 				return;
 			}
 			e.v = Math.sign(v0) * Math.max(0, Math.abs(v0) - this.BRAKE * (v0 < 0 ? 1.6 : 1) * dt);
@@ -3909,20 +3988,99 @@ const MG = {
 				sfx("crush");
 			} else if (Math.abs(e.z - W.me.z) < 30) sfx("ram");
 		},
+		/* the burnout while charging, wilder with the charge (k 0..1): rear tyre smoke, rubber laid down under the rear
+		   wheels, the back end swinging (pivoting on the front wheels), sparks and exhaust flames near a full charge */
+		burnout(W, e, dt, burn, rv) {
+			const c = (e.local ? e.ch : e.f && e.f.ch) || 0;
+			e.chS = (e.chS || 0) + (c - (e.chS || 0)) * Math.min(1, dt * 4);
+			const k = e.chS / 5;
+			e.bj = burn ? 0.02 + 0.08 * k : 0;
+			if (!burn) {
+				e.tr.position.x = 0;
+				return;
+			}
+			if (Math.random() < dt * (7 + 30 * k + 8 * rv))
+				burst(W.sc, e.x + (Math.random() < 0.5 ? -0.55 : 0.55) + (Math.random() - 0.5) * 0.5, 0.4, e.z + 1.4, {
+					n: 1 + (k > 0.5),
+					shape: "ico",
+					cols: k > 0.6 ? ["#F4F6F9", "#E8ECF2", "#C9CED8"] : ["#C9CED8", "#E8ECF2", "#9AA1AD"],
+					spd: 0.8 + k,
+					up: 1.2 + k * 1.5,
+					grav: -0.6,
+					life: 1.1 + k * 0.8,
+					size: 0.7 + k * 1.1 + rv * 0.3,
+				});
+			if (k > 0.6 && Math.random() < dt * 20 * (k - 0.6))
+				burst(W.sc, e.x + 0.5, 1.9, e.z + 1.2, {
+					n: 2,
+					shape: "ico",
+					cols: ["#FF8A1F", "#FFC83D", "#E5484D"],
+					spd: 0.8,
+					up: 1.6,
+					grav: -1,
+					life: 0.3,
+					size: 0.6,
+				});
+			if (!e.tmk) {
+				const tex =
+					W.tmTex ||
+					(W.tmTex = canvasTex(32, 128, (x, w, h) => {
+						const q = x.createLinearGradient(0, 0, 0, h);
+						q.addColorStop(0, "rgba(14,14,16,.95)");
+						q.addColorStop(0.55, "rgba(14,14,16,.6)");
+						q.addColorStop(1, "rgba(14,14,16,0)");
+						x.fillStyle = q;
+						x.fillRect(3, 0, w - 6, h);
+						x.fillStyle = "rgba(0,0,0,.35)";
+						for (let i = 0; i < 4; i++) x.fillRect(6 + i * 6, 0, 2, h);
+					}));
+				e.tmk = new THREE.Group();
+				[-0.55, 0.55].forEach((o) => {
+					const m = new THREE.Mesh(
+						new THREE.PlaneGeometry(0.42, 2.6),
+						new THREE.MeshBasicMaterial({
+							map: tex,
+							transparent: true,
+							opacity: 0,
+							depthWrite: false,
+							polygonOffset: true,
+							polygonOffsetFactor: -4,
+						}),
+					);
+					m.rotation.x = -Math.PI / 2;
+					m.position.set(o, 0, 0);
+					m.renderOrder = 2;
+					e.tmk.add(m);
+				});
+				e.tmk.position.set(e.x, 0.13, e.z + 2.2);
+				W.sc.add(e.tmk);
+			}
+			const op = Math.min(0.7, 0.1 + k * 0.5 + (e.tmk.userData.t = (e.tmk.userData.t || 0) + dt) * 0.02);
+			e.tmk.children.forEach((m) => (m.material.opacity = Math.max(m.material.opacity, op)));
+			/* the back end swings from side to side on the front wheels, and the body shakes */
+			const A = 0.012 + 0.06 * k + 0.012 * rv,
+				a = A * Math.sin(W.t * 10 + e.i * 1.7) + A * 0.35 * Math.sin(W.t * 23 + e.i);
+			e.tr.rotation.y += a;
+			e.tr.position.x = 1.5 * Math.sin(a);
+			e.tr.rotation.z += (Math.random() - 0.5) * (0.02 + 0.04 * k) * (0.5 + rv);
+		},
 		render(W, e, dt) {
 			const v = e.v || 0,
-				sp = v / 36,
+				sp = Math.min(1.15, v / 40),
 				gr = e.local ? e.gr || 0 : (e.f && e.f.g) || 0,
-				lim = gr > 0 && !e.d && (e.local ? e.r || 0 : (e.f && e.f.r) || 0) >= 0.99;
+				rv = e.local ? e.r || 0 : (e.f && e.f.r) || 0,
+				burn = W.t < 0 && this.beat(W.t) >= 0,
+				done = e.d || e.crossed || -e.z >= this.LEN - 0.05,
+				lim = !done && rv >= 0.99 && (gr > 0 || burn);
 			if (e.local && e.crossed) this.coast(W, e, dt);
-			/* shown revs: idle wobble before the launch, a bounce on the limiter */
-			e.rs =
-				gr === 0
-					? 0.12 + (W.t > -3 ? 0.05 * Math.abs(Math.sin(W.t * 7 + e.i)) : 0)
-					: (e.local ? e.r || 0 : (e.f && e.f.r) || 0) - (lim ? Math.abs(Math.sin(W.t * 40)) * 0.04 : 0);
-			if ((e.isMe || W.split) && !e.d) {
+			/* shown revs: the burnout needle on the countdown, the gear's revs in the race, a bounce on the limiter */
+			e.rs = Math.max(0.1, rv) - (lim ? Math.abs(Math.sin(W.t * 40)) * 0.04 : 0);
+			this.burnout(W, e, dt, burn, rv);
+			/* the race is a mash: a hammered mini TAP button by the truck */
+			if (W.t >= 0 && !done) inputHint(W, e, "TAP", "mash");
+			if ((e.isMe || W.split) && !done) {
 				if (!e.dial) {
-					e.dial = revDial(this.ZONE);
+					e.dial = revDial(this.ZONE, this.PERF);
 					e.dial.g.scale.setScalar(0.85);
 					W.sc.add(e.dial.g);
 				}
@@ -3933,7 +4091,13 @@ const MG = {
 				e.dial.set(
 					e.rs,
 					gr,
-					lim ? 2 : gr && gr < this.VT.length && e.rs >= this.ZONE[0] && e.rs <= this.ZONE[1] ? 1 : 0,
+					lim
+						? 2
+						: burn && e.rs >= this.PERF[0] && e.rs <= this.PERF[1]
+							? 1
+							: burn && e.rs >= this.ZONE[0] && e.rs <= this.ZONE[1]
+								? 3
+								: 0,
 				);
 			} else if (e.dial) e.dial.g.visible = false;
 			/* every shift: a puff from the stack and the nose bobs */
@@ -3980,7 +4144,7 @@ const MG = {
 			e.pv = v;
 			e.pitch = (e.pitch || 0) + (Math.max(0, Math.min(0.12, acc * 0.012)) - (e.pitch || 0)) * Math.min(1, dt * 10);
 			e.tr.rotation.z += e.pitch + e.bob + (Math.random() - 0.5) * 0.025 * sp;
-			if (!e.d && v > 12 && Math.random() < (sp - 0.3) * (e.isMe ? 1.4 : 0.6))
+			if (!done && v > 12 && Math.random() < (sp - 0.3) * (e.isMe ? 1.4 : 0.6))
 				burst(W.sc, e.x + (Math.random() - 0.5) * 0.8, 0.55, e.z + 1.7, {
 					n: 1 + (sp > 0.85),
 					shape: "ico",
@@ -3992,10 +4156,10 @@ const MG = {
 					size: 0.5 + sp * 0.5,
 				});
 			if (!e.isMe) return;
-			const tgt = e.d ? 0 : sp;
+			const tgt = done ? 0 : sp;
 			W.spd += (tgt - W.spd) * Math.min(1, dt * 3);
 			const S = W.spd;
-			W.jit = S * S * 0.14 + (W.kick || 0);
+			W.jit = S * S * 0.14 + (W.kick || 0) + (e.bj || 0);
 			W.kick = Math.max(0, (W.kick || 0) - dt * 0.8);
 			W.lineMat.opacity = Math.max(0, Math.min(0.6, (S - 0.35) * 1.3));
 			W.lines.forEach((m) => {
@@ -4006,9 +4170,9 @@ const MG = {
 				m.scale.z = 0.5 + S * 7;
 			});
 			if (W.vig) W.vig.style.opacity = (Math.max(0, S - 0.3) * 1.4).toFixed(3);
-			if (e.d && !W.cheered) {
+			if (done && !W.cheered) {
 				W.cheered = true;
-				burst(W.sc, e.x, 3, -200, {
+				burst(W.sc, e.x, 3, -this.LEN, {
 					n: 36,
 					shape: "cube",
 					cols: ["#FFC83D", "#FF6FAE", "#2F7DE1", "#1FA35C", "#FFFFFF"],
@@ -4022,9 +4186,9 @@ const MG = {
 			}
 			W.roar = Math.max(0, (W.roar || 0) - dt * 0.4);
 			crowdStep(W, e.z, Math.max(S, W.roar));
-			if (!W.eng && W.t >= -4) W.eng = engineSnd() || { set() {}, stop() {} };
+			if (!W.eng && W.t >= -this.cd) W.eng = engineSnd() || { set() {}, stop() {} };
 			/* the engine sings with the revs (drops on every shift), so the shift point can be heard */
-			if (W.eng) W.eng.set(e.d ? S : 0.1 + e.rs * 0.9, 0.012 + S * 0.03 + W.roar * 0.05, !e.d || W.roar > 0.2);
+			if (W.eng) W.eng.set(done ? S : 0.1 + e.rs * 0.9, 0.012 + S * 0.03 + W.roar * 0.05, !done || W.roar > 0.2);
 		},
 		cam(W, tgt, pos, far) {
 			const S = W.spd || 0;
@@ -4038,67 +4202,83 @@ const MG = {
 			if (W.eng) W.eng.stop();
 			if (W.vig) W.vig.remove();
 		},
-		PADZ: -224.3,
-		BRAKE: 15.8, // ~100 km/h at the line is exactly enough to reach the cushion
+		PADZ: -274.3 /* the cushion, 34.3 m past the line */,
+		BRAKE: 31 /* from about 165 km/h at the line (flat-out mashing) the truck reaches the cushion */,
 		rules(W, e, dt) {
-			if (e.d) return;
+			if (e.d || e.crossed) return;
+			const bo = this.bo(e);
 			if (!e.gr) {
-				e.v = 0;
-				e.vz = 0;
-				e.sc = 0;
-				e.f.g = 0;
-				return;
+				for (let k = 0; k < 5; k++) if (bo.res[k] === undefined) this.grade(W, e, k, "red", 1);
+				/* launch: a full charge (5) is 3 launch points */
+				e.gr = 1;
+				e.lp = (e.ch || 0) * 0.6;
+				e.v = this.V0 + this.VQ * e.lp;
+				e.nbT = W.t + this.TB[0] + this.TB[1] * e.lp;
+				mgLog(W, `${mgName(e)} launches with charge ${(e.ch || 0).toFixed(1)} (${bo.reds} red)`);
+				if (e.ch >= 4.95) this.say(W, e, "PERFECT LAUNCH", "good");
 			}
+			/* tap rate over the last WIN seconds (a shorter window just after GO) */
+			const tp = e.tp || [];
+			let n = 0;
+			for (let k = tp.length - 1; k >= 0 && tp[k] > W.t - this.WIN; k--) n++;
+			e.rate = n / Math.min(this.WIN, W.t + 0.25);
+			e.rSum = (e.rSum || 0) + e.rate * dt;
+			e.rT = (e.rT || 0) + dt;
 			const g = e.gr,
-				vt = this.VT[g - 1];
-			let a = e.clutch > 0 ? 0 : this.ACC[g - 1] * this.tq(Math.min(1, e.v / vt), g);
-			if (e.v >= vt * 0.999) {
-				a = 0;
-				e.limT = (e.limT || 0) + dt;
-			} else e.limT = 0;
-			e.v = Math.min(vt, Math.max(0, e.v + (a - 0.0025 * e.v * e.v) * dt));
+				a = e.clutch > 0 ? 0 : this.ACC[g - 1] * this.tapF(e.rate) + (W.t < e.nbT ? this.NB * e.lp : 0);
+			e.v = Math.max(0, e.v + (a - this.DRAG * e.v * e.v) * dt);
 			e.clutch = (e.clutch || 0) - dt;
-			e.r = Math.min(1, e.v / vt);
+			/* automatic gearbox: shifts at the top of each gear (a short clutch dip, a puff and a nose bob) */
+			if (g < this.VT.length && e.v >= this.VT[g - 1] * 0.98) {
+				e.gr++;
+				e.clutch = 0.15;
+				e.f.sh = (e.f.sh || 0) + 1;
+				if (e.isMe) {
+					sfx("click");
+					W.kick = 0.22;
+				}
+			}
+			e.r = Math.min(1, e.v / this.VT[e.gr - 1]);
 			e.f.r = Math.round(e.r * 100) / 100;
-			e.f.g = g;
+			e.f.g = e.gr;
 			e.z -= e.v * dt;
 			e.vz = -e.v;
 			e.sc = Math.round(-e.z);
-			if (-e.z >= 200) {
-				e.z = -200;
-				e.d = true;
+			if (-e.z >= this.LEN) {
+				e.z = -this.LEN;
 				e.crossed = true;
 				e.fin = Math.round(W.t * 1000);
+				mgLog(W, `${mgName(e)} finishes in ${W.t.toFixed(2)} s (avg ${(e.rSum / e.rT).toFixed(1)} taps/s)`);
 			}
 		},
 		timeUp(W, e) {
-			e.fin = 35000 + Math.round((200 + e.z) * 100);
+			if (!e.crossed) e.fin = 35000 + Math.round((this.LEN + e.z) * 100);
 		},
-		final: (W, e) => e.fin || 35000 + Math.round((200 + e.z) * 100),
-		/* CPUs: a reaction time at GO (sometimes a false start), then a shift point per gear, mostly in the green */
-		bot(W, e, dt) {
-			if (e.d) return;
-			if (!e.gr) {
-				if (e.rt === undefined) {
-					e.rt = 0.18 + Math.random() * 0.35;
-					if (Math.random() < 0.06) {
-						e.fs = true;
-						e.stall = 1;
-					}
-				}
-				if (W.t >= (e.stall || 0) + e.rt) this.tap(W, e);
-				return;
-			}
-			const u = Math.random();
-			e.sp =
-				e.sp ??
-				(u < 0.25 ? 0.6 + Math.random() * 0.2 : u < 0.38 ? 0.96 + Math.random() * 0.04 : 0.8 + Math.random() * 0.14);
-			if (e.r >= e.sp || (e.limT || 0) > 0.3) {
+		final(W, e) {
+			return e.fin || 35000 + Math.round((this.LEN + e.z) * 100);
+		},
+		/* CPUs: their burnout taps come from pre(); in the race each has its own tap rate */
+		bot(W, e) {
+			if (e.d || e.crossed) return;
+			if (e.bR === undefined) e.bR = 4.5 + Math.random() * 4.5;
+			if (e.nt === undefined) e.nt = W.t;
+			/* several taps in one long frame still count */
+			for (let k = 0; k < 6 && W.t >= e.nt; k++) {
 				this.tap(W, e);
-				e.sp = undefined;
+				e.nt += (0.75 + Math.random() * 0.5) / e.bR;
 			}
 		},
-		botScore: () => 8900 + rnd(2600),
+		watchSum(W) {
+			return W.list
+				.filter((e) => !e.gone)
+				.sort((a, b) => (a.fin || 1e9) - (b.fin || 1e9))
+				.map(
+					(e) =>
+						`${mgName(e)} charge ${(e.ch || 0).toFixed(1)}/${e.bo ? e.bo.reds : 0}red ${e.rT ? (e.rSum / e.rT).toFixed(1) : "?"}/s ${e.fin ? (e.fin / 1000).toFixed(2) : "--"}`,
+				)
+				.join(" | ");
+		},
+		botScore: () => 7000 + rnd(1800),
 	},
 	light: {
 		name: "Green Light",

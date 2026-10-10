@@ -4,6 +4,8 @@
 Helpers `fb` / `inputHint` / `iconSprite` in part4a, every game's banner texts converted or dropped, `how` texts trimmed.
 Follow-ups: look for more "press X now" moments for `inputHint` (Dump Run's GO once loaded?), playtest the pop-up
 sizes on the TV and on phones (`camK` in `fbStep`: size follows the camera distance), Drag/Ramp/Scoop playtest notes.
+- Drag Race (burnout + mash, PR on `drag-burnout`): maybe a skill twist later, easing off the taps right at each
+  automatic shift for a small bonus (the user liked the idea, chose plain automatic for now).
 
 - Mixie has no truck special (Concrete Pour dropped: too close to Concrete Crumble). Dumpy's is Dump Run, Zoomer's is Drift King.
 - Coin Rush is on hold (too similar to Cone Smash); proposed theme: casino rooftop car park at dusk.
