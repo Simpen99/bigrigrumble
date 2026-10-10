@@ -3546,7 +3546,6 @@ Object.assign(MG, {
 			});
 		},
 		comboTag(W, e) {
-			if (e.isMe && !W.tv && !W.split) return;
 			const cb = (e.f && e.f.cb) || 0,
 				mu = (e.f && e.f.m) || 1,
 				show = cb >= 20 && !e.gone && !e.d && !e.falling;

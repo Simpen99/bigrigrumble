@@ -1921,14 +1921,17 @@ function fbTex(text, col, stamp, tone) {
 			x.fillStyle = "#fff";
 			x.fillText(text, w / 2, h / 2 + 3, w - 40);
 		} else {
-			x.fillStyle = "rgba(16,22,31,.88)";
-			rr(x, 4, 4, w - 8, h - 8, (h - 8) / 2);
+			/* the pill takes the tone's colour (gold for good, red for bad, dark otherwise), ringed in the player colour */
+			x.fillStyle = "#151B24";
+			rr(x, 2, 2, w - 4, h - 4, (h - 4) / 2);
 			x.fill();
-			x.strokeStyle = col;
-			x.lineWidth = 5;
-			rr(x, 6.5, 6.5, w - 13, h - 13, (h - 13) / 2);
-			x.stroke();
-			x.fillStyle = tone === "good" ? "#FFD84D" : tone === "bad" ? "#FF8A8D" : "#fff";
+			x.fillStyle = col;
+			rr(x, 5, 5, w - 10, h - 10, (h - 10) / 2);
+			x.fill();
+			x.fillStyle = tone === "good" ? "#FFC83D" : tone === "bad" ? "#E5484D" : "#1C2330";
+			rr(x, 10, 10, w - 20, h - 20, (h - 20) / 2);
+			x.fill();
+			x.fillStyle = tone === "good" ? "#151B24" : "#fff";
 			x.fillText(text, w / 2, h / 2 + 2, w - 34);
 		}
 	});
