@@ -805,14 +805,6 @@ Object.assign(MG, {
 					size: 0.35,
 				});
 		},
-		cam(W, tgt, pos, far) {
-			if (W.tv) return tvCam(W);
-			if (!W.me.al) {
-				tgt.set(0, 0, 0);
-				pos.set(0, 23 * far, 17 * far);
-			}
-			return [tgt, pos];
-		},
 		prompt(W, me) {
 			const R = W.R;
 			if (!R || R.ph !== "live") return R && R.ph === "wait" && W.t > 2 ? "Next load incoming…" : "";
@@ -2029,7 +2021,7 @@ Object.assign(MG, {
 		cam(W, tgt, pos, far) {
 			/* portrait phones: 30% further out, following you a bit closer (0.9 instead of 0.85) and looking 3 m further
 			   south, so the rim next to you and the near edge (above the buttons) stay on screen */
-			if (far > 1) {
+			if (far > 1 && !mgSpec(W)) {
 				const off = pos.clone().sub(tgt).multiplyScalar(1.3);
 				tgt.multiplyScalar(0.9 / 0.85).z += 3;
 				pos = tgt.clone().add(off);

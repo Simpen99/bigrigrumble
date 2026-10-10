@@ -446,7 +446,8 @@ const SONGS = {
 			},
 		],
 	},
-	/* Volcano Quarry: brooding D minor, i VI iv V over a falling bass, taiko toms, a low string ostinato and a dark lead.
+	/* Volcano Quarry: a lava-level adventure in D minor (dorian), i VII VI VII i IV VI V: bouncy octave bass, 3-3-2 guitar
+	   hits, a 16th string ostinato, a few taiko toms and a heroic brass lead (the major IV gives it lift).
 	   2 = eruption coming (the 2 rounds before it): faster, rock beat, palm-muted guitar; 3 = erupting: the boss's chorus
 	   energy (four on the floor, driving guitar, octave bass) */
 	volcano: {
@@ -455,64 +456,78 @@ const SONGS = {
 		boom: 1,
 		sec: [
 			{
-				bpm: 92,
+				bpm: 118,
 				ch: [
-					[38, 3],
+					[38, 3, 10],
+					[36, 4],
 					[34, 4],
-					[31, 3],
+					[36, 4],
+					[38, 3],
+					[31, 4],
+					[34, 4],
 					[33, 4],
 				],
-				kick: [0, 10],
-				snare: [8],
-				hat: 0,
+				kick: [0, 6, 8],
+				snare: [4, 12],
 				ohat: [],
-				tom: [0, 0.55, 3, 0.55, 6, 0.7, 14, 0.8],
-				crash: [0],
-				bass: "8",
-				str: [0, 1, 2, 1, 0, 1, 2, 3],
-				sv: 0.022,
-				pad: 1,
-				lv: "dark",
+				tom: [10, 0.7, 11, 0.6],
+				crash: [0, 4],
+				bass: [0, 0, 3, 0, 6, 12, 8, 0, 10, 7, 14, 12],
+				gtr: "hit",
+				str: OST,
+				sv: 0.014,
+				lv: "horn",
 				mel: [
-					[0, 62, 6, 6, 65, 2, 8, 69, 8],
-					[0, 70, 6, 6, 69, 2, 8, 65, 8],
-					[0, 67, 6, 6, 70, 2, 8, 74, 6, 14, 72, 2],
-					[0, 73, 8, 8, 69, 4, 12, 64, 4],
+					[0, 74, 3, 3, 72, 1, 4, 69, 2, 6, 72, 2, 8, 74, 4, 12, 77, 2, 14, 76, 2],
+					[0, 76, 3, 3, 72, 1, 4, 67, 4, 10, 72, 2, 12, 76, 4],
+					[0, 74, 3, 3, 70, 1, 4, 65, 2, 6, 70, 2, 8, 74, 4, 12, 77, 4],
+					[0, 76, 6, 6, 79, 2, 8, 76, 4, 12, 72, 4],
+					[0, 81, 3, 3, 77, 1, 4, 74, 2, 6, 77, 2, 8, 81, 4, 12, 79, 2, 14, 77, 2],
+					[0, 79, 3, 3, 74, 1, 4, 71, 2, 6, 74, 2, 8, 79, 6, 14, 81, 2],
+					[0, 82, 4, 4, 81, 2, 6, 77, 2, 8, 74, 4, 12, 77, 4],
+					[0, 76, 6, 6, 73, 2, 8, 69, 4, 12, 73, 2, 14, 76, 2],
 				],
 			},
 			{
-				bpm: 112,
+				bpm: 130,
 				ch: [
-					[38, 3],
+					[38, 3, 10],
+					[36, 4],
 					[34, 4],
-					[31, 3],
+					[36, 4],
+					[38, 3],
+					[31, 4],
+					[34, 4],
 					[33, 4],
 				],
-				kick: [0, 6, 10],
+				kick: [0, 6, 8, 10],
 				snare: [4, 12],
-				ohat: [],
+				ohat: [14],
 				tom: [14, 0.8, 15, 0.7],
-				crash: [0],
-				bass: "8",
+				crash: [0, 4],
+				bass: "oct",
 				gtr: "chug",
 				str: OST,
-				sv: 0.024,
-				pad: 1,
-				lv: "dark",
+				sv: 0.018,
+				lv: "horn",
 				mel: "same",
 			},
 			{
 				bpm: 150,
 				ch: [
-					[38, 3],
+					[38, 3, 10],
+					[36, 4],
 					[34, 4],
-					[31, 3],
+					[36, 4],
+					[38, 3],
+					[31, 4],
+					[34, 4],
 					[33, 4],
 				],
 				kick: [0, 4, 8, 12],
 				snare: [4, 12],
 				ohat: [2, 6, 10, 14],
-				crash: [0, 2],
+				crash: [0, 2, 4, 6],
 				bass: "oct",
 				gtr: "drive",
 				str: OST,
@@ -743,11 +758,6 @@ const MV = {
 	horn(m, d, at, v = 1) {
 		mv(m, d, at, { n: 3, det: 16, v: 0.04 * v, cut: 1900, a: 0.02, sus: 0.75, dec: 0.15, r: 0.07, vib: 14, rv: 1 });
 		mv(m - 12, d, at, { w: "square", v: 0.016 * v, cut: 1200, a: 0.02, r: 0.07 });
-	},
-	/* a dark, slow-attack lead (volcano) */
-	dark(m, d, at, v = 1) {
-		mv(m, d, at, { n: 2, det: 16, v: 0.042 * v, cut: 1800, a: 0.06, r: 0.15, vib: 18, rv: 1, dl: 1 });
-		mv(m - 12, d, at, { w: "triangle", v: 0.04 * v, a: 0.06, r: 0.15 });
 	},
 	/* jingles: brass stabs, a bass note */
 	brass(m, d, at, v = 1) {

@@ -496,6 +496,21 @@ body.ctl .btn{min-height:58px;font-size:18px}
 .tvc .m3pad{height:62%;border-top:2px dashed rgba(255,255,255,.12)}
 .tvchint{position:absolute;left:0;right:0;top:38%;text-align:center;color:rgba(255,255,255,.28);font-weight:800;font-size:15px;pointer-events:none}
 .tvc .ram{width:118px;height:118px}
+.tvc .ram.ram2{right:150px;bottom:calc(env(safe-area-inset-bottom,0px) + 40px);width:92px;height:92px}
+/* TV controller swipe pad (Rush Hour, Sort It Out): the whole screen takes swipes, labels show what each direction does */
+.swpad{position:absolute;left:0;right:0;bottom:0;top:calc(env(safe-area-inset-top,0px) + 200px);touch-action:none;-webkit-user-select:none;user-select:none}
+.swpad .tvchint{top:45%;font-size:17px}
+.swl{position:absolute;display:flex;align-items:center;gap:8px;color:#fff;font-weight:800;text-shadow:0 2px 0 rgba(0,0,0,.45);pointer-events:none;opacity:.9}
+.swl i{font-style:normal;font-size:40px;line-height:1;color:var(--bc);filter:drop-shadow(0 0 2px rgba(255,255,255,.75));animation:swn 1.1s ease-in-out infinite}
+.swl b{font-size:15px;letter-spacing:.04em;text-transform:uppercase}
+.sw-l{left:12px;top:50%;transform:translateY(-50%)}.sw-l i{--dx:-9px;--dy:0px}
+.sw-r{right:12px;top:50%;transform:translateY(-50%);flex-direction:row-reverse}.sw-r i{--dx:9px;--dy:0px}
+.sw-u{top:12px;left:50%;transform:translateX(-50%);flex-direction:column;gap:2px}.sw-u i{--dx:0px;--dy:-9px}
+.sw-d{bottom:calc(env(safe-area-inset-bottom,0px) + 14px);left:50%;transform:translateX(-50%);flex-direction:column-reverse;gap:2px}.sw-d i{--dx:0px;--dy:9px}
+@keyframes swn{0%,100%{transform:translate(0,0)}50%{transform:translate(var(--dx),var(--dy))}}
+@media (prefers-reduced-motion:reduce){.swl i{animation-iteration-count:1}}
+.swl.on{animation:swon .3s}
+@keyframes swon{from{opacity:1;filter:brightness(1.9)}to{opacity:.9;filter:none}}
 body.tv #mg .m3top,body.tv #mg .m3intro,body.tv #mg .m3ready,body.tv #mg .m3center{zoom:1.4}
 body.tv #mg .m3lb{zoom:1.5}
 body.tv #mg .m3top{max-width:900px}
@@ -631,7 +646,21 @@ body.mglive #fxs,body.mgres #fxs{display:none}
   .tvc .tvchint{top:46%}
   .tvc .m3pad.twin{width:50%}
   .tvc .m3pad.aim{left:50%;width:50%;border-right:0}
-  .tvc .ram{left:calc(79% - 75px);right:auto;top:calc(50% - 75px);bottom:auto;width:150px;height:150px;font-size:26px!important}
+  /* the button fills the whole right side; two buttons split it along the diagonal (top left to bottom right): the main one
+     below it, the second one above */
+  .tvc .ram{left:58%;right:0;top:0;bottom:0;width:auto;height:auto;border-radius:0;font-size:32px!important;background:linear-gradient(160deg,#F0686C,#C7343A)!important;box-shadow:inset 4px 0 0 rgba(0,0,0,.22)!important}
+  .tvc .ram .ramcd{border-radius:0}
+  .tvc .ram.held{transform:none;filter:brightness(.8)}
+  .tvc .ram:has(~ .ram2){clip-path:polygon(0 0,0 100%,100% 100%)}
+  .tvc .ram:has(~ .ram2) span{position:absolute;left:30%;top:70%;transform:translate(-50%,-50%)}
+  .tvc .ram.ram2{left:58%;right:0;top:0;bottom:0;width:auto;height:auto;background:linear-gradient(160deg,#FFC24A,#E0700F)!important;clip-path:polygon(18px 0,100% 0,100% calc(100% - 18px));font-size:26px!important}
+  .tvc .ram.ram2 span{position:absolute;left:70%;top:30%;transform:translate(-50%,-50%)}
+  .tvcctl.swc{left:0}
+  .swpad{top:0}
+  .swpad .tvchint{left:44%}
+  .swpad .sw-l{left:calc(44% + 12px)}
+  .swpad .sw-u{top:calc(env(safe-area-inset-top,0px) + 56px)}
+  .swpad .sw-u,.swpad .sw-d{left:72%}
   .tvc .tvcme{right:calc(56% + 8px);top:calc(env(safe-area-inset-top,0px) + 56px);padding:6px 12px 6px 6px}
   .tvc .tvcme img{width:70px;height:46px}.tvc .tvcme b{font-size:26px}
   .tvc .tvcmsg{right:calc(56% + 8px);top:auto;bottom:calc(env(safe-area-inset-bottom,0px) + 18px);font-size:17px}
@@ -711,7 +740,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-09 14:19 97b9224";
+const BUILD = "2026-10-10 02:10 d0ea03b";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -8048,7 +8077,8 @@ const SONGS = {
 			},
 		],
 	},
-	/* Volcano Quarry: brooding D minor, i VI iv V over a falling bass, taiko toms, a low string ostinato and a dark lead.
+	/* Volcano Quarry: a lava-level adventure in D minor (dorian), i VII VI VII i IV VI V: bouncy octave bass, 3-3-2 guitar
+	   hits, a 16th string ostinato, a few taiko toms and a heroic brass lead (the major IV gives it lift).
 	   2 = eruption coming (the 2 rounds before it): faster, rock beat, palm-muted guitar; 3 = erupting: the boss's chorus
 	   energy (four on the floor, driving guitar, octave bass) */
 	volcano: {
@@ -8057,64 +8087,78 @@ const SONGS = {
 		boom: 1,
 		sec: [
 			{
-				bpm: 92,
+				bpm: 118,
 				ch: [
-					[38, 3],
+					[38, 3, 10],
+					[36, 4],
 					[34, 4],
-					[31, 3],
+					[36, 4],
+					[38, 3],
+					[31, 4],
+					[34, 4],
 					[33, 4],
 				],
-				kick: [0, 10],
-				snare: [8],
-				hat: 0,
+				kick: [0, 6, 8],
+				snare: [4, 12],
 				ohat: [],
-				tom: [0, 0.55, 3, 0.55, 6, 0.7, 14, 0.8],
-				crash: [0],
-				bass: "8",
-				str: [0, 1, 2, 1, 0, 1, 2, 3],
-				sv: 0.022,
-				pad: 1,
-				lv: "dark",
+				tom: [10, 0.7, 11, 0.6],
+				crash: [0, 4],
+				bass: [0, 0, 3, 0, 6, 12, 8, 0, 10, 7, 14, 12],
+				gtr: "hit",
+				str: OST,
+				sv: 0.014,
+				lv: "horn",
 				mel: [
-					[0, 62, 6, 6, 65, 2, 8, 69, 8],
-					[0, 70, 6, 6, 69, 2, 8, 65, 8],
-					[0, 67, 6, 6, 70, 2, 8, 74, 6, 14, 72, 2],
-					[0, 73, 8, 8, 69, 4, 12, 64, 4],
+					[0, 74, 3, 3, 72, 1, 4, 69, 2, 6, 72, 2, 8, 74, 4, 12, 77, 2, 14, 76, 2],
+					[0, 76, 3, 3, 72, 1, 4, 67, 4, 10, 72, 2, 12, 76, 4],
+					[0, 74, 3, 3, 70, 1, 4, 65, 2, 6, 70, 2, 8, 74, 4, 12, 77, 4],
+					[0, 76, 6, 6, 79, 2, 8, 76, 4, 12, 72, 4],
+					[0, 81, 3, 3, 77, 1, 4, 74, 2, 6, 77, 2, 8, 81, 4, 12, 79, 2, 14, 77, 2],
+					[0, 79, 3, 3, 74, 1, 4, 71, 2, 6, 74, 2, 8, 79, 6, 14, 81, 2],
+					[0, 82, 4, 4, 81, 2, 6, 77, 2, 8, 74, 4, 12, 77, 4],
+					[0, 76, 6, 6, 73, 2, 8, 69, 4, 12, 73, 2, 14, 76, 2],
 				],
 			},
 			{
-				bpm: 112,
+				bpm: 130,
 				ch: [
-					[38, 3],
+					[38, 3, 10],
+					[36, 4],
 					[34, 4],
-					[31, 3],
+					[36, 4],
+					[38, 3],
+					[31, 4],
+					[34, 4],
 					[33, 4],
 				],
-				kick: [0, 6, 10],
+				kick: [0, 6, 8, 10],
 				snare: [4, 12],
-				ohat: [],
+				ohat: [14],
 				tom: [14, 0.8, 15, 0.7],
-				crash: [0],
-				bass: "8",
+				crash: [0, 4],
+				bass: "oct",
 				gtr: "chug",
 				str: OST,
-				sv: 0.024,
-				pad: 1,
-				lv: "dark",
+				sv: 0.018,
+				lv: "horn",
 				mel: "same",
 			},
 			{
 				bpm: 150,
 				ch: [
-					[38, 3],
+					[38, 3, 10],
+					[36, 4],
 					[34, 4],
-					[31, 3],
+					[36, 4],
+					[38, 3],
+					[31, 4],
+					[34, 4],
 					[33, 4],
 				],
 				kick: [0, 4, 8, 12],
 				snare: [4, 12],
 				ohat: [2, 6, 10, 14],
-				crash: [0, 2],
+				crash: [0, 2, 4, 6],
 				bass: "oct",
 				gtr: "drive",
 				str: OST,
@@ -8345,11 +8389,6 @@ const MV = {
 	horn(m, d, at, v = 1) {
 		mv(m, d, at, { n: 3, det: 16, v: 0.04 * v, cut: 1900, a: 0.02, sus: 0.75, dec: 0.15, r: 0.07, vib: 14, rv: 1 });
 		mv(m - 12, d, at, { w: "square", v: 0.016 * v, cut: 1200, a: 0.02, r: 0.07 });
-	},
-	/* a dark, slow-attack lead (volcano) */
-	dark(m, d, at, v = 1) {
-		mv(m, d, at, { n: 2, det: 16, v: 0.042 * v, cut: 1800, a: 0.06, r: 0.15, vib: 18, rv: 1, dl: 1 });
-		mv(m - 12, d, at, { w: "triangle", v: 0.04 * v, a: 0.06, r: 0.15 });
 	},
 	/* jingles: brass stabs, a bass note */
 	brass(m, d, at, v = 1) {
@@ -12725,6 +12764,7 @@ function eliminate(W, e) {
 	if (e.d) return;
 	e.al = false;
 	e.d = true;
+	e.outAt = W.t;
 	if (MG_LOG) {
 		e.logD = true;
 		const h = e.lastHit && W.t - e.lastHit.t < 2 ? e.lastHit.k : "own fault";
@@ -13433,12 +13473,16 @@ function stepMG(dt) {
 		far = asp < 1 ? 1.35 : 1;
 	let tgt, pos;
 	const me = W.me;
-	if (W.tv && def.kind === "arena" && !def.cam) [tgt, pos] = tvCam(W);
-	else if (def.kind === "arena") {
-		const a = me.al || me.y > -3 ? me : { x: 0, z: 0 };
-		tgt = new THREE.Vector3(a.x * 0.85, 0, a.z * 0.85);
-		const zm = def.camZoom || 1;
-		pos = tgt.clone().add(new THREE.Vector3(0, 23 * far * zm, 17 * far * zm));
+	if (W.tv && def.kind === "arena") {
+		[tgt, pos] = tvCam(W);
+		if (def.cam) [tgt, pos] = def.cam(W, tgt, pos, far);
+	} else if (def.kind === "arena") {
+		if (mgSpec(W)) [tgt, pos] = specCam(W, far);
+		else {
+			tgt = new THREE.Vector3(me.x * 0.85, 0, me.z * 0.85);
+			const zm = def.camZoom || 1;
+			pos = tgt.clone().add(new THREE.Vector3(0, 23 * far * zm, 17 * far * zm));
+		}
 		if (def.cam) [tgt, pos] = def.cam(W, tgt, pos, far);
 	} else {
 		const lx = me.x * 0.6;
@@ -14651,13 +14695,35 @@ function openTvMg(mg) {
 	document.body.classList.add("mglive");
 	rtJoin(mg.nonce);
 	start3D(mg, null, false, null);
-	box.innerHTML = `<div class="m3top"><span class="chip name">${esc(def.name)}</span><span class="chip" id="m3t"></span><span class="chip grow">📱 Play on your phones</span></div>
+	box.innerHTML = `<div class="m3top"><span class="chip name">${esc(def.name)}</span><span class="chip" id="m3t"></span></div>
     <div class="m3lb${def.lbTop ? " top" : ""}" id="m3lb"></div><div class="m3intro" id="m3in"><h3>${esc(def.name)}</h3><p>${esc(def.how)}</p><p class="m3ctl">${def.aim ? "Left side of your phone drives, right side aims." : `Drag on your phone to drive. Tap ${esc(ramLbl(def))} to ${def.ramLabel ? "use it" : "charge into someone"}.`}</p></div>
     <div class="m3center${def.msgTop ? " hi" : ""}"><div class="m3big" id="m3c"></div><div class="m3msg" id="m3m" hidden></div></div>
     <div class="m3ready" id="m3r"><h3>Get ready</h3><div id="m3rl"></div><button class="btn ghost" id="m3rs" hidden style="margin-top:8px">Start without the others</button></div>`;
 	$("#m3rs").addEventListener("click", () => mgStartCountdown());
 	syncStart();
 }
+/* knocked out of an arena game: after 1.2 s (you see yourself go down) the camera frames the trucks still in play */
+function mgSpec(W) {
+	const me = W.me;
+	return !W.tv && !!me && !me.al && (me.outAt !== undefined ? W.t - me.outAt > 1.2 : me.y <= -3);
+}
+function specCam(W, far) {
+	const L = W.list.filter((o) => !o.gone && o.al && o.y > -3);
+	if (!L.length) L.push({ x: 0, z: 0 });
+	let cx = 0,
+		cz = 0,
+		r = 0;
+	L.forEach((o) => {
+		cx += (o.x / L.length) * 0.6;
+		cz += (o.z / L.length) * 0.6;
+	});
+	L.forEach((o) => {
+		r = Math.max(r, Math.hypot(o.x - cx, o.z - cz));
+	});
+	const k = Math.max(1.3, (r + 6) / 9) * far * 0.85 * (W.def.camZoom || 1);
+	return [new THREE.Vector3(cx, 0, cz), new THREE.Vector3(cx, 23 * k, cz + 17 * k)];
+}
+const TV_ZOOM = 0.83;
 function tvCam(W) {
 	const live = W.list.filter((e) => !e.gone && e.al && e.y > -3),
 		L = live.length ? live : W.list;
@@ -14675,7 +14741,7 @@ function tvCam(W) {
 	});
 	const b = W.def.bound || {},
 		size = b.t === "sq" ? b.h : b.t === "circ" ? b.r : 0;
-	let zm = Math.max(0.88, Math.min(2.3, (r + 5) / 12)),
+	let zm = Math.max(0.88, Math.min(1.9, (r + 5) / 12)),
 		tx = cx * 0.75,
 		tz = cz * 0.75;
 	if (size && size <= 14) {
@@ -14683,7 +14749,8 @@ function tvCam(W) {
 		tx *= 0.25;
 		tz = tz * 0.25 + 2;
 	}
-	zm *= W.def.camZoom || 1;
+	/* TV_ZOOM: TVs show arena games 20% closer than the fit above */
+	zm *= (W.def.camZoom || 1) * TV_ZOOM;
 	const tgt = new THREE.Vector3(tx, 0, tz);
 	return [tgt, tgt.clone().add(new THREE.Vector3(0, 23 * zm, 17 * zm))];
 }
@@ -14820,7 +14887,7 @@ function openTvCtl(mg, p) {
 	box.innerHTML = `<div class="tvc${def.ctrl === "stick" ? " bare" : ""}" style="--c:${pcol(p)}"><div class="tvrot">🔄 Turn your phone sideways</div><div class="m3top"><span class="chip name">${esc(def.name)}</span><span class="chip" id="tvct">Waiting</span></div>
     <div class="tvcme"><img alt="" src="${thumb(p.truck)}"><div><b id="tvcs">0</b><small id="tvcr">${esc(p.name)}</small></div></div>
     <div class="tvcmsg" id="tvcm">📺 Watch the TV</div>
-    ${def.ctrl === "stick" ? stickHTML(def, def.aim ? "Drive" : "Drag anywhere here to drive", mg.tm ? mg.tm[p.key] : undefined) : `<div class="tvcctl" id="tvcctl">${def.ctrl === "custom" ? def.ctlHTML() : tapCtlHTML(mg.g, def)}</div>`}
+    ${def.ctrl === "stick" ? stickHTML(def, def.aim ? "Drive" : "Drag anywhere here to drive", mg.tm ? mg.tm[p.key] : undefined) : `<div class="tvcctl${def.swipe ? " swc" : ""}" id="tvcctl">${def.swipe ? swipeHTML(def) : def.ctrl === "custom" ? def.ctlHTML() : tapCtlHTML(mg.g, def)}</div>`}
     <div class="m3ready" id="m3r"><h3>${esc(def.name)}</h3><p style="font-size:14px;line-height:1.45;margin-bottom:10px">${esc(def.how)}</p><div id="m3rl"></div><button class="btn go" id="m3rb">I'm ready</button></div></div>`;
 	if (def.ctrl === "stick") {
 		wireStick(() => TVC && TVC.inp);
@@ -14860,15 +14927,17 @@ function openTvCtl(mg, p) {
 				if (TVC.ev.length > 16) TVC.ev.shift();
 				tvcTick();
 			};
-		wrap.addEventListener("pointerdown", (e) => {
-			const b = e.target.closest("button");
-			if (!b || !wrap.contains(b)) return;
-			e.preventDefault();
-			const idx = [...wrap.querySelectorAll("button")].indexOf(b);
-			downs.set(e.pointerId, idx);
-			b.classList.add("kick");
-			send(idx, 1);
-		});
+		if (def.swipe) wireSwipe(def, send);
+		else
+			wrap.addEventListener("pointerdown", (e) => {
+				const b = e.target.closest("button");
+				if (!b || !wrap.contains(b)) return;
+				e.preventDefault();
+				const idx = [...wrap.querySelectorAll("button")].indexOf(b);
+				downs.set(e.pointerId, idx);
+				b.classList.add("kick");
+				send(idx, 1);
+			});
 		TVC.up = (e) => {
 			if (!downs.has(e.pointerId)) return;
 			const idx = downs.get(e.pointerId);
@@ -14888,6 +14957,49 @@ function openTvCtl(mg, p) {
 	$("#m3rb").addEventListener("click", tvcLand);
 	TVC.iv = setInterval(tvcTick, 50);
 	tvcTick();
+}
+/* TV controller swipe pad (def.swipe = {l, r, u, d: index of the button in ctlHTML}, like Subway Surfers): one swipe per
+   touch, sent as a press of that button; the edge labels copy those buttons */
+function swipeHTML(def) {
+	const t = document.createElement("div");
+	t.innerHTML = def.ctlHTML();
+	const bs = t.querySelectorAll("button");
+	return `<div class="swpad" id="swpad"><span class="tvchint">${esc(def.swipeHint || "Swipe")}</span>${Object.entries(
+		def.swipe,
+	)
+		.map(
+			([d, i]) =>
+				`<div class="swl sw-${d}" style="--bc:${bs[i].style.getPropertyValue("--bc")}">${bs[i].innerHTML}</div>`,
+		)
+		.join("")}</div>`;
+}
+function wireSwipe(def, send) {
+	const pad = $("#swpad"),
+		st = new Map();
+	pad.addEventListener("pointerdown", (e) => {
+		e.preventDefault();
+		st.set(e.pointerId, [e.clientX, e.clientY]);
+	});
+	pad.addEventListener("pointermove", (e) => {
+		const s = st.get(e.pointerId);
+		if (!s) return;
+		const dx = e.clientX - s[0],
+			dy = e.clientY - s[1];
+		if (Math.hypot(dx, dy) < 24) return;
+		st.delete(e.pointerId);
+		const d = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "r" : "l") : dy > 0 ? "d" : "u",
+			i = def.swipe[d],
+			l = pad.querySelector(".sw-" + d);
+		if (i === undefined) return;
+		send(i, 1);
+		send(i, 0);
+		if (l) {
+			l.classList.remove("on");
+			void l.offsetWidth;
+			l.classList.add("on");
+		}
+	});
+	["pointerup", "pointercancel"].forEach((ev) => pad.addEventListener(ev, (e) => st.delete(e.pointerId)));
 }
 function tvcLand() {
 	try {
@@ -14982,7 +15094,7 @@ function tvcTick() {
 		} catch (e) {}
 	}
 	const big = t === null ? "" : t < 0 ? String(Math.ceil(-t)) : t < 0.8 ? "GO!" : "";
-	if (st && st[7]) {
+	if (st && st[7] && !def.swipe) {
 		const j = JSON.stringify(st[7]);
 		if (j !== TVC.mir) {
 			TVC.mir = j;
@@ -15073,14 +15185,11 @@ function openTvSplit(mg) {
       <div class="m3lb${def.lbTop ? " top" : ""}" data-hid="m3lb"></div><div class="m3center${def.msgTop ? " hi" : ""}"><div class="m3big" data-hid="m3c"></div><div class="m3msg" data-hid="m3m" hidden></div></div></div>`;
 	box.innerHTML =
 		(mode === "shared"
-			? `<div class="m3top tvstop"><span class="chip name">${esc(def.name)}</span><span class="chip" id="tvsT"></span><span class="chip grow">📱 Play on your phones</span></div><div class="m3lb tvslb" id="tvsLB"></div><div class="m3center"><div class="m3big" id="tvsC"></div></div><div class="tvscards">${humans.map(hud).join("")}</div>`
+			? `<div class="m3top tvstop"><span class="chip name">${esc(def.name)}</span><span class="chip" id="tvsT"></span></div><div class="m3lb tvslb" id="tvsLB"></div><div class="m3center"><div class="m3big" id="tvsC"></div></div><div class="tvscards">${humans.map(hud).join("")}</div>`
 			: humans.map(hud).join("") +
 				cells
 					.slice(n)
-					.map(
-						() =>
-							`<div class="tvv tvempty"><div><b>${esc(def.name)}</b><span>📱 Play on your phones</span></div></div>`,
-					)
+					.map(() => `<div class="tvv tvempty"><div><b>${esc(def.name)}</b></div></div>`)
 					.join("")) +
 		`<div class="m3intro tvsin" id="m3in"><h3>${esc(def.name)}</h3><p>${esc(def.how)}</p><p class="m3ctl">📱 Your phone is the controller.</p></div>
     <div class="m3ready" id="m3r"><h3>Get ready</h3><div id="m3rl"></div><button class="btn ghost" id="m3rs" hidden style="margin-top:8px">Start without the others</button></div>`;
@@ -15429,7 +15538,8 @@ function tvsSend() {
 			order = W.list.filter((e) => !e.gone).sort((a, b) => (hi ? b.sc - a.sc : a.sc - b.sc));
 		tvsAct(s, true);
 		const st = tvStatus(W, W.me, order);
-		if (s.ctl) st[7] = mirSnap(s.ctl)[2];
+		/* the phone mirrors the TV's copy of the controls (button states); swipe pads have their own layout instead */
+		if (s.ctl && !D.swipe) st[7] = mirSnap(s.ctl)[2];
 		tvsAct(s, false);
 		l[s.k] = st;
 	});
@@ -20584,6 +20694,8 @@ const MG = {
 		CARV: 6,
 		how: "Dodge traffic, jump potholes, grab parcels. Most parcels wins.",
 		tapHint: "◀ ▶ to change lanes, Jump for potholes.",
+		swipe: { l: 0, u: 1, r: 2 },
+		swipeHint: "Swipe ◀ ▶ to change lanes, ▲ to jump",
 		lx(l) {
 			return (l - (this.LANES - 1) / 2) * this.LW;
 		},
@@ -22818,6 +22930,9 @@ Object.assign(MG, {
 		},
 		how: "Send each piece of trash to the right bin. Wrong bin costs points.",
 		tapHint: "Tap a bin, or use the arrow keys / WASD.",
+		/* TV controller: swipe toward the bin (button order in ctlHTML: metal, plastic, compost, wood) */
+		swipe: { u: 0, l: 1, d: 2, r: 3 },
+		swipeHint: "Swipe toward the bin",
 		CATS: [
 			{ k: "plastic", n: "Plastic", c: "#2F7DE1", pos: [-2.25, 0.2], keys: ["arrowleft", "a"], i: "◀" },
 			{ k: "metal", n: "Metal", c: "#8E96A3", pos: [0, -3.2], keys: ["arrowup", "w"], i: "▲" },
@@ -26849,14 +26964,6 @@ Object.assign(MG, {
 					size: 0.35,
 				});
 		},
-		cam(W, tgt, pos, far) {
-			if (W.tv) return tvCam(W);
-			if (!W.me.al) {
-				tgt.set(0, 0, 0);
-				pos.set(0, 23 * far, 17 * far);
-			}
-			return [tgt, pos];
-		},
 		prompt(W, me) {
 			const R = W.R;
 			if (!R || R.ph !== "live") return R && R.ph === "wait" && W.t > 2 ? "Next load incoming…" : "";
@@ -28073,7 +28180,7 @@ Object.assign(MG, {
 		cam(W, tgt, pos, far) {
 			/* portrait phones: 30% further out, following you a bit closer (0.9 instead of 0.85) and looking 3 m further
 			   south, so the rim next to you and the near edge (above the buttons) stay on screen */
-			if (far > 1) {
+			if (far > 1 && !mgSpec(W)) {
 				const off = pos.clone().sub(tgt).multiplyScalar(1.3);
 				tgt.multiplyScalar(0.9 / 0.85).z += 3;
 				pos = tgt.clone().add(off);
@@ -33482,7 +33589,7 @@ setInterval(() => {
 	render();
 })();
 
-/* ---------- bug reports: three-finger tap (F8 on a keyboard, or the home screen button) opens a panel with a
+/* ---------- bug reports: three fingers held (F8 on a keyboard, or the home screen button) opens a panel with a
    screenshot of the game view, recent errors and the game state; Share sends it all (iPhone), Copy copies the text ---------- */
 function dbgGrab(cv) {
 	DBG.want = false;
@@ -33649,12 +33756,30 @@ document.addEventListener("click", (e) => {
 	const b = e.target.closest("[data-dbg]");
 	if (b) dbgAct(b.dataset.dbg);
 });
+/* three fingers held still for 0.9 s (a quick three-finger tap happens when mashing a tap game) */
+let dbgHold = 0;
 document.addEventListener(
 	"touchstart",
 	(e) => {
-		if (e.touches.length === 3) dbgOpen();
+		if (e.touches.length >= 3 && !dbgHold)
+			dbgHold = setTimeout(() => {
+				dbgHold = 0;
+				dbgOpen();
+			}, 900);
 	},
 	{ passive: true },
+);
+["touchend", "touchcancel"].forEach((ev) =>
+	document.addEventListener(
+		ev,
+		(e) => {
+			if (e.touches.length < 3 && dbgHold) {
+				clearTimeout(dbgHold);
+				dbgHold = 0;
+			}
+		},
+		{ passive: true },
+	),
 );
 addEventListener("keydown", (e) => {
 	if (e.key === "F8") dbgOpen();

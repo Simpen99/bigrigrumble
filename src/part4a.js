@@ -265,6 +265,7 @@ function eliminate(W, e) {
 	if (e.d) return;
 	e.al = false;
 	e.d = true;
+	e.outAt = W.t;
 	if (MG_LOG) {
 		e.logD = true;
 		const h = e.lastHit && W.t - e.lastHit.t < 2 ? e.lastHit.k : "own fault";
@@ -973,12 +974,16 @@ function stepMG(dt) {
 		far = asp < 1 ? 1.35 : 1;
 	let tgt, pos;
 	const me = W.me;
-	if (W.tv && def.kind === "arena" && !def.cam) [tgt, pos] = tvCam(W);
-	else if (def.kind === "arena") {
-		const a = me.al || me.y > -3 ? me : { x: 0, z: 0 };
-		tgt = new THREE.Vector3(a.x * 0.85, 0, a.z * 0.85);
-		const zm = def.camZoom || 1;
-		pos = tgt.clone().add(new THREE.Vector3(0, 23 * far * zm, 17 * far * zm));
+	if (W.tv && def.kind === "arena") {
+		[tgt, pos] = tvCam(W);
+		if (def.cam) [tgt, pos] = def.cam(W, tgt, pos, far);
+	} else if (def.kind === "arena") {
+		if (mgSpec(W)) [tgt, pos] = specCam(W, far);
+		else {
+			tgt = new THREE.Vector3(me.x * 0.85, 0, me.z * 0.85);
+			const zm = def.camZoom || 1;
+			pos = tgt.clone().add(new THREE.Vector3(0, 23 * far * zm, 17 * far * zm));
+		}
 		if (def.cam) [tgt, pos] = def.cam(W, tgt, pos, far);
 	} else {
 		const lx = me.x * 0.6;
@@ -2191,13 +2196,35 @@ function openTvMg(mg) {
 	document.body.classList.add("mglive");
 	rtJoin(mg.nonce);
 	start3D(mg, null, false, null);
-	box.innerHTML = `<div class="m3top"><span class="chip name">${esc(def.name)}</span><span class="chip" id="m3t"></span><span class="chip grow">📱 Play on your phones</span></div>
+	box.innerHTML = `<div class="m3top"><span class="chip name">${esc(def.name)}</span><span class="chip" id="m3t"></span></div>
     <div class="m3lb${def.lbTop ? " top" : ""}" id="m3lb"></div><div class="m3intro" id="m3in"><h3>${esc(def.name)}</h3><p>${esc(def.how)}</p><p class="m3ctl">${def.aim ? "Left side of your phone drives, right side aims." : `Drag on your phone to drive. Tap ${esc(ramLbl(def))} to ${def.ramLabel ? "use it" : "charge into someone"}.`}</p></div>
     <div class="m3center${def.msgTop ? " hi" : ""}"><div class="m3big" id="m3c"></div><div class="m3msg" id="m3m" hidden></div></div>
     <div class="m3ready" id="m3r"><h3>Get ready</h3><div id="m3rl"></div><button class="btn ghost" id="m3rs" hidden style="margin-top:8px">Start without the others</button></div>`;
 	$("#m3rs").addEventListener("click", () => mgStartCountdown());
 	syncStart();
 }
+/* knocked out of an arena game: after 1.2 s (you see yourself go down) the camera frames the trucks still in play */
+function mgSpec(W) {
+	const me = W.me;
+	return !W.tv && !!me && !me.al && (me.outAt !== undefined ? W.t - me.outAt > 1.2 : me.y <= -3);
+}
+function specCam(W, far) {
+	const L = W.list.filter((o) => !o.gone && o.al && o.y > -3);
+	if (!L.length) L.push({ x: 0, z: 0 });
+	let cx = 0,
+		cz = 0,
+		r = 0;
+	L.forEach((o) => {
+		cx += (o.x / L.length) * 0.6;
+		cz += (o.z / L.length) * 0.6;
+	});
+	L.forEach((o) => {
+		r = Math.max(r, Math.hypot(o.x - cx, o.z - cz));
+	});
+	const k = Math.max(1.3, (r + 6) / 9) * far * 0.85 * (W.def.camZoom || 1);
+	return [new THREE.Vector3(cx, 0, cz), new THREE.Vector3(cx, 23 * k, cz + 17 * k)];
+}
+const TV_ZOOM = 0.83;
 function tvCam(W) {
 	const live = W.list.filter((e) => !e.gone && e.al && e.y > -3),
 		L = live.length ? live : W.list;
@@ -2215,7 +2242,7 @@ function tvCam(W) {
 	});
 	const b = W.def.bound || {},
 		size = b.t === "sq" ? b.h : b.t === "circ" ? b.r : 0;
-	let zm = Math.max(0.88, Math.min(2.3, (r + 5) / 12)),
+	let zm = Math.max(0.88, Math.min(1.9, (r + 5) / 12)),
 		tx = cx * 0.75,
 		tz = cz * 0.75;
 	if (size && size <= 14) {
@@ -2223,7 +2250,8 @@ function tvCam(W) {
 		tx *= 0.25;
 		tz = tz * 0.25 + 2;
 	}
-	zm *= W.def.camZoom || 1;
+	/* TV_ZOOM: TVs show arena games 20% closer than the fit above */
+	zm *= (W.def.camZoom || 1) * TV_ZOOM;
 	const tgt = new THREE.Vector3(tx, 0, tz);
 	return [tgt, tgt.clone().add(new THREE.Vector3(0, 23 * zm, 17 * zm))];
 }
@@ -2360,7 +2388,7 @@ function openTvCtl(mg, p) {
 	box.innerHTML = `<div class="tvc${def.ctrl === "stick" ? " bare" : ""}" style="--c:${pcol(p)}"><div class="tvrot">🔄 Turn your phone sideways</div><div class="m3top"><span class="chip name">${esc(def.name)}</span><span class="chip" id="tvct">Waiting</span></div>
     <div class="tvcme"><img alt="" src="${thumb(p.truck)}"><div><b id="tvcs">0</b><small id="tvcr">${esc(p.name)}</small></div></div>
     <div class="tvcmsg" id="tvcm">📺 Watch the TV</div>
-    ${def.ctrl === "stick" ? stickHTML(def, def.aim ? "Drive" : "Drag anywhere here to drive", mg.tm ? mg.tm[p.key] : undefined) : `<div class="tvcctl" id="tvcctl">${def.ctrl === "custom" ? def.ctlHTML() : tapCtlHTML(mg.g, def)}</div>`}
+    ${def.ctrl === "stick" ? stickHTML(def, def.aim ? "Drive" : "Drag anywhere here to drive", mg.tm ? mg.tm[p.key] : undefined) : `<div class="tvcctl${def.swipe ? " swc" : ""}" id="tvcctl">${def.swipe ? swipeHTML(def) : def.ctrl === "custom" ? def.ctlHTML() : tapCtlHTML(mg.g, def)}</div>`}
     <div class="m3ready" id="m3r"><h3>${esc(def.name)}</h3><p style="font-size:14px;line-height:1.45;margin-bottom:10px">${esc(def.how)}</p><div id="m3rl"></div><button class="btn go" id="m3rb">I'm ready</button></div></div>`;
 	if (def.ctrl === "stick") {
 		wireStick(() => TVC && TVC.inp);
@@ -2400,15 +2428,17 @@ function openTvCtl(mg, p) {
 				if (TVC.ev.length > 16) TVC.ev.shift();
 				tvcTick();
 			};
-		wrap.addEventListener("pointerdown", (e) => {
-			const b = e.target.closest("button");
-			if (!b || !wrap.contains(b)) return;
-			e.preventDefault();
-			const idx = [...wrap.querySelectorAll("button")].indexOf(b);
-			downs.set(e.pointerId, idx);
-			b.classList.add("kick");
-			send(idx, 1);
-		});
+		if (def.swipe) wireSwipe(def, send);
+		else
+			wrap.addEventListener("pointerdown", (e) => {
+				const b = e.target.closest("button");
+				if (!b || !wrap.contains(b)) return;
+				e.preventDefault();
+				const idx = [...wrap.querySelectorAll("button")].indexOf(b);
+				downs.set(e.pointerId, idx);
+				b.classList.add("kick");
+				send(idx, 1);
+			});
 		TVC.up = (e) => {
 			if (!downs.has(e.pointerId)) return;
 			const idx = downs.get(e.pointerId);
@@ -2428,6 +2458,49 @@ function openTvCtl(mg, p) {
 	$("#m3rb").addEventListener("click", tvcLand);
 	TVC.iv = setInterval(tvcTick, 50);
 	tvcTick();
+}
+/* TV controller swipe pad (def.swipe = {l, r, u, d: index of the button in ctlHTML}, like Subway Surfers): one swipe per
+   touch, sent as a press of that button; the edge labels copy those buttons */
+function swipeHTML(def) {
+	const t = document.createElement("div");
+	t.innerHTML = def.ctlHTML();
+	const bs = t.querySelectorAll("button");
+	return `<div class="swpad" id="swpad"><span class="tvchint">${esc(def.swipeHint || "Swipe")}</span>${Object.entries(
+		def.swipe,
+	)
+		.map(
+			([d, i]) =>
+				`<div class="swl sw-${d}" style="--bc:${bs[i].style.getPropertyValue("--bc")}">${bs[i].innerHTML}</div>`,
+		)
+		.join("")}</div>`;
+}
+function wireSwipe(def, send) {
+	const pad = $("#swpad"),
+		st = new Map();
+	pad.addEventListener("pointerdown", (e) => {
+		e.preventDefault();
+		st.set(e.pointerId, [e.clientX, e.clientY]);
+	});
+	pad.addEventListener("pointermove", (e) => {
+		const s = st.get(e.pointerId);
+		if (!s) return;
+		const dx = e.clientX - s[0],
+			dy = e.clientY - s[1];
+		if (Math.hypot(dx, dy) < 24) return;
+		st.delete(e.pointerId);
+		const d = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "r" : "l") : dy > 0 ? "d" : "u",
+			i = def.swipe[d],
+			l = pad.querySelector(".sw-" + d);
+		if (i === undefined) return;
+		send(i, 1);
+		send(i, 0);
+		if (l) {
+			l.classList.remove("on");
+			void l.offsetWidth;
+			l.classList.add("on");
+		}
+	});
+	["pointerup", "pointercancel"].forEach((ev) => pad.addEventListener(ev, (e) => st.delete(e.pointerId)));
 }
 function tvcLand() {
 	try {
@@ -2522,7 +2595,7 @@ function tvcTick() {
 		} catch (e) {}
 	}
 	const big = t === null ? "" : t < 0 ? String(Math.ceil(-t)) : t < 0.8 ? "GO!" : "";
-	if (st && st[7]) {
+	if (st && st[7] && !def.swipe) {
 		const j = JSON.stringify(st[7]);
 		if (j !== TVC.mir) {
 			TVC.mir = j;
@@ -2613,14 +2686,11 @@ function openTvSplit(mg) {
       <div class="m3lb${def.lbTop ? " top" : ""}" data-hid="m3lb"></div><div class="m3center${def.msgTop ? " hi" : ""}"><div class="m3big" data-hid="m3c"></div><div class="m3msg" data-hid="m3m" hidden></div></div></div>`;
 	box.innerHTML =
 		(mode === "shared"
-			? `<div class="m3top tvstop"><span class="chip name">${esc(def.name)}</span><span class="chip" id="tvsT"></span><span class="chip grow">📱 Play on your phones</span></div><div class="m3lb tvslb" id="tvsLB"></div><div class="m3center"><div class="m3big" id="tvsC"></div></div><div class="tvscards">${humans.map(hud).join("")}</div>`
+			? `<div class="m3top tvstop"><span class="chip name">${esc(def.name)}</span><span class="chip" id="tvsT"></span></div><div class="m3lb tvslb" id="tvsLB"></div><div class="m3center"><div class="m3big" id="tvsC"></div></div><div class="tvscards">${humans.map(hud).join("")}</div>`
 			: humans.map(hud).join("") +
 				cells
 					.slice(n)
-					.map(
-						() =>
-							`<div class="tvv tvempty"><div><b>${esc(def.name)}</b><span>📱 Play on your phones</span></div></div>`,
-					)
+					.map(() => `<div class="tvv tvempty"><div><b>${esc(def.name)}</b></div></div>`)
 					.join("")) +
 		`<div class="m3intro tvsin" id="m3in"><h3>${esc(def.name)}</h3><p>${esc(def.how)}</p><p class="m3ctl">📱 Your phone is the controller.</p></div>
     <div class="m3ready" id="m3r"><h3>Get ready</h3><div id="m3rl"></div><button class="btn ghost" id="m3rs" hidden style="margin-top:8px">Start without the others</button></div>`;
@@ -2969,7 +3039,8 @@ function tvsSend() {
 			order = W.list.filter((e) => !e.gone).sort((a, b) => (hi ? b.sc - a.sc : a.sc - b.sc));
 		tvsAct(s, true);
 		const st = tvStatus(W, W.me, order);
-		if (s.ctl) st[7] = mirSnap(s.ctl)[2];
+		/* the phone mirrors the TV's copy of the controls (button states); swipe pads have their own layout instead */
+		if (s.ctl && !D.swipe) st[7] = mirSnap(s.ctl)[2];
 		tvsAct(s, false);
 		l[s.k] = st;
 	});

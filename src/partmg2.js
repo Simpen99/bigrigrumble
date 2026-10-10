@@ -1247,6 +1247,9 @@ Object.assign(MG, {
 		},
 		how: "Send each piece of trash to the right bin. Wrong bin costs points.",
 		tapHint: "Tap a bin, or use the arrow keys / WASD.",
+		/* TV controller: swipe toward the bin (button order in ctlHTML: metal, plastic, compost, wood) */
+		swipe: { u: 0, l: 1, d: 2, r: 3 },
+		swipeHint: "Swipe toward the bin",
 		CATS: [
 			{ k: "plastic", n: "Plastic", c: "#2F7DE1", pos: [-2.25, 0.2], keys: ["arrowleft", "a"], i: "◀" },
 			{ k: "metal", n: "Metal", c: "#8E96A3", pos: [0, -3.2], keys: ["arrowup", "w"], i: "▲" },

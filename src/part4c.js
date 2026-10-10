@@ -241,7 +241,7 @@ setInterval(() => {
 	render();
 })();
 
-/* ---------- bug reports: three-finger tap (F8 on a keyboard, or the home screen button) opens a panel with a
+/* ---------- bug reports: three fingers held (F8 on a keyboard, or the home screen button) opens a panel with a
    screenshot of the game view, recent errors and the game state; Share sends it all (iPhone), Copy copies the text ---------- */
 function dbgGrab(cv) {
 	DBG.want = false;
@@ -408,12 +408,30 @@ document.addEventListener("click", (e) => {
 	const b = e.target.closest("[data-dbg]");
 	if (b) dbgAct(b.dataset.dbg);
 });
+/* three fingers held still for 0.9 s (a quick three-finger tap happens when mashing a tap game) */
+let dbgHold = 0;
 document.addEventListener(
 	"touchstart",
 	(e) => {
-		if (e.touches.length === 3) dbgOpen();
+		if (e.touches.length >= 3 && !dbgHold)
+			dbgHold = setTimeout(() => {
+				dbgHold = 0;
+				dbgOpen();
+			}, 900);
 	},
 	{ passive: true },
+);
+["touchend", "touchcancel"].forEach((ev) =>
+	document.addEventListener(
+		ev,
+		(e) => {
+			if (e.touches.length < 3 && dbgHold) {
+				clearTimeout(dbgHold);
+				dbgHold = 0;
+			}
+		},
+		{ passive: true },
+	),
 );
 addEventListener("keydown", (e) => {
 	if (e.key === "F8") dbgOpen();
