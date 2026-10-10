@@ -62,7 +62,7 @@ Object.assign(MG, {
 		hi: true,
 		unit: "pts",
 		dur: 45,
-		how: "Scoops fly out of the scooper: slide to catch them on your cone. Jerk it and the tower sways and topples! Flick up to serve: bigger cones pay more, but scoops melt in the sun. Golden scoops +25, and dodge the seagull's fish!",
+		how: "Catch the flying scoops on your cone and serve it: bigger cones pay more. Don't jerk the tower, and dodge the seagull's fish!",
 		tapHint: "Slide your finger to move the cone, flick up (or SERVE) to sell it. Keyboard: ◀ ▶ and Enter.",
 		/* TV controller: the whole phone is a slide pad (finger position = cone position), a flick up serves */
 		slide: true,
@@ -871,14 +871,17 @@ Object.assign(MG, {
 				this.toppings(W, e.st.length);
 			}
 		},
+		/* pop-ups at the top of the tower */
+		pop(W, e, text, tone) {
+			if (e.isMe) fb(W, e, text, { tone, at: [e.cx, this.topY(e.st.length) + 0.9, 0.3] });
+		},
 		lose(W, e, k, why) {
 			const lost = e.st.length - k;
 			if (lost <= 0) return;
 			mgLog(W, `${mgName(e)} loses ${lost} scoop${lost > 1 ? "s" : ""} (${why || "toppled"})`);
 			if (e.isMe) {
 				this.topple(W, e, k);
-				e.msg = why || `Timber! ${lost} scoop${lost > 1 ? "s" : ""} fell`;
-				e.msgT = W.t;
+				this.pop(W, e, why || `Timber −${lost}`, "bad");
 				sfx("crush");
 				W.shake = 0.35;
 			}
@@ -917,8 +920,7 @@ Object.assign(MG, {
 					}
 					a.miss = true;
 					if (e.isMe && a.k !== "fish") {
-						e.msg = n >= this.MAXN ? "Tower full: serve it!" : "Missed!";
-						e.msgT = W.t;
+						this.pop(W, e, n >= this.MAXN ? "Tower full" : "Missed", "bad");
 						sfx("loss");
 					}
 				}
@@ -940,10 +942,9 @@ Object.assign(MG, {
 		caught(W, e, a, dx) {
 			if (a.k === "fish") {
 				mgLog(W, `${mgName(e)} catches a fish`);
-				if (e.st.length) this.lose(W, e, 0, "Yuck, a fish! The cone is ruined");
+				if (e.st.length) this.lose(W, e, 0, "Yuck!");
 				else if (e.isMe) {
-					e.msg = "Yuck, a fish!";
-					e.msgT = W.t;
+					this.pop(W, e, "Yuck!", "bad");
 					sfx("loss");
 				}
 				return;
@@ -962,8 +963,7 @@ Object.assign(MG, {
 			if (e.isMe) {
 				this.syncMeshes(W, e);
 				sfx(gd ? "battery" : "coin");
-				e.msg = gd ? "GOLDEN SCOOP! +25" : p ? "Perfect! +5" : "";
-				e.msgT = W.t;
+				if (gd || p) this.pop(W, e, gd ? "GOLDEN +25" : "Perfect +5", "good");
 				W.wob = (W.wob || 0) + dx * 0.5;
 			}
 			const k = this.weak(e.st, e.sw);
@@ -1002,10 +1002,7 @@ Object.assign(MG, {
 					e.tot += e.sv.v;
 					e.cones++;
 					mgLog(W, `${mgName(e)} serves ${e.sv.n} scoops for ${e.sv.v}`);
-					if (e.isMe) {
-						e.msg = `Served! +${e.sv.v}`;
-						e.msgT = W.t;
-					}
+					this.pop(W, e, `Served +${e.sv.v}`, "good");
 					e.st = [];
 					e.sv = null;
 					e.goal = 3 + Math.floor(Math.random() * 4);
@@ -1334,34 +1331,7 @@ Object.assign(MG, {
 			}
 			/* a flashing warning sign where the fish is about to drop (from 1.2 s before until it lets go) */
 			if (!W.warn) {
-				W.warn = new THREE.Sprite(
-					new THREE.SpriteMaterial({
-						map: canvasTex(64, 64, (x, w, h) => {
-							x.fillStyle = "#151B24";
-							x.beginPath();
-							x.moveTo(w / 2, 2);
-							x.lineTo(w - 2, h - 4);
-							x.lineTo(2, h - 4);
-							x.closePath();
-							x.fill();
-							x.fillStyle = "#FFC83D";
-							x.beginPath();
-							x.moveTo(w / 2, 10);
-							x.lineTo(w - 9, h - 9);
-							x.lineTo(9, h - 9);
-							x.closePath();
-							x.fill();
-							x.fillStyle = "#151B24";
-							x.font = "900 34px Arial, sans-serif";
-							x.textAlign = "center";
-							x.textBaseline = "middle";
-							x.fillText("!", w / 2, h * 0.62);
-						}),
-						depthTest: false,
-					}),
-				);
-				W.warn.scale.setScalar(0.9);
-				W.warn.renderOrder = 6;
+				W.warn = iconSprite("warn", warnSignDraw, 0.9);
 				W.sc.add(W.warn);
 			}
 			W.warn.visible = !!fd && W.t < fd.t && W.t > fd.t - 1.2 && Math.sin(W.t * 16) > -0.3;
@@ -1409,7 +1379,6 @@ Object.assign(MG, {
 				cy = lo + 2 * d * tn * (0.5 - b0);
 			return [new THREE.Vector3(0, cy, 0), new THREE.Vector3(0, cy + d * 0.08, d)];
 		},
-		prompt: (W, e) => (e.msg && W.t - e.msgT < 1.4 ? e.msg : ""),
 		/* CPUs: chase where the next scoop will land (late and roughly, by skill), dodge fish, serve at their goal */
 		bot(W, e, dt) {
 			const bi = e.bi || (e.bi = { x: 0 }),
@@ -1668,8 +1637,7 @@ Object.assign(MG, {
 				W.lidT[idx] = W.t; /* the bin's lid flaps open to catch it */
 				W.push = { i: idx, t0: W.t }; /* the truck turns and hops toward that bin */
 				sfx(ok ? "coin" : "loss");
-				e.msg = ok ? "+10" : `Not ${c.n.toLowerCase()}! −5`;
-				e.msgT = W.t;
+				fb(W, e, ok ? "+10" : "−5", { tone: ok ? "good" : "bad", at: [c.pos[0], 3, c.pos[1]] });
 				const b = document.querySelector(`[data-bin="${idx}"]`);
 				if (b) {
 					b.classList.add(ok ? "good" : "bad");
@@ -1738,7 +1706,6 @@ Object.assign(MG, {
 			});
 		},
 		cam: (W, t, p, far) => [new THREE.Vector3(0, 0.2, 0.6), new THREE.Vector3(0, 10.5 * far, 8.3 * far)],
-		prompt: (W, e) => (e.msg && W.t - e.msgT < 0.8 ? e.msg : ""),
 		bot(W, e, dt) {
 			if (!e.cur) return;
 			e.bt = (e.bt ?? 0.55 + Math.random() * 0.7) - dt;
@@ -2056,8 +2023,7 @@ Object.assign(MG, {
 			if (ing !== need) {
 				e.sc = Math.max(0, e.sc - 5);
 				if (e.isMe) {
-					e.msg = "Wrong ingredient! −5";
-					e.msgT = W.t;
+					fb(W, e, "Wrong −5", { tone: "bad", at: [0, 2.5, 0] });
 					sfx("loss");
 					W.shake = 0.15;
 				}
@@ -2068,13 +2034,13 @@ Object.assign(MG, {
 			if (fill !== null) {
 				if (fill >= 0.62 && fill <= 0.9) {
 					pts = 12;
-					q = "Perfect pour!";
+					q = "Perfect!";
 				} else if (fill >= 0.4 && fill <= 1.05) {
 					pts = 6;
 					q = "Good";
 				} else {
 					pts = 1;
-					q = fill > 1.05 ? "Way too much!" : "Too little!";
+					q = fill > 1.05 ? "Way too much" : "Too little";
 				}
 			}
 			e.sc += pts;
@@ -2082,15 +2048,13 @@ Object.assign(MG, {
 			if (e.isMe) {
 				if (fill === null) this.addLayer(W, ing);
 				sfx("coin");
-				e.msg = q;
-				e.msgT = W.t;
+				if (q) fb(W, e, q, { tone: pts >= 12 ? "good" : pts <= 1 ? "bad" : "", at: [0, 2.5, 0] });
 			}
 			if (e.step >= e.rec.length) {
 				const bonus = 20 + Math.max(0, Math.round(20 - (W.t - e.t0) * 2));
 				e.sc += bonus;
 				if (e.isMe) {
-					e.msg = `Taco done! +${bonus}`;
-					e.msgT = W.t;
+					fb(W, e, `Taco +${bonus}`, { tone: "good", at: [0, 2.5, 0] });
 					sfx("event");
 					let fa = 2.7;
 					W.parts.forEach((p) => {
@@ -2260,7 +2224,6 @@ Object.assign(MG, {
 				.forEach((b) => b.classList.toggle("pour", !!(e.hold && e.hold.ing === b.dataset.ing)));
 		},
 		cam: (W, t, p, far) => [new THREE.Vector3(0, 1.7, -0.3), new THREE.Vector3(0, 1.7 + 4.3 * far, 6.4 * far)], // flatter angle so the market shows behind the counter
-		prompt: (W, e) => (e.msg && W.t - e.msgT < 1.2 ? e.msg : ""),
 		bot(W, e, dt) {
 			e.bt = (e.bt ?? 0.6 + Math.random() * 0.7) - dt;
 			if (e.bt > 0) return;
@@ -2312,7 +2275,7 @@ Object.assign(MG, {
 		bare: true,
 		storm: true,
 		sun: [15.8, 14, 9.5],
-		how: "Hook stuck cars and tow each one to the garage of its colour. Ram towing trucks to steal their car.",
+		how: "Tow each stuck car to the garage of its colour. Ram a towing truck to steal its car.",
 		GAR: [
 			[0, -15.4, "#E5484D", "RED"],
 			[15.4, 0, "#2F7DE1", "BLUE"],
@@ -3208,11 +3171,7 @@ Object.assign(MG, {
 					const [x, z] = this.carAt(W, c);
 					if (Math.hypot(x - e.x, z - e.z) < 1.9) {
 						f.tow = c.id;
-						if (e.isMe) {
-							sfx("click");
-							e.msg = `Hooked! Tow it to the ${this.GAR[c.gi][3]} garage`;
-							e.msgT = W.t;
-						}
+						if (e.isMe) sfx("click");
 						break;
 					}
 				}
@@ -3228,11 +3187,8 @@ Object.assign(MG, {
 						e.c.push(id);
 						e.sc++;
 						burst(W.sc, e.x, 1, e.z, { n: 16, cols: ["#FFC83D", "#FFFFFF", "#1FA35C"], spd: 3, up: 5, life: 0.8 });
-						if (e.isMe) {
-							sfx("battery");
-							e.msg = "Rescued! +1";
-							e.msgT = W.t;
-						}
+						fb(W, e, "+1", { tone: "good" });
+						if (e.isMe) sfx("battery");
 					}
 				}
 			}
@@ -3250,11 +3206,8 @@ Object.assign(MG, {
 				.slice(-10);
 			W.carPos[id] = [bx, bz];
 			W.seenCd.add(e.k + ":" + e.dropN);
-			if (e.isMe) {
-				e.msg = "Rammed! You lost the car";
-				e.msgT = W.t;
-				sfx("loss");
-			}
+			fb(W, e, "Lost the car", { tone: "bad" });
+			if (e.isMe) sfx("loss");
 		},
 		tick(W, dt) {
 			W.list.forEach((e) => {
@@ -3319,12 +3272,6 @@ Object.assign(MG, {
 				}
 			});
 		},
-		prompt: (W, e) =>
-			e.msg && W.t - e.msgT < 1.4
-				? e.msg
-				: e.f && e.f.tow
-					? `Tow it to the ${MG.tow.GAR[(W.cars[e.f.tow - 1] || {}).gi || 0][3]} garage!`
-					: "",
 		bot(W, e, dt) {
 			const f = e.f;
 			const rival = W.list.find(
@@ -3424,7 +3371,7 @@ Object.assign(MG, {
 			[0, 9],
 		],
 		ZR: [2.6, 6.2],
-		how: "Swing the stick to slide sideways. Chain drifts for a multiplier, rings score double. Crashing loses your combo; ram a drifting rival to steal theirs.",
+		how: "Chain drifts for a multiplier, the rings score double. Crashing loses your combo, and a ram steals it.",
 		build(W) {
 			const s = W.sc,
 				r = mulberry((W.mg.seed || 1) + 31),
@@ -3599,7 +3546,6 @@ Object.assign(MG, {
 			});
 		},
 		comboTag(W, e) {
-			if (e.isMe && !W.tv && !W.split) return;
 			const cb = (e.f && e.f.cb) || 0,
 				mu = (e.f && e.f.m) || 1,
 				show = cb >= 20 && !e.gone && !e.d && !e.falling;
@@ -3671,11 +3617,8 @@ Object.assign(MG, {
 				v = Math.round(q.pts * q.mult);
 			if (v > 0) {
 				e.sc += v;
-				if (e.isMe) {
-					e.msg = `+${v}` + (q.mult > 1 ? `  (×${q.mult})` : "");
-					e.msgT = W.t;
-					sfx(v > 300 ? "battery" : "coin");
-				}
+				fb(W, e, `+${v}`, { tone: "good" });
+				if (e.isMe) sfx(v > 300 ? "battery" : "coin");
 			}
 			q.pts = 0;
 			q.mult = 1;
@@ -3689,9 +3632,8 @@ Object.assign(MG, {
 			q.mult = 1;
 			q.run = 0;
 			q.gap = 0;
+			fb(W, e, why, { tone: "bad" });
 			if (e.isMe) {
-				e.msg = why;
-				e.msgT = W.t;
 				sfx("loss");
 				W.shake = 0.25;
 			}
@@ -3701,7 +3643,7 @@ Object.assign(MG, {
 			const q = e.dk;
 			if (e.bonk) {
 				e.bonk = 0;
-				this.lose(W, e, "Crashed! Combo lost");
+				this.lose(W, e, "Combo lost");
 			}
 			const on = e.slip > 0.3 && e.spd > 6,
 				zn = on && this.zone(e.x, e.z);
@@ -3726,11 +3668,7 @@ Object.assign(MG, {
 			const q = e.dk,
 				v = Math.round(q.pts * q.mult),
 				thief = by && by !== e && v >= 3 ? by : null;
-			this.lose(
-				W,
-				e,
-				thief ? `Rammed! ${thief.isMe && !W.tv ? "You" : thief.p.name} stole ${v}` : "Rammed! Combo lost",
-			);
+			this.lose(W, e, thief ? `−${v}` : "Combo lost");
 			if (!thief) return;
 			if (thief.local) this.steal(W, thief, v, e);
 			else {
@@ -3741,9 +3679,8 @@ Object.assign(MG, {
 		steal(W, by, v, from) {
 			by.sc += v;
 			burst(W.sc, by.x, 1.6, by.z, { n: 18, cols: ["#FFC83D", "#FF4D8D", "#FFFFFF"], spd: 4, up: 5, life: 0.7 });
+			fb(W, by, `Stole +${v}`, { tone: "good" });
 			if (by.isMe) {
-				by.msg = `Stole ${v} from ${from ? from.p.name : "a rival"}!`;
-				by.msgT = W.t;
 				sfx("battery");
 				W.shake = 0.2;
 			}
@@ -3798,14 +3735,6 @@ Object.assign(MG, {
 		stop(W) {
 			if (W.eng) W.eng.stop();
 		},
-		prompt: (W, e) =>
-			e.msg && W.t - e.msgT < 1.3
-				? e.msg
-				: e.dk && e.dk.pts > 0
-					? `DRIFT ${Math.round(e.dk.pts)} ×${e.dk.mult}${e.zn ? "  ZONE ×2" : ""}`
-					: W.t < 5
-						? "Swing the stick to drift!"
-						: "",
 		bot(W, e, dt) {
 			if (!e.bs)
 				e.bs = {
@@ -3872,7 +3801,7 @@ Object.assign(MG, {
 		ramSlide: 0.55,
 		ramKeep: true,
 		canRam: (e) => !e.f || (e.f.bl || 0) < 4,
-		how: "One big lap, first home wins. Hold DRIFT through corners and let go for a boost. Tuck in behind a truck to slipstream, and boost into rivals to bump them.",
+		how: "One big lap, first home wins. Drift through the corners and let go for a boost.",
 		LOOP: [73, 10],
 		PIN: [34, 62],
 		TUN: [46, -12, 14],
@@ -4510,12 +4439,9 @@ Object.assign(MG, {
 				e.fin = W.t;
 				e.f.fin = W.t;
 				e.d = true;
-				if (e.isMe) {
-					const pl = this.place(W, e);
-					e.msg = pl === 1 ? "WINNER!" : `Finished P${pl}!`;
-					e.msgT = W.t;
-					sfx(pl === 1 ? "fanfare" : "coin");
-				}
+				const pl = this.place(W, e);
+				fb(W, e, pl === 1 ? "WINNER" : `P${pl}`, { stamp: true });
+				if (e.isMe) sfx(pl === 1 ? "fanfare" : "coin");
 			}
 		},
 		place(W, e) {
@@ -4672,18 +4598,15 @@ Object.assign(MG, {
 		stop(W) {
 			if (W.eng) W.eng.stop();
 		},
-		prompt(W, e) {
-			if (e.msg && W.t - e.msgT < 1.5) return e.msg;
-			if (W.t < 0) return "Get ready…";
+		/* place and progress in the top chip */
+		fmt(W, e) {
+			if (W.t < 0) return "";
 			return (
 				`P${this.place(W, e)}` +
 				(this.LAPS > 1
 					? `  ·  LAP ${Math.max(1, Math.min(this.LAPS, e.lap))}/${this.LAPS}`
 					: `  ·  ${Math.max(0, Math.min(99, Math.round((e.sc / this.trk().L) * 100)))}%`)
 			);
-		},
-		donePrompt(W, e) {
-			return `Finished P${this.place(W, e)}!`;
 		},
 		bot(W, e, dt) {
 			const { S, N } = this.trk();

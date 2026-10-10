@@ -33,7 +33,7 @@ Object.assign(MG, {
 		dusk: true,
 		fallY: -6,
 		LOCK: 0.9,
-		how: "A ticking bundle of dynamite! Bump into a rival to pass it on. Whoever holds it when it blows is out. Last truck standing wins.",
+		how: "Bump a rival to pass the dynamite on. Whoever holds it when it blows is out!",
 		build(W) {
 			const s = W.sc,
 				r = mulberry((W.mg.seed || 1) + 77);
@@ -805,13 +805,6 @@ Object.assign(MG, {
 					size: 0.35,
 				});
 		},
-		prompt(W, me) {
-			const R = W.R;
-			if (!R || R.ph !== "live") return R && R.ph === "wait" && W.t > 2 ? "Next load incoming…" : "";
-			if (R.h === me)
-				return W.t > R.B - this.LOCK ? "💥 Too late! Brace yourself!" : "🧨 You've got the Hot Load! Bump someone!";
-			return R.h ? `🧨 ${R.h.p.name} has the Hot Load. Keep away!` : "";
-		},
 		bot(W, e, dt) {
 			const R = W.R,
 				h = R && R.ph === "live" ? R.h : null;
@@ -897,7 +890,7 @@ Object.assign(MG, {
 			fill: ["#86AEEA", "#8E7A62"],
 			sky: ["#3D73C2", "#98BEE2", "#F6D2A0"],
 		},
-		how: "Drive out of your paint to draw a trail, then get back to it: the paint bucket fills everything inside your loop. Cross a rival's open trail to wash it away! Most paint at the end wins.",
+		how: "Loop out of your paint and back to fill everything inside. Cross a rival's open trail to wash it away!",
 		kits() {
 			this.canKits();
 			bakeKit(lightTowerModel());
@@ -1502,6 +1495,7 @@ Object.assign(MG, {
 			this.clearTrail(e);
 			e.f.cut = ++e.pl.cut;
 			e.pl.cutT = W.t;
+			fb(W, e, "Washed away", { tone: "bad" });
 			if (e.isMe) W.shake = Math.max(W.shake, 0.3);
 		},
 		washFx(W, e, pts) {
@@ -1689,12 +1683,6 @@ Object.assign(MG, {
 			if (W.fxT === W.t) return;
 			W.fxT = W.t;
 			this.frame(W);
-		},
-		prompt(W, me) {
-			if (!me.pl || W.t < 0) return "";
-			if (me.pl.cutT !== undefined && W.t - me.pl.cutT < 1.6) return "✂️ Your trail got washed away!";
-			if (me.pl.cells.length) return "🎨 Get back to your paint to fill the loop!";
-			return W.t < 6 ? "Drive out of your paint, loop round and come back!" : "";
 		},
 		/* ---- CPUs: short loops out of their paint, cut nearby open trails, run home when a rival gets close ---- */
 		trailPts(o) {
@@ -2002,11 +1990,11 @@ Object.assign(MG, {
 			fill: ["#8A95D8", "#5A4535"],
 			sky: ["#232D57", "#9E5876", "#EE925C"],
 		},
-		how: "Boss fight! The monster truck fires tyres and ground-pounds from its turntable. Grab TNT crates and drive them into it: knock it out or survive to win as a team.",
+		how: "Boss fight! Drive TNT into the monster to knock it out, or survive to win as a team.",
 		teamHow: (s) =>
 			s === 0
-				? "You're the MONSTER: FIRE shoots tyres, POUND sends out a shockwave. Knock them all into the mud!"
-				: "Grab 🧨 TNT and drive it into the monster! DASH through shockwaves (they stun you), and don't hang around it: the magnet grabs you.",
+				? "You're the MONSTER: knock them all into the mud!"
+				: "Drive 🧨 TNT into the monster. Don't hang around it: the magnet grabs you!",
 		stickHint: (fine) =>
 			fine
 				? "WASD or arrows to drive (the monster aims with them). Space: fire / dash, E: ground pound."
@@ -2272,8 +2260,6 @@ Object.assign(MG, {
 			if (ph !== W.mm.ph && W.hp > 0) {
 				W.mm.ph = ph;
 				W.mm.phT = W.t;
-				W.mm.banner = ph === 2 ? "ENRAGED! Double tyres!" : "The turntable drops: it's loose!";
-				W.mm.bannerT = W.t + 2.2;
 				sfx("roar");
 				W.shake = Math.max(W.shake, 0.6);
 				if (m)
@@ -2425,7 +2411,7 @@ Object.assign(MG, {
 			e.f.ch = Math.round((e.chg / MM.WIND) * 10) / 10;
 			const sv = W.list.filter((o) => o.side !== 0 && !o.gone);
 			e.sc = sv.filter((o) => !o.al).length;
-			if (sv.length && W.t > 1 && sv.every((o) => !o.al)) {
+			if (sv.length && W.t > 1 && sv.every((o) => !o.al) && !e.won) {
 				e.d = true;
 				e.won = true;
 			}
@@ -2446,6 +2432,7 @@ Object.assign(MG, {
 					eliminate(W, e);
 					return;
 				}
+				fb(W, e, e.lives === 1 ? "1 LIFE" : `${e.lives} LIVES`, { stamp: true });
 				mgLog(W, `FALL ${mgName(e)} (${e.lastHit && W.t - e.lastHit.t < 2 ? e.lastHit.k : "own fault"})`);
 				e.buzz = (e.buzz || 0) + 1;
 				if (e.isMe && !W.tv) buzz(150);
@@ -2587,10 +2574,7 @@ Object.assign(MG, {
 							up: 3,
 							life: 0.4,
 						});
-						if (e.isMe) {
-							W.mm.banner = "Dodged!";
-							W.mm.bannerT = W.t + 0.8;
-						}
+						fb(W, e, "Dodged!", { tone: "good" });
 					} else {
 						this.knock(W, e, dx / d, dz / d, 6, 0.5, "shockwave");
 						e.stunT = MM.STUN;
@@ -2701,24 +2685,6 @@ Object.assign(MG, {
 			});
 			return ok || hits >= MM.hpMax(sv.length) ? 1 : 0;
 		},
-		prompt(W, me) {
-			const mm = W.mm;
-			if (mm.banner && W.t < mm.bannerT) return mm.banner;
-			if (me.side === 0) return W.t < 4 ? "Tap FIRE for tyres, hold it for a Ground Pound!" : "";
-			if (me.falling && me.al)
-				return `Into the mud! ${me.lives} ${me.lives === 1 ? "life" : "lives"} left, back in a moment…`;
-			if (W.t < (me.inv || 0)) return "Back in! Safe for a moment";
-			if (me.gr) return "Tap DASH to break free!";
-			if (me.stunT > 0) return "Stunned!";
-			if (me.nr > 0.35) return "Too close! The magnet is coming!";
-			if (me.f.dy) return "Drive the TNT into the monster!";
-			return "";
-		},
-		donePrompt(W, me) {
-			if (W.ko !== undefined) return me.side === 0 ? "KNOCKED OUT!" : "The monster is down!";
-			if (me.side === 0) return me.won ? "You crushed them all!" : "Time's up!";
-			return me.al ? "You survived!" : "Into the mud! Watch the others…";
-		},
 		/* visuals: the monster on its turntable (jump, recoil, KO), TNT on roofs, then the shared scene once a frame */
 		render(W, e, dt) {
 			MG.bumper.render.call(this, W, e, dt);
@@ -2806,8 +2772,8 @@ Object.assign(MG, {
 			/* the phase change freeze is over: GO! */
 			if (mm.phT !== undefined && mm.goT !== mm.phT && W.t - mm.phT >= MM.CUT) {
 				mm.goT = mm.phT;
-				mm.banner = "GO!";
-				mm.bannerT = W.t + 0.8;
+				W.big = "GO!";
+				W.bigT = W.t + 0.8;
 				sfx("go");
 			}
 			/* boss hit: explosion and a flinch */
@@ -2963,6 +2929,14 @@ Object.assign(MG, {
 				if (on) open = Math.max(open, gr ? 1 : k);
 				g.m.visible = g.ch.visible = on;
 				g.w.visible = !!(on && !gr);
+				/* grabbed: a mini DASH button hammered by the truck says how to break free */
+				if (gr && e.al && !e.falling) inputHint(W, e, "DASH", "mash");
+				/* about to be grabbed: a flashing warning sign on the magnet */
+				if (!g.wn) {
+					g.wn = iconSprite("warn", warnSignDraw, 0.8);
+					W.sc.add(g.wn);
+				}
+				g.wn.visible = !!(on && !gr && nr > 0.35 && fbShow(W, e) && Math.sin(W.t * 16) > -0.3);
 				if (!on) return;
 				const top = new THREE.Vector3(e.x, e.y + (e.topY || 1.4) + 0.1, e.z),
 					p = gr
@@ -2971,6 +2945,7 @@ Object.assign(MG, {
 					sc = gr ? 0.7 : 0.3 + 0.3 * k;
 				g.m.position.copy(p);
 				g.m.scale.setScalar(sc);
+				g.wn.position.set(p.x, p.y + 1.1, p.z);
 				mmChainSet(g.ch, mouth, p.clone().add(new THREE.Vector3(0, 0.75 * sc, 0)));
 				g.w.position.set(e.x, 0.1, e.z);
 				g.w.material.opacity = Math.min(1, nr / MM.CLAW) * (0.6 + 0.4 * Math.sin(W.t * 20));

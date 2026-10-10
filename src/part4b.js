@@ -1140,7 +1140,7 @@ const MG = {
 				: "Left side drives. Drag on the right side to aim and spray the hose.",
 		NEED: 2,
 		HOSE: 6,
-		how: "Aim your roof hose at the fires to put them out (it reaches about 6 m). Refill the tank at the hydrants. Most fires wins.",
+		how: "Put out the fires with your roof hose and refill at the hydrants. Most fires wins.",
 		HYD: [
 			[0, -12.7],
 			[11, 6.35],
@@ -1568,11 +1568,8 @@ const MG = {
 				if (e.pr[f.id] >= this.NEED && W.claim(f.id)) {
 					e.c.push(f.id);
 					e.sc++;
-					if (e.isMe) {
-						e.msg = "Fire out! +1";
-						e.msgT = W.t;
-						sfx("coin");
-					}
+					fb(W, e, "+1", { at: [f.x, 3, f.z], tone: "good" });
+					if (e.isMe) sfx("coin");
 				}
 			}
 			/* what other devices need to draw this truck's hose: aim angle, spraying, fire hit, refilling */
@@ -1583,18 +1580,37 @@ const MG = {
 			e.f.hf = e.spray;
 			e.f.fl = fill ? 1 : 0;
 		},
-		prompt: (W, e) =>
-			e.msg && W.t - e.msgT < 1.2
-				? e.msg
-				: e.water < 1
-					? "Tank empty! Refill at a hydrant"
-					: e.f.fl && e.water < 98
-						? "Filling up…"
-						: e.spray
-							? "On target! Keep the water on it"
-							: "",
 		render(W, e, dt) {
 			this.bar(W, e);
+			/* empty tank: a flashing tank symbol over the truck until it refills at a hydrant */
+			{
+				const wt = e.local ? e.water : e.f.wt,
+					on = wt !== undefined && wt < 1 && !e.d && fbShow(W, e);
+				if (on && !e.tankS) {
+					e.tankS = iconSprite("tank", (x, w, h) => {
+						x.fillStyle = "#151B24";
+						rr(x, 6, 2, w - 12, h - 4, 12);
+						x.fill();
+						x.strokeStyle = "#fff";
+						x.lineWidth = 4;
+						rr(x, 17, 11, w - 34, h - 22, 7);
+						x.stroke();
+						x.fillStyle = "#FF6B6B";
+						x.fillRect(21, h - 19, w - 42, 4);
+						x.fillStyle = "#6CC3F0";
+						x.beginPath();
+						x.moveTo(w / 2, 16);
+						x.quadraticCurveTo(w / 2 + 8, 28, w / 2, 33);
+						x.quadraticCurveTo(w / 2 - 8, 28, w / 2, 16);
+						x.fill();
+					});
+					W.sc.add(e.tankS);
+				}
+				if (e.tankS) {
+					e.tankS.visible = on && Math.sin(W.t * 9) > -0.4;
+					e.tankS.position.set(e.x, 3.5, e.z);
+				}
+			}
 			this.hose(W, e, dt);
 			if (W.fireT !== W.t) {
 				W.fireT = W.t;
@@ -2843,7 +2859,7 @@ const MG = {
 			fill: ["#7FA8E8", "#9A7A55"],
 			sky: ["#3F72BE", "#93B9DE", "#F8C98F"],
 		},
-		how: "Grab cones (gold = 3) and park on your pad to drop them into your giant cone. First to fill it wins! Ram rivals to knock loose the cones on their roof.",
+		how: "Grab cones (gold = 3) and park on your pad to bank them. Rams knock loose the cones on a roof!",
 		dropY: 0,
 		S: 16,
 		yard(W) {
@@ -3442,6 +3458,7 @@ const MG = {
 				e.dr.push([id, Math.round(x * 100) / 100, Math.round(z * 100) / 100, v]);
 			}
 			if (e.dr.length > 30) e.dr = e.dr.slice(-30);
+			fb(W, e, `−${k}`, { tone: "bad" });
 			if (e.isMe) {
 				e.lastDrop = { t: W.t, n: k, flank: "", what: "cone" };
 				sfx("loss");
@@ -3645,7 +3662,7 @@ const MG = {
 		tapLabel: "LAUNCH",
 		tvHint: "Tap anywhere on your phone to launch on GO, then tap to shift when your dial hits the green.",
 		tapHint: "Tap on GO to launch, then tap to shift up when the needle is in the green.",
-		how: "Launch on GO (not before!), then shift up when the needle hits the green. Too early bogs down, too late hits the limiter. Fastest to 200 m wins.",
+		how: "Launch on GO, then shift up in the green. Fastest to 200 m wins.",
 		/* five gears: top speed (m/s) and pull of each; the engine pulls hardest just below the green zone's end and
 		   fades above 88% revs, so shifting in the green (ZONE) is fastest and mashing bogs every gear down */
 		VT: [14, 20, 26, 31, 36],
@@ -3657,10 +3674,9 @@ const MG = {
 			if (r > 0.88) q *= 1 - ((r - 0.88) / 0.12) * 0.6;
 			return q;
 		},
-		say(W, e, m) {
-			if (!e.isMe) return;
-			e.msg = m;
-			e.msgT = W.t;
+		/* start and shift grades pop up above the rev dial */
+		say(W, e, m, tone) {
+			fb(W, e, m, { h: 5.5, tone });
 		},
 		build(W) {
 			const s = W.sc,
@@ -3803,7 +3819,13 @@ const MG = {
 				e.gr = 1;
 				e.v = 0.6;
 				e.shT = W.t;
-				if (!e.fs) this.say(W, e, rt < 0.25 ? "LIGHTNING START!" : rt < 0.5 ? "Good start" : "Slow start…");
+				if (!e.fs)
+					this.say(
+						W,
+						e,
+						rt < 0.25 ? "LIGHTNING START!" : rt < 0.5 ? "Good start" : "Slow start",
+						rt < 0.25 ? "good" : rt < 0.5 ? "" : "bad",
+					);
 				if (e.isMe) sfx("click");
 				return;
 			}
@@ -3812,20 +3834,22 @@ const MG = {
 				[lo, hi] = this.ZONE,
 				perf = r >= this.PERF[0] && r <= this.PERF[1];
 			if (perf) e.v *= 1.03;
+			const ok = r >= lo && r <= hi;
 			this.say(
 				W,
 				e,
 				perf
-					? "PERFECT SHIFT!"
-					: r >= lo && r <= hi
-						? "Good shift"
+					? "PERFECT!"
+					: ok
+						? "Good"
 						: r < 0.6
-							? "Way too early!"
+							? "Way too early"
 							: r < lo
-								? "Early shift"
+								? "Early"
 								: e.limT > 0.3
-									? "Over-rev!"
-									: "Late shift",
+									? "Over-rev"
+									: "Late",
+				perf ? "good" : ok ? "" : "bad",
 			);
 			e.gr++;
 			e.shT = W.t;
@@ -3841,7 +3865,7 @@ const MG = {
 			if (e.gr || e.fs || W.t < -3) return;
 			e.fs = true;
 			e.stall = 1;
-			this.say(W, e, "FALSE START! Wait for GO");
+			fb(W, e, "FALSE START", { stamp: true });
 			if (e.isMe) sfx("loss");
 		},
 		coast(W, e, dt) {
@@ -3859,6 +3883,8 @@ const MG = {
 				e.z = this.PADZ;
 				e.crash = Math.round(e.v * 3.6);
 				e.v = -e.v * 0.3;
+				fb(W, e, "CRASH", { stamp: true });
+				fb(W, e, `${e.crash} km/h`, { tone: "bad" });
 			}
 		},
 		padHit(W, e, kmh) {
@@ -4008,8 +4034,6 @@ const MG = {
 			camFov(40 + 26 * Math.pow(S, 1.4));
 			return [tgt, pos];
 		},
-		prompt: (W, e) => (e.msg && W.t - e.msgT < 1.1 ? e.msg : ""),
-		donePrompt: (W, e) => (e.crash ? `CRASH! Hit the cushion at ${e.crash} km/h` : ""),
 		stop(W) {
 			if (W.eng) W.eng.stop();
 			if (W.vig) W.vig.remove();
@@ -4306,11 +4330,8 @@ const MG = {
 				e.v = 0;
 				e.vz = 0;
 				e.f = { run: Math.round(W.t * 100) / 100 };
-				if (e.isMe) {
-					e.msg = "FLASH! Caught on red!";
-					e.msgT = W.t;
-					sfx("loss");
-				}
+				fb(W, e, "CAUGHT ON RED", { stamp: true });
+				if (e.isMe) sfx("loss");
 				return;
 			}
 			if (-e.z >= this.LEN) {
@@ -4319,19 +4340,16 @@ const MG = {
 				e.fin = W.t;
 				e.v = 0;
 				e.sc = 1000 + Math.round((this.dur - W.t) * 10);
-				if (e.isMe) {
-					e.msg = "Finished!";
-					e.msgT = W.t;
-					sfx("fanfare");
-				}
+				fb(W, e, `P${1 + W.list.filter((o) => o !== e && !o.gone && o.sc >= 1000 && o.sc >= e.sc).length}`, {
+					stamp: true,
+				});
+				if (e.isMe) sfx("fanfare");
 			}
 		},
 		timeUp(W, e) {
 			e.sc = Math.round(-e.z);
 		},
 		final: (W, e) => e.sc,
-		prompt: (W, e) => (e.msg && W.t - e.msgT < 1.4 ? e.msg : ""),
-		donePrompt: (W, e) => (e.f && e.f.run ? "Caught on red!" : e.fin ? `Finished in ${e.fin.toFixed(2)} s` : ""),
 		render(W, e, dt) {
 			if (W.lampT !== W.t) {
 				W.lampT = W.t;
@@ -4347,20 +4365,7 @@ const MG = {
 					const me = W.me,
 						ds = me.d ? "done" : st === "g" ? "go" : st === "y" ? "yel" : "red";
 					if (b.dataset.state !== ds) b.dataset.state = ds;
-					setTxt(
-						"rlglh",
-						me.fin
-							? "Finished!"
-							: me.d
-								? "Caught!"
-								: st === "g"
-									? me.hold
-										? "Driving…"
-										: "GREEN: hold to drive!"
-									: st === "y"
-										? "YELLOW: let go!"
-										: "RED: stop!",
-					);
+					setTxt("rlglh", me.fin ? "Finished" : me.d ? "Caught" : "");
 				}
 			}
 			// caught trucks: the speed camera flashes, then a lorry thunders down their lane
@@ -4440,7 +4445,7 @@ const MG = {
 				(L === "r" && e.plan[c] > 1 && this.redFor(W, W.t) < 0.5);
 		},
 		ctlHTML() {
-			return `<button class="tapall tp-launch" id="rlgl" data-state="wait" aria-label="Hold to drive"><span class="tp-lights"><i class="r"></i><i class="y"></i><i class="g"></i></span><span class="tp-go">GAS</span><b class="tp-hint" id="rlglh">Wait for green…</b></button>`;
+			return `<button class="tapall tp-launch" id="rlgl" data-state="wait" aria-label="Hold to drive"><span class="tp-lights"><i class="r"></i><i class="y"></i><i class="g"></i></span><span class="tp-go">GAS</span><b class="tp-hint" id="rlglh"></b></button>`;
 		},
 		wire() {
 			cxWireBtn(
@@ -5046,11 +5051,8 @@ const MG = {
 			e.phT = W.t;
 			e.vy = 0;
 			e.sc = Math.max(0, e.sc - 20);
-			if (e.isMe) {
-				e.msg = "Over the edge! −20";
-				e.msgT = W.t;
-				sfx("loss");
-			}
+			fb(W, e, "Over the edge −20", { tone: "bad" });
+			if (e.isMe) sfx("loss");
 		},
 		land(W, e, gap) {
 			e.ph = "dump";
@@ -5059,11 +5061,8 @@ const MG = {
 				gap <= this.ZONE ? e.load * (5 + Math.round((5 * (this.ZONE - Math.max(0, gap))) / this.ZONE)) : -e.load * 3;
 			e.sc = Math.max(0, e.sc + pts);
 			e.dumped = { pts, gap };
-			if (e.isMe) {
-				e.msg = pts > 0 ? `In the pit! +${pts}` : `Missed the pit! ${pts}`;
-				e.msgT = W.t;
-				sfx(pts > 0 ? "coin" : "loss");
-			}
+			fb(W, e, pts > 0 ? `+${pts}` : `Missed ${pts}`, { tone: pts > 0 ? "good" : "bad" });
+			if (e.isMe) sfx(pts > 0 ? "coin" : "loss");
 		},
 		spin(W, e, go, next) {
 			// handbrake 180: keeps sliding the way it was going while the truck whips round
@@ -5079,16 +5078,6 @@ const MG = {
 			e.sdir = next === "dump" ? inward : -inward;
 			if (e.isMe) sfx("skid");
 		},
-		prompt: (W, e) =>
-			e.msg && W.t - e.msgT < 1.4
-				? e.msg
-				: e.ph === "load"
-					? e.load
-						? `Load ${e.load}/${MG.park.MAXL}: tap GO!`
-						: "Loading…"
-					: e.ph === "drive"
-						? "Brake near the edge!"
-						: "",
 		cam(W, t, p, far) {
 			const z = Math.max(this.EDGE + 3, Math.min(this.HOME, W.me.z + (W.me.vz || 0) * 0.25)),
 				tall = far > 1,
@@ -5510,11 +5499,10 @@ const MG = {
 					e.sc -= lost;
 					e.stun = 1;
 					e.vy = 5;
+					if (lost) fb(W, e, `−${lost}`, { tone: "bad" });
 					if (e.isMe) {
 						W.shake = 0.4;
 						sfx("ram");
-						e.msg = lost ? `Crash! Dropped ${lost} parcel${lost > 1 ? "s" : ""}` : "Crash!";
-						e.msgT = W.t;
 						burst(W.sc, e.x, 1.2, e.z - 1, {
 							n: 6 + lost * 3,
 							shape: "cube",
@@ -5534,11 +5522,10 @@ const MG = {
 					e.sc -= lost;
 					e.stun = 0.5;
 					e.vy = 6;
+					if (lost) fb(W, e, "−1", { tone: "bad" });
 					if (e.isMe) {
 						W.shake = 0.25;
 						sfx("land");
-						e.msg = "Pothole!";
-						e.msgT = W.t;
 					}
 				}
 			}
@@ -5554,7 +5541,6 @@ const MG = {
 				}
 			}
 		},
-		prompt: (W, e) => (e.msg && W.t - e.msgT < 1.2 ? e.msg : ""),
 		fmt: (W, e) => `${e.sc} parcel${e.sc === 1 ? "" : "s"}`,
 		render(W, e, dt) {
 			if (!e.isMe) return;
@@ -5623,7 +5609,7 @@ const MG = {
 		tvHint: "Tap your phone to lock the power. In the air: hold to lift the nose, let go to drop it.",
 		LAND: 0.75,
 		tapHint: "Tap to lock the power, then in the air hold to lift the nose and let go to drop it.",
-		how: "Tap when the power meter is high, then keep your truck level in the air: hold to lift the nose, let go to drop it. Land level to bounce on, nose-first and you crash. Furthest wins.",
+		how: "Lock in the power, then keep your truck level in the air. Land level to bounce on; furthest wins.",
 		/* landing: |pitch| up to LV[0] = perfect, LV[1] = a weak bounce, more = crash */
 		LV: [0.2, 0.45],
 		/* the power meter swings 0..1..0 every 2.2 s, the same for everyone */
@@ -5696,11 +5682,10 @@ const MG = {
 			e.pl = this.pm(W.t);
 			e.f.pl = Math.round(e.pl * 100) / 100;
 			mgLog(W, `${mgName(e)} locks ${Math.round(e.pl * 100)}% power`);
-			if (e.isMe) {
-				e.msg = e.pl > 0.92 ? "MAX POWER!" : e.pl > 0.7 ? "Good power" : "Weak run-up…";
-				e.msgT = W.t;
-				sfx(e.pl > 0.92 ? "coin" : "click");
-			}
+			fb(W, e, e.pl > 0.92 ? "MAX POWER!" : e.pl > 0.7 ? "Good power" : "Weak run-up", {
+				tone: e.pl > 0.92 ? "good" : e.pl > 0.7 ? "" : "bad",
+			});
+			if (e.isMe) sfx(e.pl > 0.92 ? "coin" : "click");
 		},
 		land(W, e, k, hop) {
 			mgLog(
@@ -5759,11 +5744,8 @@ const MG = {
 							e.pitch = 0.22;
 							e.pw = 0;
 						}
-						if (e.isMe) {
-							e.msg = perf ? "PERFECT LANDING!" : "Wobbly landing";
-							e.msgT = W.t;
-							sfx(perf ? "coin" : "land");
-						}
+						fb(W, e, perf ? "PERFECT!" : "Wobbly", { tone: perf ? "good" : "" });
+						if (e.isMe) sfx(perf ? "coin" : "land");
 					} else {
 						e.st = "land";
 						this.land(W, e, 0, false);
@@ -5773,11 +5755,8 @@ const MG = {
 						e.f.cr = 1;
 						e.sc = Math.round(-(e.z + 60.4) * 10);
 						e.d = true;
-						if (e.isMe) {
-							e.msg = e.pitch < 0 ? "Nose dive! CRASH!" : "Tail first! CRASH!";
-							e.msgT = W.t;
-							sfx("crush");
-						}
+						fb(W, e, "CRASH", { stamp: true });
+						if (e.isMe) sfx("crush");
 					}
 				}
 			} else if (e.st === "roll") {
@@ -5790,11 +5769,8 @@ const MG = {
 					e.st = "land";
 					e.sc = Math.round(-(e.z + 60.4) * 10);
 					e.d = true;
-					if (e.isMe) {
-						e.msg = `Stopped after ${e.hops} bounce${e.hops === 1 ? "" : "s"}`;
-						e.msgT = W.t;
-						sfx("fanfare");
-					}
+					fb(W, e, `${(e.sc / 10).toFixed(1)} m`, { stamp: true });
+					if (e.isMe) sfx("fanfare");
 				}
 			}
 			e.f.pt = Math.round((e.pitch || 0) * 100) / 100;
@@ -5813,15 +5789,6 @@ const MG = {
 			pos.z += y * 1.3 * far * k;
 			return [tgt, pos];
 		},
-		prompt: (W, e) =>
-			e.msg && W.t - e.msgT < 1.1
-				? e.msg
-				: W.t >= 0 && !e.st && e.pl === undefined
-					? "Tap when the power is high!"
-					: e.st === "air"
-						? "Hold = nose up, let go = nose down"
-						: "",
-		donePrompt: (W, e) => (e.msg && W.t - e.msgT < 2 ? e.msg : ""),
 		render(W, e, dt) {
 			if (!e.local) e.pitch = (e.f && e.f.pt) || 0;
 			const bn = (e.f && e.f.bn) || 0;
@@ -5891,7 +5858,7 @@ const MG = {
 		bare: true,
 		tapLabel: "DROP",
 		tapHint: "Tap to drop the crate onto your stack.",
-		how: "Drop 10 crates onto your truck. Centre each one on the crate below: overhang too far and it tips off, lean the stack and it topples.",
+		how: "Drop 10 crates on your truck, each centred on the one below. Lean the stack and it topples!",
 		CC: ["#E5484D", "#2F7DE1", "#FF8A1F", "#1FA35C", "#FFC83D", "#8E96A3", "#1FB5A8", "#B5622F"],
 		/* baked props, also called by enterMg while the clouds cover the switch so their AO is ready by the start (partmodels) */
 		kits(n) {
@@ -6196,14 +6163,14 @@ const MG = {
 					e.last = W.t;
 					if (Math.abs(dx) >= half) {
 						e.tip = { x: e.fall.x, y: bed + 0.4, dir: Math.sign(dx) || 1, n: e.used };
-						e.pmsg = "Tipped off!";
+						fb(W, e, "Tipped off", { tone: "bad" });
 						if (e.isMe) sfx("loss");
 					} else {
 						const pts = Math.max(0, Math.round(100 - Math.abs(dx) * (n ? 170 : 110)));
 						e.st.push(Math.round(off * 100) / 100);
 						e.pt.push(pts);
 						e.tot += pts;
-						e.pmsg = `+${pts}`;
+						let pop = [`+${pts}`, pts > 70 ? "good" : ""];
 						if (e.isMe) sfx(pts > 70 ? "coin" : "land");
 						for (let k = -1; k < e.st.length - 1; k++) {
 							const above = e.st.slice(k + 1),
@@ -6215,7 +6182,7 @@ const MG = {
 								e.st = e.st.slice(0, k + 1);
 								e.pt = e.pt.slice(0, k + 1);
 								e.tot -= lost;
-								e.pmsg = `Toppled! −${lost}`;
+								pop = [`Toppled −${lost}`, "bad"];
 								e.tip = { x: e.fall.x, y: bed + 0.4, dir: Math.sign(com - sx) || 1, n: e.used };
 								if (e.isMe) {
 									sfx("crush");
@@ -6224,6 +6191,7 @@ const MG = {
 								break;
 							}
 						}
+						fb(W, e, pop[0], { tone: pop[1] });
 					}
 					e.cr = e.st.length;
 					e.f = {
@@ -6378,7 +6346,6 @@ const MG = {
 			} else if (e.fm) e.fm.visible = false;
 		},
 		final: (W, e) => e.tot,
-		prompt: (W, e) => e.pmsg || "",
 		bot(W, e) {
 			if (e.fall || e.used >= 10) return;
 			e.tol = e.tol ?? 0.06 + Math.random() * 0.34;
