@@ -2494,11 +2494,12 @@ function ctlUpdate() {
 			r = e.rs || 0,
 			D = W.def,
 			b = t < 0 ? D.beat(t) : -1,
-			inZ = b >= 0 && r >= D.ZONE[0] && r <= D.ZONE[1];
+			fin = e.d || e.crossed,
+			inZ = b >= 0 && r >= D.PERF[0] && r <= D.PERF[1];
 		el.style.setProperty("--p", r.toFixed(3));
-		el.classList.toggle("hot", !!(inZ || (t >= 0 && g)) && !e.d);
+		el.classList.toggle("hot", !!(inZ || (t >= 0 && g)) && !fin);
 		set("tpread", g ? `GEAR ${g}` : "N");
-		set("tplab", e.d ? "FINISHED" : t < 0 ? (b >= 0 ? "CHARGE" : "GET READY") : "TAP!");
+		set("tplab", fin ? "FINISHED" : t < 0 ? (b >= 0 ? "CHARGE" : "GET READY") : "TAP!");
 	} else if (ui === "brake") {
 		const on = e.brk || e.st === "stop" || e.st === "crash";
 		el.style.setProperty("--p", on ? "1" : "0");
