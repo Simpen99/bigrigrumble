@@ -5976,7 +5976,7 @@ const MG = {
 			return [tgt, pos];
 		},
 		/* the TV's shared view: high up at the side and a little behind, so the nose angle reads, framing the trucks
-		   still jumping (everyone once they have all landed) */
+		   still jumping (everyone once they have all stopped); a truck left off screen gets a pill at the edge (edgePill) */
 		tvsCam(W, a, halfW) {
 			let es = W.list.filter((e) => !e.gone && !e.d);
 			if (!es.length) es = W.list.filter((e) => !e.gone);
@@ -5985,12 +5985,50 @@ const MG = {
 				z1 = Math.max(...zs),
 				yc = es.reduce((t, e) => t + (e.y || 0), 0) / Math.max(1, es.length),
 				tn = Math.tan((20 * Math.PI) / 180),
-				D = Math.max(18, ((z1 - z0) / 2 + 7) / (tn * a), (halfW + 4) / tn),
+				D = Math.max(14.4, ((z1 - z0) / 2 + 4) / (tn * a), ((halfW + 4) / tn) * 0.8),
 				tgt = new THREE.Vector3(0, 1 + yc * 0.7, (z0 + z1) / 2 - 1.5);
 			return [tgt, tgt.clone().addScaledVector(new THREE.Vector3(0.72, 0.6, 0.34).normalize(), D)];
 		},
+		/* TV shared view: a truck off the edge of the screen gets a pill in its own lane at that edge, in its colour,
+		   with how far it is behind the leader (or ahead, for a truck that stopped further on) */
+		edgePill(W, e) {
+			const T = typeof TVS !== "undefined" && TVS,
+				cam = T && T.mode === "shared" && T.scam;
+			let show = false;
+			if (cam && W === T.worlds[0].W && !e.gone && e.g.visible) {
+				const p = new THREE.Vector3(e.x, (e.y || 0) + 1, e.z).project(cam);
+				if (Math.abs(p.x) > 1.02 && p.z < 1) {
+					const live = W.list.filter((o) => !o.gone && !o.d),
+						lead = Math.min(...(live.length ? live : W.list.filter((o) => !o.gone)).map((o) => o.z)),
+						side = p.x < 0 ? -1 : 1,
+						d = Math.max(0, Math.round(side < 0 ? e.z - lead : lead - e.z)),
+						txt = side < 0 ? `◀ ${d} m` : `${d} m ▶`;
+					/* walk along the lane to where it meets the screen edge */
+					let a = e.z,
+						b = T.st ? T.st.z : e.z,
+						y = 1.2;
+					for (let k = 0; k < 14; k++) {
+						const m = (a + b) / 2,
+							q = new THREE.Vector3(e.x, y, m).project(cam);
+						if (Math.abs(q.x) > 0.88) a = m;
+						else b = m;
+					}
+					if (!e.pill) {
+						e.pill = pillSprite();
+						W.sc.add(e.pill.sp);
+					}
+					e.pill.set(txt, pcol(e.p));
+					e.pill.sp.position.set(e.x, y, b);
+					const h = cam.position.distanceTo(e.pill.sp.position) * 0.035;
+					e.pill.sp.scale.set(h * 3, h, 1);
+					show = true;
+				}
+			}
+			if (e.pill) e.pill.sp.visible = show;
+		},
 		render(W, e, dt) {
 			if (!e.local) e.pitch = (e.f && e.f.pt) || 0;
+			this.edgePill(W, e);
 			const bn = (e.f && e.f.bn) || 0;
 			if (!e.local && bn !== (e.bnSeen || 0)) {
 				e.bnSeen = bn;

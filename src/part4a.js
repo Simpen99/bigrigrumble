@@ -2116,6 +2116,46 @@ function inputHint(W, e, label, mode, col) {
 	}
 	e.ihU = { label, mode, col, at: performance.now() };
 }
+/* a pill sprite with its own canvas that redraws when its text changes (live numbers, e.g. Ramp Jump's edge
+   distances), drawn like a pop-up pill: dark, ringed in the colour; 3:1, text fitted */
+function pillSprite() {
+	const cv = document.createElement("canvas");
+	cv.width = 384;
+	cv.height = 128;
+	const tex = new THREE.CanvasTexture(cv),
+		sp = new THREE.Sprite(
+			new THREE.SpriteMaterial({ map: tex, depthTest: false, depthWrite: false, transparent: true }),
+		);
+	sp.renderOrder = 12;
+	sp.userData.fb = true;
+	let key = "";
+	return {
+		sp,
+		set(text, col) {
+			if (key === text + col) return;
+			key = text + col;
+			const x = cv.getContext("2d"),
+				w = cv.width,
+				h = cv.height;
+			x.clearRect(0, 0, w, h);
+			x.fillStyle = "#151B24";
+			rr(x, 3, 3, w - 6, h - 6, (h - 6) / 2);
+			x.fill();
+			x.fillStyle = col;
+			rr(x, 8, 8, w - 16, h - 16, (h - 16) / 2);
+			x.fill();
+			x.fillStyle = "#1C2330";
+			rr(x, 15, 15, w - 30, h - 30, (h - 30) / 2);
+			x.fill();
+			x.font = "800 60px Rubik, Arial, sans-serif";
+			x.textAlign = "center";
+			x.textBaseline = "middle";
+			x.fillStyle = "#fff";
+			x.fillText(text, w / 2, h / 2 + 3, w - 60);
+			tex.needsUpdate = true;
+		},
+	};
+}
 /* a flashing symbol sprite (a warning sign, an empty tank); draw(ctx, w, h) on a 64 px canvas, cached per key */
 const FB_ICO = {};
 function iconSprite(key, draw, size = 0.9) {
