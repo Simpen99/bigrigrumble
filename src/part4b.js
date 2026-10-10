@@ -5629,14 +5629,14 @@ const MG = {
 		/* the power meter swings 0..1..0 every 2.2 s, the same for everyone */
 		pm: (t) => 1 - Math.abs(((Math.max(0, t) / 1.1) % 2) - 1),
 		build(W) {
-			const wid = laneWorld(W, 230, { noTrees: true });
+			const wid = laneWorld(W, 320, { noTrees: true });
 			W.plist.forEach((p, i) => {
 				const r = B(3.2, 0.3, 5, "#FFC83D", W.laneX(i), 1, -58);
 				r.rotation.x = 0.38;
 				W.sc.add(r);
 				W.sc.add(B(3.2, 2, 0.3, "#E0A800", W.laneX(i), 1, -60.4));
 			});
-			for (let d = 10; d <= 150; d += 10) {
+			for (let d = 10; d <= 240; d += 10) {
 				const sp = new THREE.Sprite(
 					new THREE.SpriteMaterial({
 						map: canvasTex(128, 64, (x, w, h) => {
@@ -5655,7 +5655,7 @@ const MG = {
 				sp.position.set(wid / 2 + 1.8, 2.6, -60 - d);
 				W.sc.add(sp);
 			}
-			grandstands(W, wid, -30, -232);
+			grandstands(W, wid, -30, -312);
 			this.pads(W);
 		},
 		pads(W) {
@@ -5664,7 +5664,7 @@ const MG = {
 				CAR = ["#E5484D", "#2F7DE1", "#1FA35C", "#FF8A1F", "#8E5BE0", "#16B3C9"];
 			W.plist.forEach((p, i) => {
 				const x = W.laneX(i);
-				for (let z = -62.5, k = 0; z > -228; k++) {
+				for (let z = -62.5, k = 0; z > -308; k++) {
 					if (k % 3 !== 2) {
 						const c = CAR[(k + i * 2) % CAR.length];
 						W.sc.add(
@@ -5749,13 +5749,14 @@ const MG = {
 					const a = Math.abs(e.pitch),
 						perf = a <= this.LV[0];
 					if (a <= this.LV[1]) {
-						const vy = -e.vy * (perf ? 0.55 : 0.4);
-						e.v *= perf ? 0.92 : 0.8;
+						/* a level landing keeps most of the bounce, so a chain of them goes a long way */
+						const vy = -e.vy * (perf ? 0.82 : 0.42);
+						e.v *= perf ? 0.93 : 0.8;
 						this.land(W, e, perf ? 1 : 0.5, true);
 						if (vy < 3) e.st = "roll";
 						else {
 							e.vy = vy;
-							e.pitch = 0.3;
+							e.pitch = 0.22;
 							e.pw = 0;
 						}
 						if (e.isMe) {
@@ -5802,6 +5803,16 @@ const MG = {
 		timeUp(W, e) {
 			if (e.st !== "land") e.sc = Math.max(0, Math.round(-(e.z + 60.4) * 10));
 		},
+		/* the camera rises with the truck (and backs off a little) so high jumps stay in view */
+		cam(W, tgt, pos, far) {
+			/* sideways screens see less height, so they rise and back off more */
+			const y = Math.max(0, (W.me.y || 0) - this.LAND),
+				k = far > 1 ? 1 : 1.8;
+			tgt.y += y * 1.3 * k;
+			pos.y += y * 0.9;
+			pos.z += y * 1.3 * far * k;
+			return [tgt, pos];
+		},
 		prompt: (W, e) =>
 			e.msg && W.t - e.msgT < 1.1
 				? e.msg
@@ -5828,7 +5839,7 @@ const MG = {
 					pl = e.local ? e.pl : e.f && e.f.pl,
 					air = e.local ? e.st === "air" : (e.y || 0) > this.LAND + 0.3 && e.z < -60;
 				e.gauge.g.visible = true;
-				e.gauge.g.position.set(e.x, (e.y || 0) + 4.1, e.z);
+				e.gauge.g.position.set(e.x, (e.y || 0) + 3.5, e.z);
 				e.gauge.g.quaternion.copy(cam.quaternion);
 				e.gauge.set(air ? "air" : "pw", air ? e.pitch || 0 : pl === undefined ? this.pm(W.t) : pl, pl !== undefined);
 			} else if (e.gauge) e.gauge.g.visible = false;
