@@ -296,6 +296,10 @@ body.trin #mg .m3top{animation:trtop .6s .35s ease-out both}body.trin #mg .m3lb,
 .tp-pedal.brake .tp-ped{width:92%;height:70%;background:linear-gradient(180deg,#F26B70,#B3262D)}
 .tp-pedal.brake .tp-gauge i{background:linear-gradient(90deg,#E5484D,#FFC83D);width:calc((1 - var(--p,0)) * 100%)}
 .tp-pedal.hot{border-color:var(--yellow)!important;box-shadow:0 0 0 3px var(--yellow),0 0 34px rgba(255,200,61,.55)!important}
+.tp-rev{position:absolute;left:18px;right:18px;top:20px;height:16px;border-radius:8px;background:linear-gradient(90deg,rgba(255,255,255,.12) 0 82%,#1FA35C 82% 95%,#E5484D 95%);box-shadow:inset 0 0 0 1px rgba(255,255,255,.1)}
+.tp-rev i{position:absolute;top:-5px;bottom:-5px;left:calc(var(--p,0) * 100% - 3px);width:6px;border-radius:3px;background:#FFC83D;box-shadow:0 0 0 2px #151B24}
+.tp-air[data-m=pw] .tp-rev{background:linear-gradient(90deg,#E5484D 0 50%,#FFC83D 50% 80%,#1FA35C 80%)}
+.tp-air[data-m=att] .tp-rev{background:linear-gradient(90deg,#E5484D 0 12.5%,#FFC83D 12.5% 33.3%,#1FA35C 33.3% 66.7%,#FFC83D 66.7% 87.5%,#E5484D 87.5%)}
 .tp-pedal.hot .tp-lab{color:#fff;animation:blink .35s steps(2) infinite}
 @keyframes blink{50%{opacity:.35}}
 .tp-launch{display:flex!important;align-items:center;justify-content:center;gap:20px}
@@ -500,6 +504,13 @@ body.ctl .btn{min-height:58px;font-size:18px}
 /* TV controller swipe pad (Rush Hour, Sort It Out): the whole screen takes swipes, labels show what each direction does */
 .swpad{position:absolute;left:0;right:0;bottom:0;top:calc(env(safe-area-inset-top,0px) + 200px);touch-action:none;-webkit-user-select:none;user-select:none}
 .swpad .tvchint{top:45%;font-size:17px}
+/* slide pad: a track with a marker where the cone is (phone: bottom third, TV controller: the whole screen) */
+.sl-ctl{position:absolute;left:0;right:0;bottom:0;height:34%}
+.sl-ctl .slpad{position:absolute;inset:0;touch-action:none;-webkit-user-select:none;user-select:none;background:linear-gradient(180deg,transparent,rgba(16,22,31,.4))}
+.slpad::after{content:"";position:absolute;left:15%;right:15%;bottom:calc(env(safe-area-inset-bottom,0px) + 40px);height:6px;border-radius:3px;background:rgba(255,255,255,.2);pointer-events:none}
+.slmark{position:absolute;bottom:calc(env(safe-area-inset-bottom,0px) + 20px);left:50%;width:46px;height:46px;margin-left:-23px;border-radius:50%;background:#FF9FCB;box-shadow:0 0 0 4px #151B24,0 0 0 7px #F4F6F9;pointer-events:none;z-index:1;transition:left .05s}
+.slhint{position:absolute;left:0;right:0;top:14px;text-align:center;color:rgba(255,255,255,.55);font-weight:800;font-size:14px;pointer-events:none}
+.sl-ctl .svb{position:absolute;right:12px;top:-62px;width:auto;padding:8px 16px}
 .swl{position:absolute;display:flex;align-items:center;gap:8px;color:#fff;font-weight:800;text-shadow:0 2px 0 rgba(0,0,0,.45);pointer-events:none;opacity:.9}
 .swl i{font-style:normal;font-size:40px;line-height:1;color:var(--bc);filter:drop-shadow(0 0 2px rgba(255,255,255,.75));animation:swn 1.1s ease-in-out infinite}
 .swl b{font-size:15px;letter-spacing:.04em;text-transform:uppercase}

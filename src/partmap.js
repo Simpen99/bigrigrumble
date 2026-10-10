@@ -4783,13 +4783,17 @@ addEventListener("keydown", (e) => {
 			W.inp.hold = true;
 		}
 		if (k === "e" && W.def.btn2) W.inp.b2 = true;
-	} else if ((k === " " || k === "enter" || k === "w" || k === "arrowup") && W.t >= 0 && !W.me.d && W.def.tap)
-		W.def.tap(W, W.me);
+	} else if (k === " " || k === "enter" || k === "w" || k === "arrowup") {
+		W.inp.hold = true;
+		if (W.t >= 0 && !W.me.d && W.def.tap) W.def.tap(W, W.me);
+		else if (W.t < 0 && W.def.tapEarly) W.def.tapEarly(W, W.me);
+	}
 });
 addEventListener("keyup", (e) => {
 	const k = e.key.toLowerCase();
 	KEYS.delete(k);
-	if (W && (k === " " || k === "shift")) W.inp.hold = false;
+	if (W && (k === " " || k === "shift" || (W.def.ctrl === "tap" && (k === "enter" || k === "w" || k === "arrowup"))))
+		W.inp.hold = false;
 	if (W && GFX.mode === "mg" && W.def.onKey && W.t >= 0 && !W.me.d) W.def.onKey(W, k, false);
 });
 addEventListener("blur", () => KEYS.clear());

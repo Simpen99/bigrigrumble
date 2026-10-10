@@ -62,8 +62,17 @@ Object.assign(MG, {
 		hi: true,
 		unit: "pts",
 		dur: 45,
-		how: "Flip scoops onto the cone and tap SERVE to sell it. Bigger cones pay more and get more toppings, but scoops melt in the sun and the tower slides off.",
-		tapHint: "SCOOP (Space) drops a scoop, SERVE (Enter) sells the cone.",
+		how: "Scoops fly out of the scooper: slide to catch them on your cone. Jerk it and the tower sways and topples! Flick up to serve: bigger cones pay more, but scoops melt in the sun. Golden scoops +25, and dodge the seagull's fish!",
+		tapHint: "Slide your finger to move the cone, flick up (or SERVE) to sell it. Keyboard: ◀ ▶ and Enter.",
+		/* TV controller: the whole phone is a slide pad (finger position = cone position), a flick up serves */
+		slide: true,
+		slideHint: "Slide ◀ ▶ to move the cone · flick ▲ to serve",
+		tvHint: "Slide your finger left and right to move the cone, flick up to serve.",
+		XR: 1.35,
+		G: 11,
+		DROPH: 3.4,
+		SWAY: 0.07,
+		MAXN: 10,
 		R: 0.55,
 		STEP: 0.74,
 		CT: 2.9,
@@ -208,6 +217,61 @@ Object.assign(MG, {
 			W.scFlip = flip;
 			W.scBall = ball;
 			W.flip = 0;
+			W.drops = [];
+			for (let t = 1.4, i = 0; t < this.dur - 1; i++) {
+				const k = i > 3 && W.rng() < 0.13 ? "fish" : W.rng() < 0.1 ? "gold" : "s";
+				W.drops.push({ id: i, t, k, f: i % 6, x0: (W.rng() * 2 - 1) * 1.2, x1: (W.rng() * 2 - 1) * 1.3 });
+				t += Math.max(0.8, 1.55 - t * 0.016) * (0.8 + W.rng() * 0.4);
+			}
+			W.airM = {};
+			W.gull = this.gullModel();
+			W.gull.scale.setScalar(1.6);
+			W.gull.visible = false;
+			s.add(W.gull);
+		},
+		gullModel() {
+			const g = new THREE.Group(),
+				body = mesh(new THREE.IcosahedronGeometry(0.3, 1), "#F4F6F9");
+			body.scale.set(1.5, 0.75, 0.8);
+			g.add(body);
+			const head = mesh(new THREE.IcosahedronGeometry(0.17, 1), "#F4F6F9");
+			head.position.set(0.42, 0.14, 0);
+			g.add(head);
+			const beak = mesh(new THREE.ConeGeometry(0.06, 0.2, 6), "#FFB000");
+			beak.rotation.z = -Math.PI / 2;
+			beak.position.set(0.62, 0.12, 0);
+			g.add(beak);
+			g.userData.w = [-1, 1].map((sd) => {
+				const p = new THREE.Group();
+				p.position.set(0, 0.08, sd * 0.18);
+				const w = B(0.42, 0.05, 0.75, "#B7BEC9", 0, 0, sd * 0.36);
+				const tip = B(0.3, 0.06, 0.24, "#3A4150", -0.04, 0, sd * 0.78);
+				p.add(w, tip);
+				g.add(p);
+				return [p, sd];
+			});
+			return g;
+		},
+		fishModel() {
+			const g = new THREE.Group(),
+				body = mesh(new THREE.IcosahedronGeometry(0.3, 1), "#7FA3B8");
+			body.scale.set(1.5, 0.75, 0.55);
+			g.add(body);
+			const belly = mesh(new THREE.IcosahedronGeometry(0.22, 1), "#D9E4EA");
+			belly.scale.set(1.6, 0.6, 0.6);
+			belly.position.set(0.02, -0.1, 0);
+			g.add(belly);
+			const tail = mesh(new THREE.ConeGeometry(0.22, 0.34, 4), "#5E8296");
+			tail.rotation.z = Math.PI / 2;
+			tail.position.x = -0.55;
+			tail.scale.z = 0.3;
+			g.add(tail);
+			[-1, 1].forEach((sd) => {
+				const eye = mesh(new THREE.IcosahedronGeometry(0.05, 0), "#23272F");
+				eye.position.set(0.3, 0.07, sd * 0.15);
+				g.add(eye);
+			});
+			return g;
 		},
 		park(W) {
 			// amusement park around the ice cream stand: plaza, Ferris wheel, roller coaster, carousel, stalls, bunting, balloons, visitors
@@ -757,8 +821,12 @@ Object.assign(MG, {
 			hideOthers(W, e);
 			if (e.isMe) e.g.scale.setScalar(1.25);
 			e.st = [];
-			e.fall = null;
-			e.tol = undefined;
+			e.air = [];
+			e.di = 0;
+			e.cx = 0;
+			e.cv = 0;
+			e.sw = 0;
+			e.swv = 0;
 			e.tot = 0;
 			e.sv = null;
 			e.cones = 0;
@@ -771,9 +839,6 @@ Object.assign(MG, {
 			let a = 0;
 			return st.map((s) => (a += s.dx));
 		},
-		scX(W, e) {
-			return Math.sin(e.ph ?? e.i) * 1.3;
-		},
 		heat(W) {
 			return 0.85 + 0.65 * Math.max(0, Math.min(1, W.t / this.dur));
 		},
@@ -782,13 +847,14 @@ Object.assign(MG, {
 			let v = 0,
 				m = 0;
 			st.forEach((s, i) => {
-				v += (i + 1) * 10 + (s.p ? 5 : 0);
+				v += (i + 1) * 10 + (s.p ? 5 : 0) + (s.gd ? 25 : 0);
 				m += s.m;
 			});
 			return Math.round(v * (1 - (0.5 * m) / st.length));
 		},
-		weak(st) {
-			const X = this.xs(st);
+		/* the lowest scoop whose load sits too far off its base (sway sw leans every level by its height) */
+		weak(st, sw = 0) {
+			const X = this.xs(st).map((x, j) => x + sw * (j + 1) * this.STEP);
 			for (let k = -1; k < st.length - 1; k++) {
 				const ab = X.slice(k + 1),
 					com = ab.reduce((a, b) => a + b, 0) / ab.length,
@@ -797,21 +863,8 @@ Object.assign(MG, {
 			}
 			return -1;
 		},
-		tap(W, e) {
-			if (e.fall || e.d || e.sv || e.st.length >= 14) return;
-			e.fall = {
-				x: this.scX(W, e),
-				y:
-					e.isMe && W.scY !== undefined
-						? Math.max(W.scY, this.topY(e.st.length + 1) + 0.6)
-						: this.topY(e.st.length + 1) + 2.2,
-				vy: 0,
-				f: this.FLAV[(e.st.length + e.cones) % 6],
-			};
-			if (e.isMe) sfx("click");
-		},
 		serve(W, e) {
-			if (e.d || e.sv || e.fall || !e.st.length) return;
+			if (e.d || e.sv || !e.st.length) return;
 			e.sv = { t: W.t, n: e.st.length, v: this.value(e.st) };
 			if (e.isMe) {
 				sfx("battery");
@@ -821,6 +874,7 @@ Object.assign(MG, {
 		lose(W, e, k, why) {
 			const lost = e.st.length - k;
 			if (lost <= 0) return;
+			mgLog(W, `${mgName(e)} loses ${lost} scoop${lost > 1 ? "s" : ""} (${why || "toppled"})`);
 			if (e.isMe) {
 				this.topple(W, e, k);
 				e.msg = why || `Timber! ${lost} scoop${lost > 1 ? "s" : ""} fell`;
@@ -830,13 +884,124 @@ Object.assign(MG, {
 			}
 			e.st.splice(k);
 		},
+		/* a drop leaves the scooper DROPH above the stack top and lands at x1 when it gets back down to it */
+		launch(W, e, d) {
+			const vy = 1.5,
+				t = (vy + Math.sqrt(vy * vy + 2 * this.G * this.DROPH)) / this.G;
+			e.air.push({
+				id: d.id,
+				k: d.k,
+				f: d.f,
+				x: d.x0,
+				y: this.topY(e.st.length + 1) + this.DROPH,
+				vx: (d.x1 - d.x0) / t,
+				vy,
+			});
+			if (e.isMe && d.k !== "fish") W.flipT = W.t;
+		},
+		fly(W, e, dt) {
+			const n = e.st.length,
+				X = this.xs(e.st),
+				top = n ? X[n - 1] : 0,
+				tx = e.cx + top + e.sw * n * this.STEP,
+				yl = this.topY(n + 1);
+			e.air = e.air.filter((a) => {
+				a.vy -= this.G * dt;
+				a.x += a.vx * dt;
+				a.y += a.vy * dt;
+				if (!a.miss && a.vy < 0 && a.y <= yl) {
+					const dx = a.x - tx;
+					if (!e.sv && n < this.MAXN && Math.abs(dx) <= (n ? this.R * 1.8 : 0.9)) {
+						this.caught(W, e, a, a.x - (e.cx + top));
+						return false;
+					}
+					a.miss = true;
+					if (e.isMe && a.k !== "fish") {
+						e.msg = n >= this.MAXN ? "Tower full: serve it!" : "Missed!";
+						e.msgT = W.t;
+						sfx("loss");
+					}
+				}
+				if (a.y < 0.45) {
+					if (e.isMe && a.k !== "fish")
+						burst(W.sc, a.x, 0.45, 0, {
+							n: 6,
+							shape: "ico",
+							cols: [this.FLAV[a.f], "#FFFFFF"],
+							spd: 1.6,
+							up: 1.5,
+							life: 0.5,
+						});
+					return false;
+				}
+				return true;
+			});
+		},
+		caught(W, e, a, dx) {
+			if (a.k === "fish") {
+				mgLog(W, `${mgName(e)} catches a fish`);
+				if (e.st.length) this.lose(W, e, 0, "Yuck, a fish! The cone is ruined");
+				else if (e.isMe) {
+					e.msg = "Yuck, a fish!";
+					e.msgT = W.t;
+					sfx("loss");
+				}
+				return;
+			}
+			const gd = a.k === "gold",
+				p = Math.abs(dx) < 0.14;
+			e.st.push({
+				dx,
+				f: gd ? "#FFD54A" : this.FLAV[a.f],
+				m: 0,
+				p,
+				gd,
+				sd: Math.sign(dx) || (e.st.length % 2 ? 1 : -1),
+			});
+			e.swv += dx * 0.6;
+			if (e.isMe) {
+				this.syncMeshes(W, e);
+				sfx(gd ? "battery" : "coin");
+				e.msg = gd ? "GOLDEN SCOOP! +25" : p ? "Perfect! +5" : "";
+				e.msgT = W.t;
+				W.wob = (W.wob || 0) + dx * 0.5;
+			}
+			const k = this.weak(e.st, e.sw);
+			if (k >= 0) this.lose(W, e, k);
+		},
+		/* arrow keys slide the cone */
+		keys(W, dt) {
+			const d = (W.kr ? 1 : 0) - (W.kl ? 1 : 0);
+			if (d) W.inp.x = Math.max(-1, Math.min(1, (W.inp.x || 0) + d * dt * 2.4));
+		},
 		rules(W, e, dt) {
 			if (e.d) return;
-			e.ph = (e.ph ?? e.i) + (1.8 + e.st.length * 0.09) * dt;
+			const inp = e.isMe ? W.inp : e.bi || (e.bi = { x: 0 });
+			if (e.isMe) this.keys(W, dt);
+			if (inp.boost) {
+				inp.boost = false;
+				this.serve(W, e);
+			}
+			/* the cone chases the finger fast but not instantly; its acceleration rocks the tower */
+			const tx = Math.max(-1, Math.min(1, inp.x || 0)) * this.XR,
+				acc = (tx - e.cx) * 150 - e.cv * 24;
+			e.cv += acc * dt;
+			e.cx += e.cv * dt;
+			const n = e.st.length;
+			if (n && !e.sv) {
+				e.swv += (-(34 / (1 + n * 0.22)) * e.sw - 4 * e.swv - acc * this.SWAY * (1 + n * 0.25)) * dt;
+				e.sw += e.swv * dt;
+			} else {
+				e.sw *= Math.exp(-dt * 8);
+				e.swv = 0;
+			}
+			while (e.di < W.drops.length && W.drops[e.di].t <= W.t) this.launch(W, e, W.drops[e.di++]);
+			this.fly(W, e, dt);
 			if (e.sv) {
 				if (W.t - e.sv.t >= 1.7) {
 					e.tot += e.sv.v;
 					e.cones++;
+					mgLog(W, `${mgName(e)} serves ${e.sv.n} scoops for ${e.sv.v}`);
 					if (e.isMe) {
 						e.msg = `Served! +${e.sv.v}`;
 						e.msgT = W.t;
@@ -848,8 +1013,7 @@ Object.assign(MG, {
 				e.sc = e.tot;
 				return;
 			}
-			const h = this.heat(W),
-				n = e.st.length;
+			const h = this.heat(W);
 			e.st.forEach((s, i) => {
 				s.m = Math.min(1, s.m + h * (0.026 + 0.009 * (n - 1 - i)) * dt);
 				if (i > 0) {
@@ -859,40 +1023,8 @@ Object.assign(MG, {
 			});
 			if (n && e.st[0].m >= 1) this.lose(W, e, 0, "Meltdown! The cone collapsed");
 			else {
-				const k = this.weak(e.st);
+				const k = this.weak(e.st, e.sw);
 				if (k >= 0) this.lose(W, e, k);
-			}
-			if (e.fall) {
-				e.fall.vy -= 20 * dt;
-				e.fall.y += e.fall.vy * dt;
-				const X = this.xs(e.st),
-					topX = X.length ? X[X.length - 1] : 0,
-					land = this.topY(e.st.length + 1);
-				if (e.fall.y <= land) {
-					const dx = e.fall.x - topX,
-						lim = e.st.length ? this.R * 1.8 : 0.9;
-					if (Math.abs(dx) > lim) {
-						if (e.isMe) {
-							this.dropMesh(W, e.fall.x, land, e.fall.f, dx > 0 ? 1 : -1);
-							e.msg = "Missed!";
-							e.msgT = W.t;
-							sfx("loss");
-						}
-					} else {
-						const p = Math.abs(dx) < 0.12;
-						e.st.push({ dx, f: e.fall.f, m: 0, p, sd: Math.sign(dx) || (e.st.length % 2 ? 1 : -1) });
-						const k = this.weak(e.st);
-						if (e.isMe) {
-							this.syncMeshes(W, e);
-							sfx("coin");
-							e.msg = p ? "Perfect! +5" : "";
-							e.msgT = W.t;
-							W.wob = (W.wob || 0) + dx * 0.5;
-						}
-						if (k >= 0) this.lose(W, e, k);
-					}
-					e.fall = null;
-				}
 			}
 			e.sc = e.tot;
 		},
@@ -1097,7 +1229,7 @@ Object.assign(MG, {
 			W.pudR = Math.max(0, W.pudR - dt * 0.004);
 			const sv = e.sv,
 				k = sv ? W.t - sv.t : 0;
-			if (sv) W.coneG.position.x = k < 0.95 ? 0 : Math.min(4.2, ((k - 0.95) / 0.7) * 4.2) ** 1.2;
+			if (sv) W.coneG.position.x = e.cx + (k < 0.95 ? 0 : Math.min(4.2, ((k - 0.95) / 0.7) * 4.2) ** 1.2);
 			else {
 				if (W.svWas) {
 					W.coneIn = W.t;
@@ -1107,7 +1239,7 @@ Object.assign(MG, {
 					W.custShirt.color.set(["#2F7DE1", "#1FA35C", "#FF8A1F", "#8E5BE0", "#E5484D", "#16B3C9"][e.cones % 6]);
 				}
 				const ci = W.coneIn === undefined ? 1 : Math.min(1, (W.t - W.coneIn) / 0.45);
-				W.coneG.position.x = -4 * (1 - ci) * (1 - ci);
+				W.coneG.position.x = e.cx - 4 * (1 - ci) * (1 - ci);
 			}
 			W.svWas = !!sv;
 			W.tops.forEach((tp) => {
@@ -1120,30 +1252,125 @@ Object.assign(MG, {
 				}
 			});
 			W.cust.position.y = sv && k > 1.3 ? Math.abs(Math.sin((k - 1.3) * 12)) * 0.15 : 0;
-			const top = this.topY(n + 1) + 2.2,
-				x = this.scX(W, e);
+			const nx = W.drops.slice(e.di).find((d) => d.k !== "fish"),
+				soon = nx && nx.t - W.t < 1.1,
+				flipping = W.flipT !== undefined && W.t - W.flipT < 0.3,
+				top = this.topY(n + 1) + this.DROPH;
 			W.scooper.visible = !sv;
 			W.scY = W.scY === undefined ? top : W.scY + (top - W.scY) * (1 - Math.exp(-dt * 7));
-			W.scooper.position.set(x, W.scY, 0);
-			W.scBall.material = M(this.FLAV[(n + e.cones) % 6], { vertexColors: true });
-			W.flip += ((e.fall ? Math.PI : 0) - W.flip) * (1 - Math.exp(-dt * (e.fall ? 22 : 9)));
+			W.scX = W.scX === undefined ? 0 : W.scX + ((soon ? nx.x0 : W.scX) - W.scX) * (1 - Math.exp(-dt * 9));
+			W.scooper.position.set(W.scX, W.scY, 0);
+			if (soon) W.scBall.material = M(nx.k === "gold" ? "#FFD54A" : this.FLAV[nx.f], { vertexColors: true });
+			W.flip += ((flipping ? Math.PI : 0) - W.flip) * (1 - Math.exp(-dt * (flipping ? 22 : 9)));
 			W.scFlip.rotation.x = -W.flip;
-			W.scBall.scale.setScalar(e.fall ? 0.01 : Math.min(1, W.scBall.scale.x + dt * 5));
+			W.scBall.scale.setScalar(flipping || !soon ? 0.01 : Math.min(1, W.scBall.scale.x + dt * 5));
 			W.wob = (W.wob || 0) * Math.exp(-dt * 2);
 			W.stackG.rotation.z =
 				Math.sin(W.t * 7) * W.wob * 0.08 -
+				e.sw -
 				(X.slice(-1)[0] || 0) * 0.03 -
 				(n ? e.st[0].m * Math.sign(X[n - 1] || 1) * 0.06 : 0);
-			if (e.fall) {
-				if (!W.fm) {
-					W.fm = mesh(new THREE.IcosahedronGeometry(R, 1), e.fall.f);
-					W.fm.castShadow = false;
-					W.sc.add(W.fm);
+			/* scoops (and fish) in the air */
+			const live = new Set();
+			e.air.forEach((a) => {
+				live.add(a.id);
+				let m = W.airM[a.id];
+				if (!m) {
+					m =
+						a.k === "fish"
+							? this.fishModel()
+							: mesh(new THREE.IcosahedronGeometry(this.R, 1), a.k === "gold" ? "#FFD54A" : this.FLAV[a.f]);
+					if (a.k === "gold") m.material = M("#FFD54A", { metalness: 0.5, roughness: 0.3 });
+					if (a.k === "fish") m.scale.setScalar(1.5);
+					W.sc.add(m);
+					W.airM[a.id] = m;
+					/* a ring where it will land on the stack: white for scoops, gold, red for the fish */
+					const ring = new THREE.Mesh(
+						new THREE.RingGeometry(0.32, 0.46, 20),
+						new THREE.MeshBasicMaterial({
+							color: a.k === "fish" ? "#E5484D" : a.k === "gold" ? "#FFD54A" : "#F4F6F9",
+							transparent: true,
+							opacity: 0.85,
+							depthTest: false,
+						}),
+					);
+					ring.renderOrder = 5;
+					W.sc.add(ring);
+					m.userData.ring = ring;
 				}
-				W.fm.visible = true;
-				W.fm.material = M(e.fall.f, { vertexColors: true });
-				W.fm.position.set(e.fall.x, e.fall.y, 0);
-			} else if (W.fm) W.fm.visible = false;
+				m.position.set(a.x, a.y, 0);
+				{
+					const yl = this.topY(n + 1),
+						tl = (a.vy + Math.sqrt(Math.max(0, a.vy * a.vy + 2 * this.G * (a.y - yl)))) / this.G,
+						rg = m.userData.ring;
+					rg.visible = !a.miss && a.y > yl && !sv;
+					rg.position.set(a.x + a.vx * tl, yl - this.R * 0.4, 0.8);
+					rg.scale.setScalar(1 + Math.min(1, tl) * 0.6);
+				}
+				if (a.k === "fish") m.rotation.z = Math.atan2(a.vy, a.vx || 0.001) * 0.6 + Math.sin(W.t * 18) * 0.25;
+				else if (a.k === "gold" && Math.random() < dt * 12)
+					burst(W.sc, a.x, a.y, 0, {
+						n: 1,
+						shape: "ico",
+						cols: ["#FFE27A", "#FFFFFF"],
+						spd: 0.5,
+						up: 0.4,
+						life: 0.4,
+						size: 0.4,
+					});
+			});
+			for (const id in W.airM)
+				if (!live.has(+id)) {
+					W.sc.remove(W.airM[id], W.airM[id].userData.ring);
+					delete W.airM[id];
+				}
+
+			/* the seagull glides over and lets go of the fish */
+			const fd = W.drops.find((d) => d.k === "fish" && W.t > d.t - 1.6 && W.t < d.t + 1.2);
+			W.gull.visible = !!fd;
+			if (fd && W.gullId !== fd.id) {
+				W.gullId = fd.id;
+				sfx("gull");
+			}
+			/* a flashing warning sign where the fish is about to drop (from 1.2 s before until it lets go) */
+			if (!W.warn) {
+				W.warn = new THREE.Sprite(
+					new THREE.SpriteMaterial({
+						map: canvasTex(64, 64, (x, w, h) => {
+							x.fillStyle = "#151B24";
+							x.beginPath();
+							x.moveTo(w / 2, 2);
+							x.lineTo(w - 2, h - 4);
+							x.lineTo(2, h - 4);
+							x.closePath();
+							x.fill();
+							x.fillStyle = "#FFC83D";
+							x.beginPath();
+							x.moveTo(w / 2, 10);
+							x.lineTo(w - 9, h - 9);
+							x.lineTo(9, h - 9);
+							x.closePath();
+							x.fill();
+							x.fillStyle = "#151B24";
+							x.font = "900 34px Arial, sans-serif";
+							x.textAlign = "center";
+							x.textBaseline = "middle";
+							x.fillText("!", w / 2, h * 0.62);
+						}),
+						depthTest: false,
+					}),
+				);
+				W.warn.scale.setScalar(0.9);
+				W.warn.renderOrder = 6;
+				W.sc.add(W.warn);
+			}
+			W.warn.visible = !!fd && W.t < fd.t && W.t > fd.t - 1.2 && Math.sin(W.t * 16) > -0.3;
+			if (fd) W.warn.position.set(fd.x0, this.topY(n + 1) + this.DROPH, 0.6);
+			if (fd) {
+				const u = W.t - fd.t;
+				W.gull.position.set(fd.x0 + u * 4, this.topY(n + 1) + this.DROPH + 0.6 + Math.max(0, u) * 1.2, 0.3);
+				W.gull.userData.w.forEach(([p, sd]) => (p.rotation.x = sd * Math.sin(W.t * 14) * 0.6));
+			}
 			W.fallM = W.fallM.filter((f) => {
 				f.t += dt;
 				f.vy -= 18 * dt;
@@ -1164,57 +1391,87 @@ Object.assign(MG, {
 				}
 				return true;
 			});
-			const val = sv ? sv.v : this.value(e.st);
-			setTxt("cxcount", String(n));
-			setTxt("svval", String(val));
-			setTxt("cxstat", sv ? "SERVING" : e.fall ? "DROPPING" : "READY");
-			const b = document.getElementById("cxwrap");
-			if (b) b.dataset.state = sv || e.fall ? "loading" : "ready";
+			setTxt("svval", String(sv ? sv.v : this.value(e.st)));
 			const sb = document.getElementById("svbtn");
 			if (sb) sb.classList.toggle("off", !!sv || !n);
+			const mk = document.getElementById("slmark");
+			if (mk) mk.style.left = 15 + ((e.cx / this.XR + 1) / 2) * 70 + "%";
 		},
 		cam(W, t, p, far) {
-			const n = W.me.sv ? W.me.sv.n + 1 : W.me.st.length,
-				top = this.topY(Math.max(1, n)) + 2.2,
-				lo = this.CT - 1.6,
-				mid = lo + (top - lo) * 0.5,
-				d = (6.5 + (top - lo) * 0.95) * far;
-			return [new THREE.Vector3(0, mid, 0), new THREE.Vector3(0, mid + d * 0.22, d)];
+			const e = W.me,
+				n = e.sv ? e.sv.n : e.st.length,
+				hi = this.topY(n + 1) + this.DROPH + 1,
+				lo = Math.max(this.CT - 1.8, this.topY(n) - 3),
+				tn = Math.tan((20 * Math.PI) / 180),
+				asp = GFX.w / GFX.h,
+				[b0, b1] = W.split ? [0.06, 0.84] : [0.32, 0.8],
+				d = Math.max((hi - lo) / (b1 - b0) / 2 / tn, 2.1 / (tn * asp), 7),
+				cy = lo + 2 * d * tn * (0.5 - b0);
+			return [new THREE.Vector3(0, cy, 0), new THREE.Vector3(0, cy + d * 0.08, d)];
 		},
 		prompt: (W, e) => (e.msg && W.t - e.msgT < 1.4 ? e.msg : ""),
-		bot(W, e) {
-			if (e.fall || e.sv) return;
+		/* CPUs: chase where the next scoop will land (late and roughly, by skill), dodge fish, serve at their goal */
+		bot(W, e, dt) {
+			const bi = e.bi || (e.bi = { x: 0 }),
+				out = () => {
+					const o = { x: bi.x, boost: !!bi.boost };
+					if (e.isMe) bi.boost = false;
+					return o;
+				};
+			if (e.sv) return out();
 			const n = e.st.length;
-			if (n && (n >= e.goal || e.st[0].m > 0.55 || (n >= 2 && e.st[0].m > 0.4 && Math.random() < 0.02))) {
-				this.serve(W, e);
-				return;
+			if (n && (n >= e.goal || e.st[0].m > 0.55)) {
+				bi.boost = true;
+				return out();
 			}
-			e.tol = e.tol ?? 0.04 + Math.random() * 0.45;
+			e.sk = e.sk ?? 0.35 + Math.random() * 0.65;
 			const X = this.xs(e.st),
-				topX = X.length ? X[X.length - 1] : 0;
-			if (Math.abs(this.scX(W, e) - topX) < e.tol) {
-				this.tap(W, e);
-				e.tol = undefined;
+				top = n ? X[n - 1] : 0,
+				yl = this.topY(n + 1),
+				land = (a) => {
+					const tl = (a.vy + Math.sqrt(Math.max(0, a.vy * a.vy + 2 * this.G * (a.y - yl)))) / this.G;
+					return [tl, a.x + a.vx * tl];
+				};
+			let want = null,
+				fish = null;
+			for (const a of e.air) {
+				if (a.miss || a.y < yl) continue;
+				const [tl, xl] = land(a);
+				if (a.k === "fish") {
+					if (!fish || tl < fish[0]) fish = [tl, xl];
+				} else if (!want || tl < want[0]) want = [tl, xl, a.id];
 			}
+			if (want && want[2] !== e.aimId) {
+				e.aimId = want[2];
+				e.err = (Math.random() - 0.5) * 1.3 * (1 - e.sk);
+			}
+			let tx = want ? want[1] - top + (e.err || 0) : e.cx;
+			if (fish && Math.abs(fish[1] - (tx + top)) < 1.1 && (!want || fish[0] < want[0] + 0.3))
+				tx = fish[1] - top + (fish[1] > 0 ? -1.4 : 1.4);
+			const spd = (1.2 + e.sk * 2.2) / this.XR;
+			bi.x = Math.max(-1, Math.min(1, bi.x + Math.max(-spd * dt, Math.min(spd * dt, tx / this.XR - bi.x))));
+			return out();
 		},
 		ctlHTML() {
-			return `<div class="tapall tp-drop cx-pink" id="cxwrap" data-state="ready"><span class="tp-panel"><button class="svb off" id="svbtn" aria-label="Serve the cone"><small>SERVE</small><em id="svval">0</em></button><button class="tp-mush" id="cxbtn" aria-label="Drop a scoop"><b>SCOOP</b></button><span class="tp-count"><em id="cxcount">0</em><small> <span id="cxstat">READY</span></small></span></span></div>`;
+			return `<div class="sl-ctl"><div class="slpad" id="slpad"><span class="slhint">Slide to move the cone · flick up to serve</span><i class="slmark" id="slmark"></i></div><button class="svb off" id="svbtn" aria-label="Serve the cone"><small>SERVE</small><em id="svval">0</em></button></div>`;
 		},
 		wire() {
-			cxWireBtn(document.getElementById("cxbtn"), () => {
-				if (W && W.t >= 0 && !W.me.d) this.tap(W, W.me);
-			});
+			wireSlide(
+				document.getElementById("slpad"),
+				() => W && W.inp,
+				() => W && (W.inp.boost = true),
+			);
 			cxWireBtn(document.getElementById("svbtn"), () => {
-				if (W && W.t >= 0 && !W.me.d) this.serve(W, W.me);
+				if (W && W.t >= 0 && !W.me.d) W.inp.boost = true;
 			});
 		},
 		onKey(W, k, down) {
-			if (!down) return;
-			if (k === " " || k === "arrowdown" || k === "s") this.tap(W, W.me);
-			else if (k === "enter" || k === "arrowup" || k === "w") this.serve(W, W.me);
+			if (k === "arrowleft" || k === "a") W.kl = down;
+			else if (k === "arrowright" || k === "d") W.kr = down;
+			else if (down && (k === "enter" || k === "arrowup" || k === "w" || k === " ")) W.inp.boost = true;
 		},
 		final: (W, e) => e.tot,
-		botScore: () => 250 + rnd(400),
+		botScore: () => 600 + rnd(400),
 	},
 
 	/* ---- Garbo: Sort It Out ---- */
@@ -1250,6 +1507,7 @@ Object.assign(MG, {
 		/* TV controller: swipe toward the bin (button order in ctlHTML: metal, plastic, compost, wood) */
 		swipe: { u: 0, l: 1, d: 2, r: 3 },
 		swipeHint: "Swipe toward the bin",
+		tvHint: "Swipe toward the bin on your phone: up, left, down or right.",
 		CATS: [
 			{ k: "plastic", n: "Plastic", c: "#2F7DE1", pos: [-2.25, 0.2], keys: ["arrowleft", "a"], i: "◀" },
 			{ k: "metal", n: "Metal", c: "#8E96A3", pos: [0, -3.2], keys: ["arrowup", "w"], i: "▲" },

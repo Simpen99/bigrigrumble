@@ -1185,6 +1185,10 @@ function sfx(n) {
 			case "fanfare":
 				[523, 659, 784, 659, 784, 1047].forEach((f, i) => tone(f, i === 5 ? 0.5 : 0.14, "square", 0.08, 0, i * 0.12));
 				break;
+			case "gull":
+				tone(1450, 0.14, "sawtooth", 0.06, 900);
+				tone(1550, 0.18, "sawtooth", 0.06, 820, 0.17);
+				break;
 			case "honk":
 				tone(196, 0.5, "square", 0.12);
 				tone(247, 0.5, "square", 0.1);
