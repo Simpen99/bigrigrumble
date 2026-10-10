@@ -264,7 +264,7 @@ const TVSAMPLE = () => {
 	views.forEach((v) =>
 		v.list.forEach((e) => {
 			/* trucks that are done may leave the shot (Ramp Jump's camera follows the ones still jumping) */
-			if (!e || e.gone || e.d) return;
+			if (!e || e.gone || e.d || e.camOut) return;
 			const y = (e.y || 0) + 0.8,
 				c = new THREE.Vector3(e.x, y, e.z).project(v.cam),
 				a = new THREE.Vector3(e.x - 1.5, y, e.z).project(v.cam),

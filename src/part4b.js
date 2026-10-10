@@ -5979,16 +5979,26 @@ const MG = {
 			return [tgt, pos];
 		},
 		/* the TV's shared view: high up at the side and a little behind, so the nose angle reads, framing the trucks
-		   still jumping (everyone once they have all stopped); a truck left off screen gets a pill at the edge (edgePill) */
+		   still in their run-up or jump (a truck drops out for good once it is past the ramp, on the ground and below
+		   6 m/s; at the end the furthest truck); a truck left off screen gets a pill at the edge (edgePill) */
 		tvsCam(W, a, halfW) {
-			let es = W.list.filter((e) => !e.gone && !e.d);
-			if (!es.length) es = W.list.filter((e) => !e.gone);
+			W.list.forEach((e) => {
+				if (!e.camOut && W.t > 0 && (e.d || (e.z < -61 && (e.y || 0) <= this.LAND + 0.3 && Math.abs(e.vz || 0) < 6)))
+					e.camOut = true;
+			});
+			let es = W.list.filter((e) => !e.gone && !e.camOut);
+			/* everyone done: stay on the furthest truck (the others have their edge pills) */
+			if (!es.length)
+				es = W.list
+					.filter((e) => !e.gone)
+					.sort((p, q) => p.z - q.z)
+					.slice(0, 1);
 			const zs = es.map((e) => e.z),
 				z0 = Math.min(...zs),
 				z1 = Math.max(...zs),
 				yc = es.reduce((t, e) => t + (e.y || 0), 0) / Math.max(1, es.length),
 				tn = Math.tan((20 * Math.PI) / 180),
-				D = Math.max(14.4, ((z1 - z0) / 2 + 4) / (tn * a), ((halfW + 4) / tn) * 0.8),
+				D = Math.max(12.2, ((z1 - z0) / 2 + 4) / (tn * a), ((halfW + 4) / tn) * 0.68),
 				tgt = new THREE.Vector3(0, 1 + yc * 0.7, (z0 + z1) / 2 - 1.5);
 			return [tgt, tgt.clone().addScaledVector(new THREE.Vector3(0.72, 0.6, 0.34).normalize(), D)];
 		},
@@ -6001,7 +6011,7 @@ const MG = {
 			if (cam && W === T.worlds[0].W && !e.gone && e.g.visible) {
 				const p = new THREE.Vector3(e.x, (e.y || 0) + 1, e.z).project(cam);
 				if (Math.abs(p.x) > 1.02 && p.z < 1) {
-					const live = W.list.filter((o) => !o.gone && !o.d),
+					const live = W.list.filter((o) => !o.gone && !o.camOut),
 						lead = Math.min(...(live.length ? live : W.list.filter((o) => !o.gone)).map((o) => o.z)),
 						side = p.x < 0 ? -1 : 1,
 						d = Math.max(0, Math.round(side < 0 ? e.z - lead : lead - e.z)),
