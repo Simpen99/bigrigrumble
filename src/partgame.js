@@ -1460,7 +1460,7 @@ function startMinigame(duel, forceG, split) {
 function mgStartCountdown() {
 	if (!HG || HG.phase !== "minigame" || !HG.mg || HG.mg.t0) return;
 	const d = MG[HG.mg.g];
-	HG.mg.t0 = Date.now() + 4500;
+	HG.mg.t0 = Date.now() + (d.cd || 4.5) * 1000;
 	mgDeadline =
 		Date.now() + (d.dur + 35 + HG.players.filter((p) => p.local && inMg(p.key)).length * (d.dur + 20)) * 1000;
 	push();

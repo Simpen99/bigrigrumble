@@ -858,7 +858,7 @@ function stepMG(dt) {
 					if (def.timeUp) def.timeUp(W, e);
 					e.d = true;
 				}
-			}
+			} else if (def.pre && W.startAt && W.t < 0 && !W.paused) def.pre(W, e, dt);
 		} else if (e.net) {
 			const n = e.net,
 				age = Math.min(0.25, (performance.now() - n.at) / 1000),
@@ -2179,7 +2179,17 @@ function hud3(dt) {
 	}
 	{
 		/* W.big: a game's own countdown word for a restart mid-game (Monster Mash after a phase change) */
-		const tx = !W.startAt ? "" : t < 0 ? String(Math.ceil(-t)) : t < 0.8 ? "GO!" : W.big && t < W.bigT ? W.big : "";
+		const tx = !W.startAt
+			? ""
+			: t < 0
+				? def.cdText
+					? def.cdText(t)
+					: String(Math.ceil(-t))
+				: t < 0.8
+					? "GO!"
+					: W.big && t < W.bigT
+						? W.big
+						: "";
 		if (tx !== W.lastC) {
 			W.lastC = tx;
 			if (tx === "GO!") sfx("go");
@@ -2479,32 +2489,16 @@ function ctlUpdate() {
 							: "ROLLING…",
 		);
 	} else if (ui === "shift") {
+		/* Drag Race: the burnout needle on the countdown (lit in the green), then the race revs and gear */
 		const g = e.gr || 0,
 			r = e.rs || 0,
 			D = W.def,
-			inZ = g && g < D.VT.length && r >= D.ZONE[0] && r <= D.ZONE[1],
-			go = !g && t >= Math.max(0, e.stall || 0);
+			b = t < 0 ? D.beat(t) : -1,
+			inZ = b >= 0 && r >= D.ZONE[0] && r <= D.ZONE[1];
 		el.style.setProperty("--p", r.toFixed(3));
-		el.classList.toggle("hot", !!(inZ || go) && !e.d);
+		el.classList.toggle("hot", !!(inZ || (t >= 0 && g)) && !e.d);
 		set("tpread", g ? `GEAR ${g}` : "N");
-		set(
-			"tplab",
-			e.d
-				? "FINISHED"
-				: t < 0
-					? "WAIT FOR GO…"
-					: !g
-						? go
-							? "LAUNCH!"
-							: "FALSE START!"
-						: g >= D.VT.length
-							? "TOP GEAR"
-							: inZ
-								? "SHIFT!"
-								: e.limT > 0.1
-									? "SHIFT NOW!"
-									: "SHIFT IN THE GREEN",
-		);
+		set("tplab", e.d ? "FINISHED" : t < 0 ? (b >= 0 ? "BURNOUT" : "GET READY") : g ? "TAP!" : "STALLED");
 	} else if (ui === "brake") {
 		const on = e.brk || e.st === "stop" || e.st === "crash";
 		el.style.setProperty("--p", on ? "1" : "0");
@@ -2941,7 +2935,7 @@ function tvcTick() {
 			navigator.vibrate && navigator.vibrate(60);
 		} catch (e) {}
 	}
-	const big = t === null ? "" : t < 0 ? String(Math.ceil(-t)) : t < 0.8 ? "GO!" : "";
+	const big = t === null ? "" : t < 0 ? (def.cdText ? def.cdText(t) : String(Math.ceil(-t))) : t < 0.8 ? "GO!" : "";
 	if (st && st[7] && !def.swipe && !def.slide) {
 		const j = JSON.stringify(st[7]);
 		if (j !== TVC.mir) {
