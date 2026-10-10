@@ -266,6 +266,7 @@ function eliminate(W, e) {
 	e.al = false;
 	e.d = true;
 	e.outAt = W.t;
+	fb(W, e, "OUT", { stamp: true });
 	if (MG_LOG) {
 		e.logD = true;
 		const h = e.lastHit && W.t - e.lastHit.t < 2 ? e.lastHit.k : "own fault";
@@ -452,6 +453,7 @@ function netState(e) {
 		c: e.c.slice(-120),
 		f: e.f,
 		dr: e.dr || [],
+		fb: W.split ? e.fbq : undefined,
 	};
 }
 function applyNet(e, s) {
@@ -883,6 +885,7 @@ function stepMG(dt) {
 		if (act_.length > 1 && W.t > 1.5 && alive.length <= 1 && W.lsT === undefined) {
 			W.lsT = W.t;
 			W.lsWin = alive[0] ? alive[0].k : null;
+			if (alive[0]) fb(W, alive[0], "WINNER", { stamp: true });
 			alive.forEach((e) => {
 				if (e.local) {
 					e.sc += 100;
@@ -1022,6 +1025,7 @@ function stepMG(dt) {
 	const so = W.def.sun || [14, 26, 12];
 	W.sun.position.set(GFX.mgCam.t.x + so[0], so[1], GFX.mgCam.t.z + so[2]);
 	W.sun.target.position.copy(GFX.mgCam.t);
+	fbStep(W);
 	swayStep(W.sc);
 	stepParts(W.sc, dt);
 	hud3(dt);
@@ -1878,11 +1882,267 @@ function wireStick(get, padSel = "#m3pad", knobSel = "#knob", kx = "x", ky = "y"
 	pad.addEventListener("pointerup", end);
 	pad.addEventListener("pointercancel", end);
 }
-function lsMsg(W, me) {
-	if (W.lsT === undefined) return "";
-	const w = W.lsWin && W.ents[W.lsWin];
-	if (!w) return "Nobody's left standing!";
-	return me && w === me ? "🏆 You win!" : `🏆 ${w.p.name} wins!`;
+/* ---------- in-world feedback (STYLE.md "In-game feedback and text"): everything happens by the truck it concerns, on
+   the TV for every truck, in phone mode only for your own. The centre banner is only for between-round messages.
+   fb(W, e, text, o): a pop-up ("Perfect!", "+25") that floats up and fades in under a second, or with o.stamp a short
+   bold stamp over the truck for round-changing moments ("OUT", "P2"). o = {stamp, tone: "good" | "bad",
+   at: [x, y, z] (a spot instead of over the truck), h: height over the truck (default 3.15, above the name tag)}.
+   Call it where the event is simulated (the truck's own device); the TV's split worlds get each other's through
+   netState (e.fbq). */
+const fbShow = (W, e) => !!(W.tv || W.split || e.isMe);
+const FB_TEX = {};
+function fbTex(text, col, stamp, tone) {
+	const key = `${text}|${col}|${stamp ? 1 : 0}|${tone || ""}`;
+	if (FB_TEX[key]) return FB_TEX[key];
+	const font = stamp ? "52px Bungee, 'Arial Black', Impact, sans-serif" : "800 46px Rubik, Arial, sans-serif",
+		H = stamp ? 104 : 84;
+	const ms = document.createElement("canvas").getContext("2d");
+	ms.font = font;
+	const Wd = Math.ceil(Math.min(760, ms.measureText(text).width + (stamp ? 70 : 52)));
+	const t = canvasTex(Wd, H, (x, w, h) => {
+		x.font = font;
+		x.textAlign = "center";
+		x.textBaseline = "middle";
+		x.lineJoin = "round";
+		if (stamp) {
+			x.fillStyle = "#151B24";
+			rr(x, 3, 3, w - 6, h - 6, 22);
+			x.fill();
+			x.fillStyle = col;
+			rr(x, 9, 9, w - 18, h - 18, 17);
+			x.fill();
+			x.strokeStyle = "rgba(255,255,255,.9)";
+			x.lineWidth = 4;
+			rr(x, 16, 16, w - 32, h - 32, 11);
+			x.stroke();
+			x.strokeStyle = "#151B24";
+			x.lineWidth = 9;
+			x.strokeText(text, w / 2, h / 2 + 3, w - 40);
+			x.fillStyle = "#fff";
+			x.fillText(text, w / 2, h / 2 + 3, w - 40);
+		} else {
+			x.fillStyle = "rgba(16,22,31,.88)";
+			rr(x, 4, 4, w - 8, h - 8, (h - 8) / 2);
+			x.fill();
+			x.strokeStyle = col;
+			x.lineWidth = 5;
+			rr(x, 6.5, 6.5, w - 13, h - 13, (h - 13) / 2);
+			x.stroke();
+			x.fillStyle = tone === "good" ? "#FFD84D" : tone === "bad" ? "#FF8A8D" : "#fff";
+			x.fillText(text, w / 2, h / 2 + 2, w - 34);
+		}
+	});
+	t.userData = { a: Wd / H };
+	return (FB_TEX[key] = t);
+}
+function fb(W, e, text, o = {}) {
+	if (!W || !e || !text || e.gone) return;
+	if (W.split) {
+		e.fbN = (e.fbN || 0) + 1;
+		const tn = o.tone === "good" ? 1 : o.tone === "bad" ? 2 : 0,
+			at = o.at ? o.at.map((v) => Math.round(v * 10) / 10) : 0;
+		e.fbq = (e.fbq || []).slice(-2).concat([[e.fbN, String(text), o.stamp ? 1 : 0, tn, at, o.h || 0]]);
+	}
+	if (fbShow(W, e)) fbSpawn(W, e, String(text), o);
+}
+function fbSpawn(W, e, text, o) {
+	const col = e.side !== undefined && W.mg.tc ? W.mg.tc[e.side] : pcol(e.p),
+		tex = fbTex(text, col, o.stamp, o.tone),
+		sp = new THREE.Sprite(
+			new THREE.SpriteMaterial({ map: tex, depthTest: false, depthWrite: false, transparent: true }),
+		);
+	sp.renderOrder = o.stamp ? 13 : 12;
+	sp.userData.fb = true;
+	W.sc.add(sp);
+	W.fbs = W.fbs || [];
+	/* a newer pop-up for the same truck pushes the older ones up out of its way */
+	if (!o.stamp)
+		W.fbs.forEach((q) => {
+			if (q.e === e && !q.stamp && !!q.at === !!o.at) q.lift += 0.9;
+		});
+	else
+		W.fbs.forEach((q) => {
+			if (q.e === e && q.stamp) q.t0 = Math.min(q.t0, performance.now() - 1350);
+		});
+	W.fbs.push({
+		sp,
+		e,
+		at: o.at || null,
+		h: o.h || (o.stamp ? 1.9 : 3.15),
+		stamp: !!o.stamp,
+		t0: performance.now(),
+		lift: 0,
+		ly: 0,
+		a: tex.userData.a,
+	});
+}
+/* each frame: animate the pop-ups and stamps, show other worlds' feedback and the input hints */
+function fbStep(W) {
+	const now = performance.now(),
+		cam = W.cam;
+	if (W.split)
+		for (const e of W.list) {
+			if (e.local || e.gone || !e.net || !Array.isArray(e.net.fb)) continue;
+			for (const q of e.net.fb) {
+				if (!Array.isArray(q) || !(q[0] > (e.fbSeen || 0))) continue;
+				e.fbSeen = q[0];
+				fbSpawn(W, e, String(q[1]).slice(0, 40), {
+					stamp: !!q[2],
+					tone: q[3] === 1 ? "good" : q[3] === 2 ? "bad" : "",
+					at: Array.isArray(q[4]) ? q[4] : null,
+					h: +q[5] || 0,
+				});
+			}
+		}
+	/* sizes follow the camera distance, so feedback reads the same on a close station view and a whole-arena TV shot */
+	const camK = (p) => (cam ? Math.max(0.35, Math.min(2.5, cam.position.distanceTo(p) / 24)) : 1);
+	if (W.fbs && W.fbs.length)
+		W.fbs = W.fbs.filter((q) => {
+			const age = (now - q.t0) / 1000,
+				life = q.stamp ? 1.75 : 1.05;
+			if (age > life || q.e.gone) {
+				W.sc.remove(q.sp);
+				q.sp.material.dispose();
+				return false;
+			}
+			q.ly += (q.lift - q.ly) * 0.25;
+			const p = q.sp.position;
+			if (q.at) p.set(q.at[0], q.at[1], q.at[2]);
+			else {
+				const g = q.e.g.position;
+				p.set(g.x, g.y + q.h, g.z);
+			}
+			const k = camK(p);
+			if (!q.stamp) p.y += (age * 1.2 + q.ly) * k;
+			let h, op;
+			if (q.stamp) {
+				const u = Math.min(1, age / 0.16);
+				h = 1.5 * k * (2.1 - 1.1 * (1 - (1 - u) * (1 - u)));
+				op = Math.min(u * 2, 1, (life - age) / 0.3);
+				q.sp.material.rotation = -0.1;
+			} else {
+				h = 0.8 * k * (age < 0.12 ? 0.6 + (age / 0.12) * 0.4 : 1);
+				op = Math.min(1, (life - age) / 0.35);
+			}
+			q.sp.scale.set(h * q.a, h, 1);
+			q.sp.material.opacity = Math.max(0, op);
+			return true;
+		});
+	for (const e of W.list) {
+		if (e.ihS) {
+			const u = e.ihU,
+				on = !!u && now - u.at < 150 && !e.gone && fbShow(W, e) && e.g.visible;
+			e.ihS.visible = on;
+			if (on) {
+				const md = u.mode,
+					cyc = md === "mash" ? 0.17 : md === "tap" ? 0.9 : 1,
+					ph = ((now / 1000) % cyc) / cyc,
+					down = md === "hold" || (md === "mash" ? ph < 0.5 : ph < 0.18);
+				e.ihS.material.map = fbBtnTex(u.label, u.col, down);
+				const g = e.g.position,
+					r = new THREE.Vector3().setFromMatrixColumn(cam.matrixWorld, 0);
+				e.ihS.position.set(g.x + r.x * 1.7, g.y + 2.2 + (down ? -0.08 : 0), g.z + r.z * 1.7);
+				const k = camK(e.ihS.position) * (down ? 0.9 : 1) * (md === "hold" ? 1 + Math.sin(now / 160) * 0.05 : 1);
+				e.ihS.scale.set(1.4 * k, 1.4 * k, 1);
+			}
+		}
+	}
+}
+/* a small copy of the phone's button by the truck, acting out what the game wants: mode "mash" (hammered), "hold"
+   (held down), "tap" (one press now and then). Call it every frame while it's wanted (from def.render, which runs for
+   every truck); it hides itself when the calls stop. */
+const FB_BTN = {};
+function fbBtnTex(label, col, down) {
+	const key = `${label}|${col}|${down ? 1 : 0}`;
+	if (FB_BTN[key]) return FB_BTN[key];
+	return (FB_BTN[key] = canvasTex(128, 128, (x, w, h) => {
+		const cx = w / 2,
+			cy = h / 2 + (down ? 4 : 0),
+			R = down ? 50 : 54;
+		x.fillStyle = "#151B24";
+		x.beginPath();
+		x.arc(cx, cy, R + 8, 0, 7);
+		x.fill();
+		x.fillStyle = "#FFC83D";
+		x.beginPath();
+		x.arc(cx, cy, R + 4, 0, 7);
+		x.fill();
+		x.fillStyle = "#151B24";
+		x.beginPath();
+		x.arc(cx, cy, R, 0, 7);
+		x.fill();
+		const c = col || "#E5484D",
+			gr = x.createRadialGradient(cx - 14, cy - 18, 4, cx, cy, R);
+		gr.addColorStop(0, down ? c : "#FFB0B2");
+		gr.addColorStop(1, c);
+		x.fillStyle = gr;
+		x.beginPath();
+		x.arc(cx, cy, R - 3, 0, 7);
+		x.fill();
+		if (down) {
+			x.fillStyle = "rgba(0,0,0,.28)";
+			x.beginPath();
+			x.arc(cx, cy, R - 3, 0, 7);
+			x.fill();
+		}
+		x.font = `${label.length > 4 ? 22 : 27}px Bungee, 'Arial Black', Impact, sans-serif`;
+		x.textAlign = "center";
+		x.textBaseline = "middle";
+		x.fillStyle = "rgba(0,0,0,.3)";
+		x.fillText(label, cx, cy + 4, 2 * R - 16);
+		x.fillStyle = "#fff";
+		x.fillText(label, cx, cy + 2, 2 * R - 16);
+	}));
+}
+function inputHint(W, e, label, mode, col) {
+	if (!e.ihS) {
+		e.ihS = new THREE.Sprite(
+			new THREE.SpriteMaterial({
+				map: fbBtnTex(label, col, false),
+				depthTest: false,
+				depthWrite: false,
+				transparent: true,
+			}),
+		);
+		e.ihS.renderOrder = 12;
+		e.ihS.userData.fb = true;
+		e.ihS.visible = false;
+		W.sc.add(e.ihS);
+	}
+	e.ihU = { label, mode, col, at: performance.now() };
+}
+/* a flashing symbol sprite (a warning sign, an empty tank); draw(ctx, w, h) on a 64 px canvas, cached per key */
+const FB_ICO = {};
+function iconSprite(key, draw, size = 0.9) {
+	const t = FB_ICO[key] || (FB_ICO[key] = canvasTex(64, 64, draw));
+	const sp = new THREE.Sprite(
+		new THREE.SpriteMaterial({ map: t, depthTest: false, depthWrite: false, transparent: true }),
+	);
+	sp.scale.setScalar(size);
+	sp.renderOrder = 11;
+	sp.userData.fb = true;
+	return sp;
+}
+function warnSignDraw(x, w, h) {
+	x.fillStyle = "#151B24";
+	x.beginPath();
+	x.moveTo(w / 2, 2);
+	x.lineTo(w - 2, h - 4);
+	x.lineTo(2, h - 4);
+	x.closePath();
+	x.fill();
+	x.fillStyle = "#FFC83D";
+	x.beginPath();
+	x.moveTo(w / 2, 10);
+	x.lineTo(w - 9, h - 9);
+	x.lineTo(9, h - 9);
+	x.closePath();
+	x.fill();
+	x.fillStyle = "#151B24";
+	x.font = "900 34px Arial, sans-serif";
+	x.textAlign = "center";
+	x.textBaseline = "middle";
+	x.fillText("!", w / 2, h * 0.62);
 }
 function hud3(dt) {
 	W.hudT = (W.hudT || 0) - dt;
@@ -1913,7 +2173,8 @@ function hud3(dt) {
 		}
 	}
 	{
-		const tx = !W.startAt ? "" : t < 0 ? String(Math.ceil(-t)) : t < 0.8 ? "GO!" : "";
+		/* W.big: a game's own countdown word for a restart mid-game (Monster Mash after a phase change) */
+		const tx = !W.startAt ? "" : t < 0 ? String(Math.ceil(-t)) : t < 0.8 ? "GO!" : W.big && t < W.bigT ? W.big : "";
 		if (tx !== W.lastC) {
 			W.lastC = tx;
 			if (tx === "GO!") sfx("go");
@@ -1929,31 +2190,8 @@ function hud3(dt) {
 				: def.fmt
 					? def.fmt(W, W.me)
 					: fmtScore(def, Math.round(W.me.sc));
-	const ld = W.me.lastDrop,
-		dropMsg =
-			ld && W.t - ld.t < 1.5
-				? `${ld.flank === "rear" ? "Hit from behind! " : ld.flank === "side" ? "T-boned! " : "Rammed! "}You dropped ${ld.n} ${ld.what || "coin"}${ld.n === 1 ? "" : "s"}`
-				: "";
-	const winMsg = W.lsT !== undefined ? lsMsg(W, W.tv ? null : W.me) : "";
-	const msg = winMsg
-		? winMsg
-		: W.tv
-			? W.over
-				? "Results coming up…"
-				: ""
-			: dropMsg && !W.me.d
-				? dropMsg
-				: W.over
-					? "Waiting for results…"
-					: W.me.d && def.donePrompt && def.donePrompt(W, W.me)
-						? def.donePrompt(W, W.me)
-						: W.me.d
-							? W.me.al || !def.lastStanding
-								? "Done! Watch the others…"
-								: "Knocked out! Watch the others…"
-							: def.prompt
-								? def.prompt(W, W.me)
-								: "";
+	/* everything else is said in the world by the trucks (fb, inputHint) */
+	const msg = W.over ? (W.tv ? "Results coming up…" : "Waiting for results…") : "";
 	m.hidden = !msg;
 	m.textContent = msg || "";
 	const hi = def.liveHi !== undefined ? def.liveHi : def.hi;
@@ -2132,6 +2370,7 @@ function dropLoot(W, e, by) {
 		e.dr.push([id, Math.round(x * 100) / 100, Math.round(z * 100) / 100, per]);
 	}
 	if (e.dr.length > 30) e.dr = e.dr.slice(-30);
+	fb(W, e, `−${k}`, { tone: "bad" });
 	if (e.isMe) {
 		e.lastDrop = { t: W.t, n: k, flank, what: per > 1 ? "cone" : "coin" };
 		sfx("loss");
@@ -2425,32 +2664,12 @@ function tvStatus(W, e, order) {
 		const cd = D.ramCd ? D.ramCd(W) : Math.min(1, e.bcd / (e.ramCdT || 2)),
 			rdy = D.ramReady ? D.ramReady(W) : e.bcd <= 0,
 			ld = e.lastDrop;
-		const dm =
-			ld && W.t - ld.t < 1.5
-				? `${ld.flank === "rear" ? "Hit from behind! " : ld.flank === "side" ? "T-boned! " : "Rammed! "}You dropped ${ld.n} ${ld.what || "coin"}${ld.n === 1 ? "" : "s"}`
-				: "";
-		const msg =
-			W.t < 0
-				? ""
-				: W.lsT !== undefined
-					? lsMsg(W, e)
-					: dm && !e.d
-						? dm
-						: e.d && D.donePrompt && D.donePrompt(W, e)
-							? D.donePrompt(W, e)
-							: e.d
-								? e.al || !D.lastStanding
-									? "Done! Watch the TV"
-									: "Knocked out! Watch the TV"
-								: D.prompt
-									? D.prompt(W, e) || ""
-									: "";
 		return [
 			D.fmt ? D.fmt(W, e) : fmtScore(D, Math.round(e.sc)),
 			Math.round(cd * 100) / 100,
 			rdy ? 1 : 0,
 			e.d ? 1 : 0,
-			String(msg).slice(0, 90),
+			"",
 			order.indexOf(e) + 1,
 			ld ? Math.round(ld.t * 10) : 0,
 			null,
