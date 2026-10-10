@@ -1998,7 +1998,9 @@ function fbStep(W) {
 			}
 		}
 	/* sizes follow the camera distance, so feedback reads the same on a close station view and a whole-arena TV shot */
-	const camK = (p) => (cam ? Math.max(0.35, Math.min(2.5, cam.position.distanceTo(p) / 24)) : 1);
+	/* portrait screens: the view height is the long side, so shrink with the aspect or a stamp fills the width */
+	const asp = Math.sqrt(Math.min(1, (cam && cam.aspect) || 1)),
+		camK = (p) => (cam ? Math.max(0.35, Math.min(2.5, cam.position.distanceTo(p) / 24)) * asp : 1);
 	if (W.fbs && W.fbs.length)
 		W.fbs = W.fbs.filter((q) => {
 			const age = (now - q.t0) / 1000,
@@ -2020,7 +2022,7 @@ function fbStep(W) {
 			let h, op;
 			if (q.stamp) {
 				const u = Math.min(1, age / 0.16);
-				h = 1.5 * k * (2.1 - 1.1 * (1 - (1 - u) * (1 - u)));
+				h = 1.2 * k * (1.5 - 0.5 * (1 - (1 - u) * (1 - u)));
 				op = Math.min(u * 2, 1, (life - age) / 0.3);
 				q.sp.material.rotation = -0.1;
 			} else {
