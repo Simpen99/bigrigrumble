@@ -5993,13 +5993,15 @@ const MG = {
 					.filter((e) => !e.gone)
 					.sort((p, q) => p.z - q.z)
 					.slice(0, 1);
-			const zs = es.map((e) => e.z),
-				z0 = Math.min(...zs),
-				z1 = Math.max(...zs),
+			/* aim where the trucks will be in 0.25 s (the camera eases in with about that lag, so a fast truck would
+			   otherwise run off the front), with more room ahead (7 m) than behind (3 m) */
+			const zs = es.map((e) => e.z + (e.vz || 0) * 0.25),
+				z0 = Math.min(...zs) - 7,
+				z1 = Math.max(...zs) + 3,
 				yc = es.reduce((t, e) => t + (e.y || 0), 0) / Math.max(1, es.length),
 				tn = Math.tan((20 * Math.PI) / 180),
-				D = Math.max(12.2, ((z1 - z0) / 2 + 4) / (tn * a), ((halfW + 4) / tn) * 0.68),
-				tgt = new THREE.Vector3(0, 1 + yc * 0.7, (z0 + z1) / 2 - 1.5);
+				D = Math.max(12.2, (z1 - z0) / 2 / (tn * a), ((halfW + 4) / tn) * 0.68),
+				tgt = new THREE.Vector3(0, 1 + yc * 0.7, (z0 + z1) / 2);
 			return [tgt, tgt.clone().addScaledVector(new THREE.Vector3(0.72, 0.6, 0.34).normalize(), D)];
 		},
 		/* TV shared view: a truck off the edge of the screen gets a pill in its own lane at that edge, in its colour,
