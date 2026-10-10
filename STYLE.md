@@ -36,3 +36,23 @@ From Pummel Party: bright, toy-like and cheerful; shapes a bit oversized and fri
 - The play area is a diorama: props framing its edges within a few metres (phones see them), simpler and
   hazier layers further out.
 - Every scene gets a theme told by its props (a recycling plant, a quarry, a port), not just a coloured floor.
+
+## In-game feedback and text (TV first)
+We design for TV mode: players watch the TV, the phone is only a controller they glance at in the first seconds.
+- **Everything happens in the world, by the truck it concerns**, never on the phone and never as a screen banner.
+  One 3D implementation serves the TV and phone mode alike. On the TV it shows for every truck (everyone watches the
+  same screen), in phone mode only for your own (least clutter). Sized to read from a couch, tinted in the player's
+  colour so it's clear whose it is.
+- **Text must earn its place.** Ask: does the player need it right now, isn't it already visible, could a symbol or
+  an animation say it? Never state the obvious ("tow the red car to the red garage") and never repeat the controls
+  during play.
+- In order of preference:
+  1. **Input hint**: when the game wants a specific action, a small copy of the phone's button appears by the truck
+     acting it out (hammered for mashing, held for holding), e.g. Monster Mash's break-free DASH (`inputHint`).
+  2. **Symbol at the spot**: a state or warning the scene doesn't already show (a flashing ⚠ where the fish will
+     drop, an empty-tank icon over the truck). If something already shows it (the dynamite on your roof), add nothing.
+  3. **Pop-up text**: a few words where it happened ("Perfect!", "+25", "Lost the car"), floating up and fading in
+     under a second (`popText`).
+  4. **Stamp**: round-changing moments ("OUT", "P2", "1 LIFE") as a short stamp over the truck.
+- **Rules live on the intro card**: `how` at most two short sentences, the controls in `tvHint` / `tapHint`. The
+  centre banner is only for between-round messages ("Results coming up").
