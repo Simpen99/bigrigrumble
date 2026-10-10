@@ -765,7 +765,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-11 01:05 3956c49";
+const BUILD = "2026-10-11 01:18 cf73748";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -14418,7 +14418,7 @@ function wireStick(get, padSel = "#m3pad", knobSel = "#knob", kx = "x", ky = "y"
    the TV for every truck, in phone mode only for your own. The centre banner is only for between-round messages.
    fb(W, e, text, o): a pop-up ("Perfect!", "+25") that floats up and fades in under a second, or with o.stamp a short
    bold stamp over the truck for round-changing moments ("OUT", "P2"). o = {stamp, tone: "good" | "bad",
-   at: [x, y, z] (a spot instead of over the truck), h: height over the truck (default 3.15, above the name tag)}.
+   at: [x, y, z] (a spot instead of over the truck), h: height of a pop-up's bottom edge over the truck (default 3.15, above the name tag)}.
    Call it where the event is simulated (the truck's own device); the TV's split worlds get each other's through
    netState (e.fbq). */
 const fbShow = (W, e) => !!(W.tv || W.split || e.isMe);
@@ -14550,7 +14550,8 @@ function fbStep(W) {
 				p.set(g.x, g.y + q.h, g.z);
 			}
 			const k = camK(p);
-			if (!q.stamp) p.y += (age * 1.2 + q.ly) * k;
+			/* h is the pop-up's bottom edge, so a bigger one (far camera) grows upward, not down over the truck */
+			if (!q.stamp) p.y += (0.4 + age * 1.2 + q.ly) * k;
 			let h, op;
 			if (q.stamp) {
 				const u = Math.min(1, age / 0.16);
@@ -21832,6 +21833,8 @@ const MG = {
 		LAND: 0.75,
 		tapHint: "Tap to lock the power, then in the air hold to lift the nose and let go to drop it.",
 		how: "Lock in the power, then keep your truck level in the air. Land level to bounce on; furthest wins.",
+		/* pop-ups start above the gauge (gauge centre 3.5 over the truck, power bar top ~4.4) */
+		POPH: 4.6,
 		/* landing: |pitch| up to LV[0] = perfect, LV[1] = a weak bounce, more = crash */
 		LV: [0.2, 0.45],
 		/* the power meter swings 0..1..0 every 2.2 s, the same for everyone */
@@ -21905,6 +21908,7 @@ const MG = {
 			e.f.pl = Math.round(e.pl * 100) / 100;
 			mgLog(W, `${mgName(e)} locks ${Math.round(e.pl * 100)}% power`);
 			fb(W, e, e.pl > 0.92 ? "MAX POWER!" : e.pl > 0.7 ? "Good power" : "Weak run-up", {
+				h: this.POPH,
 				tone: e.pl > 0.92 ? "good" : e.pl > 0.7 ? "" : "bad",
 			});
 			if (e.isMe) sfx(e.pl > 0.92 ? "coin" : "click");
@@ -21966,7 +21970,7 @@ const MG = {
 							e.pitch = 0.22;
 							e.pw = 0;
 						}
-						fb(W, e, perf ? "PERFECT!" : "Wobbly", { tone: perf ? "good" : "" });
+						fb(W, e, perf ? "PERFECT!" : "Wobbly", { tone: perf ? "good" : "", h: this.POPH });
 						if (e.isMe) sfx(perf ? "coin" : "land");
 					} else {
 						e.st = "land";

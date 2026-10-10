@@ -5796,6 +5796,8 @@ const MG = {
 		LAND: 0.75,
 		tapHint: "Tap to lock the power, then in the air hold to lift the nose and let go to drop it.",
 		how: "Lock in the power, then keep your truck level in the air. Land level to bounce on; furthest wins.",
+		/* pop-ups start above the gauge (gauge centre 3.5 over the truck, power bar top ~4.4) */
+		POPH: 4.6,
 		/* landing: |pitch| up to LV[0] = perfect, LV[1] = a weak bounce, more = crash */
 		LV: [0.2, 0.45],
 		/* the power meter swings 0..1..0 every 2.2 s, the same for everyone */
@@ -5869,6 +5871,7 @@ const MG = {
 			e.f.pl = Math.round(e.pl * 100) / 100;
 			mgLog(W, `${mgName(e)} locks ${Math.round(e.pl * 100)}% power`);
 			fb(W, e, e.pl > 0.92 ? "MAX POWER!" : e.pl > 0.7 ? "Good power" : "Weak run-up", {
+				h: this.POPH,
 				tone: e.pl > 0.92 ? "good" : e.pl > 0.7 ? "" : "bad",
 			});
 			if (e.isMe) sfx(e.pl > 0.92 ? "coin" : "click");
@@ -5930,7 +5933,7 @@ const MG = {
 							e.pitch = 0.22;
 							e.pw = 0;
 						}
-						fb(W, e, perf ? "PERFECT!" : "Wobbly", { tone: perf ? "good" : "" });
+						fb(W, e, perf ? "PERFECT!" : "Wobbly", { tone: perf ? "good" : "", h: this.POPH });
 						if (e.isMe) sfx(perf ? "coin" : "land");
 					} else {
 						e.st = "land";

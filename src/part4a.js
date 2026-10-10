@@ -1886,7 +1886,7 @@ function wireStick(get, padSel = "#m3pad", knobSel = "#knob", kx = "x", ky = "y"
    the TV for every truck, in phone mode only for your own. The centre banner is only for between-round messages.
    fb(W, e, text, o): a pop-up ("Perfect!", "+25") that floats up and fades in under a second, or with o.stamp a short
    bold stamp over the truck for round-changing moments ("OUT", "P2"). o = {stamp, tone: "good" | "bad",
-   at: [x, y, z] (a spot instead of over the truck), h: height over the truck (default 3.15, above the name tag)}.
+   at: [x, y, z] (a spot instead of over the truck), h: height of a pop-up's bottom edge over the truck (default 3.15, above the name tag)}.
    Call it where the event is simulated (the truck's own device); the TV's split worlds get each other's through
    netState (e.fbq). */
 const fbShow = (W, e) => !!(W.tv || W.split || e.isMe);
@@ -2018,7 +2018,8 @@ function fbStep(W) {
 				p.set(g.x, g.y + q.h, g.z);
 			}
 			const k = camK(p);
-			if (!q.stamp) p.y += (age * 1.2 + q.ly) * k;
+			/* h is the pop-up's bottom edge, so a bigger one (far camera) grows upward, not down over the truck */
+			if (!q.stamp) p.y += (0.4 + age * 1.2 + q.ly) * k;
 			let h, op;
 			if (q.stamp) {
 				const u = Math.min(1, age / 0.16);
