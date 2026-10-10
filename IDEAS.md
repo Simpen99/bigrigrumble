@@ -1,5 +1,51 @@
 # Ideas queued
 
+## NEXT: in-world feedback pass (agreed 2026-10-10, start in a new session)
+The rule is in STYLE.md "In-game feedback and text (TV first)". Build on branch `mg-rework` (PR #39, stacked on
+PR #38; check with `gh pr list` whether they are merged and branch from main if so). One PR, test link first.
+
+How messages work today: every game's text goes through ONE centre banner `#m3msg` (part4a, the HUD update near
+`lsMsg` / `dropMsg`): `def.prompt(W, me)`, `def.donePrompt`, `e.msg` + `e.msgT` (most games), plus engine
+texts ("Done! Watch the others…", "Knocked out! Watch the others…", ram drops "Hit from behind! You dropped 3
+coins", "Waiting for results…"). The TV's shared arena view shows no prompts at all (`W.tv` → ""), and TV split
+cards show them small (`#mg.tvshared .tvv .m3msg`), so in-world feedback is the only thing that reaches the TV.
+
+1. **Helpers** (partscene.js or part4a): 
+   - `popText(W, x, y, z, text, col)`: a small sprite (cached canvas texture per string, player colour outline),
+     floats ~1 m up and fades in ~0.8 s, depthTest off, renderOrder high; a few alive at once, pooled.
+   - `inputHint(W, e, label, mode)`: a mini copy of the phone button (same colours/label as `.ram` / `#tapall`)
+     floating by the truck, acting out the action: mode "mash" (hammered down repeatedly), "hold" (held down),
+     "tap". Hidden when not needed. One per truck, reused.
+   - `stamp(W, e, text)`: a short bold stamp over the truck ("OUT", "P2", "1 LIFE"), scales in, holds ~1.2 s.
+   - Show rule: on the TV (`W.tv` or `W.split`) for every truck, in phone mode only for `e.isMe`. Remote trucks'
+     events need a counter in `e.f` (like Drag's `e.f.sh`) so the TV sees them.
+2. **Remove** (obvious or repeats controls): Tow "Tow it to the X garage" / "Hooked! Tow it to…"; Ramp "Tap when
+   the power is high!", "Hold = nose up…"; Drift King "Swing the stick to drift!"; Drift Race "Get ready…"; Dump
+   Run "Brake near the edge!"; Paint "Drive out of your paint, loop round…", "Get back to your paint…"; Fire
+   Brigade "On target! Keep the water on it", "Filling up…"; Hot Load "X has the Hot Load. Keep away!", "You've
+   got the Hot Load! Bump someone!", "Next load incoming…", "Too late! Brace yourself!" (the flashing dynamite on
+   the roof already says it: add NOTHING); Monster Mash "Tap FIRE for tyres…", "Drive the TNT into the monster!";
+   Green Light "GREEN: hold to drive!", "YELLOW: let go!"; engine "Watch the others…".
+3. **Input hints**: Monster Mash grabbed by the magnet → mini DASH button being hammered by the truck (replaces
+   "Tap DASH to break free!"). Look for other "press X now" moments while converting.
+4. **Symbols at the spot**: Fire Brigade empty tank → flashing tank icon over the truck (replaces "Tank empty!
+   Refill at a hydrant"); Monster Mash "Too close! The magnet is coming!" → flashing ⚠ on the magnet. Scoop Stack's
+   fish ⚠ (`W.warn`) is the reference look.
+5. **Pop-ups** (`popText` at the spot): Drag shift grades + start reaction (above the dial); Ramp landing grades,
+   "Max power"; Scoop Perfect / +25 / Missed / Served +N / Tower full; Fire Brigade "Fire out! +1" (at the fire);
+   Dump Run "In the pit! +N", "Over the edge! −20"; Taco "Wrong ingredient! −5", "Taco done! +N", "Way too much!";
+   Crate Drop "Tipped off!"; Drift King "Combo lost"; Tow "Lost the car"; Coin Rush / Cone Smash ram drops → "−3"
+   over the truck; Paint "Trail washed away"; Hot Load none.
+6. **Stamps** (round-changing): knocked out → "OUT"; finished → place ("P2") or "DONE"; Monster Mash lives
+   ("1 LIFE"), KO / win lines; Green Light "Caught on red!"; Drag crash → "CRASH 120 km/h" pop. The centre banner
+   keeps only "Results coming up…" / "Waiting for results…".
+7. **Intro texts**: trim every `how` to at most two short sentences (longest now: Scoop Stack, Monster Mash, Drift
+   Race, Paint the Lot, Cone Smash, Fire Brigade); controls stay in `tvHint` / `tapHint` / `stickHint`.
+8. **Test**: `node tools/run.mjs all` (no page errors), `node tools/tvtest.mjs <game>` on a few of each kind
+   (arena shared view, lane shared view, station grid), `watch.mjs` where a game's logic changed. Headless runs one
+   at a time. The user checks visuals themselves (no screenshot loops). Ask for playtest notes on the PR #39 games
+   (Drag Race shifting, Ramp Jump bounces, Scoop Stack catching) too.
+
 - Mixie has no truck special (Concrete Pour dropped: too close to Concrete Crumble). Dumpy's is Dump Run, Zoomer's is Drift King.
 - Coin Rush is on hold (too similar to Cone Smash); proposed theme: casino rooftop car park at dusk.
 - Concrete Crumble (`tiles`) CPUs still fall early; bot pathing could be smarter.
