@@ -1797,16 +1797,16 @@ function wireTap(def) {
 	["pointerup", "pointercancel", "pointerleave"].forEach((ev) => b.addEventListener(ev, up));
 }
 /* slide pad (Scoop Stack): the finger's spot across the pad sets inp.x (-1 at the left edge .. 1 at the right, the
-   outer 8% count as the edge) and stays when the finger lifts; a quick flick up (55 px within 0.26 s) calls flick(),
+   outer 15% count as the edge) and stays when the finger lifts; a quick flick up (55 px within 0.26 s) calls flick(),
    once per flick, also while the finger stays down */
 function wireSlide(pad, get, flick, mark) {
 	const st = new Map(),
 		at = (e) => {
 			const r = pad.getBoundingClientRect(),
-				u = Math.max(0, Math.min(1, (e.clientX - r.left - r.width * 0.08) / (r.width * 0.84))),
+				u = Math.max(0, Math.min(1, (e.clientX - r.left - r.width * 0.15) / (r.width * 0.7))),
 				i = get();
 			if (i) i.x = u * 2 - 1;
-			if (mark) mark.style.left = u * 100 + "%";
+			if (mark) mark.style.left = 15 + u * 70 + "%";
 		};
 	pad.addEventListener("pointerdown", (e) => {
 		e.preventDefault();

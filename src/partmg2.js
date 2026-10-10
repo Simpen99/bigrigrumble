@@ -68,9 +68,9 @@ Object.assign(MG, {
 		slide: true,
 		slideHint: "Slide ◀ ▶ to move the cone · flick ▲ to serve",
 		tvHint: "Slide your finger left and right to move the cone, flick up to serve.",
-		XR: 1.6,
+		XR: 1.35,
 		G: 11,
-		DROPH: 4.2,
+		DROPH: 3.4,
 		SWAY: 0.07,
 		MAXN: 10,
 		R: 0.55,
@@ -220,11 +220,12 @@ Object.assign(MG, {
 			W.drops = [];
 			for (let t = 1.4, i = 0; t < this.dur - 1; i++) {
 				const k = i > 3 && W.rng() < 0.13 ? "fish" : W.rng() < 0.1 ? "gold" : "s";
-				W.drops.push({ id: i, t, k, f: i % 6, x0: (W.rng() * 2 - 1) * 1.3, x1: (W.rng() * 2 - 1) * 1.5 });
+				W.drops.push({ id: i, t, k, f: i % 6, x0: (W.rng() * 2 - 1) * 1.2, x1: (W.rng() * 2 - 1) * 1.3 });
 				t += Math.max(0.8, 1.55 - t * 0.016) * (0.8 + W.rng() * 0.4);
 			}
 			W.airM = {};
 			W.gull = this.gullModel();
+			W.gull.scale.setScalar(1.6);
 			W.gull.visible = false;
 			s.add(W.gull);
 		},
@@ -1280,10 +1281,32 @@ Object.assign(MG, {
 							? this.fishModel()
 							: mesh(new THREE.IcosahedronGeometry(this.R, 1), a.k === "gold" ? "#FFD54A" : this.FLAV[a.f]);
 					if (a.k === "gold") m.material = M("#FFD54A", { metalness: 0.5, roughness: 0.3 });
+					if (a.k === "fish") m.scale.setScalar(1.5);
 					W.sc.add(m);
 					W.airM[a.id] = m;
+					/* a ring where it will land on the stack: white for scoops, gold, red for the fish */
+					const ring = new THREE.Mesh(
+						new THREE.RingGeometry(0.32, 0.46, 20),
+						new THREE.MeshBasicMaterial({
+							color: a.k === "fish" ? "#E5484D" : a.k === "gold" ? "#FFD54A" : "#F4F6F9",
+							transparent: true,
+							opacity: 0.85,
+							depthTest: false,
+						}),
+					);
+					ring.renderOrder = 5;
+					W.sc.add(ring);
+					m.userData.ring = ring;
 				}
 				m.position.set(a.x, a.y, 0);
+				{
+					const yl = this.topY(n + 1),
+						tl = (a.vy + Math.sqrt(Math.max(0, a.vy * a.vy + 2 * this.G * (a.y - yl)))) / this.G,
+						rg = m.userData.ring;
+					rg.visible = !a.miss && a.y > yl && !sv;
+					rg.position.set(a.x + a.vx * tl, yl - this.R * 0.4, 0.8);
+					rg.scale.setScalar(1 + Math.min(1, tl) * 0.6);
+				}
 				if (a.k === "fish") m.rotation.z = Math.atan2(a.vy, a.vx || 0.001) * 0.6 + Math.sin(W.t * 18) * 0.25;
 				else if (a.k === "gold" && Math.random() < dt * 12)
 					burst(W.sc, a.x, a.y, 0, {
@@ -1298,15 +1321,54 @@ Object.assign(MG, {
 			});
 			for (const id in W.airM)
 				if (!live.has(+id)) {
-					W.sc.remove(W.airM[id]);
+					W.sc.remove(W.airM[id], W.airM[id].userData.ring);
 					delete W.airM[id];
 				}
+
 			/* the seagull glides over and lets go of the fish */
-			const fd = W.drops.find((d) => d.k === "fish" && W.t > d.t - 1.4 && W.t < d.t + 1.4);
+			const fd = W.drops.find((d) => d.k === "fish" && W.t > d.t - 1.6 && W.t < d.t + 1.2);
 			W.gull.visible = !!fd;
+			if (fd && W.gullId !== fd.id) {
+				W.gullId = fd.id;
+				sfx("gull");
+			}
+			/* a flashing warning sign where the fish is about to drop (from 1.2 s before until it lets go) */
+			if (!W.warn) {
+				W.warn = new THREE.Sprite(
+					new THREE.SpriteMaterial({
+						map: canvasTex(64, 64, (x, w, h) => {
+							x.fillStyle = "#151B24";
+							x.beginPath();
+							x.moveTo(w / 2, 2);
+							x.lineTo(w - 2, h - 4);
+							x.lineTo(2, h - 4);
+							x.closePath();
+							x.fill();
+							x.fillStyle = "#FFC83D";
+							x.beginPath();
+							x.moveTo(w / 2, 10);
+							x.lineTo(w - 9, h - 9);
+							x.lineTo(9, h - 9);
+							x.closePath();
+							x.fill();
+							x.fillStyle = "#151B24";
+							x.font = "900 34px Arial, sans-serif";
+							x.textAlign = "center";
+							x.textBaseline = "middle";
+							x.fillText("!", w / 2, h * 0.62);
+						}),
+						depthTest: false,
+					}),
+				);
+				W.warn.scale.setScalar(0.9);
+				W.warn.renderOrder = 6;
+				W.sc.add(W.warn);
+			}
+			W.warn.visible = !!fd && W.t < fd.t && W.t > fd.t - 1.2 && Math.sin(W.t * 16) > -0.3;
+			if (fd) W.warn.position.set(fd.x0, this.topY(n + 1) + this.DROPH, 0.6);
 			if (fd) {
 				const u = W.t - fd.t;
-				W.gull.position.set(fd.x0 + u * 5, this.topY(n + 1) + this.DROPH + 1.1 + Math.abs(u) * 0.6, -0.4);
+				W.gull.position.set(fd.x0 + u * 4, this.topY(n + 1) + this.DROPH + 0.6 + Math.max(0, u) * 1.2, 0.3);
 				W.gull.userData.w.forEach(([p, sd]) => (p.rotation.x = sd * Math.sin(W.t * 14) * 0.6));
 			}
 			W.fallM = W.fallM.filter((f) => {
@@ -1333,15 +1395,19 @@ Object.assign(MG, {
 			const sb = document.getElementById("svbtn");
 			if (sb) sb.classList.toggle("off", !!sv || !n);
 			const mk = document.getElementById("slmark");
-			if (mk) mk.style.left = ((e.cx / this.XR + 1) / 2) * 100 + "%";
+			if (mk) mk.style.left = 15 + ((e.cx / this.XR + 1) / 2) * 70 + "%";
 		},
 		cam(W, t, p, far) {
-			const n = W.me.sv ? W.me.sv.n + 1 : W.me.st.length,
-				top = this.topY(Math.max(1, n)) + 2.2,
-				lo = this.CT - 1.6,
-				mid = lo + (top - lo) * 0.5,
-				d = (6.5 + (top - lo) * 0.95) * far;
-			return [new THREE.Vector3(0, mid, 0), new THREE.Vector3(0, mid + d * 0.22, d)];
+			const e = W.me,
+				n = e.sv ? e.sv.n : e.st.length,
+				hi = this.topY(n + 1) + this.DROPH + 1,
+				lo = Math.max(this.CT - 1.8, this.topY(n) - 3),
+				tn = Math.tan((20 * Math.PI) / 180),
+				asp = GFX.w / GFX.h,
+				[b0, b1] = W.split ? [0.06, 0.84] : [0.32, 0.8],
+				d = Math.max((hi - lo) / (b1 - b0) / 2 / tn, 2.1 / (tn * asp), 7),
+				cy = lo + 2 * d * tn * (0.5 - b0);
+			return [new THREE.Vector3(0, cy, 0), new THREE.Vector3(0, cy + d * 0.08, d)];
 		},
 		prompt: (W, e) => (e.msg && W.t - e.msgT < 1.4 ? e.msg : ""),
 		/* CPUs: chase where the next scoop will land (late and roughly, by skill), dodge fish, serve at their goal */
