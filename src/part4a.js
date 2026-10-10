@@ -3233,8 +3233,10 @@ function tvsShared(fw, fh, dt) {
 	dir.x = 0;
 	const base = dir.length() || 1;
 	dir.normalize();
-	const tgt = new THREE.Vector3(0, aT.y, aT.z),
+	let tgt = new THREE.Vector3(0, aT.y, aT.z),
 		pos = tgt.clone().addScaledVector(dir, Math.max(base, D));
+	/* a game can frame the shared view itself (Ramp Jump: from high up at the side, so the tilt shows) */
+	if (W0.def.tvsCam) [tgt, pos] = W0.def.tvsCam(W0, a, halfW);
 	if (!T.sp) {
 		T.sp = pos.clone();
 		T.st = tgt.clone();
