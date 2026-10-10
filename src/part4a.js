@@ -2595,7 +2595,7 @@ function tvcTick() {
 		} catch (e) {}
 	}
 	const big = t === null ? "" : t < 0 ? String(Math.ceil(-t)) : t < 0.8 ? "GO!" : "";
-	if (st && st[7]) {
+	if (st && st[7] && !def.swipe) {
 		const j = JSON.stringify(st[7]);
 		if (j !== TVC.mir) {
 			TVC.mir = j;
@@ -2690,10 +2690,7 @@ function openTvSplit(mg) {
 			: humans.map(hud).join("") +
 				cells
 					.slice(n)
-					.map(
-						() =>
-							`<div class="tvv tvempty"><div><b>${esc(def.name)}</b></div></div>`,
-					)
+					.map(() => `<div class="tvv tvempty"><div><b>${esc(def.name)}</b></div></div>`)
 					.join("")) +
 		`<div class="m3intro tvsin" id="m3in"><h3>${esc(def.name)}</h3><p>${esc(def.how)}</p><p class="m3ctl">📱 Your phone is the controller.</p></div>
     <div class="m3ready" id="m3r"><h3>Get ready</h3><div id="m3rl"></div><button class="btn ghost" id="m3rs" hidden style="margin-top:8px">Start without the others</button></div>`;
@@ -3042,7 +3039,8 @@ function tvsSend() {
 			order = W.list.filter((e) => !e.gone).sort((a, b) => (hi ? b.sc - a.sc : a.sc - b.sc));
 		tvsAct(s, true);
 		const st = tvStatus(W, W.me, order);
-		if (s.ctl) st[7] = mirSnap(s.ctl)[2];
+		/* the phone mirrors the TV's copy of the controls (button states); swipe pads have their own layout instead */
+		if (s.ctl && !D.swipe) st[7] = mirSnap(s.ctl)[2];
 		tvsAct(s, false);
 		l[s.k] = st;
 	});
