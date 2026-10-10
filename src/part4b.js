@@ -254,6 +254,125 @@ function crowdStep(W, focusZ, hype) {
 	C.body.instanceMatrix.needsUpdate = C.head.instanceMatrix.needsUpdate = C.arms.instanceMatrix.needsUpdate = true;
 }
 /* looping synth engine + crowd noise, pitched by speed */
+/* Drag Race rev dial: a flat gauge that faces the camera (green shift zone, red line, needle, gear number), parts
+   0.04 apart so nothing z-fights. set(r, gear, state): state 0 normal, 1 in the green, 2 on the limiter */
+const DIAL_TH = (r) => (1.25 - 1.5 * r) * Math.PI;
+function revDial(zone) {
+	const g = new THREE.Group(),
+		bm = (c) => new THREE.MeshBasicMaterial({ color: c }),
+		ring = (r0, r1, a, b, c, z) => {
+			const m = new THREE.Mesh(new THREE.RingGeometry(r0, r1, 24, 1, DIAL_TH(b), (b - a) * 1.5 * Math.PI), bm(c));
+			m.position.z = z;
+			g.add(m);
+			return m;
+		};
+	const back = new THREE.Mesh(new THREE.CircleGeometry(1, 28), bm("#23272F"));
+	g.add(back);
+	const rim = new THREE.Mesh(new THREE.RingGeometry(1, 1.14, 32), bm("#F4F6F9"));
+	g.add(rim);
+	ring(0.72, 0.9, 0, zone[0], "#4A5263", 0.04);
+	ring(0.68, 0.94, zone[0], zone[1], "#1FA35C", 0.04);
+	ring(0.68, 0.94, zone[1], 1, "#E5484D", 0.04);
+	const pv = new THREE.Group();
+	pv.position.z = 0.08;
+	const nd = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.82, 0.04), bm("#FFC83D"));
+	nd.position.y = 0.34;
+	pv.add(nd);
+	g.add(pv);
+	const hub = new THREE.Mesh(new THREE.CircleGeometry(0.14, 12), bm("#F4F6F9"));
+	hub.position.z = 0.12;
+	g.add(hub);
+	const gear = new THREE.Mesh(
+		new THREE.PlaneGeometry(0.62, 0.62),
+		new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false }),
+	);
+	gear.position.set(0, -0.5, 0.08);
+	g.add(gear);
+	let lastG = -1;
+	return {
+		g,
+		set(r, gr, st) {
+			pv.rotation.z = DIAL_TH(Math.max(0, Math.min(1, r))) - Math.PI / 2;
+			rim.material.color.set(st === 2 ? "#E5484D" : st === 1 ? "#7CF0A8" : "#F4F6F9");
+			if (gr !== lastG) {
+				lastG = gr;
+				gear.material.map = dialGearTex(gr);
+				gear.material.needsUpdate = true;
+			}
+		},
+	};
+}
+/* Ramp Jump gauge above the truck: a power bar on the run-up (marker swings until locked), then a level meter in the
+   air (a truck side view tilting with the pitch over a horizon line; the rim turns green when level enough to bounce) */
+function rampGauge(lv) {
+	const g = new THREE.Group(),
+		bm = (c) => new THREE.MeshBasicMaterial({ color: c }),
+		at = (m, x, y, z) => (m.position.set(x, y, z), g.add(m), m);
+	const pw = new THREE.Group(),
+		ai = new THREE.Group();
+	g.add(pw, ai);
+	pw.add(new THREE.Mesh(new THREE.PlaneGeometry(0.62, 2.1), bm("#23272F")));
+	[
+		[0, 0.5, "#E5484D"],
+		[0.5, 0.8, "#FFC83D"],
+		[0.8, 1, "#1FA35C"],
+	].forEach(([a, b, c]) => {
+		const m = new THREE.Mesh(new THREE.PlaneGeometry(0.4, (b - a) * 1.8), bm(c));
+		m.position.set(0, -0.9 + ((a + b) / 2) * 1.8, 0.04);
+		pw.add(m);
+	});
+	const mk = new THREE.Mesh(new THREE.PlaneGeometry(0.78, 0.12), bm("#F4F6F9"));
+	mk.position.z = 0.08;
+	pw.add(mk);
+	const back = new THREE.Mesh(new THREE.CircleGeometry(1, 28), bm("#23272F"));
+	ai.add(back);
+	const rim = new THREE.Mesh(new THREE.RingGeometry(1, 1.14, 32), bm("#F4F6F9"));
+	ai.add(rim);
+	const hz = new THREE.Mesh(new THREE.PlaneGeometry(1.7, 0.07), bm("#8E96A3"));
+	hz.position.z = 0.04;
+	ai.add(hz);
+	const tk = new THREE.Group();
+	tk.position.z = 0.08;
+	[
+		[0.9, 0.32, -0.08, 0.04, "#FFC83D", 0],
+		[0.36, 0.3, 0.34, 0.3, "#E0A800", 0.04],
+		[0.2, 0.2, -0.36, -0.2, "#151B24", 0.04],
+		[0.2, 0.2, 0.3, -0.2, "#151B24", 0.04],
+	].forEach(([w, h, x, y, c, z]) => {
+		const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), bm(c));
+		m.position.set(x, y, z);
+		tk.add(m);
+	});
+	ai.add(tk);
+	return {
+		g,
+		set(mode, v, locked) {
+			pw.visible = mode === "pw";
+			ai.visible = mode === "air";
+			if (mode === "pw") {
+				mk.position.y = -0.9 + Math.max(0, Math.min(1, v)) * 1.8;
+				mk.material.color.set(locked ? "#7CF0A8" : "#F4F6F9");
+			} else {
+				tk.rotation.z = v;
+				const a = Math.abs(v);
+				rim.material.color.set(a <= lv[0] ? "#7CF0A8" : a <= lv[1] ? "#FFC83D" : "#E5484D");
+			}
+		},
+	};
+}
+const DIAL_GT = {};
+function dialGearTex(gr) {
+	return (
+		DIAL_GT[gr] ||
+		(DIAL_GT[gr] = canvasTex(64, 64, (x, w, h) => {
+			x.font = "40px Bungee, 'Arial Black', Impact, sans-serif";
+			x.textAlign = "center";
+			x.textBaseline = "middle";
+			x.fillStyle = "#F4F6F9";
+			x.fillText(gr ? String(gr) : "N", w / 2, h / 2 + 3);
+		}))
+	);
+}
 function engineSnd() {
 	if (!SFX.on || !SFX.ctx || SFX.ctx.state !== "running") return null;
 	const c = SFX.ctx,
@@ -3523,9 +3642,26 @@ const MG = {
 		liveHi: true,
 		unit: "ms",
 		dur: 35,
-		tapLabel: "TAP TO REV",
-		tapHint: "Tap as fast as you can to build speed.",
-		how: "Tap as fast as you can. Fastest to 200 m wins.",
+		tapLabel: "LAUNCH",
+		tvHint: "Tap anywhere on your phone to launch on GO, then tap to shift when your dial hits the green.",
+		tapHint: "Tap on GO to launch, then tap to shift up when the needle is in the green.",
+		how: "Launch on GO (not before!), then shift up when the needle hits the green. Too early bogs down, too late hits the limiter. Fastest to 200 m wins.",
+		/* five gears: top speed (m/s) and pull of each; the engine pulls hardest just below the green zone's end and
+		   fades above 88% revs, so shifting in the green (ZONE) is fastest and mashing bogs every gear down */
+		VT: [14, 20, 26, 31, 36],
+		ACC: [9.5, 8, 7, 6, 5],
+		ZONE: [0.82, 0.95],
+		PERF: [0.86, 0.93],
+		tq(r, g) {
+			let q = Math.max(g === 1 ? 0.62 : 0.18, 1 - ((r - 0.8) / 0.6) ** 2);
+			if (r > 0.88) q *= 1 - ((r - 0.88) / 0.12) * 0.6;
+			return q;
+		},
+		say(W, e, m) {
+			if (!e.isMe) return;
+			e.msg = m;
+			e.msgT = W.t;
+		},
 		build(W) {
 			const s = W.sc,
 				wid = laneWorld(W, 220, { noTrees: true });
@@ -3658,26 +3794,56 @@ const MG = {
 		},
 		spawn: laneSpawn,
 		fmt: (W, e) => `${Math.round(-e.z)} m`,
+		/* the first tap after GO launches, every later one shifts up */
 		tap(W, e) {
-			e.v = Math.min(34, (e.v || 0) + 1.35);
-			if (e.isMe && W.t >= 0 && !e.d)
-				burst(W.sc, e.x, 0.6, e.z + 1.7, {
-					n: 2,
-					shape: "ico",
-					cols: ["#6F7888", "#A3ACBB"],
-					spd: 0.6,
-					up: 1.4,
-					grav: -1,
-					life: 0.5,
-					size: 0.8,
-				});
+			if (e.d) return;
+			if (!e.gr) {
+				if (W.t < (e.stall || 0)) return;
+				const rt = W.t - (e.stall || 0);
+				e.gr = 1;
+				e.v = 0.6;
+				e.shT = W.t;
+				if (!e.fs) this.say(W, e, rt < 0.25 ? "LIGHTNING START!" : rt < 0.5 ? "Good start" : "Slow start…");
+				if (e.isMe) sfx("click");
+				return;
+			}
+			if (e.gr >= this.VT.length || W.t - e.shT < 0.25) return;
+			const r = e.r || 0,
+				[lo, hi] = this.ZONE,
+				perf = r >= this.PERF[0] && r <= this.PERF[1];
+			if (perf) e.v *= 1.03;
+			this.say(
+				W,
+				e,
+				perf
+					? "PERFECT SHIFT!"
+					: r >= lo && r <= hi
+						? "Good shift"
+						: r < 0.6
+							? "Way too early!"
+							: r < lo
+								? "Early shift"
+								: e.limT > 0.3
+									? "Over-rev!"
+									: "Late shift",
+			);
+			e.gr++;
+			e.shT = W.t;
+			e.clutch = 0.12;
+			e.f.sh = (e.f.sh || 0) + 1;
+			if (e.isMe) {
+				sfx(perf ? "coin" : "click");
+				W.kick = perf ? 0.22 : 0.1;
+			}
 		},
-		TIERS: [
-			[45, "Rolling!"],
-			[75, "Fast!"],
-			[100, "Blazing!"],
-			[118, "MAX SPEED!"],
-		],
+		/* a tap during the countdown: false start, the truck stays put for the first second after GO */
+		tapEarly(W, e) {
+			if (e.gr || e.fs || W.t < -3) return;
+			e.fs = true;
+			e.stall = 1;
+			this.say(W, e, "FALSE START! Wait for GO");
+			if (e.isMe) sfx("loss");
+		},
 		coast(W, e, dt) {
 			// after the line: brake to a stop, or bounce off the cushion
 			const v0 = e.v || 0;
@@ -3719,8 +3885,59 @@ const MG = {
 		},
 		render(W, e, dt) {
 			const v = e.v || 0,
-				sp = v / 34;
+				sp = v / 36,
+				gr = e.local ? e.gr || 0 : (e.f && e.f.g) || 0,
+				lim = gr > 0 && !e.d && (e.local ? e.r || 0 : (e.f && e.f.r) || 0) >= 0.99;
 			if (e.local && e.crossed) this.coast(W, e, dt);
+			/* shown revs: idle wobble before the launch, a bounce on the limiter */
+			e.rs =
+				gr === 0
+					? 0.12 + (W.t > -3 ? 0.05 * Math.abs(Math.sin(W.t * 7 + e.i)) : 0)
+					: (e.local ? e.r || 0 : (e.f && e.f.r) || 0) - (lim ? Math.abs(Math.sin(W.t * 40)) * 0.04 : 0);
+			if ((e.isMe || W.split) && !e.d) {
+				if (!e.dial) {
+					e.dial = revDial(this.ZONE);
+					e.dial.g.scale.setScalar(0.85);
+					W.sc.add(e.dial.g);
+				}
+				const cam = (typeof TVS !== "undefined" && TVS && TVS.scam) || W.cam;
+				e.dial.g.visible = true;
+				e.dial.g.position.set(e.x, 4.1, e.z);
+				e.dial.g.quaternion.copy(cam.quaternion);
+				e.dial.set(
+					e.rs,
+					gr,
+					lim ? 2 : gr && gr < this.VT.length && e.rs >= this.ZONE[0] && e.rs <= this.ZONE[1] ? 1 : 0,
+				);
+			} else if (e.dial) e.dial.g.visible = false;
+			/* every shift: a puff from the stack and the nose bobs */
+			const sh = (e.f && e.f.sh) || 0;
+			if (sh !== (e.shSeen || 0)) {
+				e.shSeen = sh;
+				e.bob = 0.1;
+				burst(W.sc, e.x + 0.5, 1.9, e.z + 1.2, {
+					n: 5,
+					shape: "ico",
+					cols: ["#4A5263", "#8E96A3", "#2A2F3A"],
+					spd: 0.6,
+					up: 2.2,
+					grav: -1,
+					life: 0.6,
+					size: 0.7,
+				});
+			}
+			e.bob = Math.max(0, (e.bob || 0) - dt * 0.5);
+			if (lim && Math.random() < dt * 14)
+				burst(W.sc, e.x + 0.5, 1.9, e.z + 1.2, {
+					n: 1,
+					shape: "ico",
+					cols: ["#FF8A1F", "#E5484D", "#FFC83D"],
+					spd: 0.8,
+					up: 1.5,
+					grav: -1,
+					life: 0.3,
+					size: 0.5,
+				});
 			if (e.z <= this.PADZ + 0.2 && !e.padT) {
 				e.padT = true;
 				this.padHit(W, e, e.crash || Math.round(v * 3.6));
@@ -3736,7 +3953,7 @@ const MG = {
 			const acc = (v - (e.pv === undefined ? v : e.pv)) / Math.max(dt, 0.001);
 			e.pv = v;
 			e.pitch = (e.pitch || 0) + (Math.max(0, Math.min(0.12, acc * 0.012)) - (e.pitch || 0)) * Math.min(1, dt * 10);
-			e.tr.rotation.z += e.pitch + (Math.random() - 0.5) * 0.025 * sp;
+			e.tr.rotation.z += e.pitch + e.bob + (Math.random() - 0.5) * 0.025 * sp;
 			if (!e.d && v > 12 && Math.random() < (sp - 0.3) * (e.isMe ? 1.4 : 0.6))
 				burst(W.sc, e.x + (Math.random() - 0.5) * 0.8, 0.55, e.z + 1.7, {
 					n: 1 + (sp > 0.85),
@@ -3763,15 +3980,6 @@ const MG = {
 				m.scale.z = 0.5 + S * 7;
 			});
 			if (W.vig) W.vig.style.opacity = (Math.max(0, S - 0.3) * 1.4).toFixed(3);
-			const kmh = v * 3.6;
-			e.tier = e.tier || 0;
-			if (!e.d && e.tier < this.TIERS.length && kmh >= this.TIERS[e.tier][0]) {
-				e.msg = this.TIERS[e.tier][1];
-				e.msgT = W.t;
-				e.tier++;
-				W.kick = 0.12 + e.tier * 0.04;
-				sfx("beep");
-			}
 			if (e.d && !W.cheered) {
 				W.cheered = true;
 				burst(W.sc, e.x, 3, -200, {
@@ -3789,7 +3997,8 @@ const MG = {
 			W.roar = Math.max(0, (W.roar || 0) - dt * 0.4);
 			crowdStep(W, e.z, Math.max(S, W.roar));
 			if (!W.eng && W.t >= -4) W.eng = engineSnd() || { set() {}, stop() {} };
-			if (W.eng) W.eng.set(S, 0.012 + S * 0.03 + W.roar * 0.05, !e.d || W.roar > 0.2);
+			/* the engine sings with the revs (drops on every shift), so the shift point can be heard */
+			if (W.eng) W.eng.set(e.d ? S : 0.1 + e.rs * 0.9, 0.012 + S * 0.03 + W.roar * 0.05, !e.d || W.roar > 0.2);
 		},
 		cam(W, tgt, pos, far) {
 			const S = W.spd || 0;
@@ -3809,7 +4018,25 @@ const MG = {
 		BRAKE: 15.8, // ~100 km/h at the line is exactly enough to reach the cushion
 		rules(W, e, dt) {
 			if (e.d) return;
-			e.v = (e.v || 0) * Math.exp(-0.75 * dt);
+			if (!e.gr) {
+				e.v = 0;
+				e.vz = 0;
+				e.sc = 0;
+				e.f.g = 0;
+				return;
+			}
+			const g = e.gr,
+				vt = this.VT[g - 1];
+			let a = e.clutch > 0 ? 0 : this.ACC[g - 1] * this.tq(Math.min(1, e.v / vt), g);
+			if (e.v >= vt * 0.999) {
+				a = 0;
+				e.limT = (e.limT || 0) + dt;
+			} else e.limT = 0;
+			e.v = Math.min(vt, Math.max(0, e.v + (a - 0.0025 * e.v * e.v) * dt));
+			e.clutch = (e.clutch || 0) - dt;
+			e.r = Math.min(1, e.v / vt);
+			e.f.r = Math.round(e.r * 100) / 100;
+			e.f.g = g;
 			e.z -= e.v * dt;
 			e.vz = -e.v;
 			e.sc = Math.round(-e.z);
@@ -3824,14 +4051,30 @@ const MG = {
 			e.fin = 35000 + Math.round((200 + e.z) * 100);
 		},
 		final: (W, e) => e.fin || 35000 + Math.round((200 + e.z) * 100),
+		/* CPUs: a reaction time at GO (sometimes a false start), then a shift point per gear, mostly in the green */
 		bot(W, e, dt) {
-			e.bt = (e.bt || 0) - dt;
-			if (e.bt <= 0) {
+			if (e.d) return;
+			if (!e.gr) {
+				if (e.rt === undefined) {
+					e.rt = 0.18 + Math.random() * 0.35;
+					if (Math.random() < 0.06) {
+						e.fs = true;
+						e.stall = 1;
+					}
+				}
+				if (W.t >= (e.stall || 0) + e.rt) this.tap(W, e);
+				return;
+			}
+			const u = Math.random();
+			e.sp =
+				e.sp ??
+				(u < 0.25 ? 0.6 + Math.random() * 0.2 : u < 0.38 ? 0.96 + Math.random() * 0.04 : 0.8 + Math.random() * 0.14);
+			if (e.r >= e.sp || (e.limT || 0) > 0.3) {
 				this.tap(W, e);
-				e.bt = 1 / (5 + Math.random() * 3.5);
+				e.sp = undefined;
 			}
 		},
-		botScore: () => 9000 + rnd(6000),
+		botScore: () => 8900 + rnd(2600),
 	},
 	light: {
 		name: "Green Light",
@@ -5077,6 +5320,7 @@ const MG = {
 		tapHint: "◀ ▶ to change lanes, Jump for potholes.",
 		swipe: { l: 0, u: 1, r: 2 },
 		swipeHint: "Swipe ◀ ▶ to change lanes, ▲ to jump",
+		tvHint: "Swipe left or right on your phone to change lanes, swipe up to jump.",
 		lx(l) {
 			return (l - (this.LANES - 1) / 2) * this.LW;
 		},
@@ -5375,10 +5619,15 @@ const MG = {
 		hi: true,
 		unit: "dm",
 		dur: 26,
-		tapLabel: "TAP!",
+		tapLabel: "LOCK POWER",
+		tvHint: "Tap your phone to lock the power. In the air: hold to lift the nose, let go to drop it.",
 		LAND: 0.75,
-		tapHint: "Tap fast, tap on the ramp, tap as you land.",
-		how: "Tap to build speed and launch off the ramp. Tap as you land to bounce further.",
+		tapHint: "Tap to lock the power, then in the air hold to lift the nose and let go to drop it.",
+		how: "Tap when the power meter is high, then keep your truck level in the air: hold to lift the nose, let go to drop it. Land level to bounce on, nose-first and you crash. Furthest wins.",
+		/* landing: |pitch| up to LV[0] = perfect, LV[1] = a weak bounce, more = crash */
+		LV: [0.2, 0.45],
+		/* the power meter swings 0..1..0 every 2.2 s, the same for everyone */
+		pm: (t) => 1 - Math.abs(((Math.max(0, t) / 1.1) % 2) - 1),
 		build(W) {
 			const wid = laneWorld(W, 230, { noTrees: true });
 			W.plist.forEach((p, i) => {
@@ -5441,60 +5690,114 @@ const MG = {
 				: e.st === "air"
 					? `${Math.max(0, -(e.z + 60.4)).toFixed(0)} m`
 					: `${Math.round(e.v || 0)} km/h`,
+		/* one tap locks the run-up power; in the air the button is held (W.inp.hold) to lift the nose */
 		tap(W, e) {
-			if (!e.st) {
-				e.v = Math.min(36, (e.v || 0) + 1.4);
-				if (e.z < -53.5) e.jt = true;
-			} else if (e.st === "air" && e.btap === undefined && e.vy < 0) e.btap = W.t;
+			if (e.st || e.pl !== undefined) return;
+			e.pl = this.pm(W.t);
+			e.f.pl = Math.round(e.pl * 100) / 100;
+			mgLog(W, `${mgName(e)} locks ${Math.round(e.pl * 100)}% power`);
+			if (e.isMe) {
+				e.msg = e.pl > 0.92 ? "MAX POWER!" : e.pl > 0.7 ? "Good power" : "Weak run-up…";
+				e.msgT = W.t;
+				sfx(e.pl > 0.92 ? "coin" : "click");
+			}
+		},
+		land(W, e, k, hop) {
+			mgLog(
+				W,
+				`${mgName(e)} ${k ? (k === 1 ? "perfect" : "wobbly") + " landing" : "CRASH"} at pitch ${e.pitch.toFixed(2)}, ${Math.round(-(e.z + 60.4))} m`,
+			);
+			e.hops = hop ? e.hops + 1 : e.hops;
+			e.bounce = { t: W.t, k };
+			e.f.bn = (e.f.bn || 0) + 1;
 		},
 		rules(W, e, dt) {
-			if (e.d && e.st === "land") return;
+			if (e.d) return;
+			const hold = e.isMe ? !!W.inp.hold : !!e.hold;
 			if (!e.st) {
-				e.v = Math.max(6, (e.v || 0) * Math.exp(-0.45 * dt));
+				if (e.pl === undefined) {
+					if (W.t > 4) this.tap(W, e);
+					e.v = 0;
+					e.vz = 0;
+					e.sc = 0;
+					return;
+				}
+				const vt = 16 + 20 * e.pl;
+				e.v = Math.min(vt, (e.v || 0) + 14 * dt);
 				e.z -= e.v * dt;
 				e.vz = -e.v;
 				e.y = e.z < -55.5 ? Math.min(1.9, (-55.5 - e.z) * 0.4) : 0;
+				e.pitch = e.z < -55.5 ? 0.38 : 0;
 				if (e.z <= -60.4) {
 					e.st = "air";
-					e.vy = e.v * 0.42 * (e.jt ? 1.22 : 1);
+					e.vy = e.v * 0.42;
 					e.y = 1.9;
 					e.hops = 0;
+					e.pitch = 0.3;
+					e.pw = 0;
 				}
 			} else if (e.st === "air") {
+				/* held: the nose lifts, let go: it drops (a bit slower) */
+				e.pw += ((hold ? 2.6 : -1.6) - 1.4 * e.pw) * dt;
+				e.pitch = Math.max(-1.3, Math.min(1.3, e.pitch + e.pw * dt));
 				e.z -= e.v * dt;
 				e.vz = -e.v;
 				e.vy -= 20 * dt;
 				e.y += e.vy * dt;
 				if (e.y <= this.LAND && e.vy < 0) {
 					e.y = this.LAND;
-					const early = e.btap === undefined ? 9 : W.t - e.btap,
-						k = e.hops >= 4 ? 0 : early <= 0.14 ? 0.62 : early <= 0.3 ? 0.42 : 0;
-					e.btap = undefined;
-					if (k) {
-						e.hops++;
-						e.vy = -e.vy * k;
-						e.v *= 0.86;
-						e.bounce = { t: W.t, k };
+					const a = Math.abs(e.pitch),
+						perf = a <= this.LV[0];
+					if (a <= this.LV[1]) {
+						const vy = -e.vy * (perf ? 0.55 : 0.4);
+						e.v *= perf ? 0.92 : 0.8;
+						this.land(W, e, perf ? 1 : 0.5, true);
+						if (vy < 3) e.st = "roll";
+						else {
+							e.vy = vy;
+							e.pitch = 0.3;
+							e.pw = 0;
+						}
 						if (e.isMe) {
-							e.msg = k > 0.5 ? "PERFECT BOUNCE!" : "Bounce!";
+							e.msg = perf ? "PERFECT LANDING!" : "Wobbly landing";
 							e.msgT = W.t;
-							sfx(k > 0.5 ? "coin" : "land");
+							sfx(perf ? "coin" : "land");
 						}
 					} else {
 						e.st = "land";
+						this.land(W, e, 0, false);
 						e.v = 0;
 						e.vz = 0;
+						e.crash = true;
+						e.f.cr = 1;
 						e.sc = Math.round(-(e.z + 60.4) * 10);
 						e.d = true;
 						if (e.isMe) {
-							e.msg = e.hops ? `Landed after ${e.hops} bounce${e.hops > 1 ? "s" : ""}` : "Crash landing!";
+							e.msg = e.pitch < 0 ? "Nose dive! CRASH!" : "Tail first! CRASH!";
 							e.msgT = W.t;
 							sfx("crush");
 						}
 					}
 				}
+			} else if (e.st === "roll") {
+				/* after the last bounce the truck rolls out over the pile */
+				e.pitch *= Math.exp(-dt * 6);
+				e.v = Math.max(0, e.v - 13 * dt);
+				e.z -= e.v * dt;
+				e.vz = -e.v;
+				if (e.v <= 0) {
+					e.st = "land";
+					e.sc = Math.round(-(e.z + 60.4) * 10);
+					e.d = true;
+					if (e.isMe) {
+						e.msg = `Stopped after ${e.hops} bounce${e.hops === 1 ? "" : "s"}`;
+						e.msgT = W.t;
+						sfx("fanfare");
+					}
+				}
 			}
-			if (!e.st) e.sc = 0;
+			e.f.pt = Math.round((e.pitch || 0) * 100) / 100;
+			if (e.st && e.st !== "land") e.sc = Math.max(0, Math.round(-(e.z + 60.4) * 10));
 		},
 		timeUp(W, e) {
 			if (e.st !== "land") e.sc = Math.max(0, Math.round(-(e.z + 60.4) * 10));
@@ -5502,15 +5805,33 @@ const MG = {
 		prompt: (W, e) =>
 			e.msg && W.t - e.msgT < 1.1
 				? e.msg
-				: !e.st && e.z < -48
-					? e.jt
-						? "Boost ready!"
-						: "Tap now for a boost!"
-					: e.st === "air" && e.vy < 0 && e.y < 4
-						? "Tap as you land!"
+				: W.t >= 0 && !e.st && e.pl === undefined
+					? "Tap when the power is high!"
+					: e.st === "air"
+						? "Hold = nose up, let go = nose down"
 						: "",
 		donePrompt: (W, e) => (e.msg && W.t - e.msgT < 2 ? e.msg : ""),
 		render(W, e, dt) {
+			if (!e.local) e.pitch = (e.f && e.f.pt) || 0;
+			const bn = (e.f && e.f.bn) || 0;
+			if (!e.local && bn !== (e.bnSeen || 0)) {
+				e.bnSeen = bn;
+				e.bounce = { t: W.t, k: e.f.cr ? 0 : 0.6 };
+			}
+			if ((e.isMe || W.split) && !e.d) {
+				if (!e.gauge) {
+					e.gauge = rampGauge(this.LV);
+					e.gauge.g.scale.setScalar(0.85);
+					W.sc.add(e.gauge.g);
+				}
+				const cam = (typeof TVS !== "undefined" && TVS && TVS.scam) || W.cam,
+					pl = e.local ? e.pl : e.f && e.f.pl,
+					air = e.local ? e.st === "air" : (e.y || 0) > this.LAND + 0.3 && e.z < -60;
+				e.gauge.g.visible = true;
+				e.gauge.g.position.set(e.x, (e.y || 0) + 4.1, e.z);
+				e.gauge.g.quaternion.copy(cam.quaternion);
+				e.gauge.set(air ? "air" : "pw", air ? e.pitch || 0 : pl === undefined ? this.pm(W.t) : pl, pl !== undefined);
+			} else if (e.gauge) e.gauge.g.visible = false;
 			if (e.bounce && W.t - e.bounce.t < 0.05 && !e.bounce.fx) {
 				e.bounce.fx = true;
 				burst(W.sc, e.x, this.LAND, e.z, {
@@ -5526,25 +5847,26 @@ const MG = {
 			if (e.isMe) crowdStep(W, e.z, e.st === "air" ? 1 : 0.4);
 		},
 		bot(W, e, dt) {
-			if (e.st === "air") {
-				if (e.vy < 0 && e.btap === undefined) {
-					const g = 20,
-						h = e.y - this.LAND,
-						tl = (e.vy + Math.sqrt(e.vy * e.vy + 2 * g * h)) / g;
-					e.bplan = e.bplan ?? (Math.random() < 0.2 ? 0.5 : 0.02 + Math.random() * 0.22);
-					if (tl <= e.bplan) {
-						this.tap(W, e);
-						e.bplan = undefined;
-					}
-				}
+			if (!e.st) {
+				if (e.pl !== undefined) return;
+				e.pt = e.pt ?? (Math.random() < 0.2 ? 0.5 + Math.random() * 0.3 : 0.82 + Math.random() * 0.16);
+				const m = this.pm(W.t),
+					up = this.pm(W.t + 0.05) > m;
+				if (m >= e.pt && (up || m > 0.95)) this.tap(W, e);
 				return;
 			}
+			if (e.st !== "air") return;
+			/* aim for level with some lag and wobble; a few CPUs overcorrect */
+			/* a skill per CPU: slower hands and a sloppier idea of level the lower it is */
+			e.sk = e.sk ?? 0.25 + Math.random() * 0.75;
+			e.aim = e.aim ?? (Math.random() - 0.5) * (0.12 + 0.7 * (1 - e.sk));
 			e.bt = (e.bt || 0) - dt;
 			if (e.bt <= 0) {
-				this.tap(W, e);
-				e.bt = 1 / (4.5 + Math.random() * 3.5);
+				e.bt = 0.06 + Math.random() * 0.1 + 0.3 * (1 - e.sk);
+				e.hold = e.pitch + e.pw * (0.1 + Math.random() * 0.35) < e.aim;
 			}
-			if (e.z < -54 && !e.jt && Math.random() < 0.03) e.jt = true;
+			if (e.vy > 0 && e.y < this.LAND + 0.5) e.aim = undefined;
+			return { hold: !!e.hold };
 		},
 		botScore: () => 400 + rnd(700),
 	},

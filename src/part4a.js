@@ -1781,13 +1781,54 @@ function wireControls(def) {
 	} else wireTap(def);
 }
 function wireTap(def) {
-	const b = $("#tapall");
+	const b = $("#tapall"),
+		up = () => {
+			if (W) W.inp.hold = false;
+		};
 	b.addEventListener("pointerdown", (e) => {
 		e.preventDefault();
 		b.classList.add("kick");
 		setTimeout(() => b.classList.remove("kick"), 110);
-		if (W && W.t >= 0 && !W.me.d && def.tap) def.tap(W, W.me);
+		if (!W) return;
+		W.inp.hold = true;
+		if (W.t >= 0 && !W.me.d && def.tap) def.tap(W, W.me);
+		else if (W.t < 0 && def.tapEarly) def.tapEarly(W, W.me);
 	});
+	["pointerup", "pointercancel", "pointerleave"].forEach((ev) => b.addEventListener(ev, up));
+}
+/* slide pad (Scoop Stack): the finger's spot across the pad sets inp.x (-1 at the left edge .. 1 at the right, the
+   outer 8% count as the edge) and stays when the finger lifts; a quick flick up (55 px within 0.26 s) calls flick(),
+   once per flick, also while the finger stays down */
+function wireSlide(pad, get, flick, mark) {
+	const st = new Map(),
+		at = (e) => {
+			const r = pad.getBoundingClientRect(),
+				u = Math.max(0, Math.min(1, (e.clientX - r.left - r.width * 0.08) / (r.width * 0.84))),
+				i = get();
+			if (i) i.x = u * 2 - 1;
+			if (mark) mark.style.left = u * 100 + "%";
+		};
+	pad.addEventListener("pointerdown", (e) => {
+		e.preventDefault();
+		st.set(e.pointerId, { y: e.clientY, t: performance.now(), done: false });
+		at(e);
+	});
+	pad.addEventListener("pointermove", (e) => {
+		const q = st.get(e.pointerId);
+		if (!q) return;
+		at(e);
+		const now = performance.now();
+		if (!q.done && q.y - e.clientY > 55 && now - q.t < 260) {
+			q.done = true;
+			flick();
+		}
+		if (now - q.t > 260) {
+			q.y = e.clientY;
+			q.t = now;
+			q.done = false;
+		}
+	});
+	["pointerup", "pointercancel"].forEach((ev) => pad.addEventListener(ev, (e) => st.delete(e.pointerId)));
 }
 function wireStick(get, padSel = "#m3pad", knobSel = "#knob", kx = "x", ky = "y", onChange) {
 	const pad = $(padSel),
@@ -2118,12 +2159,16 @@ function ramAssist(W, e, dx, dz) {
 }
 
 /* ---------- themed tap controls ---------- */
-const UI_OF = { drag: "pedal", ramp: "pedal", crane: "drop" };
+const UI_OF = { drag: "shift", ramp: "air", crane: "drop" };
 function tapCtlHTML(g, def) {
 	const ui = UI_OF[g] || "btn",
 		lab = esc(def.tapLabel || "TAP");
 	if (ui === "pedal" || ui === "brake")
 		return `<button class="tapall tp-pedal ${ui === "brake" ? "brake" : ""} ${g === "drag" || g === "ramp" ? "tp-wide" : ""}" id="tapall" aria-label="${lab}"><span class="tp-gauge"><i></i></span><span class="tp-read" id="tpread">0 km/h</span><b class="tp-lab" id="tplab">${lab}</b><span class="tp-pedwrap"><span class="tp-ped"><i></i><i></i><i></i><i></i><i></i></span></span></button>`;
+	if (ui === "air")
+		return `<button class="tapall tp-pedal tp-wide tp-air" id="tapall" data-m="pw" aria-label="${lab}"><span class="tp-rev"><i></i></span><span class="tp-read" id="tpread">POWER</span><b class="tp-lab" id="tplab">GET READY…</b></button>`;
+	if (ui === "shift")
+		return `<button class="tapall tp-pedal tp-wide tp-shift" id="tapall" aria-label="${lab}"><span class="tp-rev"><i></i></span><span class="tp-read" id="tpread">N</span><b class="tp-lab" id="tplab">WAIT FOR GO…</b></button>`;
 	if (ui === "launch")
 		return `<button class="tapall tp-launch" id="tapall" data-state="wait" aria-label="Go"><span class="tp-lights"><i class="r"></i><i class="y"></i><i class="g"></i></span><span class="tp-go">GO!</span><b class="tp-hint" id="tplab">Wait for green…</b></button>`;
 	if (ui === "jump")
@@ -2151,6 +2196,71 @@ function ctlUpdate() {
 		const hot = W.mg.g === "ramp" && !e.st && e.z < -48 && e.z > -60.4;
 		el.classList.toggle("hot", hot);
 		set("tplab", hot ? "JUMP NOW!" : W.mg.g === "ramp" && e.st === "air" ? "TAP TO BOUNCE!" : W.def.tapLabel);
+	} else if (ui === "air") {
+		/* Ramp Jump: the power meter on the run-up, then a level meter in the air (green = level) */
+		const D = W.def,
+			air = e.st === "air",
+			pt = e.pitch || 0,
+			lvl = Math.abs(pt) <= D.LV[0],
+			v = air ? Math.max(0, Math.min(1, 0.5 + pt / 1.2)) : e.pl === undefined ? D.pm(t) : e.pl;
+		el.style.setProperty("--p", v.toFixed(3));
+		if (el.dataset.m !== (air ? "att" : "pw")) el.dataset.m = air ? "att" : "pw";
+		el.classList.toggle("hot", !e.d && (air ? lvl : t >= 0 && !e.st && e.pl === undefined && v > 0.8));
+		set(
+			"tpread",
+			air
+				? lvl
+					? "LEVEL"
+					: pt > 0
+						? "NOSE UP"
+						: "NOSE DOWN"
+				: e.pl === undefined
+					? "POWER"
+					: `${Math.round(e.pl * 100)}%`,
+		);
+		set(
+			"tplab",
+			e.d
+				? e.crash
+					? "CRASHED"
+					: "LANDED"
+				: t < 0
+					? "GET READY…"
+					: !e.st
+						? e.pl === undefined
+							? "TAP TO LOCK POWER"
+							: "HERE WE GO…"
+						: air
+							? "HOLD = NOSE UP"
+							: "ROLLING…",
+		);
+	} else if (ui === "shift") {
+		const g = e.gr || 0,
+			r = e.rs || 0,
+			D = W.def,
+			inZ = g && g < D.VT.length && r >= D.ZONE[0] && r <= D.ZONE[1],
+			go = !g && t >= Math.max(0, e.stall || 0);
+		el.style.setProperty("--p", r.toFixed(3));
+		el.classList.toggle("hot", !!(inZ || go) && !e.d);
+		set("tpread", g ? `GEAR ${g}` : "N");
+		set(
+			"tplab",
+			e.d
+				? "FINISHED"
+				: t < 0
+					? "WAIT FOR GO…"
+					: !g
+						? go
+							? "LAUNCH!"
+							: "FALSE START!"
+						: g >= D.VT.length
+							? "TOP GEAR"
+							: inZ
+								? "SHIFT!"
+								: e.limT > 0.1
+									? "SHIFT NOW!"
+									: "SHIFT IN THE GREEN",
+		);
 	} else if (ui === "brake") {
 		const on = e.brk || e.st === "stop" || e.st === "crash";
 		el.style.setProperty("--p", on ? "1" : "0");
@@ -2388,7 +2498,7 @@ function openTvCtl(mg, p) {
 	box.innerHTML = `<div class="tvc${def.ctrl === "stick" ? " bare" : ""}" style="--c:${pcol(p)}"><div class="tvrot">🔄 Turn your phone sideways</div><div class="m3top"><span class="chip name">${esc(def.name)}</span><span class="chip" id="tvct">Waiting</span></div>
     <div class="tvcme"><img alt="" src="${thumb(p.truck)}"><div><b id="tvcs">0</b><small id="tvcr">${esc(p.name)}</small></div></div>
     <div class="tvcmsg" id="tvcm">📺 Watch the TV</div>
-    ${def.ctrl === "stick" ? stickHTML(def, def.aim ? "Drive" : "Drag anywhere here to drive", mg.tm ? mg.tm[p.key] : undefined) : `<div class="tvcctl${def.swipe ? " swc" : ""}" id="tvcctl">${def.swipe ? swipeHTML(def) : def.ctrl === "custom" ? def.ctlHTML() : tapCtlHTML(mg.g, def)}</div>`}
+    ${def.ctrl === "stick" ? stickHTML(def, def.aim ? "Drive" : "Drag anywhere here to drive", mg.tm ? mg.tm[p.key] : undefined) : `<div class="tvcctl${def.swipe || def.slide ? " swc" : ""}" id="tvcctl">${def.slide ? `<div class="swpad slpad" id="slpad"><span class="tvchint">${esc(def.slideHint || "Slide")}</span><i class="slmark" id="slmark"></i></div>` : def.swipe ? swipeHTML(def) : def.ctrl === "custom" ? def.ctlHTML() : tapCtlHTML(mg.g, def)}</div>`}
     <div class="m3ready" id="m3r"><h3>${esc(def.name)}</h3><p style="font-size:14px;line-height:1.45;margin-bottom:10px">${esc(def.how)}</p><div id="m3rl"></div><button class="btn go" id="m3rb">I'm ready</button></div></div>`;
 	if (def.ctrl === "stick") {
 		wireStick(() => TVC && TVC.inp);
@@ -2428,7 +2538,18 @@ function openTvCtl(mg, p) {
 				if (TVC.ev.length > 16) TVC.ev.shift();
 				tvcTick();
 			};
-		if (def.swipe) wireSwipe(def, send);
+		if (def.slide)
+			wireSlide(
+				$("#slpad"),
+				() => TVC && TVC.inp,
+				() => {
+					if (!TVC) return;
+					TVC.b++;
+					tvcTick();
+				},
+				$("#slmark"),
+			);
+		else if (def.swipe) wireSwipe(def, send);
 		else
 			wrap.addEventListener("pointerdown", (e) => {
 				const b = e.target.closest("button");
@@ -2437,12 +2558,14 @@ function openTvCtl(mg, p) {
 				const idx = [...wrap.querySelectorAll("button")].indexOf(b);
 				downs.set(e.pointerId, idx);
 				b.classList.add("kick");
+				TVC.inp.hold = true;
 				send(idx, 1);
 			});
 		TVC.up = (e) => {
 			if (!downs.has(e.pointerId)) return;
 			const idx = downs.get(e.pointerId);
 			downs.delete(e.pointerId);
+			if (!downs.size) TVC.inp.hold = false;
 			send(idx, 0);
 		};
 		addEventListener("pointerup", TVC.up);
@@ -2595,7 +2718,7 @@ function tvcTick() {
 		} catch (e) {}
 	}
 	const big = t === null ? "" : t < 0 ? String(Math.ceil(-t)) : t < 0.8 ? "GO!" : "";
-	if (st && st[7] && !def.swipe) {
+	if (st && st[7] && !def.swipe && !def.slide) {
 		const j = JSON.stringify(st[7]);
 		if (j !== TVC.mir) {
 			TVC.mir = j;
@@ -2692,7 +2815,7 @@ function openTvSplit(mg) {
 					.slice(n)
 					.map(() => `<div class="tvv tvempty"><div><b>${esc(def.name)}</b></div></div>`)
 					.join("")) +
-		`<div class="m3intro tvsin" id="m3in"><h3>${esc(def.name)}</h3><p>${esc(def.how)}</p><p class="m3ctl">📱 Your phone is the controller.</p></div>
+		`<div class="m3intro tvsin" id="m3in"><h3>${esc(def.name)}</h3><p>${esc(def.how)}</p><p class="m3ctl">📱 ${esc(def.tvHint || "Your phone is the controller.")}</p></div>
     <div class="m3ready" id="m3r"><h3>Get ready</h3><div id="m3rl"></div><button class="btn ghost" id="m3rs" hidden style="margin-top:8px">Start without the others</button></div>`;
 	$("#m3rs").addEventListener("click", () => mgStartCountdown());
 	const hold = document.createElement("div");
@@ -3040,7 +3163,7 @@ function tvsSend() {
 		tvsAct(s, true);
 		const st = tvStatus(W, W.me, order);
 		/* the phone mirrors the TV's copy of the controls (button states); swipe pads have their own layout instead */
-		if (s.ctl && !D.swipe) st[7] = mirSnap(s.ctl)[2];
+		if (s.ctl && !D.swipe && !D.slide) st[7] = mirSnap(s.ctl)[2];
 		tvsAct(s, false);
 		l[s.k] = st;
 	});

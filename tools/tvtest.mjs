@@ -8,7 +8,8 @@
    - screens that never reach the results, page errors on any device
    node tools/tvtest.mjs sort                 2 phones + 1 CPU
    node tools/tvtest.mjs mash --phones 3 --cpu 1 --lag 80
-   --no-shots skips the contact sheet. */
+   --no-shots skips the contact sheet; --probe "<js>" prints that expression, evaluated on the TV, once a second
+   (e.g. --probe "TVS.worlds.map((s) => s.W.me.sc)"). */
 import fs from "fs";
 import path from "path";
 import { args, launch, openGame, save, OUT } from "./lib.mjs";
@@ -152,6 +153,22 @@ const PHONE = () => {
 			}
 			if (Math.random() < 0.08) TVC.b++;
 			if (Math.random() < 0.04) TVC.b2 = (TVC.b2 || 0) + 1;
+		} else if (document.querySelector("#slpad")) {
+			/* slide pad: the finger sweeps left and right, now and then a flick up */
+			const sl = document.querySelector("#slpad"),
+				r = sl.getBoundingClientRect(),
+				x = r.left + r.width * (0.5 + 0.45 * Math.sin(t * 1.3 + seed)),
+				y = r.top + r.height * 0.7,
+				ev = (type, py) => new PointerEvent(type, { bubbles: true, pointerId: 9, clientX: x, clientY: py });
+			if (!window.__slDown) {
+				window.__slDown = true;
+				sl.dispatchEvent(ev("pointerdown", y));
+			}
+			sl.dispatchEvent(ev("pointermove", y));
+			if (Math.random() < 0.025) {
+				sl.dispatchEvent(ev("pointermove", y - 90));
+				sl.dispatchEvent(ev("pointermove", y));
+			}
 		} else if (Math.random() < 0.35) {
 			const pad = document.querySelector("#swpad");
 			if (pad) {
@@ -218,7 +235,8 @@ const sigs = PH.map(() => ({ first: null, extra: new Set(), gone: new Set() })),
 	btnIssues = new Set(),
 	frame = {},
 	t0 = Date.now();
-let shotStart = false,
+let lastProbe = -1,
+	shotStart = false,
 	shotMid = false,
 	lastT = 0;
 while (Date.now() - t0 < 240000) {
@@ -253,6 +271,18 @@ while (Date.now() - t0 < 240000) {
 			await shoot("3mid");
 		}
 	}
+	if (opt.probe && s && Math.floor(s.t) !== Math.floor(lastProbe)) {
+		lastProbe = s.t;
+		console.log(
+			`  probe ${s.t.toFixed(1)} s: ${await TV.p.evaluate((x) => {
+				try {
+					return JSON.stringify(eval(x));
+				} catch (e) {
+					return "error: " + e.message;
+				}
+			}, opt.probe)}`,
+		);
+	}
 	if (lastT > 0 && (await TV.p.evaluate(() => HG.phase)) !== "minigame") break;
 	await TV.p.waitForTimeout(500);
 }
@@ -260,6 +290,10 @@ while (Date.now() - t0 < 240000) {
 const tvDone = lastT > 0 && (await TV.p.evaluate(() => HG.phase)) !== "minigame";
 await TV.p.waitForTimeout(600);
 await shoot("4results");
+const res = await TV.p.evaluate(() =>
+	[...document.querySelectorAll(".reslist li")].map((l) => l.innerText.replace(/\s+/g, " ").trim()),
+);
+if (res.length) console.log("\nresults on the TV:\n  " + res.join("\n  "));
 
 /* report */
 const issues = [],
