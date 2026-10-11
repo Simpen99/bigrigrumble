@@ -61,7 +61,7 @@ Object.assign(MG, {
 		ctrl: "custom",
 		hi: true,
 		unit: "pts",
-		dur: 45,
+		dur: 60,
 		how: "Catch the flying scoops on your cone and serve it: bigger cones pay more. Don't jerk the tower, and dodge the seagull's fish!",
 		tapHint: "Slide your finger to move the cone, flick up (or SERVE) to sell it. Keyboard: ◀ ▶ and Enter.",
 		/* TV controller: the whole phone is a slide pad (finger position = cone position), a flick up serves */
@@ -69,8 +69,15 @@ Object.assign(MG, {
 		slideHint: "Slide ◀ ▶ to move the cone · flick ▲ to serve",
 		tvHint: "Slide your finger left and right to move the cone, flick up to serve.",
 		XR: 1.35,
-		G: 11,
-		DROPH: 3.4,
+		G: 9.5,
+		DROPH: 3.8,
+		/* fish: let go FISHH higher than the scoops, falling at FISHG of the gravity (it flutters), caught within FISHW
+		   of the scoop catch width */
+		FISHH: 1.6,
+		FISHG: 0.55,
+		FISHW: 0.7,
+		/* the gap to your next drop: GAP[0] s on an empty cone, GAP[1] s less per scoop on it, at least GAP[2] */
+		GAP: [1.75, 0.09, 0.9],
 		SWAY: 0.07,
 		MAXN: 10,
 		R: 0.55,
@@ -218,10 +225,18 @@ Object.assign(MG, {
 			W.scBall = ball;
 			W.flip = 0;
 			W.drops = [];
-			for (let t = 1.4, i = 0; t < this.dur - 1; i++) {
-				const k = i > 3 && W.rng() < 0.13 ? "fish" : W.rng() < 0.1 ? "gold" : "s";
-				W.drops.push({ id: i, t, k, f: i % 6, x0: (W.rng() * 2 - 1) * 1.2, x1: (W.rng() * 2 - 1) * 1.3 });
-				t += Math.max(0.8, 1.55 - t * 0.016) * (0.8 + W.rng() * 0.4);
+			/* the drop sequence, the same for everyone; when each comes depends on your own cone (gap()) */
+			for (let i = 0, lf = 0; i < 90; i++) {
+				const k = i > 3 && i - lf >= 4 && W.rng() < 0.08 ? "fish" : W.rng() < 0.1 ? "gold" : "s";
+				if (k === "fish") lf = i;
+				W.drops.push({
+					id: i,
+					k,
+					f: i % 6,
+					x0: (W.rng() * 2 - 1) * 1.2,
+					x1: (W.rng() * 2 - 1) * 1.3,
+					j: 0.85 + W.rng() * 0.3,
+				});
 			}
 			W.airM = {};
 			W.gull = this.gullModel();
@@ -823,6 +838,7 @@ Object.assign(MG, {
 			e.st = [];
 			e.air = [];
 			e.di = 0;
+			e.nt = 1.4;
 			e.cx = 0;
 			e.cv = 0;
 			e.sw = 0;
@@ -887,18 +903,28 @@ Object.assign(MG, {
 			}
 			e.st.splice(k);
 		},
-		/* a drop leaves the scooper DROPH above the stack top and lands at x1 when it gets back down to it */
+		/* time to the next drop: the bigger your cone, the sooner */
+		gap(n) {
+			return Math.max(this.GAP[2], this.GAP[0] - this.GAP[1] * n);
+		},
+		/* a drop leaves the scooper DROPH above the stack top and lands at x1 when it gets back down to it; a fish is let
+		   go higher and falls slower (a.g = its own gravity) */
 		launch(W, e, d) {
-			const vy = 1.5,
-				t = (vy + Math.sqrt(vy * vy + 2 * this.G * this.DROPH)) / this.G;
+			const fish = d.k === "fish",
+				vy = fish ? 0 : 1.5,
+				g = this.G * (fish ? this.FISHG : 1),
+				h = this.DROPH + (fish ? this.FISHH : 0),
+				t = (vy + Math.sqrt(vy * vy + 2 * g * h)) / g;
+			if (fish) e.lf = { x0: d.x0, t: W.t };
 			e.air.push({
 				id: d.id,
 				k: d.k,
 				f: d.f,
 				x: d.x0,
-				y: this.topY(e.st.length + 1) + this.DROPH,
+				y: this.topY(e.st.length + 1) + h,
 				vx: (d.x1 - d.x0) / t,
 				vy,
+				g,
 			});
 			if (e.isMe && d.k !== "fish") W.flipT = W.t;
 		},
@@ -909,12 +935,12 @@ Object.assign(MG, {
 				tx = e.cx + top + e.sw * n * this.STEP,
 				yl = this.topY(n + 1);
 			e.air = e.air.filter((a) => {
-				a.vy -= this.G * dt;
+				a.vy -= a.g * dt;
 				a.x += a.vx * dt;
 				a.y += a.vy * dt;
 				if (!a.miss && a.vy < 0 && a.y <= yl) {
 					const dx = a.x - tx;
-					if (!e.sv && n < this.MAXN && Math.abs(dx) <= (n ? this.R * 1.8 : 0.9)) {
+					if (!e.sv && n < this.MAXN && Math.abs(dx) <= (n ? this.R * 1.8 : 0.9) * (a.k === "fish" ? this.FISHW : 1)) {
 						this.caught(W, e, a, a.x - (e.cx + top));
 						return false;
 					}
@@ -995,7 +1021,11 @@ Object.assign(MG, {
 				e.sw *= Math.exp(-dt * 8);
 				e.swv = 0;
 			}
-			while (e.di < W.drops.length && W.drops[e.di].t <= W.t) this.launch(W, e, W.drops[e.di++]);
+			while (e.di < W.drops.length && e.nt <= W.t) {
+				const d = W.drops[e.di++];
+				this.launch(W, e, d);
+				e.nt += this.gap(e.st.length) * d.j + (d.k === "fish" ? 0.4 : 0);
+			}
 			this.fly(W, e, dt);
 			if (e.sv) {
 				if (W.t - e.sv.t >= 1.7) {
@@ -1249,8 +1279,9 @@ Object.assign(MG, {
 				}
 			});
 			W.cust.position.y = sv && k > 1.3 ? Math.abs(Math.sin((k - 1.3) * 12)) * 0.15 : 0;
-			const nx = W.drops.slice(e.di).find((d) => d.k !== "fish"),
-				soon = nx && nx.t - W.t < 1.1,
+			const nd = W.drops[e.di],
+				nx = nd && nd.k !== "fish" ? nd : null,
+				soon = nx && e.nt - W.t < 1.1,
 				flipping = W.flipT !== undefined && W.t - W.flipT < 0.3,
 				top = this.topY(n + 1) + this.DROPH;
 			W.scooper.visible = !sv;
@@ -1278,7 +1309,6 @@ Object.assign(MG, {
 							? this.fishModel()
 							: mesh(new THREE.IcosahedronGeometry(this.R, 1), a.k === "gold" ? "#FFD54A" : this.FLAV[a.f]);
 					if (a.k === "gold") m.material = M("#FFD54A", { metalness: 0.5, roughness: 0.3 });
-					if (a.k === "fish") m.scale.setScalar(1.5);
 					W.sc.add(m);
 					W.airM[a.id] = m;
 					/* a ring where it will land on the stack: white for scoops, gold, red for the fish */
@@ -1298,7 +1328,7 @@ Object.assign(MG, {
 				m.position.set(a.x, a.y, 0);
 				{
 					const yl = this.topY(n + 1),
-						tl = (a.vy + Math.sqrt(Math.max(0, a.vy * a.vy + 2 * this.G * (a.y - yl)))) / this.G,
+						tl = (a.vy + Math.sqrt(Math.max(0, a.vy * a.vy + 2 * a.g * (a.y - yl)))) / a.g,
 						rg = m.userData.ring;
 					rg.visible = !a.miss && a.y > yl && !sv;
 					rg.position.set(a.x + a.vx * tl, yl - this.R * 0.4, 0.8);
@@ -1323,7 +1353,13 @@ Object.assign(MG, {
 				}
 
 			/* the seagull glides over and lets go of the fish */
-			const fd = W.drops.find((d) => d.k === "fish" && W.t > d.t - 1.6 && W.t < d.t + 1.2);
+			/* the fish coming next (from 1.6 s before it's let go) or the one just let go (for 1.2 s) */
+			const fd =
+				nd && nd.k === "fish" && W.t > e.nt - 1.6
+					? { id: nd.id, x0: nd.x0, t: e.nt }
+					: e.lf && W.t < e.lf.t + 1.2
+						? { id: -1 - Math.round(e.lf.t * 10), x0: e.lf.x0, t: e.lf.t }
+						: null;
 			W.gull.visible = !!fd;
 			if (fd && W.gullId !== fd.id) {
 				W.gullId = fd.id;
@@ -1335,10 +1371,14 @@ Object.assign(MG, {
 				W.sc.add(W.warn);
 			}
 			W.warn.visible = !!fd && W.t < fd.t && W.t > fd.t - 1.2 && Math.sin(W.t * 16) > -0.3;
-			if (fd) W.warn.position.set(fd.x0, this.topY(n + 1) + this.DROPH, 0.6);
+			if (fd) W.warn.position.set(fd.x0, this.topY(n + 1) + this.DROPH + this.FISHH, 0.6);
 			if (fd) {
 				const u = W.t - fd.t;
-				W.gull.position.set(fd.x0 + u * 4, this.topY(n + 1) + this.DROPH + 0.6 + Math.max(0, u) * 1.2, 0.3);
+				W.gull.position.set(
+					fd.x0 + u * 4,
+					this.topY(n + 1) + this.DROPH + this.FISHH + 0.6 + Math.max(0, u) * 1.2,
+					0.3,
+				);
 				W.gull.userData.w.forEach(([p, sd]) => (p.rotation.x = sd * Math.sin(W.t * 14) * 0.6));
 			}
 			W.fallM = W.fallM.filter((f) => {
@@ -1370,7 +1410,7 @@ Object.assign(MG, {
 		cam(W, t, p, far) {
 			const e = W.me,
 				n = e.sv ? e.sv.n : e.st.length,
-				hi = this.topY(n + 1) + this.DROPH + 1,
+				hi = this.topY(n + 1) + this.DROPH + this.FISHH + 0.8,
 				lo = Math.max(this.CT - 1.8, this.topY(n) - 3),
 				tn = Math.tan((20 * Math.PI) / 180),
 				asp = GFX.w / GFX.h,
@@ -1398,7 +1438,7 @@ Object.assign(MG, {
 				top = n ? X[n - 1] : 0,
 				yl = this.topY(n + 1),
 				land = (a) => {
-					const tl = (a.vy + Math.sqrt(Math.max(0, a.vy * a.vy + 2 * this.G * (a.y - yl)))) / this.G;
+					const tl = (a.vy + Math.sqrt(Math.max(0, a.vy * a.vy + 2 * a.g * (a.y - yl)))) / a.g;
 					return [tl, a.x + a.vx * tl];
 				};
 			let want = null,
