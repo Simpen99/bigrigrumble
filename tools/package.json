@@ -4,6 +4,7 @@
 	"type": "module",
 	"description": "Headless helpers for Big Rig Rumble: model inspection and checks, minigame screenshots, smoke runs",
 	"dependencies": {
+		"planck": "^1.5.0",
 		"playwright": "1.63.0",
 		"three": "0.128.0"
 	}
