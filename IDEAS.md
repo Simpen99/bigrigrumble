@@ -76,7 +76,7 @@ sizes on the TV and on phones (`camK` in `fbStep`: size follows the camera dista
   slick, bumper/shell-like homing tyre, shield). My notes: TV split (each player their own view, 2-4 cells) since a
   shared overhead view doesn't work in 3rd person; items synced as events via `e.f` like Drift King's steals; CPUs
   get rubber-banding light.
-- **Plinko** (built 2026-10-11, `plinko` in partmg3): one shared board, 3 drops summed, lean + hop, sliding x3 sign. Ideas left: a power peg / gate a player can trigger, bumpers.
+- **Plinko** (built 2026-10-11, `plinko` in partmg3): one shared board, trucks in plastic balls, 3 drops summed, steer + hop, sliding x3 sign. Ideas left: a power peg / gate a player can trigger, bumpers.
 - **Bomberman** (grid arena): trucks drop dynamite (reuse Hot Load's bundle), destructible crates hide power-ups
   (range, extra bomb, speed); last truck standing. Stick + DROP button; works in one shared TV view.
 - **Chaos destruction mode** (user wants: lots of weapons blowing up terrain and enemies, maybe 3rd person; rethinking

@@ -1798,13 +1798,15 @@ Object.assign(MG, {
 
 /* ---------- Plinko ---------- */
 /* Plinko: every truck drops down one shared peg board (side view: x across, y up, the board in the z = 0 plane) into the
-   slots at the bottom, DROPS times, the points add up. Hanging from its magnet at the top, ◀ ▶ move it along the rail and
-   HOP drops it; falling, ◀ ▶ lean it (a spin plus a small push that way) and HOP kicks the wheels down for a spring jump
-   off whatever it touches (cooldown HOPCD). A x3 sign slides back and forth under the slots (a function of W.t, the same
-   everywhere). Physics: planck.js, one world per truck on the device that runs it (pegs, walls, dividers static, its
-   truck dynamic); every other truck is a kinematic body in that world following where it is drawn, so trucks bump each
-   other (each device only pushes its own). Shared per truck in e.f: an (angle), st (0 hanging, 1 falling, 2 in a slot,
-   3 done and parked), im [n, x, y] (last hard knock, flashes that peg), hp (hops, for the spring kick), ls [n, slot, x3] */
+   slots at the bottom, DROPS times, the points add up. Each truck rides in a clear plastic ball (radius R, the truck at
+   TS scale sits in its bottom and tilts with the motion), so it glides off the pegs instead of catching on them. Hanging
+   from its magnet at the top, ◀ ▶ move it along the rail and HOP drops it; falling, ◀ ▶ push it a little that way and
+   HOP pops the ball up off whatever it touches (towards the side held; cooldown HOPCD). A x3 sign slides back and forth
+   under the slots (a function of W.t, the same everywhere). Physics: planck.js, one world per truck on the device that
+   runs it (pegs, walls, dividers static, its ball dynamic); every other ball is a kinematic body in that world following
+   where it is drawn, so balls bump each other (each device only pushes its own). e.x / e.y = the ball's centre. Shared
+   per truck in e.f: an (ball spin), tt (the truck's tilt in it), st (0 hanging, 1 falling, 2 in a slot, 3 done and
+   parked), im [n, x, y] (last hard knock, flashes that peg), hp (hops, for the pop), ls [n, slot, x3] */
 Object.assign(MG, {
 	plinko: {
 		name: "Plinko",
@@ -1816,36 +1818,42 @@ Object.assign(MG, {
 		dur: 70,
 		bare: true,
 		sun: [10, 34, 30],
-		how: "Drop down the peg board 3 times; the slots' points add up. Lean to steer, hop off the pegs, catch the sliding ×3!",
-		tvHint: "Hold LEFT / RIGHT to move the magnet, then to lean as you fall. Middle: drop, then hop off pegs.",
-		tapHint: "◀ ▶ move the magnet, then lean as you fall. HOP drops you, then kicks off the pegs (arrow keys, Space).",
+		how: "Roll down the peg board 3 times in your ball; the slots' points add up. Steer, hop off the pegs, catch the sliding ×3!",
+		tvHint: "Hold LEFT / RIGHT to move the magnet, then to steer as you fall. Middle: drop, then hop off pegs.",
+		tapHint:
+			"◀ ▶ move the magnet, then steer as you fall. HOP drops you, then pops you off the pegs (arrow keys, Space).",
 		/* board: COLS slots SW wide between walls at ±HW; ROWS peg rows RY apart from Y0 up (even rows line up with the
-		   slot dividers, odd rows sit between); slot dividers SH high on the floor FLOOR; the ground GY below the plinth */
+		   slot dividers, odd rows sit between; every gap a ball must pass is ~3.4 m, the ball 2.9); slot dividers SH high on
+		   the floor FLOOR; the ground GY below the plinth */
 		COLS: 7,
-		SW: 3.8,
-		HW: 13.3,
-		ROWS: 7,
-		RY: 2.8,
-		Y0: 4.4,
+		SW: 4.4,
+		HW: 15.4,
+		ROWS: 6,
+		RY: 3.4,
+		Y0: 5,
 		PR: 0.32,
-		SH: 2,
+		SH: 2.2,
 		FLOOR: 0.12,
 		DW: 0.24,
 		GY: -2.6,
-		TOPY: 23.6 /* a hanging truck's centre */,
-		CEIL: 26 /* just under the magnet rail */,
-		OFF: 0.72 /* truck centre above its wheels' bottom (the group's origin) */,
+		R: 1.45 /* the ball */,
+		TS: 0.75 /* the truck's scale inside it */,
+		WB: 1.08 /* the truck's wheels this far below the ball's centre */,
+		TOPY: 24.8 /* a hanging ball's centre */,
+		CEIL: 27 /* just under the magnet rail */,
+		RAIL: 27.9,
+		HDR: 29.2 /* the header's middle */,
 		VAL: [100, 300, 50, 500, 50, 300, 100],
 		SCOL: { 500: "#FFC83D", 300: "#1FA35C", 100: "#2F7DE1", 50: "#E5484D" },
 		MP: 11 /* the x3 sign's trip there and back, s */,
 		DROPS: 3,
-		/* feel: gravity, peg bounce, lean (target spin rad/s, sideways push m/s²), hop speed and cooldown, magnet speed,
-		   how long a truck may hang before it drops by itself */
+		/* feel: gravity, peg bounce, ball friction (low: it glides), steering push (m/s²), hop speed and cooldown, magnet
+		   speed, how long a ball may hang before it drops by itself */
 		GRAV: 13,
 		PEGR: 0.45,
-		LEANW: 4,
-		PUSH: 3.5,
-		HOPV: 8.5,
+		FRIC: 0.08,
+		PUSH: 2.6,
+		HOPV: 6.5,
 		HOPCD: 1.1,
 		AIMV: 7,
 		AIMT: 5,
@@ -1883,14 +1891,16 @@ Object.assign(MG, {
 			/* fairground plaza */
 			s.add(texBox(140, 0.4, 90, pavingTex(), 6, 0, GY - 0.2, -8));
 			/* the board: dark blue back with column panels, red frame and header, a plinth under the slots */
-			s.add(B(2 * HW, 29.4, 0.4, "#1B2A4F", 0, GY + 14.7, -1.95));
+			const top = this.HDR + 0.9,
+				bh = top - GY;
+			s.add(B(2 * HW, bh, 0.4, "#1B2A4F", 0, GY + bh / 2, -1.95));
 			for (let k = 0; k < COLS; k++)
-				s.add(B(SW - 0.1, 26.6, 0.06, k % 2 ? "#26437E" : "#1F3869", this.slotX(k), 13.4, -1.72));
+				s.add(B(SW - 0.1, top - 1.8, 0.06, k % 2 ? "#26437E" : "#1F3869", this.slotX(k), (top - 1.8) / 2, -1.72));
 			[-1, 1].forEach((sd) => {
-				s.add(B(0.7, 29.4, 3.6, "#E5484D", sd * (HW + 0.35), GY + 14.7, -0.1));
-				s.add(B(0.3, 29.4, 0.06, "#B8333A", sd * (HW + 0.35), GY + 14.7, 1.73));
+				s.add(B(0.7, bh, 3.6, "#E5484D", sd * (HW + 0.35), GY + bh / 2, -0.1));
+				s.add(B(0.3, bh, 0.06, "#B8333A", sd * (HW + 0.35), GY + bh / 2, 1.73));
 			});
-			s.add(B(2 * HW + 1.4, 1.8, 3.6, "#E5484D", 0, 27.7, -0.1));
+			s.add(B(2 * HW + 1.4, 1.8, 3.6, "#E5484D", 0, this.HDR, -0.1));
 			{
 				const tx = canvasTex(1024, 96, (x, w, h) => {
 					x.font = "64px Bungee, 'Arial Black', Impact, sans-serif";
@@ -1906,11 +1916,11 @@ Object.assign(MG, {
 					new THREE.PlaneGeometry(10.6, 1),
 					new THREE.MeshBasicMaterial({ map: tx, transparent: true }),
 				);
-				p.position.set(0, 27.7, 1.74);
+				p.position.set(0, this.HDR, 1.74);
 				s.add(p);
 			}
 			/* the magnet rail under the header */
-			s.add(B(2 * HW, 0.3, 0.36, "#8E96A3", 0, 26.45, 0));
+			s.add(B(2 * HW, 0.3, 0.36, "#8E96A3", 0, this.RAIL, 0));
 			/* plinth: value plates on its front, a rail for the x3 sign */
 			s.add(B(2 * HW, -GY, 3.6, "#2A3550", 0, GY / 2, -0.1));
 			s.add(B(2 * HW - 0.4, 0.14, 0.08, "#8E96A3", 0, -0.55, 1.74));
@@ -1932,7 +1942,7 @@ Object.assign(MG, {
 						g.fillStyle = v === 500 ? "#3A2A00" : "#F4F6F9";
 						g.fillText(String(v), w / 2, h / 2 + 4);
 					}),
-					pl = new THREE.Mesh(new THREE.PlaneGeometry(3.1, 1.36), new THREE.MeshBasicMaterial({ map: pt }));
+					pl = new THREE.Mesh(new THREE.PlaneGeometry(3.6, 1.36), new THREE.MeshBasicMaterial({ map: pt }));
 				pl.position.set(x, -1.75, 1.73);
 				s.add(pl);
 				/* the slot floor in the slot's colour; it glows under the x3 sign and flashes when a truck scores */
@@ -1985,9 +1995,9 @@ Object.assign(MG, {
 			{
 				const P = [];
 				[-1, 1].forEach((sd) => {
-					for (let y = GY + 0.5; y < 26.6; y += 0.95) P.push([sd * (HW + 0.35), y]);
+					for (let y = GY + 0.5; y < this.HDR - 1; y += 0.95) P.push([sd * (HW + 0.35), y]);
 				});
-				[27.05, 28.35].forEach((y) => {
+				[this.HDR - 0.65, this.HDR + 0.65].forEach((y) => {
 					for (let x = -HW - 0.2; x <= HW + 0.2; x += 0.95) P.push([x, y]);
 				});
 				const bl = new THREE.InstancedMesh(
@@ -2039,7 +2049,7 @@ Object.assign(MG, {
 				const g = new THREE.Group(),
 					cab = Cy(0.05, 0.05, 1, 5, "#3A3F48", 0, 0, 0),
 					mg = new THREE.Group();
-				g.add(B(1, 0.5, 0.8, "#FFC83D", 0, 26.45, 0), B(0.6, 0.18, 0.6, "#23272F", 0, 26.1, 0));
+				g.add(B(1, 0.5, 0.8, "#FFC83D", 0, this.RAIL, 0), B(0.6, 0.18, 0.6, "#23272F", 0, this.RAIL - 0.34, 0));
 				mg.add(Cy(0.75, 0.75, 0.3, 12, "#2A2F3A", 0, 0.15, 0), Cy(0.78, 0.78, 0.08, 12, "#E5484D", 0, 0.04, 0));
 				g.add(cab, mg);
 				g.userData = { cab, mg };
@@ -2090,36 +2100,25 @@ Object.assign(MG, {
 			e.st = 0;
 			e.ax = e.x;
 			e.x0 = e.x;
-			e.y = this.TOPY - this.OFF;
+			e.y = this.TOPY;
 			e.ang = 0;
+			e.tt = 0;
 			e.dn = 0;
 			e.aimT = 0;
-			e.f = { an: 0, st: 0, hp: 0, im: [0, 0, 0], ls: [0, 0, 0] };
+			e.g.scale.setScalar(this.TS);
+			e.f = { an: 0, tt: 0, st: 0, hp: 0, im: [0, 0, 0], ls: [0, 0, 0] };
 			loadPlanck();
 		},
-		/* the truck body's centre for any truck: local ones from their body, others from where they're drawn */
+		/* a ball's centre for any truck: local ones from their body, others from where they're drawn */
 		ctr(e) {
 			if (e.b) {
 				const p = e.b.getPosition();
-				return [p.x, p.y, e.b.getAngle()];
+				return [p.x, p.y];
 			}
-			const a = e.local ? e.ang : (e.f && e.f.an) || 0;
-			return [e.x - this.OFF * Math.sin(a), e.y + this.OFF * Math.cos(a), a];
+			return [e.x, e.y];
 		},
 		shapeT() {
-			const V = window.planck.Vec2;
-			return window.planck.Polygon(
-				[
-					[-1.15, -0.68],
-					[1.15, -0.68],
-					[1.4, -0.42],
-					[1.4, 0.42],
-					[1.15, 0.68],
-					[-1.15, 0.68],
-					[-1.4, 0.42],
-					[-1.4, -0.42],
-				].map(([x, y]) => V(x, y)),
-			);
+			return window.planck.Circle(this.R);
 		},
 		world(e) {
 			if (e.pw || !window.planck) return e.pw;
@@ -2155,23 +2154,17 @@ Object.assign(MG, {
 					if (kb && kb.isActive()) kb.setActive(false);
 					return;
 				}
-				const [x, y, a] = this.ctr(o);
+				const [x, y] = this.ctr(o);
 				if (!kb) {
-					kb = e.kin[o.k] = e.pw.createBody({ type: "kinematic", position: V(x, y), angle: a });
-					kb.createFixture(this.shapeT(), { friction: 0.4, restitution: 0.2 });
+					kb = e.kin[o.k] = e.pw.createBody({ type: "kinematic", position: V(x, y) });
+					kb.createFixture(this.shapeT(), { friction: this.FRIC, restitution: 0.3 });
 				}
 				const p = kb.getPosition();
 				if (!kb.isActive() || Math.hypot(x - p.x, y - p.y) > 4) {
 					kb.setActive(true);
-					kb.setTransform(V(x, y), a);
+					kb.setTransform(V(x, y), 0);
 					kb.setLinearVelocity(V(0, 0));
-					kb.setAngularVelocity(0);
-				} else {
-					kb.setLinearVelocity(V((x - p.x) / h, (y - p.y) / h));
-					let da = a - kb.getAngle();
-					da = Math.atan2(Math.sin(da), Math.cos(da));
-					kb.setAngularVelocity(da / h);
-				}
+				} else kb.setLinearVelocity(V((x - p.x) / h, (y - p.y) / h));
 			});
 		},
 		touching(b) {
@@ -2220,8 +2213,8 @@ Object.assign(MG, {
 			e.ax = Math.max(-lim, Math.min(lim, e.ax - (e.tl || 0) * this.AIMV * dt));
 			e.swing = (e.swing || 0) + ((e.tl || 0) * 0.12 - (e.swing || 0)) * Math.min(1, dt * 5);
 			e.x = e.ax;
-			e.y = this.TOPY - this.OFF;
-			e.ang = e.swing + Math.sin(W.t * 2.2 + e.i) * 0.02;
+			e.y = this.TOPY;
+			e.tt = e.swing + Math.sin(W.t * 2.2 + e.i) * 0.03;
 		},
 		drop(W, e) {
 			const pl = window.planck,
@@ -2231,10 +2224,10 @@ Object.assign(MG, {
 				position: V(e.ax, this.TOPY),
 				angle: e.ang,
 				linearDamping: 0.02,
-				angularDamping: 0.4,
+				angularDamping: 0.3,
 				bullet: true,
 			});
-			e.b.createFixture(this.shapeT(), { density: 1, friction: 0.35, restitution: 0.15 });
+			e.b.createFixture(this.shapeT(), { density: 1, friction: this.FRIC, restitution: 0.3 });
 			e.b.setLinearVelocity(V(0, -1));
 			e.st = 1;
 			e.dropT = W.t;
@@ -2256,17 +2249,13 @@ Object.assign(MG, {
 				if ((e.hopQ !== undefined && W.t - e.hopQ < 0.2) || W.t - e.aimT > this.AIMT) this.drop(W, e);
 				e.hopQ = undefined;
 			}
-			/* fixed physics steps; ◀ ▶ spin the truck towards LEANW and push it that way */
+			/* fixed physics steps; ◀ ▶ push the ball a little that way */
 			e.acc = Math.min(0.1, e.acc + dt);
 			while (e.acc >= 1 / 60) {
 				const h = 1 / 60;
 				this.kinFollow(W, e, h);
 				const b = e.b;
-				if (b && e.st === 1 && e.tl) {
-					const av = b.getAngularVelocity();
-					b.applyTorque(b.getInertia() * Math.max(-40, Math.min(40, (e.tl * this.LEANW - av) * 10)), true);
-					b.applyForceToCenter(V(-e.tl * this.PUSH * b.getMass(), 0), true);
-				}
+				if (b && e.st === 1 && e.tl) b.applyForceToCenter(V(-e.tl * this.PUSH * b.getMass(), 0), true);
 				const v0 = b && b.getLinearVelocity().clone();
 				w.step(h, 8, 3);
 				if (b) {
@@ -2286,11 +2275,10 @@ Object.assign(MG, {
 			}
 			const b = e.b;
 			if (b && e.st === 1) {
-				/* HOP: a spring kick off whatever it touches, out of the wheels (so a tilted truck jumps sideways) */
+				/* HOP: the ball pops up off whatever it touches, leaning to the side held */
 				if (e.hopQ !== undefined && W.t - e.hopQ < 0.2 && W.t - e.lastTouch < 0.25 && W.t >= e.hopCd) {
-					const a = b.getAngle(),
-						ux = -Math.sin(a),
-						uy = Math.max(0.45, Math.cos(a)),
+					const ux = -(e.tl || 0) * 0.55,
+						uy = 1,
 						l = Math.hypot(ux, uy),
 						v = b.getLinearVelocity();
 					b.setLinearVelocity(V(v.x * 0.4 + (ux / l) * this.HOPV, Math.max(0, v.y) * 0.3 + (uy / l) * this.HOPV));
@@ -2300,10 +2288,9 @@ Object.assign(MG, {
 					mgLog(W, `${mgName(e)} hops at ${b.getPosition().x.toFixed(1)},${b.getPosition().y.toFixed(1)}`);
 				}
 				const p = b.getPosition(),
-					sp = b.getLinearVelocity().length(),
-					av = Math.abs(b.getAngularVelocity());
-				e.inSlot = p.y < this.SH + 0.15 ? e.inSlot + dt : 0;
-				e.slow = sp < 1.2 && av < 1.5 ? e.slow + dt : 0;
+					sp = b.getLinearVelocity().length();
+				e.inSlot = p.y < this.SH ? e.inSlot + dt : 0;
+				e.slow = sp < 1.2 ? e.slow + dt : 0;
 				if (e.inSlot > 0 && (e.slow > 0.3 || e.inSlot > 2.2)) this.score(W, e);
 				/* resting on a peg or a divider top: nudge it off */
 				e.stk = !e.inSlot && sp < 0.35 ? e.stk + dt : 0;
@@ -2318,10 +2305,10 @@ Object.assign(MG, {
 				if (e.dn >= this.DROPS) {
 					e.st = 3;
 					e.d = true;
-					const L = [-1, 1, -1, 1, -1, 1][e.i] * (this.HW + 2.8 + Math.floor(e.i / 2) * 3.4);
+					const L = [-1, 1, -1, 1, -1, 1][e.i] * (this.HW + 2.6 + Math.floor(e.i / 2) * 3.4);
 					e.x = L;
-					e.y = this.GY;
-					e.ang = 0;
+					e.y = this.GY + this.R;
+					e.ang = e.tt = 0;
 					e.vx = 0;
 					fb(W, e, `${e.sc}`, { stamp: true });
 					if (e.isMe) sfx("fanfare");
@@ -2335,14 +2322,18 @@ Object.assign(MG, {
 			}
 			if (e.b) {
 				const p = e.b.getPosition(),
-					a = e.b.getAngle();
-				e.ang = a;
-				e.x = p.x + this.OFF * Math.sin(a);
-				e.y = p.y - this.OFF * Math.cos(a);
-				e.vx = e.b.getLinearVelocity().x;
+					vx = e.b.getLinearVelocity().x;
+				e.ang = e.b.getAngle();
+				e.x = p.x;
+				e.y = p.y;
+				e.vx = vx;
+				/* the truck sways in its ball: back against the motion, towards the side steered */
+				const tg = Math.max(-0.35, Math.min(0.35, -vx * 0.05)) + (e.st === 1 ? (e.tl || 0) * 0.22 : 0);
+				e.tt += (tg - e.tt) * Math.min(1, dt * 6);
 			} else if (e.st === 0) e.vx = 0;
 			e.vz = 0;
 			e.f.an = Math.round(e.ang * 100) / 100;
+			e.f.tt = Math.round(e.tt * 100) / 100;
 			e.f.st = e.st;
 		},
 		score(W, e) {
@@ -2376,7 +2367,7 @@ Object.assign(MG, {
 				hh = D * tn,
 				mx = this.HW + 1 - hw,
 				lo = this.GY + hh - 0.6,
-				hi = 29 - hh,
+				hi = this.HDR + 0.6 - hh,
 				x = mx <= 0 ? 0 : Math.max(-mx, Math.min(mx, cx)),
 				y = lo > hi ? (lo + hi) / 2 : Math.max(lo, Math.min(hi, cy)),
 				t = new THREE.Vector3(x, y, 0);
@@ -2386,7 +2377,7 @@ Object.assign(MG, {
 		tvsCam(W, a) {
 			const tn = Math.tan((20 * Math.PI) / 180),
 				y0 = this.GY - 0.4,
-				y1 = 29,
+				y1 = this.HDR + 1,
 				D = Math.max((y1 - y0) / 2 / tn, (this.HW + 7) / (tn * a)) * 1.04,
 				t = new THREE.Vector3(0, (y0 + y1) / 2, 0);
 			return [t, t.clone().add(new THREE.Vector3(0, D * 0.08, D))];
@@ -2394,16 +2385,28 @@ Object.assign(MG, {
 		render(W, e, dt) {
 			this.scene(W, dt);
 			const f = e.f || {};
-			/* other trucks: their angle, and a jump back to the magnet (or the parking spot) snaps instead of sliding */
+			/* other trucks: ball spin and truck tilt, and a jump back to the magnet (or the parking spot) snaps instead of sliding */
 			if (!e.local) {
-				e.ang = lerpA(e.ang || 0, f.an || 0, 1 - Math.exp(-dt * 14));
+				const k = 1 - Math.exp(-dt * 14);
+				e.ang = lerpA(e.ang || 0, f.an || 0, k);
+				e.tt = (e.tt || 0) + ((f.tt || 0) - (e.tt || 0)) * k;
 				const n = e.net;
 				if (n && Math.hypot(n.x - e.x, (n.y || 0) - e.y) > 6) {
 					e.x = n.x;
 					e.y = n.y || 0;
 				}
 			}
-			e.pitch = e.ang * e.fc;
+			/* the truck sits in the bottom of its ball (e.x / e.y = the ball's centre), tilted by tt */
+			e.pitch = e.tt * e.fc;
+			e.tr.rotation.z = e.pitch;
+			e.g.position.set(e.x + this.WB * Math.sin(e.tt), e.y - this.WB * Math.cos(e.tt), 0);
+			const bl = this.ball(W, e),
+				ha = W.t - (e.hopT ?? -9),
+				q = ha < 0.35 ? 0.13 * Math.sin((ha / 0.35) * Math.PI) : 0;
+			bl.g.visible = !e.gone;
+			bl.g.position.set(e.x, e.y, 0);
+			bl.g.scale.set(1 + q, 1 - q, 1 + q);
+			bl.spin.rotation.z = e.ang;
 			const col = pcol(e.p),
 				st = e.local ? e.st : f.st || 0;
 			if (st !== e.stSeen) {
@@ -2424,7 +2427,7 @@ Object.assign(MG, {
 					}
 				});
 				if (bi >= 0) W.pegFl[bi] = { t: W.t, c: new THREE.Color(col) };
-				burst(W.sc, x, y, 0.8, {
+				burst(W.sc, x, y, 1.5, {
 					n: 5,
 					shape: "cube",
 					cols: ["#FFE27A", "#FFFFFF", col],
@@ -2435,16 +2438,23 @@ Object.assign(MG, {
 				});
 				if (W.split || e.isMe) sfx("click");
 			}
-			/* the spring jump: the wheels kick down, a puff under them */
+			/* the hop: the ball pops (squash and stretch), the truck's wheels kick inside, a puff under it */
 			if ((f.hp || 0) !== (e.hpSeen || 0)) {
 				e.hpSeen = f.hp || 0;
 				e.hopT = W.t;
-				burst(W.sc, e.x, e.y + 0.2, 0, { n: 7, shape: "ico", cols: ["#E8ECF2", "#C9CED8"], spd: 2, up: 1, life: 0.5 });
+				burst(W.sc, e.x, e.y - this.R, 0.6, {
+					n: 7,
+					shape: "ico",
+					cols: ["#E8ECF2", "#C9CED8"],
+					spd: 2,
+					up: 1,
+					life: 0.5,
+				});
 				if (W.split || e.isMe) sfx("step");
 			}
 			{
 				const sa = W.t - (e.hopT ?? -9);
-				springSet(e.tr, sa < 0.07 ? (sa / 0.07) * 0.55 : Math.max(0, 0.55 * (1 - (sa - 0.07) / 0.3)));
+				springSet(e.tr, sa < 0.07 ? (sa / 0.07) * 0.3 : Math.max(0, 0.3 * (1 - (sa - 0.07) / 0.3)));
 			}
 			/* scored: the slot floor flashes in the truck's colour, coins fly */
 			if (f.ls && f.ls[0] !== (e.lsSeen || 0)) {
@@ -2463,18 +2473,18 @@ Object.assign(MG, {
 					life: 0.9,
 				});
 			}
-			/* the magnet: over the hanging truck, back home while it falls */
+			/* the magnet: on top of the hanging ball, back home while it falls */
 			const mg = W.mag[e.k];
 			if (mg) {
 				const hang = st === 0 && !e.gone,
 					tx = hang ? e.x : e.x0 !== undefined ? e.x0 : e.x,
 					u = mg.userData,
-					my = hang ? e.y + 2.05 : 25.2;
+					my = hang ? e.y + this.R - 0.02 : this.RAIL - 1.3;
 				mg.position.x = hang ? tx : mg.position.x + (tx - mg.position.x) * Math.min(1, dt * 3);
 				u.my = u.my === undefined ? my : u.my + (my - u.my) * Math.min(1, dt * (hang ? 20 : 3));
 				u.mg.position.y = u.my;
-				u.mg.rotation.z = hang ? e.ang * 0.5 : 0;
-				const top = 25.95,
+				u.mg.rotation.z = hang ? e.tt * 0.3 : 0;
+				const top = this.RAIL - 0.43,
 					len = Math.max(0.05, top - u.my - 0.3);
 				u.cab.scale.y = len;
 				u.cab.position.y = u.my + 0.3 + len / 2;
@@ -2483,6 +2493,49 @@ Object.assign(MG, {
 			/* hanging long: the HOP button acted out by the truck */
 			if (st === 0 && W.t > 0 && W.t - e.stT > 2.2 && (e.isMe || W.split)) inputHint(W, e, "HOP", "tap", col);
 			if (e.isMe) crowdStep(W, null, st === 1 ? 0.8 : 0.3);
+		},
+		/* a truck's plastic ball: a faceted clear shell tinted in its colour, two seams in its colour that show the spin,
+		   a shine that stays put */
+		ball(W, e) {
+			if (e.ball) return e.ball;
+			const g = new THREE.Group(),
+				spin = new THREE.Group(),
+				col = new THREE.Color(pcol(e.p)),
+				R = this.R,
+				shell = new THREE.Mesh(
+					new THREE.IcosahedronGeometry(R, 2),
+					new THREE.MeshStandardMaterial({
+						color: col.clone().lerp(new THREE.Color("#F4F6F9"), 0.65),
+						transparent: true,
+						opacity: 0.22,
+						roughness: 0.12,
+						metalness: 0,
+						flatShading: true,
+						depthWrite: false,
+					}),
+				),
+				sm = new THREE.MeshStandardMaterial({ color: col, transparent: true, opacity: 0.8, roughness: 0.4 });
+			shell.renderOrder = 2;
+			[
+				[0, Math.PI / 2],
+				[Math.PI / 2, 0],
+			].forEach(([rx, ry]) => {
+				const r = new THREE.Mesh(new THREE.TorusGeometry(R, 0.045, 4, 36), sm);
+				r.rotation.set(rx, ry, 0);
+				r.renderOrder = 2;
+				spin.add(r);
+			});
+			const sh = new THREE.Mesh(
+				new THREE.SphereGeometry(0.26, 8, 6),
+				new THREE.MeshBasicMaterial({ color: "#FFFFFF", transparent: true, opacity: 0.5, depthWrite: false }),
+			);
+			sh.position.set(-0.5 * R, 0.55 * R, 0.66 * R);
+			sh.scale.set(1, 0.6, 0.35);
+			sh.rotation.z = 0.7;
+			sh.renderOrder = 3;
+			g.add(shell, spin, sh);
+			W.sc.add(g);
+			return (e.ball = { g, spin });
 		},
 		/* once a frame: chasing bulbs, the x3 sign and its glowing slot, peg flashes, slot flashes */
 		scene(W, dt) {
