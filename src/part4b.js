@@ -6264,29 +6264,7 @@ const MG = {
 			rtg.position.z = -11;
 			/* half as tall again, so a tall tower doesn't reach the top beam */
 			rtg.scale.y = 1.5;
-			/* wind flags on the leg tops */
-			W.flags = [-1, 1].map((sd) => {
-				const g = new THREE.Group(),
-					fl = new THREE.Mesh(
-						new THREE.BufferGeometry().setFromPoints([
-							new THREE.Vector3(0, 0, 0),
-							new THREE.Vector3(1.6, -0.35, 0),
-							new THREE.Vector3(0, -0.7, 0),
-						]),
-						new THREE.MeshStandardMaterial({ color: "#E5484D", side: THREE.DoubleSide, roughness: 0.8 }),
-					);
-				fl.geometry.computeVertexNormals();
-				g.add(Cy(0.05, 0.05, 2.2, 6, "#C9CED8", 0, 1.1, 0), fl);
-				fl.position.y = 2.15;
-				g.position.set((sd * span) / 2, this.TOPY + 1.6, -11);
-				W.sc.add(g);
-				return fl;
-			});
-			W.sc.add(rtg);
-			placeShadows(W.sc, 1.3, 6.8, 0.3, [
-				{ x: -span / 2, z: -11 },
-				{ x: span / 2, z: -11 },
-			]);
+			W.flags = [];
 			const tk = bakeKit(trolleyModel());
 			W.hooks = {};
 			W.plist.forEach((p, i) => {
@@ -6307,6 +6285,21 @@ const MG = {
 						h.add(r);
 					}),
 				);
+				/* a wind pennant on the spreader, always in view right over the tower */
+				{
+					const fl = new THREE.Mesh(
+						new THREE.BufferGeometry().setFromPoints([
+							new THREE.Vector3(0, 0, 0),
+							new THREE.Vector3(1.1, -0.22, 0),
+							new THREE.Vector3(0, -0.44, 0),
+						]),
+						new THREE.MeshStandardMaterial({ color: "#E5484D", side: THREE.DoubleSide, roughness: 0.8 }),
+					);
+					fl.geometry.computeVertexNormals();
+					fl.position.set(0, 1.35, 0.3);
+					sp.add(Cy(0.03, 0.03, 1.1, 6, "#C9CED8", 0, 0.85, 0.3), fl);
+					W.flags.push(fl);
+				}
 				Object.assign(h.userData, { sp, ropes });
 				h.position.set(W.laneX(i), 0, -11);
 				W.sc.add(h);
