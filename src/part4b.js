@@ -5787,17 +5787,19 @@ const MG = {
 	ramp: {
 		name: "Ramp Jump",
 		kind: "lane",
-		ctrl: "tap",
+		ctrl: "custom",
+		truckMode: "springs",
 		hi: true,
 		unit: "dm",
 		dur: 26,
 		tapLabel: "LOCK POWER",
-		tvHint: "Tap your phone to lock the power. In the air: hold to lift the nose, let go to drop it.",
+		tvHint: "Tap either side to lock the power. In the air: hold LEFT to tilt back, RIGHT to tilt forward.",
 		LAND: 0.75,
-		tapHint: "Tap to lock the power, then in the air hold to lift the nose and let go to drop it.",
+		tapHint: "Tap either button to lock the power. In the air: hold ◀ to tilt back, ▶ to tilt forward (arrow keys).",
 		how: "Lock in the power, then keep your truck level in the air. Land level to bounce on; furthest wins.",
 		/* pop-ups start above the gauge (gauge centre 3.5 over the truck, power bar top ~4.4) */
 		POPH: 4.6,
+		GRAV: 16,
 		/* landing: |pitch| up to LV[0] = perfect, LV[1] = a weak bounce, more = crash */
 		LV: [0.2, 0.45],
 		/* the power meter swings 0..1..0 every 2.2 s, the same for everyone */
@@ -5864,7 +5866,36 @@ const MG = {
 				: e.st === "air"
 					? `${Math.max(0, -(e.z + 60.4)).toFixed(0)} m`
 					: `${Math.round(e.v || 0)} km/h`,
-		/* one tap locks the run-up power; in the air the button is held (W.inp.hold) to lift the nose */
+		/* two buttons: left tilts back (nose up), right tilts forward; e.tl = +1 / -1 / 0 while held. A press during
+		   the run-up locks the power */
+		ctlHTML() {
+			return `<div class="rjctl"><button class="rjb" id="rjl" style="--bc:#2F7DE1" aria-label="Tilt back"><i>◀</i><b>BACK</b></button><button class="rjb" id="rjr" style="--bc:#E5484D" aria-label="Tilt forward"><b>FORWARD</b><i>▶</i></button></div>`;
+		},
+		press(W, side, on) {
+			if (!W || !W.me) return;
+			const e = W.me;
+			e.tb = e.tb || {};
+			e.tb[side] = on;
+			e.tl = (e.tb.l ? 1 : 0) - (e.tb.r ? 1 : 0);
+			if (on && W.t >= 0 && !e.d) this.tap(W, e);
+		},
+		wire() {
+			cxWireBtn(
+				document.getElementById("rjl"),
+				() => MG.ramp.press(W, "l", true),
+				() => MG.ramp.press(W, "l", false),
+			);
+			cxWireBtn(
+				document.getElementById("rjr"),
+				() => MG.ramp.press(W, "r", true),
+				() => MG.ramp.press(W, "r", false),
+			);
+		},
+		onKey(W, k, down) {
+			if (k === "arrowleft" || k === "a") this.press(W, "l", down);
+			else if (k === "arrowright" || k === "d") this.press(W, "r", down);
+			else if (down && [" ", "enter", "w", "arrowup"].includes(k)) this.tap(W, W.me);
+		},
 		tap(W, e) {
 			if (e.st || e.pl !== undefined) return;
 			e.pl = this.pm(W.t);
@@ -5887,7 +5918,7 @@ const MG = {
 		},
 		rules(W, e, dt) {
 			if (e.d) return;
-			const hold = e.isMe ? !!W.inp.hold : !!e.hold;
+			const tl = e.tl || 0;
 			if (!e.st) {
 				if (e.pl === undefined) {
 					if (W.t > 4) this.tap(W, e);
@@ -5911,12 +5942,13 @@ const MG = {
 					e.pw = 0;
 				}
 			} else if (e.st === "air") {
-				/* held: the nose lifts, let go: it drops (a bit slower) */
-				e.pw += ((hold ? 2.6 : -1.6) - 1.4 * e.pw) * dt;
+				/* left held: the nose lifts, right held: it drops; nothing held: the spin dies out */
+				e.pw += (tl * 2.4 - 1.4 * e.pw) * dt;
 				e.pitch = Math.max(-1.3, Math.min(1.3, e.pitch + e.pw * dt));
 				e.z -= e.v * dt;
 				e.vz = -e.v;
-				e.vy -= 20 * dt;
+				/* low gravity in the air: bounces 25% higher with 25% more hang time to level out */
+				e.vy -= this.GRAV * dt;
 				e.y += e.vy * dt;
 				if (e.y <= this.LAND && e.vy < 0) {
 					e.y = this.LAND;
@@ -5929,9 +5961,11 @@ const MG = {
 						this.land(W, e, perf ? 1 : 0.5, true);
 						if (vy < 3) e.st = "roll";
 						else {
+							/* every bounce kicks the truck into a spin, back or forward at random, to catch */
+							const sg = Math.random() < 0.5 ? -1 : 1;
 							e.vy = vy;
-							e.pitch = 0.22;
-							e.pw = 0;
+							e.pitch = sg * (0.1 + Math.random() * 0.12);
+							e.pw = sg * (0.6 + Math.random() * 0.7);
 						}
 						fb(W, e, perf ? "PERFECT!" : "Wobbly", { tone: perf ? "good" : "", h: this.POPH });
 						if (e.isMe) sfx(perf ? "coin" : "land");
@@ -6063,6 +6097,12 @@ const MG = {
 				e.gauge.g.quaternion.copy(cam.quaternion);
 				e.gauge.set(air ? "air" : "pw", air ? e.pitch || 0 : pl === undefined ? this.pm(W.t) : pl, pl !== undefined);
 			} else if (e.gauge) e.gauge.g.visible = false;
+			/* suspension kick on every bounce: the body pops up off the wheels, then they tuck back in */
+			{
+				const sa = e.bounce && e.bounce.k ? W.t - e.bounce.t : 9,
+					amp = e.bounce && e.bounce.k > 0.5 ? 0.6 : 0.4;
+				springSet(e.tr, sa < 0.07 ? (sa / 0.07) * amp : Math.max(0, amp * (1 - (sa - 0.07) / 0.32)));
+			}
 			if (e.bounce && W.t - e.bounce.t < 0.05 && !e.bounce.fx) {
 				e.bounce.fx = true;
 				burst(W.sc, e.x, this.LAND, e.z, {
@@ -6094,10 +6134,10 @@ const MG = {
 			e.bt = (e.bt || 0) - dt;
 			if (e.bt <= 0) {
 				e.bt = 0.06 + Math.random() * 0.1 + 0.3 * (1 - e.sk);
-				e.hold = e.pitch + e.pw * (0.1 + Math.random() * 0.35) < e.aim;
+				const pr = e.pitch + e.pw * (0.15 + Math.random() * 0.35);
+				e.tl = pr < e.aim - 0.06 ? 1 : pr > e.aim + 0.06 ? -1 : 0;
 			}
 			if (e.vy > 0 && e.y < this.LAND + 0.5) e.aim = undefined;
-			return { hold: !!e.hold };
 		},
 		botScore: () => 400 + rnd(700),
 	},
