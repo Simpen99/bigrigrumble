@@ -1868,6 +1868,7 @@ const MG = {
 		name: "Concrete Crumble",
 		kind: "arena",
 		ctrl: "stick",
+		truckMode: "springs",
 		hi: true,
 		unit: "pts",
 		dur: 75,
@@ -1882,7 +1883,7 @@ const MG = {
 		deathY: -0.95,
 		sun: [13.9, 26, 12.1],
 		fx: { col: 0.14 },
-		how: "Slabs crack and sink after you drive on them. Keep moving and RAM to hop gaps. Last one up wins.",
+		how: "Slabs crack and sink after you drive on them. Keep moving; RAM into a gap hops you across. Last one up wins.",
 		/* baked props, also called by enterMg while the clouds cover the switch so their AO is ready by the start (partmodels) */
 		kits() {
 			return [
@@ -2103,6 +2104,16 @@ const MG = {
 			W.rip = ripples(W, "#A3A7AE");
 		},
 		render(W, e, dt) {
+			/* a hop pushes off on the springs: the wheels shoot down as the body pops up (counter e.f.hp for remote trucks) */
+			{
+				const hp = (e.f && e.f.hp) || 0;
+				if (hp !== (e.hpSeen || 0)) {
+					e.hpSeen = hp;
+					e.hopT = W.t;
+				}
+				const sa = W.t - (e.hopT ?? -9);
+				springSet(e.tr, sa < 0.07 ? (sa / 0.07) * 0.5 : Math.max(0, 0.5 * (1 - (sa - 0.07) / 0.3)));
+			}
 			const vy = (e.y - (e.py === undefined ? e.y : e.py)) / Math.max(dt, 0.001);
 			e.py = e.y;
 			if (!e.falling && (e.hop !== undefined || (!e.local && e.y > 0.05)) && Math.abs(vy) > 0.5)
@@ -2292,12 +2303,25 @@ const MG = {
 		rules(W, e, dt) {
 			if (!e.al || e.d || e.falling) return;
 			e.sc = Math.floor(W.t * 10);
-			// RAM = hop: a short jump that carries over gaps; nothing cracks and nobody falls while airborne
-			if (e.boostT > 0.4 && e.hop === undefined) {
-				e.hop = 7.2;
-				e.vx *= 0.7;
-				e.vz *= 0.7;
-				if (e.isMe) sfx("land");
+			/* RAM is a boost / ram; only when the boosting truck reaches an edge with a gap right ahead does it hop
+			   (springs kick), carrying it over; nothing cracks and nobody falls while airborne. Off an edge without a
+			   boost you drop */
+			if (e.boostT > 0.4) e.bstT = W.t;
+			if (e.hop === undefined && W.t - (e.bstT ?? -9) < 0.6) {
+				const sp = Math.hypot(e.vx, e.vz);
+				if (
+					sp > 1 &&
+					this.ground(W, e.x, e.z) !== null &&
+					this.ground(W, e.x + (e.vx / sp) * 0.6, e.z + (e.vz / sp) * 0.6) === null
+				) {
+					e.hop = 7.2;
+					e.bstT = -9;
+					e.vx *= 0.8;
+					e.vz *= 0.8;
+					e.f.hp = (e.f.hp || 0) + 1;
+					mgLog(W, `${mgName(e)} hops a gap`);
+					if (e.isMe) sfx("land");
+				}
 			}
 			if (e.hop !== undefined) {
 				e.y += e.hop * dt;
