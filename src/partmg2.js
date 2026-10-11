@@ -61,7 +61,7 @@ Object.assign(MG, {
 		ctrl: "custom",
 		hi: true,
 		unit: "pts",
-		dur: 45,
+		dur: 60,
 		how: "Catch the flying scoops on your cone and serve it: bigger cones pay more. Don't jerk the tower, and dodge the seagull's fish!",
 		tapHint: "Slide your finger to move the cone, flick up (or SERVE) to sell it. Keyboard: ◀ ▶ and Enter.",
 		/* TV controller: the whole phone is a slide pad (finger position = cone position), a flick up serves */
