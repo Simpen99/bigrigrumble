@@ -768,7 +768,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-11 18:36 a65a27e";
+const BUILD = "2026-10-11 20:38 4877af2";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -22247,11 +22247,11 @@ const MG = {
 		   parts [kit, cx, cy, sx, sy, sz] (kits: crate0-3, box, beam, pallet, drum; scaled from their own size) */
 		PIECES: [
 			{ n: "crate", b: [[0, 0, 1, 0.8]], d: 1, p: 3, rot: 1, parts: [["crate", 0, 0, 1, 1, 1]] },
-			{ n: "box", b: [[0, 0, 0.6, 0.6]], d: 1, p: 1.6, rot: 0, parts: [["box", 0, 0, 0.6, 0.75, 0.62]] },
+			{ n: "box", b: [[0, 0, 0.6, 0.6]], d: 1, p: 1.6, rot: 1, parts: [["box", 0, 0, 0.6, 0.75, 0.62]] },
 			{ n: "tall", b: [[0, 0, 0.8, 1.6]], d: 1, p: 1.4, rot: 1, parts: [["crate1", 0, 0, 0.8, 2, 0.9]] },
 			{ n: "beam", b: [[0, 0, 2.4, 0.3]], d: 1.4, p: 1.8, rot: 1, parts: [["beam", 0, 0, 1, 1, 1]] },
-			{ n: "pallet", b: [[0, 0, 1.8, 0.22]], d: 0.8, p: 1.3, rot: 0, parts: [["pallet", 0, 0, 1.8 / 2.4, 1, 1]] },
-			{ n: "drum", b: [[0, 0, 0.7, 1]], d: 2.4, p: 1, rot: 0, parts: [["drum", 0, 0, 1, 1, 1]] },
+			{ n: "pallet", b: [[0, 0, 1.8, 0.22]], d: 0.8, p: 1.3, rot: 1, parts: [["pallet", 0, 0, 1.8 / 2.4, 1, 1]] },
+			{ n: "drum", b: [[0, 0, 0.7, 1]], d: 2.4, p: 1, rot: 1, parts: [["drum", 0, 0, 1, 1, 1]] },
 			{
 				n: "L",
 				b: [
@@ -22271,6 +22271,7 @@ const MG = {
 		BED: 1.4 /* truck bed top */,
 		BASE: [-1.2, 1.2, 0.22] /* the pallet every truck starts with: x from, x to, height */,
 		HALF: 2.15 /* a piece stays within this of the lane centre */,
+		TOPY: 23.75 /* the trolley's rope sheaves, on the 1.5x tall gantry */,
 		CLEAR: 1.1 /* the hanging piece's bottom stays this far above the tower, however it's turned */,
 		/* baked props, also called by enterMg while the clouds cover the switch so their AO is ready by the start (partmodels) */
 		kits(n) {
@@ -22320,6 +22321,26 @@ const MG = {
 			/* one gantry crane over all lanes, legs outside the road; a trolley per lane carries the hoist */
 			const rtg = kitGroup(bakeKit(rtgModel(span)), 0);
 			rtg.position.z = -11;
+			/* half as tall again, so a tall tower doesn't reach the top beam */
+			rtg.scale.y = 1.5;
+			/* wind flags on the leg tops */
+			W.flags = [-1, 1].map((sd) => {
+				const g = new THREE.Group(),
+					fl = new THREE.Mesh(
+						new THREE.BufferGeometry().setFromPoints([
+							new THREE.Vector3(0, 0, 0),
+							new THREE.Vector3(1.6, -0.35, 0),
+							new THREE.Vector3(0, -0.7, 0),
+						]),
+						new THREE.MeshStandardMaterial({ color: "#E5484D", side: THREE.DoubleSide, roughness: 0.8 }),
+					);
+				fl.geometry.computeVertexNormals();
+				g.add(Cy(0.05, 0.05, 2.2, 6, "#C9CED8", 0, 1.1, 0), fl);
+				fl.position.y = 2.15;
+				g.position.set((sd * span) / 2, this.TOPY + 1.6, -11);
+				W.sc.add(g);
+				return fl;
+			});
 			W.sc.add(rtg);
 			placeShadows(W.sc, 1.3, 6.8, 0.3, [
 				{ x: -span / 2, z: -11 },
@@ -22331,7 +22352,9 @@ const MG = {
 				const h = new THREE.Group(),
 					sp = new THREE.Group(),
 					ropes = [];
-				h.add(kitGroup(tk, 0), sp);
+				const tg = kitGroup(tk, 0);
+				tg.position.y = this.TOPY - 15.83;
+				h.add(tg, sp);
 				sp.add(B(1.1, 0.14, 1.1, "#E0A800", 0, 0.07, 0), B(0.5, 0.25, 0.5, "#B58A00", 0, 0.265, 0));
 				[-1, 1].forEach((a) =>
 					[-1, 1].forEach((b) => sp.add(B(0.12, 0.08, 0.12, "#23272F", a * 0.48, 0.18, b * 0.48))),
@@ -22580,7 +22603,13 @@ const MG = {
 		/* feel: gravity, how fast a dropped piece may fall until it touches something (the crane lowers it), friction,
 		   damping (how quickly rocking dies down), solver passes (higher = stiffer stacks) */
 		GRAV: 12,
-		DROPV: 3.5,
+		DROPV: 5.5,
+		/* wind: a gentle push across the lane that grows with height, the same for everyone (a function of W.t); the
+		   flags on the crane legs show it */
+		WIND: 0.35,
+		wind(t) {
+			return Math.sin(t * 0.31 + 1.3) * 0.7 + Math.sin(t * 0.83) * 0.3 + Math.sin(t * 2.1 + 0.5) * 0.12;
+		},
 		FRIC: 1.2,
 		LDAMP: 0.1,
 		ADAMP: 0.8,
@@ -22721,6 +22750,16 @@ const MG = {
 					const v = q.b.getLinearVelocity();
 					if (q.fresh && v.y < -this.DROPV) q.b.setLinearVelocity(window.planck.Vec2(v.x, -this.DROPV));
 				});
+				{
+					const wv = this.wind(W.t) * this.WIND,
+						V = window.planck.Vec2;
+					e.bd.forEach((q) => {
+						if (q.lost) return;
+						const p = q.b.getPosition(),
+							h = Math.max(0, p.y - this.BED);
+						q.b.applyForceToCenter(V(wv * q.b.getMass() * (0.4 + h * 0.12), 0), true);
+					});
+				}
 				w.step(1 / 60, this.ITER[0], this.ITER[1]);
 				e.acc -= 1 / 60;
 			}
@@ -22829,7 +22868,7 @@ const MG = {
 				u = h.userData,
 				cy = (u.cy = u.cy == null ? hk - 0.4 : u.cy + (hk - 0.4 - u.cy) * (1 - Math.exp(-(dt || 0.016) * 8))),
 				rb = cy + 0.4 + 0.39,
-				RL = Math.max(0.1, 15.83 - rb),
+				RL = Math.max(0.1, this.TOPY - rb),
 				t = this.pieceAt(W, cu[0]),
 				key = t * 4 + cu[1];
 			h.position.x = x0 + hx;
@@ -22954,6 +22993,14 @@ const MG = {
 			}
 			pa.needsUpdate = true;
 			W.sea.geometry.computeVertexNormals();
+			if (W.flags) {
+				const wv = this.wind(W.t);
+				W.flags.forEach((fl) => {
+					fl.rotation.y = wv < 0 ? Math.PI : 0;
+					fl.scale.x = 0.35 + Math.min(1, Math.abs(wv)) * 0.75;
+					fl.rotation.z = Math.sin(W.t * 9) * 0.05 * Math.abs(wv);
+				});
+			}
 			const L = {},
 				o = new THREE.Object3D(),
 				[bl, br, bh] = this.BASE;
