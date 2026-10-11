@@ -768,7 +768,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-11 22:27 b372fa2";
+const BUILD = "2026-10-11 22:32 7a5c5b4";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -29751,7 +29751,10 @@ Object.assign(MG, {
 		unit: "pts",
 		dur: 70,
 		bare: true,
-		sun: [10, 34, 30],
+		/* the light panel's values (2026-10-11): low sun straight in front, bright fill */
+		sun: [0, 9, 31.6],
+		lt: { amb: 0.84, sun: 0.44, warm: 0.28, haze: 70 },
+		fx: { col: 0.06 },
 		how: "Roll down the peg board 3 times in your ball; the slots' points add up. Steer, hop off the pegs, catch the sliding ×3!",
 		tvHint: "Hold LEFT / RIGHT to move the magnet, then to steer as you fall. Middle: drop, then hop off pegs.",
 		tapHint:
@@ -29968,10 +29971,22 @@ Object.assign(MG, {
 				s.add(g);
 				return g;
 			});
-			/* x2 gates: a green light strip across the gap, the x2 on the board under it */
+			/* x2 gates: a green light strip across the gap with a soft glow round it (additive halos in front and on the
+			   board, so it glows on the TV too, where the post effects are off), the x2 on the board under it */
+			const halo = canvasTex(256, 128, (x, w, h) => {
+				const g = x.createRadialGradient(w / 2, h / 2, 4, w / 2, h / 2, h / 2);
+				g.addColorStop(0, "rgba(140,255,190,0.9)");
+				g.addColorStop(0.35, "rgba(70,230,140,0.45)");
+				g.addColorStop(1, "rgba(40,200,110,0)");
+				x.save();
+				x.scale(w / h, 1);
+				x.fillStyle = g;
+				x.fillRect(0, 0, h, h);
+				x.restore();
+			});
 			W.gateM = W.gates.map((q) => {
 				const m = new THREE.MeshBasicMaterial({
-						color: "#3DDC84",
+						color: "#8CFFC0",
 						transparent: true,
 						opacity: 0.55,
 						depthWrite: false,
@@ -29993,9 +30008,22 @@ Object.assign(MG, {
 					);
 				st.position.set(q.x, q.y, -0.3);
 				st.renderOrder = 1;
+				const hm = new THREE.MeshBasicMaterial({
+					map: halo,
+					transparent: true,
+					opacity: 0.8,
+					blending: THREE.AdditiveBlending,
+					depthWrite: false,
+				});
+				[1.35, -1.6].forEach((z, j) => {
+					const p = new THREE.Mesh(new THREE.PlaneGeometry(q.w + (j ? 1.6 : 0.8), j ? 2.2 : 1.3), hm);
+					p.position.set(q.x, q.y, z);
+					p.renderOrder = 4;
+					s.add(p);
+				});
 				lb.position.set(q.x, q.y - 0.95, -1.64);
 				s.add(st, lb);
-				return { m, fl: -9 };
+				return { m, hm, fl: -9 };
 			});
 			pg.forEach(([x, y]) => {
 				const p = Cy(0.26, 0.26, 3, 10, "#C9CED8", x, y, -0.25);
@@ -30660,7 +30688,8 @@ Object.assign(MG, {
 			W.gateM.forEach((g) => {
 				const k = Math.max(0, 1 - (W.t - g.fl) / 0.6);
 				g.m.opacity = 0.6 + 0.15 * Math.sin(W.t * 4) + k * 0.4;
-				g.m.color.set(k > 0.5 ? "#E8FFF2" : "#3DDC84");
+				g.hm.opacity = 0.65 + 0.2 * Math.sin(W.t * 4) + k * 0.35;
+				g.m.color.set(k > 0.5 ? "#E8FFF2" : "#8CFFC0");
 			});
 			const mp = this.mpos(W.t),
 				ms = Math.round(mp);
