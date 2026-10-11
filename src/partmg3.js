@@ -1836,9 +1836,9 @@ Object.assign(MG, {
 		FLOOR: 0.12,
 		DW: 0.24,
 		GY: -2.6,
-		R: 1.45 /* the ball */,
-		TS: 0.75 /* the truck's scale inside it */,
-		WB: 1.08 /* the truck's wheels this far below the ball's centre */,
+		R: 1.23 /* the ball */,
+		TS: 0.64 /* the truck's scale inside it */,
+		WB: 0.92 /* the truck's wheels this far below the ball's centre */,
 		TOPY: 24.8 /* a hanging ball's centre */,
 		CEIL: 27 /* just under the magnet rail */,
 		RAIL: 27.9,
@@ -2355,31 +2355,42 @@ Object.assign(MG, {
 			if (e.st !== 3) fb(W, e, `${e.sc}`, { stamp: true });
 		},
 		fmt: (W, e) => `${e.sc} pts · drop ${Math.min(MG.plinko.DROPS, e.dn + 1)}/${MG.plinko.DROPS}`,
-		/* phone mode: follows your truck (portrait sees about 12 m across), the whole board once you're done */
+		/* the share of the screen's height the buttons cover at the bottom (phone mode; the board is framed above them) */
+		btmCover(W) {
+			if (W.split || W.tv) return 0;
+			const el = document.querySelector("#mg .rjctl");
+			if (!el || !GFX.h) return 0.26;
+			const r = el.getBoundingClientRect();
+			return r.height ? Math.max(0, Math.min(0.45, (GFX.h - r.top) / GFX.h)) : 0;
+		},
+		/* phone mode: follows your truck (portrait sees about 12 m across) in the part of the screen over the buttons,
+		   the whole board once you're done */
 		cam(W, tgt, pos, far) {
 			const e = W.me,
 				asp = GFX.w / GFX.h,
-				tn = Math.tan((20 * Math.PI) / 180);
-			if (e.st === 3) return this.tvsCam(W, asp);
+				tn = Math.tan((20 * Math.PI) / 180),
+				b = this.btmCover(W);
+			if (e.st === 3) return this.tvsCam(W, asp, 0, b);
 			const [cx, cy] = this.ctr(e),
-				D = asp < 1 ? 34 : 27,
+				D = asp < 1 ? 34 : 30,
 				hw = D * tn * asp,
 				hh = D * tn,
+				sh = hh * b /* the camera aims this much lower, so the free part's middle sits on the truck */,
 				mx = this.HW + 1 - hw,
-				lo = this.GY + hh - 0.6,
+				lo = this.GY - 0.5 + hh * (1 - b) - sh,
 				hi = this.HDR + 0.6 - hh,
 				x = mx <= 0 ? 0 : Math.max(-mx, Math.min(mx, cx)),
-				y = lo > hi ? (lo + hi) / 2 : Math.max(lo, Math.min(hi, cy)),
+				y = lo > hi ? (lo + hi) / 2 : Math.max(lo, Math.min(hi, cy - sh)),
 				t = new THREE.Vector3(x, y, 0);
 			return [t, t.clone().add(new THREE.Vector3(0, D * 0.1, D))];
 		},
 		/* the TV: the whole board, the parked trucks beside it */
-		tvsCam(W, a) {
+		tvsCam(W, a, halfW, b = 0) {
 			const tn = Math.tan((20 * Math.PI) / 180),
 				y0 = this.GY - 0.4,
 				y1 = this.HDR + 1,
-				D = Math.max((y1 - y0) / 2 / tn, (this.HW + 7) / (tn * a)) * 1.04,
-				t = new THREE.Vector3(0, (y0 + y1) / 2, 0);
+				D = Math.max((y1 - y0) / 2 / (1 - b) / tn, (this.HW + 7) / (tn * a)) * 1.04,
+				t = new THREE.Vector3(0, (y0 + y1) / 2 - D * tn * b, 0);
 			return [t, t.clone().add(new THREE.Vector3(0, D * 0.08, D))];
 		},
 		render(W, e, dt) {
