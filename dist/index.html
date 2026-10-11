@@ -765,7 +765,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-11 01:33 dd85f63";
+const BUILD = "2026-10-11 12:33 5c9e690";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -22005,15 +22005,15 @@ const MG = {
 		timeUp(W, e) {
 			if (e.st !== "land") e.sc = Math.max(0, Math.round(-(e.z + 60.4) * 10));
 		},
-		/* the camera rises with the truck (and backs off a little) so high jumps stay in view */
+		/* phone mode: like the TV, from high up at the side so the nose angle reads on the truck itself; a portrait
+		   screen is too narrow for room ahead, so it swings further behind (the truck heads diagonally into the screen).
+		   It aims 0.25 s ahead (the camera's easing lag) plus 3 m (1.5 m in portrait), and rises with the truck */
 		cam(W, tgt, pos, far) {
-			/* sideways screens see less height, so they rise and back off more */
-			const y = Math.max(0, (W.me.y || 0) - this.LAND),
-				k = far > 1 ? 1 : 1.8;
-			tgt.y += y * 1.3 * k;
-			pos.y += y * 0.9;
-			pos.z += y * 1.3 * far * k;
-			return [tgt, pos];
+			const e = W.me,
+				port = GFX.w < GFX.h,
+				dir = (port ? new THREE.Vector3(0.4, 0.62, 0.68) : new THREE.Vector3(0.72, 0.6, 0.34)).normalize(),
+				t = new THREE.Vector3(e.x, 1 + (e.y || 0) * 0.7, e.z + (e.vz || 0) * 0.25 - (port ? 1.5 : 3));
+			return [t, t.clone().addScaledVector(dir, 12.2 * far * (port ? 1.15 : 1))];
 		},
 		/* the TV's shared view: high up at the side and a little behind, so the nose angle reads, framing the trucks
 		   still in their run-up or jump (a truck drops out for good once it is past the ramp, on the ground and below
