@@ -65,6 +65,27 @@ sizes on the TV and on phones (`camK` in `fbStep`: size follows the camera dista
 - Weak spot (glowing rear, TNT from behind = double damage), revive knocked-out teammates from the mud edge.
 - Hazards in later phases (stage fire jets in phase 2, mud geysers in phase 3), desperation spin at 1 HP, RC minion trucks in phase 2.
 
+## Minigame reworks and new games (user's list, 2026-10-11)
+- **Crate Drop → "build the highest tower"** (strategy, NEXT to build): no crate limit, only the timer; the tallest
+  tower at the end wins; a collapse costs the pieces that fall but you keep building (no knockout). Mixed pieces: crates, wide pallets (start with one on the truck so crates can sit side by side), long beams,
+  small boxes (fill gaps), maybe a heavy steel drum (stable once placed) and a light barrel that rolls. The crane no
+  longer swings by itself: TV controller like Scoop Stack (slider on the left moves the crane, DROP on the right).
+  My notes: height scored at the end (or live tallest), a "next piece" preview on the crane so placing is a plan, a
+  small wind gust now and then to test stability; reuse `crateModel` / `plankBox`.
+- **Drift Race → kart racer**: chase camera (3rd person), several laps, item boxes (Mario Kart style: boost, oil
+  slick, bumper/shell-like homing tyre, shield). My notes: TV split (each player their own view, 2-4 cells) since a
+  shared overhead view doesn't work in 3rd person; items synced as events via `e.f` like Drift King's steals; CPUs
+  get rubber-banding light.
+- **Plinko**: trucks (or the player's token) drop down a pegboard into scoring slots; players nudge left/right once
+  or twice on the way, or bump each other. Short, party-friendly, good for TV.
+- **Bomberman** (grid arena): trucks drop dynamite (reuse Hot Load's bundle), destructible crates hide power-ups
+  (range, extra bomb, speed); last truck standing. Stick + DROP button; works in one shared TV view.
+- **Chaos destruction mode** (user wants: lots of weapons blowing up terrain and enemies, maybe 3rd person; rethinking
+  the Worms idea, see the options discussed 2026-10-11). Plinko after Crate Drop, but interactive, not pure RNG.
+- **Worms-like** on a destructible 2.5D map (longer than usual, maybe 3-5 min): turns, aim + power, a few weapons,
+  wind; terrain as a heightmap / voxel slab that craters. Turn-based fits TV well (everyone watches one shot). Needs
+  a bigger build: destructible terrain mesh, projectile sim on the host, turn timer.
+
 ## Minigames picked (to build)
 - Team game ideas: Paint the Lot: Teams (2v2, cheapest), Getaway (1v3: armoured cash truck, reverse Mash), Tow Rope Tug-of-War (2v2), Relay Delivery (2v2), Wrecking Ball (1v3 on the Mud Bowl), Traffic Cop (1v3). 1v2 needs spaceSplit to allow 3 trucks.
 - Done: Hot Load (`hotload`, partmg3), Paint the Lot (`paint`, partmg3), team mode + Monster Mash (`mash`, partmg3, 1v3).

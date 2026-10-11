@@ -105,7 +105,8 @@ function chamferPrism(P, d, r, cs) {
    {x, y, s, host}: where the rig sits (truck coords, front at +x), its scale, and the group to add it to */
 function buildTruck(i, mode) {
 	const hose = mode === "hose",
-		mon = mode === "monster";
+		mon = mode === "monster",
+		springs = mode === "springs";
 	const B = (w, h, d, c, x, y, z, o) => {
 		let sq = null;
 		if (o && o.sq) {
@@ -699,8 +700,34 @@ function buildTruck(i, mode) {
 		roof.forEach((o) => o.parent && o.parent.remove(o));
 		g.userData.mount = mount;
 	}
-	mergeTruck(g);
+	/* springs (Ramp Jump): the wheels stay whole groups so they can shoot down on a bounce (springSet), each with a
+	   shock rod up to the chassis that only shows while extended */
+	if (springs)
+		g.userData.springs = wheelsL.map(({ g: wg }) => {
+			const rod = Cy(0.06, 0.06, 1, 8, "#4A5263", wg.position.x, wg.position.y, wg.position.z * 0.86);
+			rod.userData.dyn = true;
+			rod.visible = false;
+			g.add(rod);
+			return { wg, y0: wg.position.y, rod };
+		});
+	mergeTruck(g, springs);
 	return g;
+}
+/* Ramp Jump's suspension kick: the body rises by ext (world units, the truck scaled 0.8 in minigames) while the
+   wheels stay on the ground below it, shock rods showing */
+function springSet(tr, ext) {
+	const sp = tr.userData.springs;
+	tr.position.y = ext;
+	if (!sp) return;
+	const k = ext / (tr.scale.y || 1);
+	sp.forEach(({ wg, y0, rod }) => {
+		wg.position.y = y0 - k;
+		rod.visible = k > 0.02;
+		if (rod.visible) {
+			rod.scale.y = k + 0.12;
+			rod.position.y = y0 - k / 2 + 0.06;
+		}
+	});
 }
 /* monster mode (Monster Mash's boss): the truck's own body, paint a shade darker, lifted on long shocks over huge
    treaded tyres with spiked hubs, a toothed bull bar, red glowing eyes under angry brows, and exhaust stacks with flames */
@@ -864,14 +891,15 @@ function B_(w, h, d, c, x, y, z) {
    50-70 meshes to about 15, and the shadow pass with it). Meshes with userData (dyn: moved or toggled on their own)
    stay as they are, and so do moving groups (they merge inside). Wheels keep only the spoke turning: tyre, hub and cap
    look the same at any angle, so they join the static body. */
-function mergeTruck(g) {
+function mergeTruck(g, keepWheels) {
 	g.updateMatrixWorld(true);
-	(g.userData.wheels || []).forEach(({ g: wg }) =>
-		wg.children.slice(0, 3).forEach((m) => {
-			m.applyMatrix4(wg.matrix);
-			g.add(m);
-		}),
-	);
+	if (!keepWheels)
+		(g.userData.wheels || []).forEach(({ g: wg }) =>
+			wg.children.slice(0, 3).forEach((m) => {
+				m.applyMatrix4(wg.matrix);
+				g.add(m);
+			}),
+		);
 	mergeMeshes(g);
 }
 /* the merge itself, for anything bolted onto a truck later too (Dump Run's tipper bed). Plain parts (no paint, glow,

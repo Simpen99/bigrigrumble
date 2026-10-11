@@ -308,8 +308,8 @@ function revDial(zone, perf) {
 		},
 	};
 }
-/* Ramp Jump gauge above the truck: a power bar on the run-up (marker swings until locked), then a level meter in the
-   air (a truck side view tilting with the pitch over a horizon line; the rim turns green when level enough to bounce) */
+/* Ramp Jump gauge above the truck: a power bar on the run-up (marker swings until locked), then in the air the same
+   level bar as the phone (marker right = nose up; the frame turns green when level enough to bounce) */
 function rampGauge(lv) {
 	const g = new THREE.Group(),
 		bm = (c) => new THREE.MeshBasicMaterial({ color: c }),
@@ -330,25 +330,31 @@ function rampGauge(lv) {
 	const mk = new THREE.Mesh(new THREE.PlaneGeometry(0.78, 0.12), bm("#F4F6F9"));
 	mk.position.z = 0.08;
 	pw.add(mk);
-	const back = new THREE.Mesh(new THREE.CircleGeometry(1, 28), bm("#23272F"));
-	ai.add(back);
-	const rim = new THREE.Mesh(new THREE.RingGeometry(1, 1.14, 32), bm("#F4F6F9"));
-	ai.add(rim);
-	const hz = new THREE.Mesh(new THREE.PlaneGeometry(1.7, 0.07), bm("#8E96A3"));
-	hz.position.z = 0.04;
-	ai.add(hz);
-	const tk = new THREE.Group();
-	tk.position.z = 0.08;
+	/* in the air: the phone's level bar (red | amber | green | amber | red), the marker follows the nose (right = up) */
+	const frame = new THREE.Mesh(new THREE.PlaneGeometry(2.86, 0.66), bm("#F4F6F9"));
+	frame.position.z = -0.03;
+	ai.add(frame);
+	ai.add(new THREE.Mesh(new THREE.PlaneGeometry(2.7, 0.5), bm("#23272F")));
+	const BW = 2.5,
+		zx = (v) => (v - 0.5) * BW;
+	const lv0 = 0.5 - lv[1] / 1.2,
+		lv1 = 0.5 - lv[0] / 1.2;
 	[
-		[0.9, 0.32, -0.08, 0.04, "#FFC83D", 0],
-		[0.36, 0.3, 0.34, 0.3, "#E0A800", 0.04],
-		[0.2, 0.2, -0.36, -0.2, "#151B24", 0.04],
-		[0.2, 0.2, 0.3, -0.2, "#151B24", 0.04],
-	].forEach(([w, h, x, y, c, z]) => {
-		const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), bm(c));
-		m.position.set(x, y, z);
-		tk.add(m);
+		[0, lv0, "#E5484D"],
+		[lv0, lv1, "#FFC83D"],
+		[lv1, 1 - lv1, "#1FA35C"],
+		[1 - lv1, 1 - lv0, "#FFC83D"],
+		[1 - lv0, 1, "#E5484D"],
+	].forEach(([p, q, c]) => {
+		const m = new THREE.Mesh(new THREE.PlaneGeometry((q - p) * BW, 0.34), bm(c));
+		m.position.set((zx(p) + zx(q)) / 2, 0, 0.04);
+		ai.add(m);
 	});
+	const tk = new THREE.Mesh(new THREE.PlaneGeometry(0.13, 0.62), bm("#F4F6F9"));
+	tk.position.z = 0.08;
+	const tkE = new THREE.Mesh(new THREE.PlaneGeometry(0.21, 0.7), bm("#151B24"));
+	tkE.position.z = -0.01;
+	tk.add(tkE);
 	ai.add(tk);
 	return {
 		g,
@@ -359,9 +365,9 @@ function rampGauge(lv) {
 				mk.position.y = -0.9 + Math.max(0, Math.min(1, v)) * 1.8;
 				mk.material.color.set(locked ? "#7CF0A8" : "#F4F6F9");
 			} else {
-				tk.rotation.z = v;
+				tk.position.x = Math.max(-0.5, Math.min(0.5, v / 1.2)) * BW;
 				const a = Math.abs(v);
-				rim.material.color.set(a <= lv[0] ? "#7CF0A8" : a <= lv[1] ? "#FFC83D" : "#E5484D");
+				frame.material.color.set(a <= lv[0] ? "#7CF0A8" : a <= lv[1] ? "#FFC83D" : "#E5484D");
 			}
 		},
 	};
@@ -1862,6 +1868,7 @@ const MG = {
 		name: "Concrete Crumble",
 		kind: "arena",
 		ctrl: "stick",
+		truckMode: "springs",
 		hi: true,
 		unit: "pts",
 		dur: 75,
@@ -1876,7 +1883,7 @@ const MG = {
 		deathY: -0.95,
 		sun: [13.9, 26, 12.1],
 		fx: { col: 0.14 },
-		how: "Slabs crack and sink after you drive on them. Keep moving and RAM to hop gaps. Last one up wins.",
+		how: "Slabs crack and sink after you drive on them. Keep moving; RAM into a gap hops you across. Last one up wins.",
 		/* baked props, also called by enterMg while the clouds cover the switch so their AO is ready by the start (partmodels) */
 		kits() {
 			return [
@@ -2097,6 +2104,16 @@ const MG = {
 			W.rip = ripples(W, "#A3A7AE");
 		},
 		render(W, e, dt) {
+			/* a hop pushes off on the springs: the wheels shoot down as the body pops up (counter e.f.hp for remote trucks) */
+			{
+				const hp = (e.f && e.f.hp) || 0;
+				if (hp !== (e.hpSeen || 0)) {
+					e.hpSeen = hp;
+					e.hopT = W.t;
+				}
+				const sa = W.t - (e.hopT ?? -9);
+				springSet(e.tr, sa < 0.07 ? (sa / 0.07) * 0.5 : Math.max(0, 0.5 * (1 - (sa - 0.07) / 0.3)));
+			}
 			const vy = (e.y - (e.py === undefined ? e.y : e.py)) / Math.max(dt, 0.001);
 			e.py = e.y;
 			if (!e.falling && (e.hop !== undefined || (!e.local && e.y > 0.05)) && Math.abs(vy) > 0.5)
@@ -2286,12 +2303,25 @@ const MG = {
 		rules(W, e, dt) {
 			if (!e.al || e.d || e.falling) return;
 			e.sc = Math.floor(W.t * 10);
-			// RAM = hop: a short jump that carries over gaps; nothing cracks and nobody falls while airborne
-			if (e.boostT > 0.4 && e.hop === undefined) {
-				e.hop = 7.2;
-				e.vx *= 0.7;
-				e.vz *= 0.7;
-				if (e.isMe) sfx("land");
+			/* RAM is a boost / ram; only when the boosting truck reaches an edge with a gap right ahead does it hop
+			   (springs kick), carrying it over; nothing cracks and nobody falls while airborne. Off an edge without a
+			   boost you drop */
+			if (e.boostT > 0.4) e.bstT = W.t;
+			if (e.hop === undefined && W.t - (e.bstT ?? -9) < 0.6) {
+				const sp = Math.hypot(e.vx, e.vz);
+				if (
+					sp > 1 &&
+					this.ground(W, e.x, e.z) !== null &&
+					this.ground(W, e.x + (e.vx / sp) * 0.6, e.z + (e.vz / sp) * 0.6) === null
+				) {
+					e.hop = 7.2;
+					e.bstT = -9;
+					e.vx *= 0.8;
+					e.vz *= 0.8;
+					e.f.hp = (e.f.hp || 0) + 1;
+					mgLog(W, `${mgName(e)} hops a gap`);
+					if (e.isMe) sfx("land");
+				}
 			}
 			if (e.hop !== undefined) {
 				e.y += e.hop * dt;
@@ -5781,15 +5811,19 @@ const MG = {
 	ramp: {
 		name: "Ramp Jump",
 		kind: "lane",
-		ctrl: "tap",
+		ctrl: "custom",
+		truckMode: "springs",
 		hi: true,
 		unit: "dm",
 		dur: 26,
 		tapLabel: "LOCK POWER",
-		tvHint: "Tap your phone to lock the power. In the air: hold to lift the nose, let go to drop it.",
+		tvHint: "Tap either side to lock the power. In the air: hold LEFT to tilt back, RIGHT to tilt forward.",
 		LAND: 0.75,
-		tapHint: "Tap to lock the power, then in the air hold to lift the nose and let go to drop it.",
+		tapHint: "Tap either button to lock the power. In the air: hold ◀ to tilt back, ▶ to tilt forward (arrow keys).",
 		how: "Lock in the power, then keep your truck level in the air. Land level to bounce on; furthest wins.",
+		/* pop-ups start above the gauge (gauge centre 3.5 over the truck, power bar top ~4.4) */
+		POPH: 4.6,
+		GRAV: 16,
 		/* landing: |pitch| up to LV[0] = perfect, LV[1] = a weak bounce, more = crash */
 		LV: [0.2, 0.45],
 		/* the power meter swings 0..1..0 every 2.2 s, the same for everyone */
@@ -5856,13 +5890,43 @@ const MG = {
 				: e.st === "air"
 					? `${Math.max(0, -(e.z + 60.4)).toFixed(0)} m`
 					: `${Math.round(e.v || 0)} km/h`,
-		/* one tap locks the run-up power; in the air the button is held (W.inp.hold) to lift the nose */
+		/* two buttons: left tilts back (nose up), right tilts forward; e.tl = +1 / -1 / 0 while held. A press during
+		   the run-up locks the power */
+		ctlHTML() {
+			return `<div class="rjctl"><button class="rjb" id="rjl" style="--bc:#2F7DE1" aria-label="Tilt back"><i>◀</i><b>BACK</b></button><button class="rjb" id="rjr" style="--bc:#E5484D" aria-label="Tilt forward"><b>FORWARD</b><i>▶</i></button></div>`;
+		},
+		press(W, side, on) {
+			if (!W || !W.me) return;
+			const e = W.me;
+			e.tb = e.tb || {};
+			e.tb[side] = on;
+			e.tl = (e.tb.l ? 1 : 0) - (e.tb.r ? 1 : 0);
+			if (on && W.t >= 0 && !e.d) this.tap(W, e);
+		},
+		wire() {
+			cxWireBtn(
+				document.getElementById("rjl"),
+				() => MG.ramp.press(W, "l", true),
+				() => MG.ramp.press(W, "l", false),
+			);
+			cxWireBtn(
+				document.getElementById("rjr"),
+				() => MG.ramp.press(W, "r", true),
+				() => MG.ramp.press(W, "r", false),
+			);
+		},
+		onKey(W, k, down) {
+			if (k === "arrowleft" || k === "a") this.press(W, "l", down);
+			else if (k === "arrowright" || k === "d") this.press(W, "r", down);
+			else if (down && [" ", "enter", "w", "arrowup"].includes(k)) this.tap(W, W.me);
+		},
 		tap(W, e) {
 			if (e.st || e.pl !== undefined) return;
 			e.pl = this.pm(W.t);
 			e.f.pl = Math.round(e.pl * 100) / 100;
 			mgLog(W, `${mgName(e)} locks ${Math.round(e.pl * 100)}% power`);
 			fb(W, e, e.pl > 0.92 ? "MAX POWER!" : e.pl > 0.7 ? "Good power" : "Weak run-up", {
+				h: this.POPH,
 				tone: e.pl > 0.92 ? "good" : e.pl > 0.7 ? "" : "bad",
 			});
 			if (e.isMe) sfx(e.pl > 0.92 ? "coin" : "click");
@@ -5878,7 +5942,7 @@ const MG = {
 		},
 		rules(W, e, dt) {
 			if (e.d) return;
-			const hold = e.isMe ? !!W.inp.hold : !!e.hold;
+			const tl = e.tl || 0;
 			if (!e.st) {
 				if (e.pl === undefined) {
 					if (W.t > 4) this.tap(W, e);
@@ -5902,12 +5966,13 @@ const MG = {
 					e.pw = 0;
 				}
 			} else if (e.st === "air") {
-				/* held: the nose lifts, let go: it drops (a bit slower) */
-				e.pw += ((hold ? 2.6 : -1.6) - 1.4 * e.pw) * dt;
+				/* left held: the nose lifts, right held: it drops; nothing held: the spin dies out */
+				e.pw += (tl * 2.4 - 1.4 * e.pw) * dt;
 				e.pitch = Math.max(-1.3, Math.min(1.3, e.pitch + e.pw * dt));
 				e.z -= e.v * dt;
 				e.vz = -e.v;
-				e.vy -= 20 * dt;
+				/* low gravity in the air: bounces 25% higher with 25% more hang time to level out */
+				e.vy -= this.GRAV * dt;
 				e.y += e.vy * dt;
 				if (e.y <= this.LAND && e.vy < 0) {
 					e.y = this.LAND;
@@ -5920,11 +5985,13 @@ const MG = {
 						this.land(W, e, perf ? 1 : 0.5, true);
 						if (vy < 3) e.st = "roll";
 						else {
+							/* every bounce kicks the truck into a spin, back or forward at random, to catch */
+							const sg = Math.random() < 0.5 ? -1 : 1;
 							e.vy = vy;
-							e.pitch = 0.22;
-							e.pw = 0;
+							e.pitch = sg * (0.1 + Math.random() * 0.12);
+							e.pw = sg * (0.6 + Math.random() * 0.7);
 						}
-						fb(W, e, perf ? "PERFECT!" : "Wobbly", { tone: perf ? "good" : "" });
+						fb(W, e, perf ? "PERFECT!" : "Wobbly", { tone: perf ? "good" : "", h: this.POPH });
 						if (e.isMe) sfx(perf ? "coin" : "land");
 					} else {
 						e.st = "land";
@@ -5959,18 +6026,82 @@ const MG = {
 		timeUp(W, e) {
 			if (e.st !== "land") e.sc = Math.max(0, Math.round(-(e.z + 60.4) * 10));
 		},
-		/* the camera rises with the truck (and backs off a little) so high jumps stay in view */
+		/* phone mode: like the TV, from high up at the side so the nose angle reads on the truck itself; a portrait
+		   screen is too narrow for room ahead, so it swings further behind (the truck heads diagonally into the screen).
+		   It aims 0.25 s ahead (the camera's easing lag) plus 3 m (1.5 m in portrait), and rises with the truck */
 		cam(W, tgt, pos, far) {
-			/* sideways screens see less height, so they rise and back off more */
-			const y = Math.max(0, (W.me.y || 0) - this.LAND),
-				k = far > 1 ? 1 : 1.8;
-			tgt.y += y * 1.3 * k;
-			pos.y += y * 0.9;
-			pos.z += y * 1.3 * far * k;
-			return [tgt, pos];
+			const e = W.me,
+				port = GFX.w < GFX.h,
+				dir = (port ? new THREE.Vector3(0.4, 0.62, 0.68) : new THREE.Vector3(0.72, 0.6, 0.34)).normalize(),
+				t = new THREE.Vector3(e.x, 1 + (e.y || 0) * 0.7, e.z + (e.vz || 0) * 0.25 - (port ? 1.5 : 3));
+			return [t, t.clone().addScaledVector(dir, 12.2 * far * (port ? 1.15 : 1))];
+		},
+		/* the TV's shared view: high up at the side and a little behind, so the nose angle reads, framing the trucks
+		   still in their run-up or jump (a truck drops out for good once it is past the ramp, on the ground and below
+		   6 m/s; at the end the furthest truck); a truck left off screen gets a pill at the edge (edgePill) */
+		tvsCam(W, a, halfW) {
+			W.list.forEach((e) => {
+				if (!e.camOut && W.t > 0 && (e.d || (e.z < -61 && (e.y || 0) <= this.LAND + 0.3 && Math.abs(e.vz || 0) < 6)))
+					e.camOut = true;
+			});
+			let es = W.list.filter((e) => !e.gone && !e.camOut);
+			/* everyone done: stay on the furthest truck (the others have their edge pills) */
+			if (!es.length)
+				es = W.list
+					.filter((e) => !e.gone)
+					.sort((p, q) => p.z - q.z)
+					.slice(0, 1);
+			/* aim where the trucks will be in 0.25 s (the camera eases in with about that lag, so a fast truck would
+			   otherwise run off the front), with more room ahead (7 m) than behind (3 m) */
+			const zs = es.map((e) => e.z + (e.vz || 0) * 0.25),
+				z0 = Math.min(...zs) - 7,
+				z1 = Math.max(...zs) + 3,
+				yc = es.reduce((t, e) => t + (e.y || 0), 0) / Math.max(1, es.length),
+				tn = Math.tan((20 * Math.PI) / 180),
+				D = Math.max(12.2, (z1 - z0) / 2 / (tn * a), ((halfW + 4) / tn) * 0.68),
+				tgt = new THREE.Vector3(0, 1 + yc * 0.7, (z0 + z1) / 2);
+			return [tgt, tgt.clone().addScaledVector(new THREE.Vector3(0.72, 0.6, 0.34).normalize(), D)];
+		},
+		/* TV shared view: a truck off the edge of the screen gets a pill in its own lane at that edge, in its colour,
+		   with how far it is behind the leader (or ahead, for a truck that stopped further on) */
+		edgePill(W, e) {
+			const T = typeof TVS !== "undefined" && TVS,
+				cam = T && T.mode === "shared" && T.scam;
+			let show = false;
+			if (cam && W === T.worlds[0].W && !e.gone && e.g.visible) {
+				const p = new THREE.Vector3(e.x, (e.y || 0) + 1, e.z).project(cam);
+				if (Math.abs(p.x) > 1.02 && p.z < 1) {
+					const live = W.list.filter((o) => !o.gone && !o.camOut),
+						lead = Math.min(...(live.length ? live : W.list.filter((o) => !o.gone)).map((o) => o.z)),
+						side = p.x < 0 ? -1 : 1,
+						d = Math.max(0, Math.round(side < 0 ? e.z - lead : lead - e.z)),
+						txt = side < 0 ? `◀ ${d} m` : `${d} m ▶`;
+					/* walk along the lane to where it meets the screen edge */
+					let a = e.z,
+						b = T.st ? T.st.z : e.z,
+						y = 1.2;
+					for (let k = 0; k < 14; k++) {
+						const m = (a + b) / 2,
+							q = new THREE.Vector3(e.x, y, m).project(cam);
+						if (Math.abs(q.x) > 0.88) a = m;
+						else b = m;
+					}
+					if (!e.pill) {
+						e.pill = pillSprite();
+						W.sc.add(e.pill.sp);
+					}
+					e.pill.set(txt, pcol(e.p));
+					e.pill.sp.position.set(e.x, y, b);
+					const h = cam.position.distanceTo(e.pill.sp.position) * 0.035;
+					e.pill.sp.scale.set(h * 3, h, 1);
+					show = true;
+				}
+			}
+			if (e.pill) e.pill.sp.visible = show;
 		},
 		render(W, e, dt) {
 			if (!e.local) e.pitch = (e.f && e.f.pt) || 0;
+			this.edgePill(W, e);
 			const bn = (e.f && e.f.bn) || 0;
 			if (!e.local && bn !== (e.bnSeen || 0)) {
 				e.bnSeen = bn;
@@ -5990,6 +6121,12 @@ const MG = {
 				e.gauge.g.quaternion.copy(cam.quaternion);
 				e.gauge.set(air ? "air" : "pw", air ? e.pitch || 0 : pl === undefined ? this.pm(W.t) : pl, pl !== undefined);
 			} else if (e.gauge) e.gauge.g.visible = false;
+			/* suspension kick on every bounce: the body pops up off the wheels, then they tuck back in */
+			{
+				const sa = e.bounce && e.bounce.k ? W.t - e.bounce.t : 9,
+					amp = e.bounce && e.bounce.k > 0.5 ? 0.6 : 0.4;
+				springSet(e.tr, sa < 0.07 ? (sa / 0.07) * amp : Math.max(0, amp * (1 - (sa - 0.07) / 0.32)));
+			}
 			if (e.bounce && W.t - e.bounce.t < 0.05 && !e.bounce.fx) {
 				e.bounce.fx = true;
 				burst(W.sc, e.x, this.LAND, e.z, {
@@ -6021,10 +6158,10 @@ const MG = {
 			e.bt = (e.bt || 0) - dt;
 			if (e.bt <= 0) {
 				e.bt = 0.06 + Math.random() * 0.1 + 0.3 * (1 - e.sk);
-				e.hold = e.pitch + e.pw * (0.1 + Math.random() * 0.35) < e.aim;
+				const pr = e.pitch + e.pw * (0.15 + Math.random() * 0.35);
+				e.tl = pr < e.aim - 0.06 ? 1 : pr > e.aim + 0.06 ? -1 : 0;
 			}
 			if (e.vy > 0 && e.y < this.LAND + 0.5) e.aim = undefined;
-			return { hold: !!e.hold };
 		},
 		botScore: () => 400 + rnd(700),
 	},

@@ -298,8 +298,6 @@ body.trin #mg .m3top{animation:trtop .6s .35s ease-out both}body.trin #mg .m3lb,
 .tp-pedal.hot{border-color:var(--yellow)!important;box-shadow:0 0 0 3px var(--yellow),0 0 34px rgba(255,200,61,.55)!important}
 .tp-rev{position:absolute;left:18px;right:18px;top:20px;height:16px;border-radius:8px;background:linear-gradient(90deg,rgba(255,255,255,.12) 0 82%,#1FA35C 82% 95%,#E5484D 95%);box-shadow:inset 0 0 0 1px rgba(255,255,255,.1)}
 .tp-rev i{position:absolute;top:-5px;bottom:-5px;left:calc(var(--p,0) * 100% - 3px);width:6px;border-radius:3px;background:#FFC83D;box-shadow:0 0 0 2px #151B24}
-.tp-air[data-m=pw] .tp-rev{background:linear-gradient(90deg,#E5484D 0 50%,#FFC83D 50% 80%,#1FA35C 80%)}
-.tp-air[data-m=att] .tp-rev{background:linear-gradient(90deg,#E5484D 0 12.5%,#FFC83D 12.5% 33.3%,#1FA35C 33.3% 66.7%,#FFC83D 66.7% 87.5%,#E5484D 87.5%)}
 .tp-pedal.hot .tp-lab{color:#fff;animation:blink .35s steps(2) infinite}
 @keyframes blink{50%{opacity:.35}}
 .tp-launch{display:flex!important;align-items:center;justify-content:center;gap:20px}
@@ -511,6 +509,13 @@ body.ctl .btn{min-height:58px;font-size:18px}
 .slmark{position:absolute;bottom:calc(env(safe-area-inset-bottom,0px) + 20px);left:50%;width:46px;height:46px;margin-left:-23px;border-radius:50%;background:#FF9FCB;box-shadow:0 0 0 4px #151B24,0 0 0 7px #F4F6F9;pointer-events:none;z-index:1;transition:left .05s}
 .slhint{position:absolute;left:0;right:0;top:14px;text-align:center;color:rgba(255,255,255,.55);font-weight:800;font-size:14px;pointer-events:none}
 .sl-ctl .svb{position:absolute;right:12px;top:-62px;width:auto;padding:8px 16px}
+/* Ramp Jump: two hold buttons, tilt back (left) and forward (right); a whole side each on a TV controller */
+.rjctl{position:absolute;left:10px;right:10px;bottom:calc(env(safe-area-inset-bottom,0px) + 12px);height:24%;display:flex;gap:10px}
+.rjb{flex:1;border:3px solid #151B24;border-radius:24px;background:var(--bc);color:#fff;font-family:var(--display);font-size:20px;display:flex;align-items:center;justify-content:center;gap:12px;box-shadow:inset 0 -6px 0 rgba(0,0,0,.25),0 8px 20px rgba(0,0,0,.3);touch-action:none;-webkit-user-select:none;user-select:none;text-shadow:0 2px 0 rgba(0,0,0,.3)}
+.rjb i{font-style:normal;font-size:34px;line-height:1}
+.rjb.kick{filter:brightness(.8);transform:translateY(3px)}
+.tvc .rjctl{left:0;right:0;top:0;bottom:0;height:auto;gap:0}
+.tvc .rjb{border-radius:0;border-width:0 2px;font-size:30px}
 .swl{position:absolute;display:flex;align-items:center;gap:8px;color:#fff;font-weight:800;text-shadow:0 2px 0 rgba(0,0,0,.45);pointer-events:none;opacity:.9}
 .swl i{font-style:normal;font-size:40px;line-height:1;color:var(--bc);filter:drop-shadow(0 0 2px rgba(255,255,255,.75));animation:swn 1.1s ease-in-out infinite}
 .swl b{font-size:15px;letter-spacing:.04em;text-transform:uppercase}
@@ -525,6 +530,20 @@ body.ctl .btn{min-height:58px;font-size:18px}
 body.tv #mg .m3top,body.tv #mg .m3intro,body.tv #mg .m3ready,body.tv #mg .m3center{zoom:1.4}
 body.tv #mg .m3lb{zoom:1.5}
 body.tv #mg .m3top{max-width:900px}
+/* TV ready screen: the intro card and the ready list in a slim column on the left, sized to the screen (vw), so the trucks in the middle stay in view */
+body.tv #mg .m3intro,body.tv #mg .m3ready{zoom:1;transform:none;left:1.2vw;right:auto;width:27vw;max-width:none;margin:0;padding:1.1vw 1.3vw;border-radius:1.2vw}
+body.tv #mg .m3intro{top:calc(env(safe-area-inset-top,0px) + 5vw);bottom:auto}
+body.tv #mg .m3ready{bottom:1.2vw;top:auto}
+body.tv #mg.tvgrid .m3ready{left:auto;right:1.2vw;top:calc(env(safe-area-inset-top,0px) + 5vw);bottom:auto}
+body.tv #mg .m3intro h3,body.tv #mg .m3ready h3{font-size:1.7vw;margin-bottom:.5vw}
+body.tv #mg .m3intro p{font-size:1.1vw}
+body.tv #mg .m3ctl{margin-top:.6vw}
+body.tv #mg .m3team{font-size:1vw;padding:.3vw .8vw}
+body.tv #mg #m3rl{margin-bottom:.8vw}
+body.tv #mg #m3rl div{font-size:1.1vw;padding:.4vw 0;gap:.5vw}
+body.tv #mg #m3rl i{width:.7vw;height:.7vw}
+body.tv #mg #m3rl b{font-size:1vw}
+body.tv #mg #m3rs{font-size:1vw;padding:.5vw 1vw}
 
 /* TV split screen */
 #mg.tvsplit .tvv{position:absolute;overflow:hidden;box-shadow:inset 0 0 0 3px #151B24,inset 0 0 0 6px var(--c,#151B24);pointer-events:none!important}
@@ -533,7 +552,7 @@ body.tv #mg .m3top{max-width:900px}
 #mg.tvsplit .tvvn{background:var(--c)!important;color:#fff;text-shadow:0 1px 0 rgba(0,0,0,.35)}
 #mg.tvsplit .tvempty{display:grid;place-items:center;text-align:center;color:#fff;--c:#2B3A58;background:radial-gradient(120% 80% at 50% 0%,#2B3A58,#121826)}
 #mg.tvsplit .tvempty b{display:block;font-family:var(--display);font-weight:400;font-size:40px;color:var(--yellow)}#mg.tvsplit .tvempty span{font-weight:800;font-size:18px;opacity:.8}
-#mg.tvsplit .tvsin{left:50%;right:auto;top:50%;transform:translate(-50%,-50%);zoom:1.3;max-width:460px}
+#mg.tvsplit .tvsin{left:16px;right:auto;top:calc(env(safe-area-inset-top,0px) + 70px);zoom:1.3;max-width:460px}
 #mg.tvsplit .m3ready{zoom:1.3}
 .tvctlhold,.tvctl{display:none!important}
 .tvcctl{position:absolute;inset:0;pointer-events:none}.tvcctl>*{pointer-events:auto}
@@ -557,7 +576,8 @@ body.mglive,body.ctl{position:fixed;inset:0;width:100%;overflow:hidden}
 body.ctl .hudbot{touch-action:none}body.ctl .hcard{touch-action:pan-y;overscroll-behavior:contain}
 
 /* stick games on the TV: the phone is only a stick and a button */
-.tvc.bare>.m3top,.tvc.bare>.tvcme,.tvc.bare>.tvcmsg{display:none}
+/* TV controller: nobody reads the phone during play, so no chips, score card or messages; just the controls */
+.tvc>.m3top,.tvc>.tvcme,.tvc>.tvcmsg,.tvc .swpad .tvchint{display:none}
 .tvc.bare .m3pad{height:100%;border-top:0}
 
 /* battery purchase */
@@ -650,7 +670,6 @@ body.mglive #fxs,body.mgres #fxs{display:none}
 
 /* TV controller: sideways layout (stick on the left half, buttons on the right) + rotate hint when upright */
 .tvrot{display:none;position:absolute;left:50%;top:calc(env(safe-area-inset-top,0px) + 12px);transform:translateX(-50%);z-index:4;background:var(--hb);color:#FFC83D;font-family:var(--display);font-size:13px;padding:6px 14px 5px;border-radius:999px;box-shadow:0 0 0 2.5px #151B24;white-space:nowrap;pointer-events:none}
-.tvc:not(.bare) .tvrot{top:calc(env(safe-area-inset-top,0px) + 54px)}
 @media (orientation:portrait){.tvrot{display:block}}
 @media (orientation:landscape){
   .tvc .m3pad{left:0;right:auto;top:0;bottom:0;width:58%;height:100%!important;border-top:0;border-right:2px dashed rgba(255,255,255,.12)}
@@ -667,19 +686,16 @@ body.mglive #fxs,body.mgres #fxs{display:none}
   .tvc .ram.ram2{left:58%;right:0;top:0;bottom:0;width:auto;height:auto;background:linear-gradient(160deg,#FFC24A,#E0700F)!important;clip-path:polygon(18px 0,100% 0,100% calc(100% - 18px));font-size:26px!important}
   .tvc .ram.ram2 span{position:absolute;left:70%;top:30%;transform:translate(-50%,-50%)}
   .tvcctl.swc{left:0}
+  .tvc .slpad{right:42%;border-right:2px dashed rgba(255,255,255,.12)}
+  .tvc .tvserve{background:linear-gradient(160deg,#FF8FC0,#E0458A)!important}
   .swpad{top:0}
-  .swpad .tvchint{left:44%}
-  .swpad .sw-l{left:calc(44% + 12px)}
-  .swpad .sw-u{top:calc(env(safe-area-inset-top,0px) + 56px)}
-  .swpad .sw-u,.swpad .sw-d{left:72%}
-  .tvc .tvcme{right:calc(56% + 8px);top:calc(env(safe-area-inset-top,0px) + 56px);padding:6px 12px 6px 6px}
-  .tvc .tvcme img{width:70px;height:46px}.tvc .tvcme b{font-size:26px}
-  .tvc .tvcmsg{right:calc(56% + 8px);top:auto;bottom:calc(env(safe-area-inset-bottom,0px) + 18px);font-size:17px}
-  .tvc .tvcmsg.big{font-size:64px;bottom:35%}
-  .tvcctl{left:44%}
-  .tvcctl .tapall{height:auto;top:calc(env(safe-area-inset-top,0px) + 56px)}
+  .swpad .sw-l{left:12%}
+  .swpad .sw-r{right:12%}
+  .swpad .sw-u{top:calc(env(safe-area-inset-top,0px) + 16px)}
+  /* one panel: centred */
+  .tvcctl .tapall,.tvcctl .cx{left:0;right:0;margin:0 auto;width:min(64%,520px);height:auto;top:calc(env(safe-area-inset-top,0px) + 14px);bottom:calc(env(safe-area-inset-bottom,0px) + 14px)}
   .tvc .m3top{max-width:none}
-  .tvc .m3ready{left:auto;right:12px;width:min(46%,420px);max-width:none;margin:0}
+  .tvc .m3ready{left:0;right:0;width:min(60%,460px);max-width:none;margin:0 auto}
 }
 
 /* phone controller: dice panel fits without scrolling (items share the width; sideways = card on the left, panel on the right) */
@@ -751,7 +767,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-10 20:07 d87456e";
+const BUILD = "2026-10-11 16:45 530a917";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -1926,7 +1942,8 @@ function chamferPrism(P, d, r, cs) {
    {x, y, s, host}: where the rig sits (truck coords, front at +x), its scale, and the group to add it to */
 function buildTruck(i, mode) {
 	const hose = mode === "hose",
-		mon = mode === "monster";
+		mon = mode === "monster",
+		springs = mode === "springs";
 	const B = (w, h, d, c, x, y, z, o) => {
 		let sq = null;
 		if (o && o.sq) {
@@ -2520,8 +2537,34 @@ function buildTruck(i, mode) {
 		roof.forEach((o) => o.parent && o.parent.remove(o));
 		g.userData.mount = mount;
 	}
-	mergeTruck(g);
+	/* springs (Ramp Jump): the wheels stay whole groups so they can shoot down on a bounce (springSet), each with a
+	   shock rod up to the chassis that only shows while extended */
+	if (springs)
+		g.userData.springs = wheelsL.map(({ g: wg }) => {
+			const rod = Cy(0.06, 0.06, 1, 8, "#4A5263", wg.position.x, wg.position.y, wg.position.z * 0.86);
+			rod.userData.dyn = true;
+			rod.visible = false;
+			g.add(rod);
+			return { wg, y0: wg.position.y, rod };
+		});
+	mergeTruck(g, springs);
 	return g;
+}
+/* Ramp Jump's suspension kick: the body rises by ext (world units, the truck scaled 0.8 in minigames) while the
+   wheels stay on the ground below it, shock rods showing */
+function springSet(tr, ext) {
+	const sp = tr.userData.springs;
+	tr.position.y = ext;
+	if (!sp) return;
+	const k = ext / (tr.scale.y || 1);
+	sp.forEach(({ wg, y0, rod }) => {
+		wg.position.y = y0 - k;
+		rod.visible = k > 0.02;
+		if (rod.visible) {
+			rod.scale.y = k + 0.12;
+			rod.position.y = y0 - k / 2 + 0.06;
+		}
+	});
 }
 /* monster mode (Monster Mash's boss): the truck's own body, paint a shade darker, lifted on long shocks over huge
    treaded tyres with spiked hubs, a toothed bull bar, red glowing eyes under angry brows, and exhaust stacks with flames */
@@ -2685,14 +2728,15 @@ function B_(w, h, d, c, x, y, z) {
    50-70 meshes to about 15, and the shadow pass with it). Meshes with userData (dyn: moved or toggled on their own)
    stay as they are, and so do moving groups (they merge inside). Wheels keep only the spoke turning: tyre, hub and cap
    look the same at any angle, so they join the static body. */
-function mergeTruck(g) {
+function mergeTruck(g, keepWheels) {
 	g.updateMatrixWorld(true);
-	(g.userData.wheels || []).forEach(({ g: wg }) =>
-		wg.children.slice(0, 3).forEach((m) => {
-			m.applyMatrix4(wg.matrix);
-			g.add(m);
-		}),
-	);
+	if (!keepWheels)
+		(g.userData.wheels || []).forEach(({ g: wg }) =>
+			wg.children.slice(0, 3).forEach((m) => {
+				m.applyMatrix4(wg.matrix);
+				g.add(m);
+			}),
+		);
 	mergeMeshes(g);
 }
 /* the merge itself, for anything bolted onto a truck later too (Dump Run's tipper bed). Plain parts (no paint, glow,
@@ -14404,7 +14448,7 @@ function wireStick(get, padSel = "#m3pad", knobSel = "#knob", kx = "x", ky = "y"
    the TV for every truck, in phone mode only for your own. The centre banner is only for between-round messages.
    fb(W, e, text, o): a pop-up ("Perfect!", "+25") that floats up and fades in under a second, or with o.stamp a short
    bold stamp over the truck for round-changing moments ("OUT", "P2"). o = {stamp, tone: "good" | "bad",
-   at: [x, y, z] (a spot instead of over the truck), h: height over the truck (default 3.15, above the name tag)}.
+   at: [x, y, z] (a spot instead of over the truck), h: height of a pop-up's bottom edge over the truck (default 3.15, above the name tag)}.
    Call it where the event is simulated (the truck's own device); the TV's split worlds get each other's through
    netState (e.fbq). */
 const fbShow = (W, e) => !!(W.tv || W.split || e.isMe);
@@ -14536,7 +14580,8 @@ function fbStep(W) {
 				p.set(g.x, g.y + q.h, g.z);
 			}
 			const k = camK(p);
-			if (!q.stamp) p.y += (age * 1.2 + q.ly) * k;
+			/* h is the pop-up's bottom edge, so a bigger one (far camera) grows upward, not down over the truck */
+			if (!q.stamp) p.y += (0.4 + age * 1.2 + q.ly) * k;
 			let h, op;
 			if (q.stamp) {
 				const u = Math.min(1, age / 0.16);
@@ -14633,6 +14678,46 @@ function inputHint(W, e, label, mode, col) {
 		W.sc.add(e.ihS);
 	}
 	e.ihU = { label, mode, col, at: performance.now() };
+}
+/* a pill sprite with its own canvas that redraws when its text changes (live numbers, e.g. Ramp Jump's edge
+   distances), drawn like a pop-up pill: dark, ringed in the colour; 3:1, text fitted */
+function pillSprite() {
+	const cv = document.createElement("canvas");
+	cv.width = 384;
+	cv.height = 128;
+	const tex = new THREE.CanvasTexture(cv),
+		sp = new THREE.Sprite(
+			new THREE.SpriteMaterial({ map: tex, depthTest: false, depthWrite: false, transparent: true }),
+		);
+	sp.renderOrder = 12;
+	sp.userData.fb = true;
+	let key = "";
+	return {
+		sp,
+		set(text, col) {
+			if (key === text + col) return;
+			key = text + col;
+			const x = cv.getContext("2d"),
+				w = cv.width,
+				h = cv.height;
+			x.clearRect(0, 0, w, h);
+			x.fillStyle = "#151B24";
+			rr(x, 3, 3, w - 6, h - 6, (h - 6) / 2);
+			x.fill();
+			x.fillStyle = col;
+			rr(x, 8, 8, w - 16, h - 16, (h - 16) / 2);
+			x.fill();
+			x.fillStyle = "#1C2330";
+			rr(x, 15, 15, w - 30, h - 30, (h - 30) / 2);
+			x.fill();
+			x.font = "800 60px Rubik, Arial, sans-serif";
+			x.textAlign = "center";
+			x.textBaseline = "middle";
+			x.fillStyle = "#fff";
+			x.fillText(text, w / 2, h / 2 + 3, w - 60);
+			tex.needsUpdate = true;
+		},
+	};
 }
 /* a flashing symbol sprite (a warning sign, an empty tank); draw(ctx, w, h) on a 64 px canvas, cached per key */
 const FB_ICO = {};
@@ -14931,14 +15016,12 @@ function ramAssist(W, e, dx, dz) {
 }
 
 /* ---------- themed tap controls ---------- */
-const UI_OF = { drag: "shift", ramp: "air", crane: "drop" };
+const UI_OF = { drag: "shift", crane: "drop" };
 function tapCtlHTML(g, def) {
 	const ui = UI_OF[g] || "btn",
 		lab = esc(def.tapLabel || "TAP");
 	if (ui === "pedal" || ui === "brake")
 		return `<button class="tapall tp-pedal ${ui === "brake" ? "brake" : ""} ${g === "drag" || g === "ramp" ? "tp-wide" : ""}" id="tapall" aria-label="${lab}"><span class="tp-gauge"><i></i></span><span class="tp-read" id="tpread">0 km/h</span><b class="tp-lab" id="tplab">${lab}</b><span class="tp-pedwrap"><span class="tp-ped"><i></i><i></i><i></i><i></i><i></i></span></span></button>`;
-	if (ui === "air")
-		return `<button class="tapall tp-pedal tp-wide tp-air" id="tapall" data-m="pw" aria-label="${lab}"><span class="tp-rev"><i></i></span><span class="tp-read" id="tpread">POWER</span><b class="tp-lab" id="tplab">GET READY…</b></button>`;
 	if (ui === "shift")
 		return `<button class="tapall tp-pedal tp-wide tp-shift" id="tapall" aria-label="${lab}"><span class="tp-rev"><i></i></span><span class="tp-read" id="tpread">N</span><b class="tp-lab" id="tplab">WAIT FOR GO…</b></button>`;
 	if (ui === "launch")
@@ -14968,44 +15051,6 @@ function ctlUpdate() {
 		const hot = W.mg.g === "ramp" && !e.st && e.z < -48 && e.z > -60.4;
 		el.classList.toggle("hot", hot);
 		set("tplab", hot ? "JUMP NOW!" : W.mg.g === "ramp" && e.st === "air" ? "TAP TO BOUNCE!" : W.def.tapLabel);
-	} else if (ui === "air") {
-		/* Ramp Jump: the power meter on the run-up, then a level meter in the air (green = level) */
-		const D = W.def,
-			air = e.st === "air",
-			pt = e.pitch || 0,
-			lvl = Math.abs(pt) <= D.LV[0],
-			v = air ? Math.max(0, Math.min(1, 0.5 + pt / 1.2)) : e.pl === undefined ? D.pm(t) : e.pl;
-		el.style.setProperty("--p", v.toFixed(3));
-		if (el.dataset.m !== (air ? "att" : "pw")) el.dataset.m = air ? "att" : "pw";
-		el.classList.toggle("hot", !e.d && (air ? lvl : t >= 0 && !e.st && e.pl === undefined && v > 0.8));
-		set(
-			"tpread",
-			air
-				? lvl
-					? "LEVEL"
-					: pt > 0
-						? "NOSE UP"
-						: "NOSE DOWN"
-				: e.pl === undefined
-					? "POWER"
-					: `${Math.round(e.pl * 100)}%`,
-		);
-		set(
-			"tplab",
-			e.d
-				? e.crash
-					? "CRASHED"
-					: "LANDED"
-				: t < 0
-					? "GET READY…"
-					: !e.st
-						? e.pl === undefined
-							? "TAP TO LOCK POWER"
-							: "HERE WE GO…"
-						: air
-							? "HOLD = NOSE UP"
-							: "ROLLING…",
-		);
 	} else if (ui === "shift") {
 		/* Drag Race: the charge needle (lit in the zone), then the race revs and gear */
 		const g = e.gr || 0,
@@ -15235,7 +15280,7 @@ function openTvCtl(mg, p) {
 	box.innerHTML = `<div class="tvc${def.ctrl === "stick" ? " bare" : ""}" style="--c:${pcol(p)}"><div class="tvrot">🔄 Turn your phone sideways</div><div class="m3top"><span class="chip name">${esc(def.name)}</span><span class="chip" id="tvct">Waiting</span></div>
     <div class="tvcme"><img alt="" src="${thumb(p.truck)}"><div><b id="tvcs">0</b><small id="tvcr">${esc(p.name)}</small></div></div>
     <div class="tvcmsg" id="tvcm">📺 Watch the TV</div>
-    ${def.ctrl === "stick" ? stickHTML(def, def.aim ? "Drive" : "Drag anywhere here to drive", mg.tm ? mg.tm[p.key] : undefined) : `<div class="tvcctl${def.swipe || def.slide ? " swc" : ""}" id="tvcctl">${def.slide ? `<div class="swpad slpad" id="slpad"><span class="tvchint">${esc(def.slideHint || "Slide")}</span><i class="slmark" id="slmark"></i></div>` : def.swipe ? swipeHTML(def) : def.ctrl === "custom" ? def.ctlHTML() : tapCtlHTML(mg.g, def)}</div>`}
+    ${def.ctrl === "stick" ? stickHTML(def, def.aim ? "Drive" : "Drag anywhere here to drive", mg.tm ? mg.tm[p.key] : undefined) : `<div class="tvcctl${def.swipe || def.slide ? " swc" : ""}" id="tvcctl">${def.slide ? `<div class="swpad slpad" id="slpad"><span class="tvchint">${esc(def.slideHint || "Slide")}</span><i class="slmark" id="slmark"></i></div><button class="ram tvserve" id="tvserve"><span>${esc(def.slideBtn || "SERVE")}</span></button>` : def.swipe ? swipeHTML(def) : def.ctrl === "custom" ? def.ctlHTML() : tapCtlHTML(mg.g, def)}</div>`}
     <div class="m3ready" id="m3r"><h3>${esc(def.name)}</h3><p style="font-size:14px;line-height:1.45;margin-bottom:10px">${esc(def.how)}</p><div id="m3rl"></div><button class="btn go" id="m3rb">I'm ready</button></div></div>`;
 	if (def.ctrl === "stick") {
 		wireStick(() => TVC && TVC.inp);
@@ -15275,6 +15320,15 @@ function openTvCtl(mg, p) {
 				if (TVC.ev.length > 16) TVC.ev.shift();
 				tvcTick();
 			};
+		/* slide games: the slider on the left, the button (a flick up does the same) on the right */
+		const sv = $("#tvserve");
+		if (sv)
+			sv.addEventListener("pointerdown", (e) => {
+				e.preventDefault();
+				if (!TVC) return;
+				TVC.b++;
+				tvcTick();
+			});
 		if (def.slide)
 			wireSlide(
 				$("#slpad"),
@@ -15751,8 +15805,10 @@ function tvsShared(fw, fh, dt) {
 	dir.x = 0;
 	const base = dir.length() || 1;
 	dir.normalize();
-	const tgt = new THREE.Vector3(0, aT.y, aT.z),
+	let tgt = new THREE.Vector3(0, aT.y, aT.z),
 		pos = tgt.clone().addScaledVector(dir, Math.max(base, D));
+	/* a game can frame the shared view itself (Ramp Jump: from high up at the side, so the tilt shows) */
+	if (W0.def.tvsCam) [tgt, pos] = W0.def.tvsCam(W0, a, halfW);
 	if (!T.sp) {
 		T.sp = pos.clone();
 		T.st = tgt.clone();
@@ -16288,8 +16344,8 @@ function revDial(zone, perf) {
 		},
 	};
 }
-/* Ramp Jump gauge above the truck: a power bar on the run-up (marker swings until locked), then a level meter in the
-   air (a truck side view tilting with the pitch over a horizon line; the rim turns green when level enough to bounce) */
+/* Ramp Jump gauge above the truck: a power bar on the run-up (marker swings until locked), then in the air the same
+   level bar as the phone (marker right = nose up; the frame turns green when level enough to bounce) */
 function rampGauge(lv) {
 	const g = new THREE.Group(),
 		bm = (c) => new THREE.MeshBasicMaterial({ color: c }),
@@ -16310,25 +16366,31 @@ function rampGauge(lv) {
 	const mk = new THREE.Mesh(new THREE.PlaneGeometry(0.78, 0.12), bm("#F4F6F9"));
 	mk.position.z = 0.08;
 	pw.add(mk);
-	const back = new THREE.Mesh(new THREE.CircleGeometry(1, 28), bm("#23272F"));
-	ai.add(back);
-	const rim = new THREE.Mesh(new THREE.RingGeometry(1, 1.14, 32), bm("#F4F6F9"));
-	ai.add(rim);
-	const hz = new THREE.Mesh(new THREE.PlaneGeometry(1.7, 0.07), bm("#8E96A3"));
-	hz.position.z = 0.04;
-	ai.add(hz);
-	const tk = new THREE.Group();
-	tk.position.z = 0.08;
+	/* in the air: the phone's level bar (red | amber | green | amber | red), the marker follows the nose (right = up) */
+	const frame = new THREE.Mesh(new THREE.PlaneGeometry(2.86, 0.66), bm("#F4F6F9"));
+	frame.position.z = -0.03;
+	ai.add(frame);
+	ai.add(new THREE.Mesh(new THREE.PlaneGeometry(2.7, 0.5), bm("#23272F")));
+	const BW = 2.5,
+		zx = (v) => (v - 0.5) * BW;
+	const lv0 = 0.5 - lv[1] / 1.2,
+		lv1 = 0.5 - lv[0] / 1.2;
 	[
-		[0.9, 0.32, -0.08, 0.04, "#FFC83D", 0],
-		[0.36, 0.3, 0.34, 0.3, "#E0A800", 0.04],
-		[0.2, 0.2, -0.36, -0.2, "#151B24", 0.04],
-		[0.2, 0.2, 0.3, -0.2, "#151B24", 0.04],
-	].forEach(([w, h, x, y, c, z]) => {
-		const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), bm(c));
-		m.position.set(x, y, z);
-		tk.add(m);
+		[0, lv0, "#E5484D"],
+		[lv0, lv1, "#FFC83D"],
+		[lv1, 1 - lv1, "#1FA35C"],
+		[1 - lv1, 1 - lv0, "#FFC83D"],
+		[1 - lv0, 1, "#E5484D"],
+	].forEach(([p, q, c]) => {
+		const m = new THREE.Mesh(new THREE.PlaneGeometry((q - p) * BW, 0.34), bm(c));
+		m.position.set((zx(p) + zx(q)) / 2, 0, 0.04);
+		ai.add(m);
 	});
+	const tk = new THREE.Mesh(new THREE.PlaneGeometry(0.13, 0.62), bm("#F4F6F9"));
+	tk.position.z = 0.08;
+	const tkE = new THREE.Mesh(new THREE.PlaneGeometry(0.21, 0.7), bm("#151B24"));
+	tkE.position.z = -0.01;
+	tk.add(tkE);
 	ai.add(tk);
 	return {
 		g,
@@ -16339,9 +16401,9 @@ function rampGauge(lv) {
 				mk.position.y = -0.9 + Math.max(0, Math.min(1, v)) * 1.8;
 				mk.material.color.set(locked ? "#7CF0A8" : "#F4F6F9");
 			} else {
-				tk.rotation.z = v;
+				tk.position.x = Math.max(-0.5, Math.min(0.5, v / 1.2)) * BW;
 				const a = Math.abs(v);
-				rim.material.color.set(a <= lv[0] ? "#7CF0A8" : a <= lv[1] ? "#FFC83D" : "#E5484D");
+				frame.material.color.set(a <= lv[0] ? "#7CF0A8" : a <= lv[1] ? "#FFC83D" : "#E5484D");
 			}
 		},
 	};
@@ -17842,6 +17904,7 @@ const MG = {
 		name: "Concrete Crumble",
 		kind: "arena",
 		ctrl: "stick",
+		truckMode: "springs",
 		hi: true,
 		unit: "pts",
 		dur: 75,
@@ -17856,7 +17919,7 @@ const MG = {
 		deathY: -0.95,
 		sun: [13.9, 26, 12.1],
 		fx: { col: 0.14 },
-		how: "Slabs crack and sink after you drive on them. Keep moving and RAM to hop gaps. Last one up wins.",
+		how: "Slabs crack and sink after you drive on them. Keep moving; RAM into a gap hops you across. Last one up wins.",
 		/* baked props, also called by enterMg while the clouds cover the switch so their AO is ready by the start (partmodels) */
 		kits() {
 			return [
@@ -18077,6 +18140,16 @@ const MG = {
 			W.rip = ripples(W, "#A3A7AE");
 		},
 		render(W, e, dt) {
+			/* a hop pushes off on the springs: the wheels shoot down as the body pops up (counter e.f.hp for remote trucks) */
+			{
+				const hp = (e.f && e.f.hp) || 0;
+				if (hp !== (e.hpSeen || 0)) {
+					e.hpSeen = hp;
+					e.hopT = W.t;
+				}
+				const sa = W.t - (e.hopT ?? -9);
+				springSet(e.tr, sa < 0.07 ? (sa / 0.07) * 0.5 : Math.max(0, 0.5 * (1 - (sa - 0.07) / 0.3)));
+			}
 			const vy = (e.y - (e.py === undefined ? e.y : e.py)) / Math.max(dt, 0.001);
 			e.py = e.y;
 			if (!e.falling && (e.hop !== undefined || (!e.local && e.y > 0.05)) && Math.abs(vy) > 0.5)
@@ -18266,12 +18339,25 @@ const MG = {
 		rules(W, e, dt) {
 			if (!e.al || e.d || e.falling) return;
 			e.sc = Math.floor(W.t * 10);
-			// RAM = hop: a short jump that carries over gaps; nothing cracks and nobody falls while airborne
-			if (e.boostT > 0.4 && e.hop === undefined) {
-				e.hop = 7.2;
-				e.vx *= 0.7;
-				e.vz *= 0.7;
-				if (e.isMe) sfx("land");
+			/* RAM is a boost / ram; only when the boosting truck reaches an edge with a gap right ahead does it hop
+			   (springs kick), carrying it over; nothing cracks and nobody falls while airborne. Off an edge without a
+			   boost you drop */
+			if (e.boostT > 0.4) e.bstT = W.t;
+			if (e.hop === undefined && W.t - (e.bstT ?? -9) < 0.6) {
+				const sp = Math.hypot(e.vx, e.vz);
+				if (
+					sp > 1 &&
+					this.ground(W, e.x, e.z) !== null &&
+					this.ground(W, e.x + (e.vx / sp) * 0.6, e.z + (e.vz / sp) * 0.6) === null
+				) {
+					e.hop = 7.2;
+					e.bstT = -9;
+					e.vx *= 0.8;
+					e.vz *= 0.8;
+					e.f.hp = (e.f.hp || 0) + 1;
+					mgLog(W, `${mgName(e)} hops a gap`);
+					if (e.isMe) sfx("land");
+				}
 			}
 			if (e.hop !== undefined) {
 				e.y += e.hop * dt;
@@ -21761,15 +21847,19 @@ const MG = {
 	ramp: {
 		name: "Ramp Jump",
 		kind: "lane",
-		ctrl: "tap",
+		ctrl: "custom",
+		truckMode: "springs",
 		hi: true,
 		unit: "dm",
 		dur: 26,
 		tapLabel: "LOCK POWER",
-		tvHint: "Tap your phone to lock the power. In the air: hold to lift the nose, let go to drop it.",
+		tvHint: "Tap either side to lock the power. In the air: hold LEFT to tilt back, RIGHT to tilt forward.",
 		LAND: 0.75,
-		tapHint: "Tap to lock the power, then in the air hold to lift the nose and let go to drop it.",
+		tapHint: "Tap either button to lock the power. In the air: hold ◀ to tilt back, ▶ to tilt forward (arrow keys).",
 		how: "Lock in the power, then keep your truck level in the air. Land level to bounce on; furthest wins.",
+		/* pop-ups start above the gauge (gauge centre 3.5 over the truck, power bar top ~4.4) */
+		POPH: 4.6,
+		GRAV: 16,
 		/* landing: |pitch| up to LV[0] = perfect, LV[1] = a weak bounce, more = crash */
 		LV: [0.2, 0.45],
 		/* the power meter swings 0..1..0 every 2.2 s, the same for everyone */
@@ -21836,13 +21926,43 @@ const MG = {
 				: e.st === "air"
 					? `${Math.max(0, -(e.z + 60.4)).toFixed(0)} m`
 					: `${Math.round(e.v || 0)} km/h`,
-		/* one tap locks the run-up power; in the air the button is held (W.inp.hold) to lift the nose */
+		/* two buttons: left tilts back (nose up), right tilts forward; e.tl = +1 / -1 / 0 while held. A press during
+		   the run-up locks the power */
+		ctlHTML() {
+			return `<div class="rjctl"><button class="rjb" id="rjl" style="--bc:#2F7DE1" aria-label="Tilt back"><i>◀</i><b>BACK</b></button><button class="rjb" id="rjr" style="--bc:#E5484D" aria-label="Tilt forward"><b>FORWARD</b><i>▶</i></button></div>`;
+		},
+		press(W, side, on) {
+			if (!W || !W.me) return;
+			const e = W.me;
+			e.tb = e.tb || {};
+			e.tb[side] = on;
+			e.tl = (e.tb.l ? 1 : 0) - (e.tb.r ? 1 : 0);
+			if (on && W.t >= 0 && !e.d) this.tap(W, e);
+		},
+		wire() {
+			cxWireBtn(
+				document.getElementById("rjl"),
+				() => MG.ramp.press(W, "l", true),
+				() => MG.ramp.press(W, "l", false),
+			);
+			cxWireBtn(
+				document.getElementById("rjr"),
+				() => MG.ramp.press(W, "r", true),
+				() => MG.ramp.press(W, "r", false),
+			);
+		},
+		onKey(W, k, down) {
+			if (k === "arrowleft" || k === "a") this.press(W, "l", down);
+			else if (k === "arrowright" || k === "d") this.press(W, "r", down);
+			else if (down && [" ", "enter", "w", "arrowup"].includes(k)) this.tap(W, W.me);
+		},
 		tap(W, e) {
 			if (e.st || e.pl !== undefined) return;
 			e.pl = this.pm(W.t);
 			e.f.pl = Math.round(e.pl * 100) / 100;
 			mgLog(W, `${mgName(e)} locks ${Math.round(e.pl * 100)}% power`);
 			fb(W, e, e.pl > 0.92 ? "MAX POWER!" : e.pl > 0.7 ? "Good power" : "Weak run-up", {
+				h: this.POPH,
 				tone: e.pl > 0.92 ? "good" : e.pl > 0.7 ? "" : "bad",
 			});
 			if (e.isMe) sfx(e.pl > 0.92 ? "coin" : "click");
@@ -21858,7 +21978,7 @@ const MG = {
 		},
 		rules(W, e, dt) {
 			if (e.d) return;
-			const hold = e.isMe ? !!W.inp.hold : !!e.hold;
+			const tl = e.tl || 0;
 			if (!e.st) {
 				if (e.pl === undefined) {
 					if (W.t > 4) this.tap(W, e);
@@ -21882,12 +22002,13 @@ const MG = {
 					e.pw = 0;
 				}
 			} else if (e.st === "air") {
-				/* held: the nose lifts, let go: it drops (a bit slower) */
-				e.pw += ((hold ? 2.6 : -1.6) - 1.4 * e.pw) * dt;
+				/* left held: the nose lifts, right held: it drops; nothing held: the spin dies out */
+				e.pw += (tl * 2.4 - 1.4 * e.pw) * dt;
 				e.pitch = Math.max(-1.3, Math.min(1.3, e.pitch + e.pw * dt));
 				e.z -= e.v * dt;
 				e.vz = -e.v;
-				e.vy -= 20 * dt;
+				/* low gravity in the air: bounces 25% higher with 25% more hang time to level out */
+				e.vy -= this.GRAV * dt;
 				e.y += e.vy * dt;
 				if (e.y <= this.LAND && e.vy < 0) {
 					e.y = this.LAND;
@@ -21900,11 +22021,13 @@ const MG = {
 						this.land(W, e, perf ? 1 : 0.5, true);
 						if (vy < 3) e.st = "roll";
 						else {
+							/* every bounce kicks the truck into a spin, back or forward at random, to catch */
+							const sg = Math.random() < 0.5 ? -1 : 1;
 							e.vy = vy;
-							e.pitch = 0.22;
-							e.pw = 0;
+							e.pitch = sg * (0.1 + Math.random() * 0.12);
+							e.pw = sg * (0.6 + Math.random() * 0.7);
 						}
-						fb(W, e, perf ? "PERFECT!" : "Wobbly", { tone: perf ? "good" : "" });
+						fb(W, e, perf ? "PERFECT!" : "Wobbly", { tone: perf ? "good" : "", h: this.POPH });
 						if (e.isMe) sfx(perf ? "coin" : "land");
 					} else {
 						e.st = "land";
@@ -21939,18 +22062,82 @@ const MG = {
 		timeUp(W, e) {
 			if (e.st !== "land") e.sc = Math.max(0, Math.round(-(e.z + 60.4) * 10));
 		},
-		/* the camera rises with the truck (and backs off a little) so high jumps stay in view */
+		/* phone mode: like the TV, from high up at the side so the nose angle reads on the truck itself; a portrait
+		   screen is too narrow for room ahead, so it swings further behind (the truck heads diagonally into the screen).
+		   It aims 0.25 s ahead (the camera's easing lag) plus 3 m (1.5 m in portrait), and rises with the truck */
 		cam(W, tgt, pos, far) {
-			/* sideways screens see less height, so they rise and back off more */
-			const y = Math.max(0, (W.me.y || 0) - this.LAND),
-				k = far > 1 ? 1 : 1.8;
-			tgt.y += y * 1.3 * k;
-			pos.y += y * 0.9;
-			pos.z += y * 1.3 * far * k;
-			return [tgt, pos];
+			const e = W.me,
+				port = GFX.w < GFX.h,
+				dir = (port ? new THREE.Vector3(0.4, 0.62, 0.68) : new THREE.Vector3(0.72, 0.6, 0.34)).normalize(),
+				t = new THREE.Vector3(e.x, 1 + (e.y || 0) * 0.7, e.z + (e.vz || 0) * 0.25 - (port ? 1.5 : 3));
+			return [t, t.clone().addScaledVector(dir, 12.2 * far * (port ? 1.15 : 1))];
+		},
+		/* the TV's shared view: high up at the side and a little behind, so the nose angle reads, framing the trucks
+		   still in their run-up or jump (a truck drops out for good once it is past the ramp, on the ground and below
+		   6 m/s; at the end the furthest truck); a truck left off screen gets a pill at the edge (edgePill) */
+		tvsCam(W, a, halfW) {
+			W.list.forEach((e) => {
+				if (!e.camOut && W.t > 0 && (e.d || (e.z < -61 && (e.y || 0) <= this.LAND + 0.3 && Math.abs(e.vz || 0) < 6)))
+					e.camOut = true;
+			});
+			let es = W.list.filter((e) => !e.gone && !e.camOut);
+			/* everyone done: stay on the furthest truck (the others have their edge pills) */
+			if (!es.length)
+				es = W.list
+					.filter((e) => !e.gone)
+					.sort((p, q) => p.z - q.z)
+					.slice(0, 1);
+			/* aim where the trucks will be in 0.25 s (the camera eases in with about that lag, so a fast truck would
+			   otherwise run off the front), with more room ahead (7 m) than behind (3 m) */
+			const zs = es.map((e) => e.z + (e.vz || 0) * 0.25),
+				z0 = Math.min(...zs) - 7,
+				z1 = Math.max(...zs) + 3,
+				yc = es.reduce((t, e) => t + (e.y || 0), 0) / Math.max(1, es.length),
+				tn = Math.tan((20 * Math.PI) / 180),
+				D = Math.max(12.2, (z1 - z0) / 2 / (tn * a), ((halfW + 4) / tn) * 0.68),
+				tgt = new THREE.Vector3(0, 1 + yc * 0.7, (z0 + z1) / 2);
+			return [tgt, tgt.clone().addScaledVector(new THREE.Vector3(0.72, 0.6, 0.34).normalize(), D)];
+		},
+		/* TV shared view: a truck off the edge of the screen gets a pill in its own lane at that edge, in its colour,
+		   with how far it is behind the leader (or ahead, for a truck that stopped further on) */
+		edgePill(W, e) {
+			const T = typeof TVS !== "undefined" && TVS,
+				cam = T && T.mode === "shared" && T.scam;
+			let show = false;
+			if (cam && W === T.worlds[0].W && !e.gone && e.g.visible) {
+				const p = new THREE.Vector3(e.x, (e.y || 0) + 1, e.z).project(cam);
+				if (Math.abs(p.x) > 1.02 && p.z < 1) {
+					const live = W.list.filter((o) => !o.gone && !o.camOut),
+						lead = Math.min(...(live.length ? live : W.list.filter((o) => !o.gone)).map((o) => o.z)),
+						side = p.x < 0 ? -1 : 1,
+						d = Math.max(0, Math.round(side < 0 ? e.z - lead : lead - e.z)),
+						txt = side < 0 ? `◀ ${d} m` : `${d} m ▶`;
+					/* walk along the lane to where it meets the screen edge */
+					let a = e.z,
+						b = T.st ? T.st.z : e.z,
+						y = 1.2;
+					for (let k = 0; k < 14; k++) {
+						const m = (a + b) / 2,
+							q = new THREE.Vector3(e.x, y, m).project(cam);
+						if (Math.abs(q.x) > 0.88) a = m;
+						else b = m;
+					}
+					if (!e.pill) {
+						e.pill = pillSprite();
+						W.sc.add(e.pill.sp);
+					}
+					e.pill.set(txt, pcol(e.p));
+					e.pill.sp.position.set(e.x, y, b);
+					const h = cam.position.distanceTo(e.pill.sp.position) * 0.035;
+					e.pill.sp.scale.set(h * 3, h, 1);
+					show = true;
+				}
+			}
+			if (e.pill) e.pill.sp.visible = show;
 		},
 		render(W, e, dt) {
 			if (!e.local) e.pitch = (e.f && e.f.pt) || 0;
+			this.edgePill(W, e);
 			const bn = (e.f && e.f.bn) || 0;
 			if (!e.local && bn !== (e.bnSeen || 0)) {
 				e.bnSeen = bn;
@@ -21970,6 +22157,12 @@ const MG = {
 				e.gauge.g.quaternion.copy(cam.quaternion);
 				e.gauge.set(air ? "air" : "pw", air ? e.pitch || 0 : pl === undefined ? this.pm(W.t) : pl, pl !== undefined);
 			} else if (e.gauge) e.gauge.g.visible = false;
+			/* suspension kick on every bounce: the body pops up off the wheels, then they tuck back in */
+			{
+				const sa = e.bounce && e.bounce.k ? W.t - e.bounce.t : 9,
+					amp = e.bounce && e.bounce.k > 0.5 ? 0.6 : 0.4;
+				springSet(e.tr, sa < 0.07 ? (sa / 0.07) * amp : Math.max(0, amp * (1 - (sa - 0.07) / 0.32)));
+			}
 			if (e.bounce && W.t - e.bounce.t < 0.05 && !e.bounce.fx) {
 				e.bounce.fx = true;
 				burst(W.sc, e.x, this.LAND, e.z, {
@@ -22001,10 +22194,10 @@ const MG = {
 			e.bt = (e.bt || 0) - dt;
 			if (e.bt <= 0) {
 				e.bt = 0.06 + Math.random() * 0.1 + 0.3 * (1 - e.sk);
-				e.hold = e.pitch + e.pw * (0.1 + Math.random() * 0.35) < e.aim;
+				const pr = e.pitch + e.pw * (0.15 + Math.random() * 0.35);
+				e.tl = pr < e.aim - 0.06 ? 1 : pr > e.aim + 0.06 ? -1 : 0;
 			}
 			if (e.vy > 0 && e.y < this.LAND + 0.5) e.aim = undefined;
-			return { hold: !!e.hold };
 		},
 		botScore: () => 400 + rnd(700),
 	},

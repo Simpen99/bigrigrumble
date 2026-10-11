@@ -4,11 +4,13 @@
    - a contact sheet: the TV and every phone at the ready screen, early, mid-game and at the results
    - phone controller: layout that changes during the game (e.g. something redrawing the controls), buttons partly off
      screen, smaller than 44 px or covering each other
-   - TV camera: trucks off screen, and how big a truck is on the TV (share of the view's height)
+   - TV camera: trucks off screen, and how big a truck is on the TV (share of the view's height); on the ready
+     screen, trucks hidden under the intro card or the ready panel
    - screens that never reach the results, page errors on any device
    node tools/tvtest.mjs sort                 2 phones + 1 CPU
    node tools/tvtest.mjs mash --phones 3 --cpu 1 --lag 80
-   --no-shots skips the contact sheet; --probe "<js>" prints that expression, evaluated on the TV, once a second
+   --early stops after the first in-game screenshots; --ready only checks the ready screen (trucks under the intro card / ready panel) and stops; --no-shots skips
+   the contact sheet; --probe "<js>" prints that expression, evaluated on the TV, once a second
    (e.g. --probe "TVS.worlds.map((s) => s.W.me.sc)"). */
 import fs from "fs";
 import path from "path";
@@ -203,6 +205,57 @@ for (const d of PH) await d.p.evaluate(PHONE);
 for (const d of PH) await wait(d.p, () => document.querySelector("#m3rb"), null, 40000);
 await TV.p.waitForTimeout(800);
 await shoot("1ready");
+/* the ready screen: no truck may hide under the intro card or the ready panel (the camera settles first) */
+await new Promise((r) => setTimeout(r, 2500));
+const covered = await TV.p.evaluate(() => {
+	const fw = innerWidth,
+		fh = innerHeight,
+		views = [];
+	if (typeof TVS !== "undefined" && TVS) {
+		if (TVS.mode === "grid") {
+			const cells = tvsCells(TVS.worlds.length, fw, fh);
+			TVS.worlds.forEach((s, i) => s.cam && views.push({ cam: s.cam, list: s.W.list, r: cells[i] }));
+		} else
+			views.push({
+				cam: TVS.mode === "shared" && TVS.scam ? TVS.scam : TVS.worlds[0].cam,
+				list: TVS.worlds[0].W.list,
+				r: TVS.mode === "dyn" ? [0, 0, fw / 2, fh] : [0, 0, fw, fh],
+			});
+	} else if (W) views.push({ cam: W.cam, list: W.list, r: [0, 0, fw, fh] });
+	const boxes = [...document.querySelectorAll("#mg .m3intro, #mg .m3ready")]
+		.filter((el) => !el.hidden && el.offsetParent !== null)
+		.map((el) => [el.classList.contains("m3intro") ? "intro card" : "ready panel", el.getBoundingClientRect()]);
+	const out = new Set(),
+		dbg = [
+			fw,
+			fh,
+			boxes.map(([n, b]) =>
+				[n, b.left, b.top, b.right, b.bottom].map((x) => (typeof x === "number" ? Math.round(x) : x)),
+			),
+		];
+	views.forEach((v) =>
+		v.list.forEach((e) => {
+			if (!e || e.gone || !e.g.visible) return;
+			const c = new THREE.Vector3(e.x, (e.y || 0) + 0.8, e.z).project(v.cam);
+			if (Math.abs(c.x) > 1 || Math.abs(c.y) > 1 || c.z > 1) return;
+			const px = v.r[0] + ((c.x + 1) / 2) * v.r[2],
+				py = v.r[1] + ((1 - c.y) / 2) * v.r[3];
+			dbg.push([e.p.name, Math.round(px), Math.round(py)]);
+			boxes.forEach(([n, b]) => {
+				if (px > b.left && px < b.right && py > b.top && py < b.bottom) out.add(`${e.p.name} is under the ${n}`);
+			});
+		}),
+	);
+	return [[...out], dbg];
+});
+if (process.env.COVDBG) console.log(JSON.stringify(covered[1]));
+covered.splice(1);
+if (opt.ready) {
+	/* --ready: only the ready-screen check */
+	console.log(covered[0].length ? covered[0].map((c) => `- ready screen: ${c}`).join("\n") : "ready screen ok");
+	await b.close();
+	process.exit(covered[0].length ? 1 : 0);
+}
 for (const d of PH) await d.p.click("#m3rb");
 
 /* the TV side: every truck's spot on the TV and its size (truck length as a share of the view height) */
@@ -216,7 +269,8 @@ const TVSAMPLE = () => {
 	const out = [];
 	views.forEach((v) =>
 		v.list.forEach((e) => {
-			if (!e || e.gone) return;
+			/* trucks that are done may leave the shot (Ramp Jump's camera follows the ones still jumping) */
+			if (!e || e.gone || e.d || e.camOut) return;
 			const y = (e.y || 0) + 0.8,
 				c = new THREE.Vector3(e.x, y, e.z).project(v.cam),
 				a = new THREE.Vector3(e.x - 1.5, y, e.z).project(v.cam),
@@ -263,6 +317,11 @@ while (Date.now() - t0 < 240000) {
 			for (let i = 0; i < PH.length; i++)
 				(await PH[i].p.evaluate(() => __btns())).forEach((x) => btnIssues.add(`Phone${i + 1}: ${x}`));
 			await shoot("2start");
+			/* --early: stop after the first in-game shots (tools/ctlsheet.mjs uses it) */
+			if (opt.early) {
+				await b.close();
+				process.exit(0);
+			}
 		}
 		if (!shotMid && s.t > s.dur / 2) {
 			shotMid = true;
@@ -300,6 +359,7 @@ const issues = [],
 	pct = (v) => (v * 100).toFixed(1) + "%",
 	med = (a) => (a.length ? a.slice().sort((x, y) => x - y)[Math.floor(a.length / 2)] : 0);
 if (!tvDone) issues.push(`the TV never finished the minigame (game time ${lastT.toFixed(1)} s)`);
+covered[0].forEach((c) => issues.push(`ready screen: ${c}`));
 for (let i = 0; i < PH.length; i++) {
 	const st = await PH[i].p.evaluate(() => (G ? G.phase : "no game"));
 	if (tvDone && st === "minigame") issues.push(`Phone${i + 1} is still in the minigame after the TV finished it`);
