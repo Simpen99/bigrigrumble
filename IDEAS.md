@@ -66,8 +66,8 @@ sizes on the TV and on phones (`camK` in `fbStep`: size follows the camera dista
 - Hazards in later phases (stage fire jets in phase 2, mud geysers in phase 3), desperation spin at 1 HP, RC minion trucks in phase 2.
 
 ## Minigame reworks and new games (user's list, 2026-10-11)
-- **Crate Drop → "build the highest tower"** (strategy): no crate limit, only the timer; once a crate falls off you're
-  out. Mixed pieces: crates, wide pallets (start with one on the truck so crates can sit side by side), long beams,
+- **Crate Drop → "build the highest tower"** (strategy, NEXT to build): no crate limit, only the timer; the tallest
+  tower at the end wins; a collapse costs the pieces that fall but you keep building (no knockout). Mixed pieces: crates, wide pallets (start with one on the truck so crates can sit side by side), long beams,
   small boxes (fill gaps), maybe a heavy steel drum (stable once placed) and a light barrel that rolls. The crane no
   longer swings by itself: TV controller like Scoop Stack (slider on the left moves the crane, DROP on the right).
   My notes: height scored at the end (or live tallest), a "next piece" preview on the crane so placing is a plan, a
@@ -80,6 +80,8 @@ sizes on the TV and on phones (`camK` in `fbStep`: size follows the camera dista
   or twice on the way, or bump each other. Short, party-friendly, good for TV.
 - **Bomberman** (grid arena): trucks drop dynamite (reuse Hot Load's bundle), destructible crates hide power-ups
   (range, extra bomb, speed); last truck standing. Stick + DROP button; works in one shared TV view.
+- **Chaos destruction mode** (user wants: lots of weapons blowing up terrain and enemies, maybe 3rd person; rethinking
+  the Worms idea, see the options discussed 2026-10-11). Plinko after Crate Drop, but interactive, not pure RNG.
 - **Worms-like** on a destructible 2.5D map (longer than usual, maybe 3-5 min): turns, aim + power, a few weapons,
   wind; terrain as a heightmap / voxel slab that craters. Turn-based fits TV well (everyone watches one shot). Needs
   a bigger build: destructible terrain mesh, projectile sim on the host, turn timer.
