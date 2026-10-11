@@ -66,7 +66,7 @@ sizes on the TV and on phones (`camK` in `fbStep`: size follows the camera dista
 - Hazards in later phases (stage fire jets in phase 2, mud geysers in phase 3), desperation spin at 1 HP, RC minion trucks in phase 2.
 
 ## Minigame reworks and new games (user's list, 2026-10-11)
-- **Crate Drop → "build the highest tower"** (strategy, NEXT to build): no crate limit, only the timer; the tallest
+- **Crate Drop → "build the highest tower"** (strategy, built 2026-10-11 with planck.js physics; Plinko next): no crate limit, only the timer; the tallest
   tower at the end wins; a collapse costs the pieces that fall but you keep building (no knockout). Mixed pieces: crates, wide pallets (start with one on the truck so crates can sit side by side), long beams,
   small boxes (fill gaps), maybe a heavy steel drum (stable once placed) and a light barrel that rolls. The crane no
   longer swings by itself: TV controller like Scoop Stack (slider on the left moves the crane, DROP on the right).

@@ -48,6 +48,12 @@ export async function openGame(browser, { width = 390, height = 844, mobile = fa
 			contentType: "text/javascript",
 		}),
 	);
+	await p.route(/planck@/, (r) =>
+		r.fulfill({
+			body: fs.readFileSync(path.join(ROOT, "tools/node_modules/planck/dist/planck.min.js")),
+			contentType: "text/javascript",
+		}),
+	);
 	await p.route(/peerjs/, (r) => r.fulfill({ body: peerjs, contentType: "text/javascript" }));
 	await p.route(/qrcode/, (r) => r.fulfill({ body: "", contentType: "text/javascript" }));
 	if (before) await before(p);

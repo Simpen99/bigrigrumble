@@ -1288,6 +1288,24 @@ function fxAny() {
 	const F = GFX.fx;
 	return F.ao.on || F.bloom.on || F.tilt.on || F.vig.on || F.col.on || F.aa.on;
 }
+/* planck.js (2D rigid-body physics, a Box2D port) for Crate Drop's towers, loaded only when that game comes up */
+let PLANCK_P = null;
+function loadPlanck() {
+	if (window.planck) return Promise.resolve();
+	return (
+		PLANCK_P ||
+		(PLANCK_P = new Promise((res, rej) => {
+			const s = document.createElement("script");
+			s.src = "https://cdn.jsdelivr.net/npm/planck@1.5.0/dist/planck.min.js";
+			s.onload = res;
+			s.onerror = () => {
+				PLANCK_P = null;
+				rej(new Error("planck failed to load"));
+			};
+			document.head.appendChild(s);
+		}))
+	);
+}
 function loadPost() {
 	if (GFX.postLoad) return GFX.postLoad;
 	const base = "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/";
@@ -2454,7 +2472,7 @@ function ramAssist(W, e, dx, dz) {
 }
 
 /* ---------- themed tap controls ---------- */
-const UI_OF = { drag: "shift", crane: "drop" };
+const UI_OF = { drag: "shift" };
 function tapCtlHTML(g, def) {
 	const ui = UI_OF[g] || "btn",
 		lab = esc(def.tapLabel || "TAP");
@@ -2466,8 +2484,6 @@ function tapCtlHTML(g, def) {
 		return `<button class="tapall tp-launch" id="tapall" data-state="wait" aria-label="Go"><span class="tp-lights"><i class="r"></i><i class="y"></i><i class="g"></i></span><span class="tp-go">GO!</span><b class="tp-hint" id="tplab">Wait for green…</b></button>`;
 	if (ui === "jump")
 		return `<button class="tapall tp-jump" id="tapall" aria-label="Jump"><span class="tp-arcade"><span class="tp-chev"></span><span class="tp-chev"></span><b>JUMP</b></span></button>`;
-	if (ui === "drop")
-		return `<button class="tapall tp-drop" id="tapall" data-state="ready" aria-label="Drop"><span class="tp-panel"><span class="tp-led"><i></i><em id="tpstat">READY</em></span><span class="tp-mush"><b>DROP</b></span><span class="tp-count"><em id="tpcount">1</em><small>/10</small></span></span></button>`;
 	return `<button class="tapall" id="tapall">${lab}</button>`;
 }
 function ctlUpdate() {
@@ -2522,13 +2538,6 @@ function ctlUpdate() {
 					: "Wait for green…",
 		);
 	} else if (ui === "jump") el.classList.toggle("air", e.y > 0.05 || !e.al);
-	else if (ui === "drop") {
-		const u = e.used ?? e.cr,
-			st = u >= 10 ? "done" : e.fall ? "loading" : "ready";
-		if (el.dataset.state !== st) el.dataset.state = st;
-		set("tpstat", st === "ready" ? "READY" : st === "loading" ? "DROPPING" : "DONE");
-		set("tpcount", String(Math.min(10, u + (st === "done" ? 0 : 1))));
-	}
 }
 
 /* ---------- TV minigames: the TV simulates every truck, phones are controllers ---------- */
@@ -2718,7 +2727,7 @@ function openTvCtl(mg, p) {
 	box.innerHTML = `<div class="tvc${def.ctrl === "stick" ? " bare" : ""}" style="--c:${pcol(p)}"><div class="tvrot">🔄 Turn your phone sideways</div><div class="m3top"><span class="chip name">${esc(def.name)}</span><span class="chip" id="tvct">Waiting</span></div>
     <div class="tvcme"><img alt="" src="${thumb(p.truck)}"><div><b id="tvcs">0</b><small id="tvcr">${esc(p.name)}</small></div></div>
     <div class="tvcmsg" id="tvcm">📺 Watch the TV</div>
-    ${def.ctrl === "stick" ? stickHTML(def, def.aim ? "Drive" : "Drag anywhere here to drive", mg.tm ? mg.tm[p.key] : undefined) : `<div class="tvcctl${def.swipe || def.slide ? " swc" : ""}" id="tvcctl">${def.slide ? `<div class="swpad slpad" id="slpad"><span class="tvchint">${esc(def.slideHint || "Slide")}</span><i class="slmark" id="slmark"></i></div><button class="ram tvserve" id="tvserve"><span>${esc(def.slideBtn || "SERVE")}</span></button>` : def.swipe ? swipeHTML(def) : def.ctrl === "custom" ? def.ctlHTML() : tapCtlHTML(mg.g, def)}</div>`}
+    ${def.ctrl === "stick" ? stickHTML(def, def.aim ? "Drive" : "Drag anywhere here to drive", mg.tm ? mg.tm[p.key] : undefined) : `<div class="tvcctl${def.swipe || def.slide ? " swc" : ""}" id="tvcctl">${def.slide ? `<div class="swpad slpad" id="slpad"><span class="tvchint">${esc(def.slideHint || "Slide")}</span><i class="slmark" id="slmark"></i></div><button class="ram tvserve" id="tvserve"><span>${esc(def.slideBtn || "SERVE")}</span></button>${def.slideBtn2 ? `<button class="ram ram2 tvserve2" id="tvserve2"><span>${esc(def.slideBtn2)}</span></button>` : ""}` : def.swipe ? swipeHTML(def) : def.ctrl === "custom" ? def.ctlHTML() : tapCtlHTML(mg.g, def)}</div>`}
     <div class="m3ready" id="m3r"><h3>${esc(def.name)}</h3><p style="font-size:14px;line-height:1.45;margin-bottom:10px">${esc(def.how)}</p><div id="m3rl"></div><button class="btn go" id="m3rb">I'm ready</button></div></div>`;
 	if (def.ctrl === "stick") {
 		wireStick(() => TVC && TVC.inp);
@@ -2759,12 +2768,20 @@ function openTvCtl(mg, p) {
 				tvcTick();
 			};
 		/* slide games: the slider on the left, the button (a flick up does the same) on the right */
-		const sv = $("#tvserve");
+		const sv = $("#tvserve"),
+			sv2 = $("#tvserve2");
 		if (sv)
 			sv.addEventListener("pointerdown", (e) => {
 				e.preventDefault();
 				if (!TVC) return;
 				TVC.b++;
+				tvcTick();
+			});
+		if (sv2)
+			sv2.addEventListener("pointerdown", (e) => {
+				e.preventDefault();
+				if (!TVC) return;
+				TVC.b2 = (TVC.b2 || 0) + 1;
 				tvcTick();
 			});
 		if (def.slide)
@@ -3123,6 +3140,11 @@ function tvsInput() {
 		else if (r.b !== s.lastB) {
 			s.lastB = r.b;
 			i.boost = true;
+		}
+		if (s.lastB2 === undefined) s.lastB2 = r.b2 || 0;
+		else if ((r.b2 || 0) !== s.lastB2) {
+			s.lastB2 = r.b2 || 0;
+			i.b2 = true;
 		}
 		if (Array.isArray(r.ev) && s.ctl)
 			for (const ev of r.ev) {
