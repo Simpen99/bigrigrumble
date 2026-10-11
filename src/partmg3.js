@@ -1839,9 +1839,9 @@ Object.assign(MG, {
 		FLOOR: 0.12,
 		DW: 0.24,
 		GY: -2.6,
-		R: 1.23 /* the ball */,
-		TS: 0.64 /* the truck's scale inside it */,
-		WB: 0.92 /* the truck's wheels this far below the ball's centre */,
+		R: 0.98 /* the ball */,
+		TS: 0.51 /* the truck's scale inside it */,
+		WB: 0.74 /* the truck's wheels this far below the ball's centre */,
 		TOPY: 24.8 /* a hanging ball's centre */,
 		CEIL: 27 /* just under the magnet rail */,
 		RAIL: 27.9,
@@ -1853,7 +1853,7 @@ Object.assign(MG, {
 		/* feel: gravity, peg bounce, ball friction (low: it glides), steering push (m/s²), hop speed and cooldown, magnet
 		   speed, how long a ball may hang before it drops by itself */
 		GRAV: 13,
-		PEGR: 0.45,
+		PEGR: 0.59,
 		FRIC: 0.08,
 		PUSH: 2.6,
 		HOPV: 6.5,
@@ -2053,7 +2053,7 @@ Object.assign(MG, {
 						opacity: 0.55,
 						depthWrite: false,
 					}),
-					st = new THREE.Mesh(new THREE.BoxGeometry(q.w - 0.75, 0.3, 2.4), m),
+					st = new THREE.Mesh(new THREE.BoxGeometry(q.w - 0.75, 0.21, 2.4), m),
 					tx = canvasTex(128, 64, (x, w, h) => {
 						x.font = "48px Bungee, 'Arial Black', Impact, sans-serif";
 						x.textAlign = "center";
@@ -2078,7 +2078,7 @@ Object.assign(MG, {
 					depthWrite: false,
 				});
 				[1.35, -1.6].forEach((z, j) => {
-					const p = new THREE.Mesh(new THREE.PlaneGeometry(q.w + (j ? 1.6 : 0.8), j ? 2.2 : 1.3), hm);
+					const p = new THREE.Mesh(new THREE.PlaneGeometry(q.w + (j ? 1.6 : 0.8), j ? 1.54 : 0.91), hm);
 					p.position.set(q.x, q.y, z);
 					p.renderOrder = 4;
 					s.add(p);
@@ -2182,12 +2182,12 @@ Object.assign(MG, {
 			});
 		},
 		/* the board is the playfield of a giant arcade cabinet, seen from inside: side walls fanning out to the edges of
-		   the view (dark paint, racing stripes, neon strips, a yellow edge with chasing bulbs, speakers), a hood over the
+		   the view (the board's navy, red / yellow / white racing stripes, red and yellow neon strips, a yellow edge with chasing bulbs, speakers), a hood over the
 		   top, a dark arcade floor with neon lines fanning out from the board */
 		cabinet(W) {
 			const s = W.sc,
 				{ HW, GY } = this,
-				BG = "#17122B",
+				BG = "#0F1730",
 				top = this.HDR + 4,
 				H = top - GY,
 				Z0 = -2.2,
@@ -2202,11 +2202,11 @@ Object.assign(MG, {
 			s.fog.near = 80;
 			s.fog.far = 220;
 			W.bulbs = [];
-			s.add(B(160, 0.4, 140, "#262040", 0, GY - 0.2, 20));
+			s.add(B(160, 0.4, 140, "#1A2440", 0, GY - 0.2, 20));
 			/* neon lines on the floor */
 			[
-				[-1, "#FF6FAE"],
-				[1, "#26C6DA"],
+				[-1, "#FF5A5F"],
+				[1, "#FFC83D"],
 			].forEach(([sd, c]) =>
 				[
 					[4, 9],
@@ -2229,14 +2229,14 @@ Object.assign(MG, {
 					at = (lx, y, lz) => [cx + lx * Math.cos(a) + lz * Math.sin(a), y, cz - lx * Math.sin(a) + lz * Math.cos(a)];
 				g.position.set(cx, 0, cz);
 				g.rotation.y = a;
-				g.add(B(0.9, H, L, "#2E2150", 0, GY + H / 2, 0));
+				g.add(B(0.9, H, L, "#1B2A4F", 0, GY + H / 2, 0));
 				/* racing stripes along the inner face */
-				["#E5484D", "#FFC83D", "#2F7DE1"].forEach((c, k) =>
+				["#E5484D", "#FFC83D", "#F4F6F9"].forEach((c, k) =>
 					g.add(B(0.06, 0.8, L - 1.5, c, ix - sd * 0.03, 2.4 + k * 1, -0.5)),
 				);
 				/* neon strips up the wall */
 				[-0.3, 0.05, 0.4].forEach((u, k) => {
-					const m = new THREE.Mesh(new THREE.BoxGeometry(0.05, H - 9, 0.2), neon(k % 2 ? "#26C6DA" : "#FF6FAE"));
+					const m = new THREE.Mesh(new THREE.BoxGeometry(0.05, H - 9, 0.2), neon(k % 2 ? "#FFC83D" : "#FF5A5F"));
 					m.position.set(ix - sd * 0.03, 6.5 + (H - 9) / 2 + GY, u * L);
 					g.add(m);
 				});
@@ -2244,7 +2244,7 @@ Object.assign(MG, {
 				[-0.15, 0.2].forEach((u) => {
 					const c1 = Cy(1.6, 1.6, 0.08, 14, "#151B24", ix - sd * 0.04, 22, u * L),
 						c2 = Cy(0.6, 0.6, 0.12, 10, "#3A3F48", ix - sd * 0.06, 22, u * L),
-						c3 = Cy(1.75, 1.75, 0.04, 14, "#5A4A80", ix - sd * 0.02, 22, u * L);
+						c3 = Cy(1.75, 1.75, 0.04, 14, "#2F4A7F", ix - sd * 0.02, 22, u * L);
 					[c1, c2, c3].forEach((m) => (m.rotation.z = Math.PI / 2));
 					g.add(c3, c1, c2);
 				});
@@ -2255,7 +2255,7 @@ Object.assign(MG, {
 			});
 			/* the hood over the top, bulbs along its front edge */
 			const hw = HW + 1.6 + SP;
-			s.add(B(2 * hw + 2, 0.9, Z1 - Z0, "#2E2150", 0, top + 0.45, (Z0 + Z1) / 2));
+			s.add(B(2 * hw + 2, 0.9, Z1 - Z0, "#1B2A4F", 0, top + 0.45, (Z0 + Z1) / 2));
 			s.add(B(2 * hw + 2, 0.5, 0.36, "#FFC83D", 0, top + 0.2, Z1));
 			for (let x = -hw; x <= hw; x += 1.1) P.push([x, top - 0.12, Z1 - 0.4]);
 			const bl = new THREE.InstancedMesh(
@@ -2807,9 +2807,10 @@ Object.assign(MG, {
 			}
 			W.flips.forEach((f, i) => (W.flipG[i].rotation.z = this.flipA(f, Math.max(0, W.t))));
 			W.gateM.forEach((g) => {
-				const k = Math.max(0, 1 - (W.t - g.fl) / 0.6);
-				g.m.opacity = 0.6 + 0.15 * Math.sin(W.t * 4) + k * 0.4;
-				g.hm.opacity = 0.65 + 0.2 * Math.sin(W.t * 4) + k * 0.35;
+				const k = W.t >= g.fl ? Math.max(0, 1 - (W.t - g.fl) / 0.6) : 0,
+					w = Math.sin(Math.max(0, W.t) * 4);
+				g.m.opacity = 0.5 + 0.12 * w + k * 0.4;
+				g.hm.opacity = 0.5 + 0.15 * w + k * 0.35;
 				g.m.color.set(k > 0.5 ? "#E8FFF2" : "#8CFFC0");
 			});
 			const mp = this.mpos(W.t),
