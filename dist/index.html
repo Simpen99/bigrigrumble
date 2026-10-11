@@ -768,7 +768,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-11 22:32 7a5c5b4";
+const BUILD = "2026-10-11 22:38 83fdcd6";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -29801,7 +29801,6 @@ Object.assign(MG, {
 		FL: 1.9 /* flipper length */,
 		kits() {
 			loadPlanck();
-			bakeKit(lightTowerModel());
 		},
 		/* peg centres [x, y], the half pegs on the walls included */
 		pegs() {
@@ -29873,10 +29872,7 @@ Object.assign(MG, {
 				n = W.plist.length,
 				{ HW, SW, COLS, SH, FLOOR, DW, GY } = this;
 			W.laneX = (i) => (i - (n - 1) / 2) * 4.4;
-			s.fog.near = 90;
-			s.fog.far = 240;
-			/* fairground plaza */
-			s.add(texBox(140, 0.4, 90, pavingTex(), 6, 0, GY - 0.2, -8));
+			this.cabinet(W);
 			/* the board: dark blue back with column panels, red frame and header, a plinth under the slots */
 			const top = this.HDR + 0.9,
 				bh = top - GY;
@@ -29974,7 +29970,7 @@ Object.assign(MG, {
 			/* x2 gates: a green light strip across the gap with a soft glow round it (additive halos in front and on the
 			   board, so it glows on the TV too, where the post effects are off), the x2 on the board under it */
 			const halo = canvasTex(256, 128, (x, w, h) => {
-				const g = x.createRadialGradient(w / 2, h / 2, 4, w / 2, h / 2, h / 2);
+				const g = x.createRadialGradient(h / 2, h / 2, 4, h / 2, h / 2, h / 2);
 				g.addColorStop(0, "rgba(140,255,190,0.9)");
 				g.addColorStop(0.35, "rgba(70,230,140,0.45)");
 				g.addColorStop(1, "rgba(40,200,110,0)");
@@ -30053,7 +30049,7 @@ Object.assign(MG, {
 				W.caps = cap;
 				W.pegFl = pg.map(() => null);
 			}
-			/* marquee bulbs on the frame and the header, chasing */
+			/* marquee bulbs on the frame and the header, chasing (W.bulbs: one instanced mesh each, the cabinet adds its own) */
 			{
 				const P = [];
 				[-1, 1].forEach((sd) => {
@@ -30076,7 +30072,7 @@ Object.assign(MG, {
 					bl.setColorAt(i, c);
 				});
 				s.add(bl);
-				W.bulbs = bl;
+				W.bulbs.push(bl);
 			}
 			/* the x3 sign */
 			{
@@ -30118,43 +30114,98 @@ Object.assign(MG, {
 				s.add(g);
 				W.mag[p.key] = g;
 			});
-			/* the audience: bleachers on both sides in front, facing the board; light towers aimed at it */
-			const ppl = [];
+		},
+		/* the board is the playfield of a giant arcade cabinet, seen from inside: side walls fanning out to the edges of
+		   the view (dark paint, racing stripes, neon strips, a yellow edge with chasing bulbs, speakers), a hood over the
+		   top, a dark arcade floor with neon lines fanning out from the board */
+		cabinet(W) {
+			const s = W.sc,
+				{ HW, GY } = this,
+				BG = "#17122B",
+				top = this.HDR + 4,
+				H = top - GY,
+				Z0 = -2.2,
+				Z1 = 30,
+				SP = 9 /* how far each wall fans out over its length */,
+				L = Math.hypot(SP, Z1 - Z0),
+				th = Math.atan2(SP, Z1 - Z0),
+				P = [],
+				neon = (c) => new THREE.MeshBasicMaterial({ color: c });
+			s.background = new THREE.Color(BG);
+			s.fog.color.set(BG);
+			s.fog.near = 80;
+			s.fog.far = 220;
+			W.bulbs = [];
+			s.add(B(160, 0.4, 140, "#262040", 0, GY - 0.2, 20));
+			/* neon lines on the floor */
+			[
+				[-1, "#FF6FAE"],
+				[1, "#26C6DA"],
+			].forEach(([sd, c]) =>
+				[
+					[4, 9],
+					[10.5, 21],
+				].forEach(([x0, x1]) => {
+					const dz = 34,
+						dx = x1 - x0,
+						m = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.04, Math.hypot(dx, dz)), neon(c));
+					m.position.set((sd * (x0 + x1)) / 2, GY + 0.02, 3 + dz / 2);
+					m.rotation.y = sd * Math.atan2(dx, dz);
+					s.add(m);
+				}),
+			);
 			[-1, 1].forEach((sd) => {
-				for (let r = 0; r < 4; r++) {
-					const h = 0.5 + r * 0.6,
-						z = 5 + r * 1.3,
-						xc = sd * (HW + 9);
-					const st = B(10, h, 1.3, r % 2 ? "#8C95A5" : "#A3ACBB", xc, GY + h / 2, z);
-					st.castShadow = false;
-					s.add(st);
-					for (let x = xc - 4.6; x < xc + 4.6; x += 0.8 + W.rng() * 0.3)
-						if (W.rng() > 0.15) {
-							const px = x + (W.rng() - 0.5) * 0.2;
-							ppl.push({
-								x: px,
-								y: GY + h,
-								z,
-								face: Math.atan2(-px, -z) + Math.PI,
-								ph: W.rng() * 6.28,
-								sp: 7 + W.rng() * 5,
-							});
-						}
-				}
-				s.add(B(10.4, 0.25, 6, sd < 0 ? "#2F7DE1" : "#FFC83D", sd * (HW + 9), GY + 4.6, 7));
-				[-1, 1].forEach((a) => s.add(B(0.2, 4.6, 0.2, "#D9DEE7", sd * (HW + 9) + a * 5, GY + 2.3, 9.8)));
-				const lt = kitGroup(bakeKit(lightTowerModel()));
-				lt.position.set(sd * (HW + 16), GY, 12);
-				lt.rotation.y = Math.PI + sd * 0.55;
-				s.add(lt);
+				const g = new THREE.Group(),
+					a = sd * th,
+					cx = sd * (HW + 1.15 + SP / 2),
+					cz = (Z0 + Z1) / 2,
+					ix = -sd * 0.45,
+					at = (lx, y, lz) => [cx + lx * Math.cos(a) + lz * Math.sin(a), y, cz - lx * Math.sin(a) + lz * Math.cos(a)];
+				g.position.set(cx, 0, cz);
+				g.rotation.y = a;
+				g.add(B(0.9, H, L, "#2E2150", 0, GY + H / 2, 0));
+				/* racing stripes along the inner face */
+				["#E5484D", "#FFC83D", "#2F7DE1"].forEach((c, k) =>
+					g.add(B(0.06, 0.8, L - 1.5, c, ix - sd * 0.03, 2.4 + k * 1, -0.5)),
+				);
+				/* neon strips up the wall */
+				[-0.3, 0.05, 0.4].forEach((u, k) => {
+					const m = new THREE.Mesh(new THREE.BoxGeometry(0.05, H - 9, 0.2), neon(k % 2 ? "#26C6DA" : "#FF6FAE"));
+					m.position.set(ix - sd * 0.03, 6.5 + (H - 9) / 2 + GY, u * L);
+					g.add(m);
+				});
+				/* speakers high up */
+				[-0.15, 0.2].forEach((u) => {
+					const c1 = Cy(1.6, 1.6, 0.08, 14, "#151B24", ix - sd * 0.04, 22, u * L),
+						c2 = Cy(0.6, 0.6, 0.12, 10, "#3A3F48", ix - sd * 0.06, 22, u * L),
+						c3 = Cy(1.75, 1.75, 0.04, 14, "#5A4A80", ix - sd * 0.02, 22, u * L);
+					[c1, c2, c3].forEach((m) => (m.rotation.z = Math.PI / 2));
+					g.add(c3, c1, c2);
+				});
+				/* the yellow edge on the front, with bulbs up its inner side */
+				g.add(B(1.1, H, 0.36, "#FFC83D", 0, GY + H / 2, L / 2));
+				for (let y = GY + 0.6; y < top - 0.4; y += 1.1) P.push(at(ix - sd * 0.12, y, L / 2 - 0.35));
+				s.add(g);
 			});
-			crowdMeshes(W, ppl);
-			for (let i = 0; i < 14; i++) {
-				const sd = i % 2 ? 1 : -1;
-				const tr = tree(sd * (32 + W.rng() * 18), -6 - W.rng() * 30, 1.2 + W.rng() * 0.8, i % 3);
-				tr.position.y = GY;
-				s.add(tr);
-			}
+			/* the hood over the top, bulbs along its front edge */
+			const hw = HW + 1.6 + SP;
+			s.add(B(2 * hw + 2, 0.9, Z1 - Z0, "#2E2150", 0, top + 0.45, (Z0 + Z1) / 2));
+			s.add(B(2 * hw + 2, 0.5, 0.36, "#FFC83D", 0, top + 0.2, Z1));
+			for (let x = -hw; x <= hw; x += 1.1) P.push([x, top - 0.12, Z1 - 0.4]);
+			const bl = new THREE.InstancedMesh(
+					new THREE.IcosahedronGeometry(0.16, 0),
+					new THREE.MeshBasicMaterial(),
+					P.length,
+				),
+				o = new THREE.Object3D();
+			P.forEach(([x, y, z], i) => {
+				o.position.set(x, y, z);
+				o.updateMatrix();
+				bl.setMatrixAt(i, o.matrix);
+				bl.setColorAt(i, new THREE.Color("#FFE9A8"));
+			});
+			s.add(bl);
+			W.bulbs.push(bl);
 		},
 		spawn: (W, i) => ({ x: W.laneX(i), z: 0, yaw: i % 2 ? Math.PI : 0 }),
 		initEnt(W, e) {
@@ -30398,8 +30449,9 @@ Object.assign(MG, {
 				if (e.dn >= this.DROPS) {
 					e.st = 3;
 					e.d = true;
-					const L = [-1, 1, -1, 1, -1, 1][e.i] * (this.HW + 2.6 + Math.floor(e.i / 2) * 3.4);
-					e.x = L;
+					/* parked on the cabinet floor in front of the board, by the walls */
+					e.x = [-1, 1, -1, 1, -1, 1][e.i] * (this.HW + 0.9 + Math.floor(e.i / 2) * 0.9);
+					e.z = 4.2 + Math.floor(e.i / 2) * 3.2;
 					e.y = this.GY + this.R;
 					e.ang = e.tt = 0;
 					e.vx = 0;
@@ -30507,20 +30559,21 @@ Object.assign(MG, {
 				e.ang = lerpA(e.ang || 0, f.an || 0, k);
 				e.tt = (e.tt || 0) + ((f.tt || 0) - (e.tt || 0)) * k;
 				const n = e.net;
-				if (n && Math.hypot(n.x - e.x, (n.y || 0) - e.y) > 6) {
+				if (n && Math.hypot(n.x - e.x, (n.y || 0) - e.y, n.z - e.z) > 6) {
 					e.x = n.x;
 					e.y = n.y || 0;
+					e.z = n.z;
 				}
 			}
 			/* the truck sits in the bottom of its ball (e.x / e.y = the ball's centre), tilted by tt */
 			e.pitch = e.tt * e.fc;
 			e.tr.rotation.z = e.pitch;
-			e.g.position.set(e.x + this.WB * Math.sin(e.tt), e.y - this.WB * Math.cos(e.tt), 0);
+			e.g.position.set(e.x + this.WB * Math.sin(e.tt), e.y - this.WB * Math.cos(e.tt), e.z);
 			const bl = this.ball(W, e),
 				ha = W.t - (e.hopT ?? -9),
 				q = ha < 0.35 ? 0.13 * Math.sin((ha / 0.35) * Math.PI) : 0;
 			bl.g.visible = !e.gone;
-			bl.g.position.set(e.x, e.y, 0);
+			bl.g.position.set(e.x, e.y, e.z);
 			bl.g.scale.set(1 + q, 1 - q, 1 + q);
 			bl.spin.rotation.z = e.ang;
 			const col = pcol(e.p),
@@ -30680,8 +30733,10 @@ Object.assign(MG, {
 					W.bph = ph;
 					const on = new THREE.Color("#FFE9A8"),
 						off = new THREE.Color("#6B5A3A");
-					for (let i = 0; i < W.bulbs.count; i++) W.bulbs.setColorAt(i, (i + ph) % 4 < 2 ? on : off);
-					W.bulbs.instanceColor.needsUpdate = true;
+					W.bulbs.forEach((bl) => {
+						for (let i = 0; i < bl.count; i++) bl.setColorAt(i, (i + ph) % 4 < 2 ? on : off);
+						bl.instanceColor.needsUpdate = true;
+					});
 				}
 			}
 			W.flips.forEach((f, i) => (W.flipG[i].rotation.z = this.flipA(f, Math.max(0, W.t))));
