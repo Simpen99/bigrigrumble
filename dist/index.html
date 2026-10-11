@@ -768,7 +768,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-11 17:59 6dd8627";
+const BUILD = "2026-10-11 18:36 a65a27e";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -22271,7 +22271,7 @@ const MG = {
 		BED: 1.4 /* truck bed top */,
 		BASE: [-1.2, 1.2, 0.22] /* the pallet every truck starts with: x from, x to, height */,
 		HALF: 2.15 /* a piece stays within this of the lane centre */,
-		DROPH: 0.9 /* the crane holds the piece this far above the tower */,
+		CLEAR: 1.1 /* the hanging piece's bottom stays this far above the tower, however it's turned */,
 		/* baked props, also called by enterMg while the clouds cover the switch so their AO is ready by the start (partmodels) */
 		kits(n) {
 			loadPlanck();
@@ -22577,7 +22577,18 @@ const MG = {
 		/* ---- physics (planck.js, 2D Box2D: x across the lane, y up), one world per truck on the device that simulates
 		   it: the ground, the truck as a block, its starting pallet (static); dropped pieces are dynamic bodies with one
 		   box per rectangle. Other devices draw the pieces from e.f.p ([type, x, y, angle] per piece) */
-		GRAV: 13.5,
+		/* feel: gravity, how fast a dropped piece may fall until it touches something (the crane lowers it), friction,
+		   damping (how quickly rocking dies down), solver passes (higher = stiffer stacks) */
+		GRAV: 12,
+		DROPV: 3.5,
+		FRIC: 1.2,
+		LDAMP: 0.1,
+		ADAMP: 0.8,
+		/* a piece that has sat still for SETTLE s stiffens (damping SDAMP: linear, angular), so small knocks don't
+		   shake a built tower loose; real imbalance still tips it, only slower */
+		SETTLE: 0.5,
+		SDAMP: [1, 3],
+		ITER: [10, 6],
 		world(e) {
 			if (e.pw || !window.planck) return e.pw;
 			const pl = window.planck,
@@ -22592,18 +22603,22 @@ const MG = {
 			e.acc = 0;
 			return w;
 		},
-		addBody(e, t, r, x, y) {
+		addBody(e, t, r, x, y, ang) {
 			const pl = window.planck,
 				P = this.PIECES[t],
 				b = e.pw.createBody({
 					type: "dynamic",
 					position: pl.Vec2(x, y),
-					angle: (r * Math.PI) / 2,
-					linearDamping: 0.05,
-					angularDamping: 0.15,
+					angle: ang ?? (r * Math.PI) / 2,
+					linearDamping: this.LDAMP,
+					angularDamping: this.ADAMP,
 				});
 			P.b.forEach(([cx, cy, w, h]) =>
-				b.createFixture(pl.Box(w / 2, h / 2, pl.Vec2(cx, cy), 0), { density: P.d, friction: 0.75, restitution: 0.02 }),
+				b.createFixture(pl.Box(w / 2, h / 2, pl.Vec2(cx, cy), 0), {
+					density: P.d,
+					friction: this.FRIC,
+					restitution: 0,
+				}),
 			);
 			return b;
 		},
@@ -22675,7 +22690,7 @@ const MG = {
 			const lo = Math.min(...this.shape(t, r).map(([, y, , hh]) => y - hh / 2)),
 				y = Math.max(e.hook - pt - 0.02, this.topOf(e) + 0.5 - lo);
 			const b = this.addBody(e, t, r, e.hx, y);
-			e.bd.push({ b, t, age: 0 });
+			e.bd.push({ b, t, age: 0, fresh: true });
 			e.n++;
 			e.rt = 0;
 			e.next = W.t + 0.9;
@@ -22687,17 +22702,41 @@ const MG = {
 			if (!w) return;
 			this.input(W, e, dt);
 			/* where the spreader is: above the current top, easing so it doesn't jump when the tower changes */
-			const want = this.topOf(e) + this.DROPH + 0.78;
-			e.hook = e.hook == null ? want : e.hook + (want - e.hook) * Math.min(1, dt * 4);
+			/* the spreader: high enough that the hanging piece (as turned now) clears the tower by CLEAR; it rises fast
+			   (rotating a beam upright) and settles down slowly */
+			{
+				const t = this.pieceAt(W, e.n),
+					sh = this.shape(t, this.PIECES[t].rot ? e.rt : 0),
+					ph = Math.max(...sh.map(([, y, , hh]) => y + hh / 2)) - Math.min(...sh.map(([, y, , hh]) => y - hh / 2)),
+					want = this.topOf(e) + this.CLEAR + ph + 0.02;
+				e.hook = e.hook == null ? want : e.hook + (want - e.hook) * Math.min(1, dt * (want > e.hook ? 14 : 3));
+			}
 			/* fixed physics steps */
 			e.acc = Math.min(0.3, e.acc + dt);
 			while (e.acc >= 1 / 60) {
-				w.step(1 / 60, 8, 3);
+				/* a fresh drop is lowered, not thrown: its fall speed is capped until it first touches something */
+				e.bd.forEach((q) => {
+					if (!q.fresh) return;
+					if (this.touching(q.b)) q.fresh = false;
+					const v = q.b.getLinearVelocity();
+					if (q.fresh && v.y < -this.DROPV) q.b.setLinearVelocity(window.planck.Vec2(v.x, -this.DROPV));
+				});
+				w.step(1 / 60, this.ITER[0], this.ITER[1]);
 				e.acc -= 1 / 60;
 			}
 			e.bd = e.bd.filter((q) => {
 				q.age += dt;
 				const p = q.b.getPosition();
+				{
+					const still = q.b.getLinearVelocity().length() < 0.15 && Math.abs(q.b.getAngularVelocity()) < 0.15;
+					q.st = still ? (q.st || 0) + dt : 0;
+					const set = q.st >= this.SETTLE;
+					if (set !== !!q.set) {
+						q.set = set;
+						q.b.setLinearDamping(set ? this.SDAMP[0] : this.LDAMP);
+						q.b.setAngularDamping(set ? this.SDAMP[1] : this.ADAMP);
+					}
+				}
 				/* off the truck: lost (it keeps falling, then disappears once it lies on the ground) */
 				if (!q.lost && (p.y < this.BED - 0.15 || Math.abs(p.x) > this.HALF + 1.2)) {
 					q.lost = W.t;
@@ -22728,7 +22767,7 @@ const MG = {
 		/* the camera frames the whole tower: from the bed to a few metres over the top (the hook) */
 		frame(top) {
 			const lo = 0.6,
-				hi = top + this.DROPH + 1.6;
+				hi = top + this.CLEAR + 2.8;
 			return { y: (lo + hi) / 2, D: (hi - lo) / (2 * Math.tan((20 * Math.PI) / 180)) };
 		},
 		cam(W, t, p, far) {
@@ -22786,7 +22825,7 @@ const MG = {
 					? [e.n, this.PIECES[this.pieceAt(W, e.n)].rot ? e.rt : 0, this.ready(W, e) ? 1 : 0]
 					: (e.f && e.f.cu) || [0, 0, 0],
 				hx = loc ? e.hx : (e.f && e.f.hx) || 0,
-				hk = (loc ? e.hook : e.f && e.f.hk) || this.BED + this.BASE[2] + this.DROPH + 0.78,
+				hk = (loc ? e.hook : e.f && e.f.hk) || this.BED + this.BASE[2] + this.CLEAR + 0.82,
 				u = h.userData,
 				cy = (u.cy = u.cy == null ? hk - 0.4 : u.cy + (hk - 0.4 - u.cy) * (1 - Math.exp(-(dt || 0.016) * 8))),
 				rb = cy + 0.4 + 0.39,
@@ -22810,9 +22849,8 @@ const MG = {
 			u.pg.position.y = cy + 0.4 - pt - 0.02;
 			this.guide(W, e, t, cu[1], hx, u.pg.position.y, u.pg.visible);
 		},
-		/* where the waiting piece will land, faint in the truck's colour; GUIDE picks the look:
-		   1 drop lines from its outer edges, 2 corner ticks on the stack only, 3 a ghost outline, 4 fading lines + ticks */
-		GUIDE: 4,
+		/* drop guide: dashed lines in the truck's colour straight down from the hanging piece's outer edges, each to
+		   the first thing under it (the stack, the pallet, the truck, the ground) */
 		guide(W, e, t, r, hx, hy, on) {
 			const G = e.gd || (e.gd = { g: new THREE.Group(), bars: [] });
 			if (!G.g.parent) W.sc.add(G.g);
@@ -22838,53 +22876,48 @@ const MG = {
 					m.visible = true;
 				};
 			if (on && fbShow(W, e)) {
-				const V = this.GUIDE,
-					land = this.rest(this.modelAny(e), t, r, hx),
-					sh = this.shape(t, r),
-					hang = sh.map(([cx, cy, w, h]) => ({
+				const hang = this.shape(t, r).map(([cx, cy, w, h]) => ({
 						l: hx + cx - w / 2,
 						r: hx + cx + w / 2,
 						b: hy + cy - h / 2,
-						t: hy + cy + h / 2,
-					})),
-					at = sh.map(([cx, cy, w, h]) => ({
-						l: hx + cx - w / 2,
-						r: hx + cx + w / 2,
-						b: land.y + cy - h / 2,
-						t: land.y + cy + h / 2,
 					})),
 					L = hang.reduce((a, b) => (b.l < a.l || (b.l === a.l && b.b < a.b) ? b : a)),
 					R = hang.reduce((a, b) => (b.r > a.r || (b.r === a.r && b.b < a.b) ? b : a)),
-					dy = land.y - hy,
-					T = 0.035,
-					edges = [
-						[L.l, L.b, L.b + dy, 1],
-						[R.r, R.b, R.b + dy, -1],
-					];
-				if (V === 1) edges.forEach(([x, y0, y1]) => bar(x, (y0 + y1) / 2, T, y0 - y1, 0.4));
-				if (V === 4)
-					edges.forEach(([x, y0, y1]) => {
-						const k = 6;
-						for (let i = 0; i < k; i++) {
-							const a = y0 + ((y1 - y0) * i) / k,
-								b = y0 + ((y1 - y0) * (i + 1)) / k;
-							bar(x, (a + b) / 2, T, a - b, 0.42 - (0.32 * i) / k);
-						}
+					tops = this.surfaces(e);
+				[
+					[L.l + 0.03, L.b],
+					[R.r - 0.03, R.b],
+				].forEach(([x, y0]) => {
+					let y1 = 0;
+					tops.forEach((q) => {
+						if (x >= q.l && x <= q.r && q.t <= y0 + 0.01) y1 = Math.max(y1, q.t);
 					});
-				if (V === 2 || V === 4)
-					edges.forEach(([x, , y1, sd]) => {
-						bar(x + (sd * 0.2) / 2, y1 + T / 2, 0.2, T * 1.3, 0.9);
-						bar(x + (sd * T) / 2, y1 + 0.12 / 2, T * 1.3, 0.12, 0.9);
-					});
-				if (V === 3)
-					at.forEach((b) => {
-						bar((b.l + b.r) / 2, b.b, b.r - b.l, T, 0.5);
-						bar((b.l + b.r) / 2, b.t, b.r - b.l, T, 0.5);
-						bar(b.l, (b.b + b.t) / 2, T, b.t - b.b, 0.5);
-						bar(b.r, (b.b + b.t) / 2, T, b.t - b.b, 0.5);
-					});
+					/* dashes from the top down */
+					for (let y = y0 - 0.04; y > y1 + 0.02; y -= 0.3) {
+						const lo = Math.max(y1, y - 0.18);
+						bar(x, (y + lo) / 2, 0.045, y - lo, 0.75);
+					}
+				});
 			}
 			for (let i = n; i < G.bars.length; i++) G.bars[i].visible = false;
+		},
+		/* tops a falling edge can hit: every piece (its box, or a moving one's bounding box), the pallet, the truck */
+		surfaces(e) {
+			const [bl, br, bh] = this.BASE,
+				out = [
+					{ l: bl, r: br, t: this.BED + bh },
+					{ l: -1.4, r: 1.4, t: this.BED },
+				];
+			if (e.local)
+				e.bd.forEach((q) => {
+					if (q.lost) return;
+					for (let f = q.b.getFixtureList(); f; f = f.getNext()) {
+						const a = f.getAABB(0);
+						out.push({ l: a.lowerBound.x, r: a.upperBound.x, t: a.upperBound.y });
+					}
+				});
+			else this.modelAny(e).forEach((p) => this.boxes(p).forEach((b) => out.push(b)));
+			return out;
 		},
 		/* the tower model from local bodies or a remote truck's e.f.p */
 		modelAny(e) {
@@ -23060,6 +23093,39 @@ const MG = {
 			}
 			return { fall, margin };
 		},
+		touching(b) {
+			for (let c = b.getContactList(); c; c = c.next) if (c.contact.isTouching()) return true;
+			return false;
+		},
+		/* a quick physics try-out of a drop on a scratch copy of the tower: how many pieces fall off, how many shift */
+		tryout(e, t, r, x) {
+			const tmp = { bd: [] };
+			this.world(tmp);
+			e.bd.forEach((q) => {
+				if (q.lost) return;
+				const p = q.b.getPosition();
+				tmp.bd.push({ b: this.addBody(tmp, q.t, 0, p.x, p.y, q.b.getAngle()), x0: p.x, y0: p.y, fresh: false });
+			});
+			const lo = Math.min(...this.shape(t, r).map(([, y, , hh]) => y - hh / 2)),
+				nb = this.addBody(tmp, t, r, x, this.topOf(tmp) + 0.3 - lo);
+			tmp.bd.push({ b: nb, x0: x, y0: 99, fresh: true, age: 0 });
+			for (let s = 0; s < 120; s++) {
+				const v = nb.getLinearVelocity();
+				if (!this.touching(nb) && v.y < -this.DROPV) nb.setLinearVelocity(window.planck.Vec2(v.x, -this.DROPV));
+				tmp.pw.step(1 / 60, 6, 3);
+			}
+			let lost = 0,
+				moved = 0;
+			tmp.bd.forEach((q) => {
+				const p = q.b.getPosition();
+				if (p.y < this.BED - 0.15) lost++;
+				else if (q.y0 < 90 && Math.hypot(p.x - q.x0, p.y - q.y0) > 0.25) moved++;
+			});
+			/* the new piece itself: still sliding or rocking, or settled crooked, is about to go */
+			const da = Math.abs(((nb.getAngle() - (r * Math.PI) / 2 + Math.PI) % (Math.PI * 2)) - Math.PI);
+			if (nb.getPosition().y >= this.BED - 0.15 && (nb.getLinearVelocity().length() > 0.25 || da > 0.12)) moved += 2;
+			return { lost, moved };
+		},
 		bot(W, e, dt) {
 			if (W.t < 0 || !e.pw) return;
 			if (e.plan === undefined || e.plan.n !== e.n) {
@@ -23068,7 +23134,7 @@ const MG = {
 					rots = this.PIECES[t].rot ? [0, 1, 2, 3] : [0],
 					base = this.model(e),
 					top0 = Math.max(this.BED + this.BASE[2], ...base.flatMap((p) => this.boxes(p).map((b) => b.t)));
-				let best = null;
+				const cands = [];
 				rots.forEach((r) => {
 					const hw = this.HALF - this.halfW(t, r);
 					for (let x = -hw; x <= hw + 1e-6; x += 0.1) {
@@ -23100,18 +23166,34 @@ const MG = {
 							Math.min(0.35, margin) * 3 * e.sk -
 							Math.abs(x) * 0.08 +
 							Math.random() * 0.3 * (1.2 - e.sk);
-						if (!best || sc > best.sc) best = { x, r, sc };
+						cands.push({ x, r, sc });
 					}
 				});
-				best = best || { x: 0, r: 0 };
+				cands.sort((a, b) => b.sc - a.sc);
+				/* the best few by the model get a real physics try-out (better CPUs try more), one per frame */
 				e.plan = {
 					n: e.n,
-					x: best.x + (Math.random() - 0.5) * 0.4 * (1 - e.sk),
-					r: best.r,
+					cands: cands.slice(0, 2 + Math.round(4 * e.sk)),
+					k: 0,
 					at: W.t + 0.5 + Math.random() * 1.2,
 				};
 			}
 			const P = e.plan;
+			if (P.x === undefined) {
+				const c = P.cands[P.k];
+				if (c) {
+					const o = this.tryout(e, this.pieceAt(W, e.n), c.r, c.x);
+					c.sc -= o.lost * 4 + o.moved * 1.5;
+					P.k++;
+					return;
+				}
+				const best = P.cands.sort((a, b) => b.sc - a.sc)[0] || { x: 0, r: 0 },
+					t = this.pieceAt(W, e.n),
+					hw = this.HALF - this.halfW(t, best.r);
+				/* aim within the crane's reach, or it would wait for a spot it can't get to */
+				P.x = Math.max(-hw, Math.min(hw, best.x + (Math.random() - 0.5) * 0.4 * (1 - e.sk)));
+				P.r = this.PIECES[t].rot ? best.r : 0;
+			}
 			e.tx = P.x;
 			if (e.rt !== P.r && W.t > (e.rtT || 0)) {
 				this.rotate(W, e);
