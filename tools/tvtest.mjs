@@ -9,7 +9,7 @@
    - screens that never reach the results, page errors on any device
    node tools/tvtest.mjs sort                 2 phones + 1 CPU
    node tools/tvtest.mjs mash --phones 3 --cpu 1 --lag 80
-   --ready only checks the ready screen (trucks under the intro card / ready panel) and stops; --no-shots skips
+   --early stops after the first in-game screenshots; --ready only checks the ready screen (trucks under the intro card / ready panel) and stops; --no-shots skips
    the contact sheet; --probe "<js>" prints that expression, evaluated on the TV, once a second
    (e.g. --probe "TVS.worlds.map((s) => s.W.me.sc)"). */
 import fs from "fs";
@@ -226,7 +226,13 @@ const covered = await TV.p.evaluate(() => {
 		.filter((el) => !el.hidden && el.offsetParent !== null)
 		.map((el) => [el.classList.contains("m3intro") ? "intro card" : "ready panel", el.getBoundingClientRect()]);
 	const out = new Set(),
-		dbg = [fw, fh, boxes.map(([n, b]) => [n, b.left, b.top, b.right, b.bottom].map((x) => (typeof x === "number" ? Math.round(x) : x)))];
+		dbg = [
+			fw,
+			fh,
+			boxes.map(([n, b]) =>
+				[n, b.left, b.top, b.right, b.bottom].map((x) => (typeof x === "number" ? Math.round(x) : x)),
+			),
+		];
 	views.forEach((v) =>
 		v.list.forEach((e) => {
 			if (!e || e.gone || !e.g.visible) return;
@@ -311,6 +317,11 @@ while (Date.now() - t0 < 240000) {
 			for (let i = 0; i < PH.length; i++)
 				(await PH[i].p.evaluate(() => __btns())).forEach((x) => btnIssues.add(`Phone${i + 1}: ${x}`));
 			await shoot("2start");
+			/* --early: stop after the first in-game shots (tools/ctlsheet.mjs uses it) */
+			if (opt.early) {
+				await b.close();
+				process.exit(0);
+			}
 		}
 		if (!shotMid && s.t > s.dur / 2) {
 			shotMid = true;
