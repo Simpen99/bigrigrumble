@@ -768,7 +768,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-11 21:07 4fe4095";
+const BUILD = "2026-10-11 21:29 9e5f12e";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -29727,6 +29727,782 @@ Object.assign(MG, {
 			});
 			return { key: W.P.evs.map((v) => v.q + ":" + v.n).join(" "), state: c };
 		},
+	},
+});
+
+/* ---------- Plinko ---------- */
+/* Plinko: every truck drops down one shared peg board (side view: x across, y up, the board in the z = 0 plane) into the
+   slots at the bottom, DROPS times, the points add up. Hanging from its magnet at the top, ◀ ▶ move it along the rail and
+   HOP drops it; falling, ◀ ▶ lean it (a spin plus a small push that way) and HOP kicks the wheels down for a spring jump
+   off whatever it touches (cooldown HOPCD). A x3 sign slides back and forth under the slots (a function of W.t, the same
+   everywhere). Physics: planck.js, one world per truck on the device that runs it (pegs, walls, dividers static, its
+   truck dynamic); every other truck is a kinematic body in that world following where it is drawn, so trucks bump each
+   other (each device only pushes its own). Shared per truck in e.f: an (angle), st (0 hanging, 1 falling, 2 in a slot,
+   3 done and parked), im [n, x, y] (last hard knock, flashes that peg), hp (hops, for the spring kick), ls [n, slot, x3] */
+Object.assign(MG, {
+	plinko: {
+		name: "Plinko",
+		kind: "lane",
+		ctrl: "custom",
+		truckMode: "springs",
+		hi: true,
+		unit: "pts",
+		dur: 70,
+		bare: true,
+		sun: [10, 34, 30],
+		how: "Drop down the peg board 3 times; the slots' points add up. Lean to steer, hop off the pegs, catch the sliding ×3!",
+		tvHint: "Hold LEFT / RIGHT to move the magnet, then to lean as you fall. Middle: drop, then hop off pegs.",
+		tapHint: "◀ ▶ move the magnet, then lean as you fall. HOP drops you, then kicks off the pegs (arrow keys, Space).",
+		/* board: COLS slots SW wide between walls at ±HW; ROWS peg rows RY apart from Y0 up (even rows line up with the
+		   slot dividers, odd rows sit between); slot dividers SH high on the floor FLOOR; the ground GY below the plinth */
+		COLS: 7,
+		SW: 3.8,
+		HW: 13.3,
+		ROWS: 7,
+		RY: 2.8,
+		Y0: 4.4,
+		PR: 0.32,
+		SH: 2,
+		FLOOR: 0.12,
+		DW: 0.24,
+		GY: -2.6,
+		TOPY: 23.6 /* a hanging truck's centre */,
+		CEIL: 26 /* just under the magnet rail */,
+		OFF: 0.72 /* truck centre above its wheels' bottom (the group's origin) */,
+		VAL: [100, 300, 50, 500, 50, 300, 100],
+		SCOL: { 500: "#FFC83D", 300: "#1FA35C", 100: "#2F7DE1", 50: "#E5484D" },
+		MP: 11 /* the x3 sign's trip there and back, s */,
+		DROPS: 3,
+		/* feel: gravity, peg bounce, lean (target spin rad/s, sideways push m/s²), hop speed and cooldown, magnet speed,
+		   how long a truck may hang before it drops by itself */
+		GRAV: 13,
+		PEGR: 0.45,
+		LEANW: 4,
+		PUSH: 3.5,
+		HOPV: 8.5,
+		HOPCD: 1.1,
+		AIMV: 7,
+		AIMT: 5,
+		kits() {
+			loadPlanck();
+			bakeKit(lightTowerModel());
+		},
+		/* peg centres [x, y], the half pegs on the walls included */
+		pegs() {
+			if (this.PG) return this.PG;
+			const L = [];
+			for (let r = 0; r < this.ROWS; r++) {
+				const y = this.Y0 + r * this.RY;
+				if (r % 2 === 0) for (let k = 0; k <= this.COLS; k++) L.push([-this.HW + k * this.SW, y]);
+				else for (let k = 0; k < this.COLS; k++) L.push([-this.HW + (k + 0.5) * this.SW, y]);
+			}
+			return (this.PG = L);
+		},
+		slotX: (k) => -MG.plinko.HW + (k + 0.5) * MG.plinko.SW,
+		/* the x3 sign: position in slots (0 .. COLS-1), sliding there and back at a steady speed; the slot it's under counts */
+		mpos(t) {
+			const u = ((Math.max(0, t) / this.MP) % 1) * 2;
+			return (u < 1 ? u : 2 - u) * (this.COLS - 1);
+		},
+		mslot(t) {
+			return Math.round(this.mpos(t));
+		},
+		build(W) {
+			const s = W.sc,
+				n = W.plist.length,
+				{ HW, SW, COLS, SH, FLOOR, DW, GY } = this;
+			W.laneX = (i) => (i - (n - 1) / 2) * 4.4;
+			s.fog.near = 90;
+			s.fog.far = 240;
+			/* fairground plaza */
+			s.add(texBox(140, 0.4, 90, pavingTex(), 6, 0, GY - 0.2, -8));
+			/* the board: dark blue back with column panels, red frame and header, a plinth under the slots */
+			s.add(B(2 * HW, 29.4, 0.4, "#1B2A4F", 0, GY + 14.7, -1.95));
+			for (let k = 0; k < COLS; k++)
+				s.add(B(SW - 0.1, 26.6, 0.06, k % 2 ? "#26437E" : "#1F3869", this.slotX(k), 13.4, -1.72));
+			[-1, 1].forEach((sd) => {
+				s.add(B(0.7, 29.4, 3.6, "#E5484D", sd * (HW + 0.35), GY + 14.7, -0.1));
+				s.add(B(0.3, 29.4, 0.06, "#B8333A", sd * (HW + 0.35), GY + 14.7, 1.73));
+			});
+			s.add(B(2 * HW + 1.4, 1.8, 3.6, "#E5484D", 0, 27.7, -0.1));
+			{
+				const tx = canvasTex(1024, 96, (x, w, h) => {
+					x.font = "64px Bungee, 'Arial Black', Impact, sans-serif";
+					x.textAlign = "center";
+					x.textBaseline = "middle";
+					x.lineWidth = 10;
+					x.strokeStyle = "#7A1D22";
+					x.strokeText("PLINKO", w / 2, h / 2 + 4);
+					x.fillStyle = "#FFE27A";
+					x.fillText("PLINKO", w / 2, h / 2 + 4);
+				});
+				const p = new THREE.Mesh(
+					new THREE.PlaneGeometry(10.6, 1),
+					new THREE.MeshBasicMaterial({ map: tx, transparent: true }),
+				);
+				p.position.set(0, 27.7, 1.74);
+				s.add(p);
+			}
+			/* the magnet rail under the header */
+			s.add(B(2 * HW, 0.3, 0.36, "#8E96A3", 0, 26.45, 0));
+			/* plinth: value plates on its front, a rail for the x3 sign */
+			s.add(B(2 * HW, -GY, 3.6, "#2A3550", 0, GY / 2, -0.1));
+			s.add(B(2 * HW - 0.4, 0.14, 0.08, "#8E96A3", 0, -0.55, 1.74));
+			W.slotF = [];
+			for (let k = 0; k < COLS; k++) {
+				const v = this.VAL[k],
+					c = this.SCOL[v],
+					x = this.slotX(k),
+					pt = canvasTex(256, 112, (g, w, h) => {
+						g.fillStyle = "#151B24";
+						rr(g, 2, 2, w - 4, h - 4, 22);
+						g.fill();
+						g.fillStyle = c;
+						rr(g, 10, 10, w - 20, h - 20, 16);
+						g.fill();
+						g.font = "64px Bungee, 'Arial Black', Impact, sans-serif";
+						g.textAlign = "center";
+						g.textBaseline = "middle";
+						g.fillStyle = v === 500 ? "#3A2A00" : "#F4F6F9";
+						g.fillText(String(v), w / 2, h / 2 + 4);
+					}),
+					pl = new THREE.Mesh(new THREE.PlaneGeometry(3.1, 1.36), new THREE.MeshBasicMaterial({ map: pt }));
+				pl.position.set(x, -1.75, 1.73);
+				s.add(pl);
+				/* the slot floor in the slot's colour; it glows under the x3 sign and flashes when a truck scores */
+				const fm = new THREE.MeshStandardMaterial({ color: c, flatShading: true, roughness: 0.6 }),
+					f = new THREE.Mesh(new THREE.BoxGeometry(SW - DW, FLOOR, 3.4), fm);
+				f.position.set(x, FLOOR / 2, -0.05);
+				f.receiveShadow = true;
+				s.add(f);
+				W.slotF.push({ m: fm, c: new THREE.Color(c), fl: 0, fc: new THREE.Color() });
+			}
+			/* slot dividers with round tops */
+			for (let k = 1; k < COLS; k++) {
+				const x = -HW + k * SW;
+				s.add(B(DW, SH - FLOOR, 3.2, "#F4F6F9", x, (SH + FLOOR) / 2, -0.15));
+				const t = Cy(DW / 2, DW / 2, 3.2, 8, "#F4F6F9", x, SH, -0.15);
+				t.rotation.x = Math.PI / 2;
+				s.add(t);
+			}
+			/* pegs: a steel post out of the board with a flange; the caps are one instanced mesh so a knock can light them */
+			const pg = this.pegs();
+			pg.forEach(([x, y]) => {
+				const p = Cy(0.26, 0.26, 3, 10, "#C9CED8", x, y, -0.25);
+				p.rotation.x = Math.PI / 2;
+				const fl = Cy(0.48, 0.48, 0.12, 10, "#8E96A3", x, y, -1.63);
+				fl.rotation.x = Math.PI / 2;
+				s.add(p, fl);
+			});
+			{
+				const g = new THREE.CylinderGeometry(0.38, 0.38, 0.22, 10);
+				g.rotateX(Math.PI / 2);
+				const cap = new THREE.InstancedMesh(
+					g,
+					new THREE.MeshStandardMaterial({ flatShading: true, roughness: 0.45, metalness: 0.1 }),
+					pg.length,
+				);
+				const o = new THREE.Object3D(),
+					c = new THREE.Color("#FFC83D");
+				pg.forEach(([x, y], i) => {
+					o.position.set(x, y, 1.32);
+					o.updateMatrix();
+					cap.setMatrixAt(i, o.matrix);
+					cap.setColorAt(i, c);
+				});
+				cap.castShadow = true;
+				s.add(cap);
+				W.caps = cap;
+				W.pegFl = pg.map(() => null);
+			}
+			/* marquee bulbs on the frame and the header, chasing */
+			{
+				const P = [];
+				[-1, 1].forEach((sd) => {
+					for (let y = GY + 0.5; y < 26.6; y += 0.95) P.push([sd * (HW + 0.35), y]);
+				});
+				[27.05, 28.35].forEach((y) => {
+					for (let x = -HW - 0.2; x <= HW + 0.2; x += 0.95) P.push([x, y]);
+				});
+				const bl = new THREE.InstancedMesh(
+						new THREE.IcosahedronGeometry(0.13, 0),
+						new THREE.MeshBasicMaterial(),
+						P.length,
+					),
+					o = new THREE.Object3D(),
+					c = new THREE.Color("#FFE9A8");
+				P.forEach(([x, y], i) => {
+					o.position.set(x, y, 1.8);
+					o.updateMatrix();
+					bl.setMatrixAt(i, o.matrix);
+					bl.setColorAt(i, c);
+				});
+				s.add(bl);
+				W.bulbs = bl;
+			}
+			/* the x3 sign */
+			{
+				const g = new THREE.Group(),
+					tx = canvasTex(192, 96, (x, w, h) => {
+						x.font = "62px Bungee, 'Arial Black', Impact, sans-serif";
+						x.textAlign = "center";
+						x.textBaseline = "middle";
+						x.fillStyle = "#151B24";
+						x.fillText("×3", w / 2, h / 2 + 4);
+					}),
+					tp = new THREE.Mesh(
+						new THREE.PlaneGeometry(1.5, 0.75),
+						new THREE.MeshBasicMaterial({ map: tx, transparent: true }),
+					);
+				tp.position.z = 0.09;
+				g.add(B(1.9, 0.86, 0.16, "#FFC83D", 0, 0, 0), tp);
+				/* an arrow up at the slot it multiplies */
+				const ar = new THREE.Mesh(
+					new THREE.ConeGeometry(0.3, 0.4, 3),
+					new THREE.MeshBasicMaterial({ color: "#FFC83D" }),
+				);
+				ar.position.set(0, 0.68, 0);
+				g.add(ar);
+				g.position.set(0, -0.55, 1.86);
+				s.add(g);
+				W.mSign = g;
+			}
+			/* magnets on the rail, one per truck: trolley, cable, magnet */
+			W.mag = {};
+			W.plist.forEach((p) => {
+				const g = new THREE.Group(),
+					cab = Cy(0.05, 0.05, 1, 5, "#3A3F48", 0, 0, 0),
+					mg = new THREE.Group();
+				g.add(B(1, 0.5, 0.8, "#FFC83D", 0, 26.45, 0), B(0.6, 0.18, 0.6, "#23272F", 0, 26.1, 0));
+				mg.add(Cy(0.75, 0.75, 0.3, 12, "#2A2F3A", 0, 0.15, 0), Cy(0.78, 0.78, 0.08, 12, "#E5484D", 0, 0.04, 0));
+				g.add(cab, mg);
+				g.userData = { cab, mg };
+				s.add(g);
+				W.mag[p.key] = g;
+			});
+			/* the audience: bleachers on both sides in front, facing the board; light towers aimed at it */
+			const ppl = [];
+			[-1, 1].forEach((sd) => {
+				for (let r = 0; r < 4; r++) {
+					const h = 0.5 + r * 0.6,
+						z = 5 + r * 1.3,
+						xc = sd * (HW + 9);
+					const st = B(10, h, 1.3, r % 2 ? "#8C95A5" : "#A3ACBB", xc, GY + h / 2, z);
+					st.castShadow = false;
+					s.add(st);
+					for (let x = xc - 4.6; x < xc + 4.6; x += 0.8 + W.rng() * 0.3)
+						if (W.rng() > 0.15) {
+							const px = x + (W.rng() - 0.5) * 0.2;
+							ppl.push({
+								x: px,
+								y: GY + h,
+								z,
+								face: Math.atan2(-px, -z) + Math.PI,
+								ph: W.rng() * 6.28,
+								sp: 7 + W.rng() * 5,
+							});
+						}
+				}
+				s.add(B(10.4, 0.25, 6, sd < 0 ? "#2F7DE1" : "#FFC83D", sd * (HW + 9), GY + 4.6, 7));
+				[-1, 1].forEach((a) => s.add(B(0.2, 4.6, 0.2, "#D9DEE7", sd * (HW + 9) + a * 5, GY + 2.3, 9.8)));
+				const lt = kitGroup(bakeKit(lightTowerModel()));
+				lt.position.set(sd * (HW + 16), GY, 12);
+				lt.rotation.y = Math.PI + sd * 0.55;
+				s.add(lt);
+			});
+			crowdMeshes(W, ppl);
+			for (let i = 0; i < 14; i++) {
+				const sd = i % 2 ? 1 : -1;
+				const tr = tree(sd * (32 + W.rng() * 18), -6 - W.rng() * 30, 1.2 + W.rng() * 0.8, i % 3);
+				tr.position.y = GY;
+				s.add(tr);
+			}
+		},
+		spawn: (W, i) => ({ x: W.laneX(i), z: 0, yaw: i % 2 ? Math.PI : 0 }),
+		initEnt(W, e) {
+			e.fc = e.i % 2 ? -1 : 1;
+			e.st = 0;
+			e.ax = e.x;
+			e.x0 = e.x;
+			e.y = this.TOPY - this.OFF;
+			e.ang = 0;
+			e.dn = 0;
+			e.aimT = 0;
+			e.f = { an: 0, st: 0, hp: 0, im: [0, 0, 0], ls: [0, 0, 0] };
+			loadPlanck();
+		},
+		/* the truck body's centre for any truck: local ones from their body, others from where they're drawn */
+		ctr(e) {
+			if (e.b) {
+				const p = e.b.getPosition();
+				return [p.x, p.y, e.b.getAngle()];
+			}
+			const a = e.local ? e.ang : (e.f && e.f.an) || 0;
+			return [e.x - this.OFF * Math.sin(a), e.y + this.OFF * Math.cos(a), a];
+		},
+		shapeT() {
+			const V = window.planck.Vec2;
+			return window.planck.Polygon(
+				[
+					[-1.15, -0.68],
+					[1.15, -0.68],
+					[1.4, -0.42],
+					[1.4, 0.42],
+					[1.15, 0.68],
+					[-1.15, 0.68],
+					[-1.4, 0.42],
+					[-1.4, -0.42],
+				].map(([x, y]) => V(x, y)),
+			);
+		},
+		world(e) {
+			if (e.pw || !window.planck) return e.pw;
+			const pl = window.planck,
+				V = pl.Vec2,
+				w = new pl.World({ gravity: V(0, -this.GRAV) }),
+				g = w.createBody(),
+				{ HW, SW, SH, FLOOR, DW, PR } = this,
+				fx = (sh, r, f) => g.createFixture(sh, { restitution: r, friction: f });
+			fx(pl.Edge(V(-HW - 1, FLOOR), V(HW + 1, FLOOR)), 0, 0.7);
+			[-1, 1].forEach((sd) => fx(pl.Edge(V(sd * HW, 0), V(sd * HW, this.CEIL + 1)), 0.2, 0.2));
+			fx(pl.Edge(V(-HW, this.CEIL), V(HW, this.CEIL)), 0.2, 0.2);
+			this.pegs().forEach(([x, y]) => fx(pl.Circle(V(x, y), PR), this.PEGR, 0.4));
+			for (let k = 1; k < this.COLS; k++) {
+				const x = -HW + k * SW;
+				fx(pl.Box(DW / 2, (SH - FLOOR) / 2, V(x, (SH + FLOOR) / 2), 0), 0.1, 0.3);
+				fx(pl.Circle(V(x, SH), DW / 2), 0.3, 0.3);
+			}
+			e.pw = w;
+			e.acc = 0;
+			e.kin = {};
+			return w;
+		},
+		/* every other falling (or landed) truck as a kinematic body in this truck's world, moved to where it is now */
+		kinFollow(W, e, h) {
+			const pl = window.planck,
+				V = pl.Vec2;
+			W.list.forEach((o) => {
+				if (o === e) return;
+				let kb = e.kin[o.k];
+				const on = !o.gone && (o.local ? o.st === 1 || o.st === 2 : o.f && (o.f.st === 1 || o.f.st === 2));
+				if (!on) {
+					if (kb && kb.isActive()) kb.setActive(false);
+					return;
+				}
+				const [x, y, a] = this.ctr(o);
+				if (!kb) {
+					kb = e.kin[o.k] = e.pw.createBody({ type: "kinematic", position: V(x, y), angle: a });
+					kb.createFixture(this.shapeT(), { friction: 0.4, restitution: 0.2 });
+				}
+				const p = kb.getPosition();
+				if (!kb.isActive() || Math.hypot(x - p.x, y - p.y) > 4) {
+					kb.setActive(true);
+					kb.setTransform(V(x, y), a);
+					kb.setLinearVelocity(V(0, 0));
+					kb.setAngularVelocity(0);
+				} else {
+					kb.setLinearVelocity(V((x - p.x) / h, (y - p.y) / h));
+					let da = a - kb.getAngle();
+					da = Math.atan2(Math.sin(da), Math.cos(da));
+					kb.setAngularVelocity(da / h);
+				}
+			});
+		},
+		touching(b) {
+			for (let c = b.getContactList(); c; c = c.next) if (c.contact.isTouching()) return c.contact;
+			return null;
+		},
+		/* controls: e.tl = +1 (◀ held) / -1 (▶ held); HOP is queued as the time it was pressed (good for HOPQ s) */
+		ctlHTML() {
+			return `<div class="rjctl"><button class="rjb" id="pkl" style="--bc:#2F7DE1" aria-label="Left"><i>◀</i></button><button class="rjb pkhop" id="pkh" style="--bc:#FF8A1F" aria-label="Drop or hop"><b>HOP</b></button><button class="rjb" id="pkr" style="--bc:#2F7DE1" aria-label="Right"><i>▶</i></button></div>`;
+		},
+		press(W, side, on) {
+			if (!W || !W.me) return;
+			const e = W.me;
+			if (side === "h") {
+				if (on) e.hopQ = W.t;
+				return;
+			}
+			e.tb = e.tb || {};
+			e.tb[side] = on;
+			e.tl = (e.tb.l ? 1 : 0) - (e.tb.r ? 1 : 0);
+		},
+		wire() {
+			[
+				["pkl", "l"],
+				["pkh", "h"],
+				["pkr", "r"],
+			].forEach(([id, sd]) =>
+				cxWireBtn(
+					document.getElementById(id),
+					() => MG.plinko.press(W, sd, true),
+					() => MG.plinko.press(W, sd, false),
+				),
+			);
+		},
+		onKey(W, k, down) {
+			if (k === "arrowleft" || k === "a") this.press(W, "l", down);
+			else if (k === "arrowright" || k === "d") this.press(W, "r", down);
+			else if (down && [" ", "enter", "w", "arrowup"].includes(k)) this.press(W, "h", true);
+		},
+		/* the magnet moves during the countdown too */
+		pre(W, e, dt) {
+			if (e.st === 0) this.aim(W, e, dt);
+		},
+		aim(W, e, dt) {
+			const lim = this.HW - 1.8;
+			e.ax = Math.max(-lim, Math.min(lim, e.ax - (e.tl || 0) * this.AIMV * dt));
+			e.swing = (e.swing || 0) + ((e.tl || 0) * 0.12 - (e.swing || 0)) * Math.min(1, dt * 5);
+			e.x = e.ax;
+			e.y = this.TOPY - this.OFF;
+			e.ang = e.swing + Math.sin(W.t * 2.2 + e.i) * 0.02;
+		},
+		drop(W, e) {
+			const pl = window.planck,
+				V = pl.Vec2;
+			e.b = e.pw.createBody({
+				type: "dynamic",
+				position: V(e.ax, this.TOPY),
+				angle: e.ang,
+				linearDamping: 0.02,
+				angularDamping: 0.4,
+				bullet: true,
+			});
+			e.b.createFixture(this.shapeT(), { density: 1, friction: 0.35, restitution: 0.15 });
+			e.b.setLinearVelocity(V(0, -1));
+			e.st = 1;
+			e.dropT = W.t;
+			e.lastTouch = -9;
+			e.hopCd = 0;
+			e.slow = e.stk = e.inSlot = 0;
+			e.hopQ = undefined;
+			mgLog(W, `${mgName(e)} drops #${e.dn + 1} at x ${e.ax.toFixed(1)}`);
+			if (e.isMe) sfx("magnet");
+		},
+		rules(W, e, dt) {
+			if (e.d) return;
+			const w = this.world(e);
+			if (!w) return;
+			const pl = window.planck,
+				V = pl.Vec2;
+			if (e.st === 0) {
+				this.aim(W, e, dt);
+				if ((e.hopQ !== undefined && W.t - e.hopQ < 0.2) || W.t - e.aimT > this.AIMT) this.drop(W, e);
+				e.hopQ = undefined;
+			}
+			/* fixed physics steps; ◀ ▶ spin the truck towards LEANW and push it that way */
+			e.acc = Math.min(0.1, e.acc + dt);
+			while (e.acc >= 1 / 60) {
+				const h = 1 / 60;
+				this.kinFollow(W, e, h);
+				const b = e.b;
+				if (b && e.st === 1 && e.tl) {
+					const av = b.getAngularVelocity();
+					b.applyTorque(b.getInertia() * Math.max(-40, Math.min(40, (e.tl * this.LEANW - av) * 10)), true);
+					b.applyForceToCenter(V(-e.tl * this.PUSH * b.getMass(), 0), true);
+				}
+				const v0 = b && b.getLinearVelocity().clone();
+				w.step(h, 8, 3);
+				if (b) {
+					const c = this.touching(b);
+					if (c) e.lastTouch = W.t;
+					/* a hard knock: shared so every screen lights the peg (and sparks) */
+					const dv = b.getLinearVelocity().clone().sub(v0).length();
+					if (c && dv > 3.5 && W.t - (e.imT || 0) > 0.12) {
+						e.imT = W.t;
+						const wm = c.getWorldManifold(null),
+							q = wm && wm.points && wm.points[0];
+						const p = q || b.getPosition();
+						e.f.im = [e.f.im[0] + 1, Math.round(p.x * 100) / 100, Math.round(p.y * 100) / 100];
+					}
+				}
+				e.acc -= h;
+			}
+			const b = e.b;
+			if (b && e.st === 1) {
+				/* HOP: a spring kick off whatever it touches, out of the wheels (so a tilted truck jumps sideways) */
+				if (e.hopQ !== undefined && W.t - e.hopQ < 0.2 && W.t - e.lastTouch < 0.25 && W.t >= e.hopCd) {
+					const a = b.getAngle(),
+						ux = -Math.sin(a),
+						uy = Math.max(0.45, Math.cos(a)),
+						l = Math.hypot(ux, uy),
+						v = b.getLinearVelocity();
+					b.setLinearVelocity(V(v.x * 0.4 + (ux / l) * this.HOPV, Math.max(0, v.y) * 0.3 + (uy / l) * this.HOPV));
+					e.hopCd = W.t + this.HOPCD;
+					e.hopQ = undefined;
+					e.f.hp++;
+					mgLog(W, `${mgName(e)} hops at ${b.getPosition().x.toFixed(1)},${b.getPosition().y.toFixed(1)}`);
+				}
+				const p = b.getPosition(),
+					sp = b.getLinearVelocity().length(),
+					av = Math.abs(b.getAngularVelocity());
+				e.inSlot = p.y < this.SH + 0.15 ? e.inSlot + dt : 0;
+				e.slow = sp < 1.2 && av < 1.5 ? e.slow + dt : 0;
+				if (e.inSlot > 0 && (e.slow > 0.3 || e.inSlot > 2.2)) this.score(W, e);
+				/* resting on a peg or a divider top: nudge it off */
+				e.stk = !e.inSlot && sp < 0.35 ? e.stk + dt : 0;
+				if (e.stk > 1.6) {
+					e.stk = 0;
+					b.setLinearVelocity(V((Math.random() < 0.5 ? -1 : 1) * 3, 2));
+				}
+			} else if (e.st === 2 && W.t - e.scT > 1.4) {
+				/* lifted off the board: back on the magnet for the next drop, or parked beside the board when done */
+				w.destroyBody(e.b);
+				e.b = null;
+				if (e.dn >= this.DROPS) {
+					e.st = 3;
+					e.d = true;
+					const L = [-1, 1, -1, 1, -1, 1][e.i] * (this.HW + 2.8 + Math.floor(e.i / 2) * 3.4);
+					e.x = L;
+					e.y = this.GY;
+					e.ang = 0;
+					e.vx = 0;
+					fb(W, e, `${e.sc}`, { stamp: true });
+					if (e.isMe) sfx("fanfare");
+				} else {
+					e.st = 0;
+					e.aimT = W.t;
+					e.ax = e.x0;
+					e.swing = 0;
+					this.aim(W, e, 0);
+				}
+			}
+			if (e.b) {
+				const p = e.b.getPosition(),
+					a = e.b.getAngle();
+				e.ang = a;
+				e.x = p.x + this.OFF * Math.sin(a);
+				e.y = p.y - this.OFF * Math.cos(a);
+				e.vx = e.b.getLinearVelocity().x;
+			} else if (e.st === 0) e.vx = 0;
+			e.vz = 0;
+			e.f.an = Math.round(e.ang * 100) / 100;
+			e.f.st = e.st;
+		},
+		score(W, e) {
+			const p = e.b.getPosition(),
+				k = Math.max(0, Math.min(this.COLS - 1, Math.floor((p.x + this.HW) / this.SW))),
+				x3 = k === this.mslot(W.t),
+				v = this.VAL[k] * (x3 ? 3 : 1);
+			e.sc += v;
+			e.st = 2;
+			e.scT = W.t;
+			e.dn++;
+			e.f.ls = [e.f.ls[0] + 1, k, x3 ? 1 : 0];
+			fb(W, e, `+${v}`, { tone: v >= 300 ? "good" : v <= 50 ? "bad" : "" });
+			if (x3) fb(W, e, "×3!", { stamp: true });
+			mgLog(W, `${mgName(e)} drop ${e.dn}: slot ${k} ${this.VAL[k]}${x3 ? " x3" : ""} = ${v}, total ${e.sc}`);
+			if (e.isMe) sfx(x3 || v >= 500 ? "fanfare" : v <= 50 ? "loss" : "coin");
+		},
+		timeUp(W, e) {
+			if (e.st !== 3) fb(W, e, `${e.sc}`, { stamp: true });
+		},
+		fmt: (W, e) => `${e.sc} pts · drop ${Math.min(MG.plinko.DROPS, e.dn + 1)}/${MG.plinko.DROPS}`,
+		/* phone mode: follows your truck (portrait sees about 12 m across), the whole board once you're done */
+		cam(W, tgt, pos, far) {
+			const e = W.me,
+				asp = GFX.w / GFX.h,
+				tn = Math.tan((20 * Math.PI) / 180);
+			if (e.st === 3) return this.tvsCam(W, asp);
+			const [cx, cy] = this.ctr(e),
+				D = asp < 1 ? 34 : 27,
+				hw = D * tn * asp,
+				hh = D * tn,
+				mx = this.HW + 1 - hw,
+				lo = this.GY + hh - 0.6,
+				hi = 29 - hh,
+				x = mx <= 0 ? 0 : Math.max(-mx, Math.min(mx, cx)),
+				y = lo > hi ? (lo + hi) / 2 : Math.max(lo, Math.min(hi, cy)),
+				t = new THREE.Vector3(x, y, 0);
+			return [t, t.clone().add(new THREE.Vector3(0, D * 0.1, D))];
+		},
+		/* the TV: the whole board, the parked trucks beside it */
+		tvsCam(W, a) {
+			const tn = Math.tan((20 * Math.PI) / 180),
+				y0 = this.GY - 0.4,
+				y1 = 29,
+				D = Math.max((y1 - y0) / 2 / tn, (this.HW + 7) / (tn * a)) * 1.04,
+				t = new THREE.Vector3(0, (y0 + y1) / 2, 0);
+			return [t, t.clone().add(new THREE.Vector3(0, D * 0.08, D))];
+		},
+		render(W, e, dt) {
+			this.scene(W, dt);
+			const f = e.f || {};
+			/* other trucks: their angle, and a jump back to the magnet (or the parking spot) snaps instead of sliding */
+			if (!e.local) {
+				e.ang = lerpA(e.ang || 0, f.an || 0, 1 - Math.exp(-dt * 14));
+				const n = e.net;
+				if (n && Math.hypot(n.x - e.x, (n.y || 0) - e.y) > 6) {
+					e.x = n.x;
+					e.y = n.y || 0;
+				}
+			}
+			e.pitch = e.ang * e.fc;
+			const col = pcol(e.p),
+				st = e.local ? e.st : f.st || 0;
+			if (st !== e.stSeen) {
+				e.stSeen = st;
+				e.stT = Math.max(0, W.t);
+			}
+			/* a hard knock: the peg it hit flashes in the truck's colour, with a few sparks */
+			if (f.im && f.im[0] !== (e.imSeen || 0)) {
+				e.imSeen = f.im[0];
+				const [, x, y] = f.im;
+				let bi = -1,
+					bd = 1.4;
+				this.pegs().forEach(([px, py], i) => {
+					const d = Math.hypot(px - x, py - y);
+					if (d < bd) {
+						bd = d;
+						bi = i;
+					}
+				});
+				if (bi >= 0) W.pegFl[bi] = { t: W.t, c: new THREE.Color(col) };
+				burst(W.sc, x, y, 0.8, {
+					n: 5,
+					shape: "cube",
+					cols: ["#FFE27A", "#FFFFFF", col],
+					spd: 2.5,
+					up: 2,
+					life: 0.4,
+					size: 0.6,
+				});
+				if (W.split || e.isMe) sfx("click");
+			}
+			/* the spring jump: the wheels kick down, a puff under them */
+			if ((f.hp || 0) !== (e.hpSeen || 0)) {
+				e.hpSeen = f.hp || 0;
+				e.hopT = W.t;
+				burst(W.sc, e.x, e.y + 0.2, 0, { n: 7, shape: "ico", cols: ["#E8ECF2", "#C9CED8"], spd: 2, up: 1, life: 0.5 });
+				if (W.split || e.isMe) sfx("step");
+			}
+			{
+				const sa = W.t - (e.hopT ?? -9);
+				springSet(e.tr, sa < 0.07 ? (sa / 0.07) * 0.55 : Math.max(0, 0.55 * (1 - (sa - 0.07) / 0.3)));
+			}
+			/* scored: the slot floor flashes in the truck's colour, coins fly */
+			if (f.ls && f.ls[0] !== (e.lsSeen || 0)) {
+				e.lsSeen = f.ls[0];
+				const sl = W.slotF[f.ls[1]];
+				if (sl) {
+					sl.fl = W.t;
+					sl.fc.set(col);
+				}
+				burst(W.sc, this.slotX(f.ls[1]), 1.5, 0.5, {
+					n: f.ls[2] ? 22 : 12,
+					shape: "coin",
+					cols: ["#FFC83D", "#FFE27A"],
+					spd: 3,
+					up: 7,
+					life: 0.9,
+				});
+			}
+			/* the magnet: over the hanging truck, back home while it falls */
+			const mg = W.mag[e.k];
+			if (mg) {
+				const hang = st === 0 && !e.gone,
+					tx = hang ? e.x : e.x0 !== undefined ? e.x0 : e.x,
+					u = mg.userData,
+					my = hang ? e.y + 2.05 : 25.2;
+				mg.position.x = hang ? tx : mg.position.x + (tx - mg.position.x) * Math.min(1, dt * 3);
+				u.my = u.my === undefined ? my : u.my + (my - u.my) * Math.min(1, dt * (hang ? 20 : 3));
+				u.mg.position.y = u.my;
+				u.mg.rotation.z = hang ? e.ang * 0.5 : 0;
+				const top = 25.95,
+					len = Math.max(0.05, top - u.my - 0.3);
+				u.cab.scale.y = len;
+				u.cab.position.y = u.my + 0.3 + len / 2;
+				mg.visible = !e.gone;
+			}
+			/* hanging long: the HOP button acted out by the truck */
+			if (st === 0 && W.t > 0 && W.t - e.stT > 2.2 && (e.isMe || W.split)) inputHint(W, e, "HOP", "tap", col);
+			if (e.isMe) crowdStep(W, null, st === 1 ? 0.8 : 0.3);
+		},
+		/* once a frame: chasing bulbs, the x3 sign and its glowing slot, peg flashes, slot flashes */
+		scene(W, dt) {
+			if (W.scF === W.t) return;
+			W.scF = W.t;
+			const t = Math.max(0, W.t);
+			{
+				const ph = Math.floor(t * 8);
+				if (ph !== W.bph) {
+					W.bph = ph;
+					const on = new THREE.Color("#FFE9A8"),
+						off = new THREE.Color("#6B5A3A");
+					for (let i = 0; i < W.bulbs.count; i++) W.bulbs.setColorAt(i, (i + ph) % 4 < 2 ? on : off);
+					W.bulbs.instanceColor.needsUpdate = true;
+				}
+			}
+			const mp = this.mpos(W.t),
+				ms = Math.round(mp);
+			W.mSign.position.x = this.slotX(0) + mp * this.SW;
+			W.slotF.forEach((s, k) => {
+				const fl = s.fl ? Math.max(0, 1 - (W.t - s.fl) / 0.9) : 0,
+					gl = k === ms && W.t >= 0 ? 0.35 + 0.15 * Math.sin(W.t * 10) : 0;
+				s.m.color.copy(s.c).lerp(s.fc, fl);
+				s.m.emissive.copy(fl ? s.fc : s.c).multiplyScalar(Math.max(gl, fl * 0.8));
+			});
+			{
+				const base = new THREE.Color("#FFC83D"),
+					c = new THREE.Color();
+				let ch = false;
+				W.pegFl.forEach((q, i) => {
+					if (!q) return;
+					const k = Math.max(0, 1 - (W.t - q.t) / 0.6);
+					W.caps.setColorAt(i, c.copy(base).lerp(q.c, k));
+					if (!k) W.pegFl[i] = null;
+					ch = true;
+				});
+				if (ch) W.caps.instanceColor.needsUpdate = true;
+			}
+		},
+		/* CPUs: aim the magnet at a slot (usually the middle), then lean towards the best slot in reach as they fall,
+		   counting the x3 sign where it will be when they get there; hop when stuck or now and then off a peg */
+		bot(W, e, dt) {
+			e.sk = e.sk ?? 0.3 + Math.random() * 0.7;
+			if (e.st === 0) {
+				if (W.t < 0) return null;
+				if (e.aimX === undefined)
+					e.aimX = Math.random() < 0.4 + e.sk * 0.3 ? (Math.random() - 0.5) * 2.4 : (Math.random() - 0.5) * 18;
+				const dx = e.aimX - e.ax;
+				e.tl = Math.abs(dx) > 0.3 ? (dx < 0 ? 1 : -1) : 0;
+				if (!e.tl && W.t - e.aimT > 0.6 + Math.random() * 0.4) {
+					e.hopQ = W.t;
+					e.aimX = undefined;
+				}
+				return null;
+			}
+			if (e.st !== 1 || !e.b) {
+				e.tl = 0;
+				return null;
+			}
+			e.bt = (e.bt || 0) - dt;
+			if (e.bt > 0) return null;
+			e.bt = 0.12 + 0.35 * (1 - e.sk) + Math.random() * 0.1;
+			const p = e.b.getPosition(),
+				eta = Math.sqrt((2 * Math.max(0, p.y - this.SH)) / this.GRAV) * 1.7,
+				m = this.mslot(W.t + eta);
+			let best = 0,
+				tx = p.x;
+			for (let k = 0; k < this.COLS; k++) {
+				const x = this.slotX(k),
+					v = this.VAL[k] * (k === m ? 3 : 1) - Math.abs(x - p.x) * (60 + 400 / Math.max(1, p.y));
+				if (v > best || k === 0) {
+					best = v;
+					tx = x;
+				}
+			}
+			const dx = tx - p.x;
+			e.tl = dx > 0.5 ? -1 : dx < -0.5 ? 1 : 0;
+			if (p.y > this.SH + 0.6 && W.t - e.lastTouch < 0.2 && (e.stk > 0.4 || Math.random() < 0.08 * e.sk)) e.hopQ = W.t;
+			return null;
+		},
+		watchSum: (W) =>
+			W.list
+				.filter((e) => !e.gone)
+				.map((e) => `${mgName(e)} ${e.sc} (${e.dn} drops)`)
+				.join(", "),
+		botScore: () => 300 + rnd(9) * 100,
 	},
 });
 
