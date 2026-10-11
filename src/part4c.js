@@ -59,6 +59,15 @@ document.addEventListener("click", (e) => {
 		push();
 		return;
 	}
+	if (b.dataset.mgtog && role === "host") {
+		const k = b.dataset.mgtog,
+			off = (HG.mgOff = HG.mgOff || []);
+		if (off.includes(k)) off.splice(off.indexOf(k), 1);
+		else if (MG[k].team || Object.keys(MG).some((q) => q !== k && !MG[q].team && !off.includes(q))) off.push(k);
+		LS.set("trp_mgoff", off);
+		push();
+		return;
+	}
 	if (b.dataset.rounds && role === "host") {
 		HG.rounds = +b.dataset.rounds;
 		push();
@@ -145,6 +154,14 @@ document.addEventListener("click", (e) => {
 			role = "none";
 			render();
 		}
+	} else if (a === "mglist") {
+		mgListOpen = !mgListOpen;
+		render.last = null;
+		render();
+	} else if (a === "mgall" && role === "host") {
+		HG.mgOff = [];
+		LS.set("trp_mgoff", []);
+		push();
 	} else if (a === "changetruck") {
 		changingTruck = !changingTruck;
 		render.last = null;

@@ -15,7 +15,8 @@ let role = "none",
 	homeSub = "main",
 	notice = "",
 	changingTruck = false,
-	localForm = false;
+	localForm = false,
+	mgListOpen = false;
 let hostSeenAt = 0;
 function setPresence(patch) {
 	if (!room) return;
@@ -132,6 +133,8 @@ function hostCreate(tv) {
 		v: 0,
 		phase: "lobby",
 		rounds: 8,
+		/* minigames left out of the pool (lobby "Minigames" setting, remembered on this device) */
+		mgOff: (LS.get("trp_mgoff", []) || []).filter((k) => MG[k]),
 		round: 1,
 		turn: 0,
 		seq: 1,
@@ -482,6 +485,7 @@ function lobbyHTML() {
     <section class="sheet"><h2>Mode</h2><div class="seg"><button data-mode="ffa" class="${!G.teams ? "on" : ""}">Free-for-all</button><button data-mode="teams" class="${G.teams ? "on" : ""}">Teams</button></div>${G.teams ? `<p class="note">Teammates add their batteries together and can't duel or rob each other. Tap a team badge to switch a driver's team.</p>` : ""}</section>
     <section class="sheet"><h2>Test mode</h2><div class="seg"><button data-test="off" class="${!G.test ? "on" : ""}">Off</button><button data-test="on" class="${G.test ? "on" : ""}">On</button></div>${G.test ? `<p class="note">On your turn you can pick your exact roll, tap any space to jump there and trigger it, and top up coins, shards and dust.</p>` : ""}</section>
     <section class="sheet"><h2>Rounds</h2><div class="seg">${[4, 6, 8, 10, 12, 16].map((r) => `<button data-rounds="${r}" class="${G.rounds === r ? "on" : ""}">${r}</button>`).join("")}</div></section>
+    <section class="sheet">${mgPoolHTML()}</section>
     <section class="sheet stack"><button class="btn go" data-a="start" ${G.players.length < 2 ? "disabled" : ""}>${G.players.length < 2 ? "Waiting for another driver" : "Start the race"}</button><button class="btn ghost" data-a="quit">Close game</button></section>`
 		: G.tv
 			? `${IOS_SAFARI && !LS.get("trp_tbtip", false) ? `<section class="sheet tbsheet"><h2>📱 Play fullscreen</h2>${tbTipHTML()}<button class="btn ghost small" data-a="tbtip">Got it</button></section>` : ""}<section class="sheet"><h2>📺 You're in! Watch the TV</h2><p class="note" style="margin-top:0">Game ${esc(G.code || "")}: ${esc((MAPS[G.map] || JUNK).name)}, ${G.rounds} rounds${G.teams ? ", teams" : ""}. You're driving ${esc(TRUCKS[me.truck].name)}. This phone is your controller.</p>
@@ -521,6 +525,24 @@ const tbTipHTML = () =>
 function rotHTML() {
 	return `<div class="rotbox"><div class="rotph"><i></i></div><h2>Turn your phone sideways</h2><p>Big Rig Rumble on the TV is played in landscape.</p>${IOS_SAFARI ? tbTipHTML() : ""}</div>`;
 }
+/* lobby "Minigames" setting: how many are in the pool; Choose opens a grid of toggles (tap to leave one out) */
+function mgPoolHTML() {
+	const keys = Object.keys(MG),
+		off = G.mgOff || [],
+		on = keys.length - keys.filter((k) => off.includes(k)).length;
+	return `<div class="row" style="align-items:center"><h2 style="margin:0;flex:1">Minigames</h2><span class="note" style="margin:0 8px 0 0">${on === keys.length ? "All" : on + " of"} ${keys.length} on</span><button class="btn ghost small" data-a="mglist">${mgListOpen ? "Done" : "Choose"}</button></div>${
+		mgListOpen
+			? `<p class="note" style="margin:6px 0 8px">Tap a minigame to leave it out of this game. At least one free-for-all game stays on.</p><div class="pracgrid">${keys
+					.map(
+						(k) =>
+							`<button class="pracb mgtog${off.includes(k) ? " off" : ""}" data-mgtog="${k}" aria-pressed="${!off.includes(k)}">${esc(MG[k].name)}${MG[k].team ? ` <small>(${esc(MG[k].team)})</small>` : ""}</button>`,
+					)
+					.join(
+						"",
+					)}</div>${off.length ? `<button class="btn ghost small" data-a="mgall" style="margin-top:8px">Turn all on</button>` : ""}`
+			: ""
+	}`;
+}
 /* TV lobby: the PC hosts and shows the game on the big screen, phones join as controllers */
 const tvLead = () => G && G.players.find((p) => !p.bot);
 const pracHTML = () =>
@@ -543,6 +565,7 @@ function tvLobbyHTML() {
 		.join("")}</div>${mapRulesHTML()}
     <h2 style="margin-top:14px">Rounds</h2><div class="seg">${[4, 6, 8, 10, 12, 16].map((r) => `<button data-rounds="${r}" class="${G.rounds === r ? "on" : ""}">${r}</button>`).join("")}</div>
     <h2 style="margin-top:14px">Mode</h2><div class="seg"><button data-mode="ffa" class="${!G.teams ? "on" : ""}">Free-for-all</button><button data-mode="teams" class="${G.teams ? "on" : ""}">Teams</button></div>
+    <div style="margin-top:14px">${mgPoolHTML()}</div>
     <div class="stack" style="margin-top:14px"><button class="btn go" data-a="start" ${n < 2 ? "disabled" : ""}>${n < 2 ? "Waiting for drivers" : "Start the race"}</button>${lead ? `<p class="note" style="margin:0">${esc(lead.name)} can also start from their phone.</p>` : ""}<button class="btn ghost" data-a="quit">Close game</button></div></section></div>`;
 }
 /* ---------- game view ---------- */
