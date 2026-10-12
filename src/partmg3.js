@@ -3463,6 +3463,1102 @@ Object.assign(MG, {
 	},
 });
 
+/* ---------- Plinko Sabotage ---------- */
+/* Plinko Sabotage: every truck has its own small Plinko board (the same base layout for everyone, side by side). Each of
+   DROPS rounds: PLANT s of planning, where your phone shows your target's board and you spend a coin budget placing traps
+   in the gaps between its pegs (a ring from the seed: everyone sabotages exactly one rival, a different one each round
+   when there are 3+), then everyone drops at once. Traps are hidden, on the TV too, until a ball sets them off; the
+   saboteur scores TRAPPTS per trap hit. After the last ball lands every trap is revealed for BETWEEN s.
+   Planning UI: the controls (ctlHTML) hold a plan panel and the play buttons, switched by data-ph on the root; on the TV
+   the phones mirror the TV's copy and send taps back as button presses, so the same handlers run everywhere.
+   Shared per truck in e.f: an / tt / st / hp / ls / lt as in Plinko, pd [round] = when its planning was done,
+   tr {r, l: [[trap, gap]]} = the traps it placed this round, tg {r, l: [trap index]} = the traps on its board it set off */
+Object.assign(MG, {
+	sabo: {
+		name: "Plinko Sabotage",
+		kind: "lane",
+		ctrl: "custom",
+		truckMode: "springs",
+		hi: true,
+		unit: "pts",
+		dur: 200,
+		bare: true,
+		sun: [0, 9, 31.6],
+		lt: { amb: 0.84, sun: 0.44, warm: 0.28, haze: 70 },
+		fx: { col: 0.06 },
+		how: "Hide traps on a rival's board, then everyone drops: traps stay hidden until someone hits them. Score from your slots, plus points for every trap your rival hits!",
+		tvHint:
+			"Planning (your phone shows your rival's board): tap a trap, then a gap. Playing: LEFT / RIGHT move and steer, the middle button hops.",
+		tapHint:
+			"Planning: tap a trap, then a gap on your rival's board. Playing: ◀ ▶ move and steer, HOP pops you off the pegs.",
+		/* one board: COLS slots SW wide between walls at ±HW, ROWS peg rows RY apart from Y0 up; boards BW apart */
+		COLS: 5,
+		SW: 3.4,
+		HW: 8.5,
+		ROWS: 7,
+		RY: 2.8,
+		Y0: 4.4,
+		PR: 0.32,
+		SH: 2.2,
+		FLOOR: 0.12,
+		DW: 0.24,
+		GY: -2.6,
+		BW: 21,
+		R: 0.83,
+		TS: 0.43,
+		WB: 0.63,
+		TOPY: 24 /* a hanging ball's centre (the top peg row is at 21.2) */,
+		CEIL: 26.2,
+		RAIL: 27.1,
+		HDR: 28.4,
+		VAL: [200, 50, 500, 50, 200],
+		SCOL: { 500: "#FFC83D", 200: "#2F7DE1", 50: "#E5484D" },
+		MP: 9,
+		DROPS: 3,
+		PLANT: 30,
+		AIMT: 4,
+		ROUNDT: 25,
+		BETWEEN: 3.5,
+		BUDGET: 100,
+		TRAPPTS: 40,
+		GRAV: 13,
+		PEGR: 0.68,
+		FRIC: 0.05,
+		PUSH: 2.6,
+		HOPV: 6.5,
+		HOPCD: 1.1,
+		AIMV: 6,
+		/* traps: key, name, icon, cost, colour */
+		TRAPS: [
+			{ k: "wall", n: "Wall", ic: "▬", c: 20, col: "#8E96A3" },
+			{ k: "half", n: "×½ gate", ic: "½", c: 30, col: "#E5484D" },
+			{ k: "stun", n: "Stun", ic: "⚡", c: 25, col: "#E0A800" },
+			{ k: "rev", n: "Reverse", ic: "⇄", c: 25, col: "#8E5BE0" },
+			{ k: "glue", n: "Glue", ic: "●", c: 20, col: "#1FA35C" },
+			{ k: "jump", n: "Trampoline", ic: "⤒", c: 20, col: "#2F7DE1" },
+			{ k: "bomb", n: "Mine", ic: "✹", c: 35, col: "#FF8A1F" },
+		],
+		kits() {
+			loadPlanck();
+		},
+		/* borrowed from Plinko: the ball model, physics bits, the sliding x3 sign, the round end from landing times */
+		ball: MG.plinko.ball,
+		shapeT: MG.plinko.shapeT,
+		touching: MG.plinko.touching,
+		mpos: MG.plinko.mpos,
+		mslot: MG.plinko.mslot,
+		roundEnd: MG.plinko.roundEnd,
+		slotX(k) {
+			return -this.HW + (k + 0.5) * this.SW;
+		},
+		/* the base board (board-local x), the same for everyone: pegs, and the gaps traps go in (rows below the top one) */
+		pegs() {
+			if (this.PG) return this.PG;
+			const L = [];
+			for (let r = 0; r < this.ROWS; r++) {
+				const y = this.Y0 + r * this.RY;
+				if (r % 2 === 0) for (let k = 0; k <= this.COLS; k++) L.push([-this.HW + k * this.SW, y, r]);
+				else for (let k = 0; k < this.COLS; k++) L.push([-this.HW + (k + 0.5) * this.SW, y, r]);
+			}
+			return (this.PG = L);
+		},
+		gaps() {
+			if (this.GP) return this.GP;
+			const L = [];
+			for (let r = 0; r < this.ROWS - 1; r++) {
+				const ps = this.pegs()
+					.filter((q) => q[2] === r)
+					.sort((a, b) => a[0] - b[0]);
+				for (let j = 0; j + 1 < ps.length; j++) {
+					const a = ps[j],
+						b = ps[j + 1];
+					if (b[0] - a[0] > this.SW * 0.9) L.push({ x: (a[0] + b[0]) / 2, y: a[1], w: b[0] - a[0], row: r });
+				}
+			}
+			return (this.GP = L);
+		},
+		/* who sabotages whom: a ring of the players shuffled by the seed, turned a different step each round */
+		ring(W) {
+			if (W.ring) return W.ring;
+			const r = mulberry((W.mg.seed || 1) * 13 + 5),
+				o = W.plist.map((q) => q.key).sort();
+			for (let i = o.length - 1; i > 0; i--) {
+				const j = Math.floor(r() * (i + 1));
+				[o[i], o[j]] = [o[j], o[i]];
+			}
+			return (W.ring = o);
+		},
+		step(W, rd) {
+			const n = this.ring(W).length;
+			return n < 2 ? 0 : 1 + (rd % (n - 1));
+		},
+		victimOf(W, k, rd) {
+			const o = this.ring(W),
+				n = o.length;
+			return o[(o.indexOf(k) + this.step(W, rd)) % n];
+		},
+		sabOf(W, k, rd) {
+			const o = this.ring(W),
+				n = o.length;
+			return o[(o.indexOf(k) - this.step(W, rd) + n) % n];
+		},
+		/* the traps on k's board this round: [[trap type, gap index]] as its saboteur placed them */
+		trapsOn(W, k, rd) {
+			const s = W.ents[this.sabOf(W, k, rd)];
+			if (!s || s.gone) return [];
+			const a = s.local ? { r: s.rr, l: s.trp || [] } : s.f && s.f.tr;
+			return a && a.r === rd ? a.l || [] : [];
+		},
+		/* the traps on k's board that have gone off this round */
+		hitsOn(W, k, rd) {
+			const e = W.ents[k];
+			if (!e) return [];
+			const a = e.local ? { r: e.rr, l: e.tgl || [] } : e.f && e.f.tg;
+			return a && a.r === rd ? a.l || [] : [];
+		},
+		/* the round schedule, the same on every device: planning from P until PE (when everyone pressed DONE, or after PLANT
+		   s), the drop at D = PE + AIMT, the end E from the landing times (as in Plinko). plan / over flags */
+		planEnd(W, rd, P) {
+			const ds = W.list
+				.filter((o) => !o.gone)
+				.map((o) => {
+					const a = o.local ? o.pd : o.f && o.f.pd;
+					return a ? a[rd] : undefined;
+				});
+			if (ds.length && ds.every((v) => typeof v === "number")) return Math.min(Math.max(...ds) + 0.3, P + this.PLANT);
+			return W.t >= P + this.PLANT ? P + this.PLANT : null;
+		},
+		sched(W) {
+			if (W.schT === W.t && W.sch) return W.sch;
+			let r = 0,
+				P = 0,
+				PE,
+				D,
+				E;
+			for (;;) {
+				PE = this.planEnd(W, r, P);
+				D = PE === null ? null : PE + this.AIMT;
+				E = D !== null && W.t >= D ? this.roundEnd(W, r, D) : null;
+				if (E === null || W.t < E || r === this.DROPS - 1) break;
+				r++;
+				P = E;
+			}
+			W.schT = W.t;
+			return (W.sch = {
+				r,
+				P,
+				PE,
+				D,
+				E,
+				plan: W.t >= 0 && (PE === null || W.t < PE),
+				over: E !== null && W.t >= E && r === this.DROPS - 1,
+			});
+		},
+		/* ---- scene: the cabinet round all the boards, one board per truck side by side ---- */
+		build(W) {
+			const s = W.sc,
+				n = W.plist.length,
+				{ HW, SW, COLS, SH, FLOOR, DW, GY, HDR } = this;
+			W.laneX = (i) => (i - (n - 1) / 2) * this.BW;
+			MG.plinko.cabinet.call(Object.assign(Object.create(MG.plinko), { HW: (n * this.BW) / 2 - 1.5, HDR, GY }), W);
+			const top = HDR + 0.9,
+				bh = top - GY,
+				plate = {},
+				pg = this.pegs(),
+				allPegs = [];
+			W.slotF = [];
+			W.signs = [];
+			W.plist.forEach((pl, bi) => {
+				const ox = W.laneX(bi);
+				s.add(B(2 * HW, bh, 0.4, "#1B2A4F", ox, GY + bh / 2, -1.95));
+				for (let k = 0; k < COLS; k++)
+					s.add(
+						B(SW - 0.1, top - 1.8, 0.06, k % 2 ? "#26437E" : "#1F3869", ox + this.slotX(k), (top - 1.8) / 2, -1.72),
+					);
+				[-1, 1].forEach((sd) => {
+					s.add(B(0.7, bh, 3.6, "#E5484D", ox + sd * (HW + 0.35), GY + bh / 2, -0.1));
+					s.add(B(0.3, bh, 0.06, "#B8333A", ox + sd * (HW + 0.35), GY + bh / 2, 1.73));
+				});
+				/* the header carries the board's owner, in their colour */
+				s.add(B(2 * HW + 1.4, 1.8, 3.6, "#E5484D", ox, HDR, -0.1));
+				const nm = canvasTex(512, 96, (x, w, h) => {
+						x.font = "56px Bungee, 'Arial Black', Impact, sans-serif";
+						x.textAlign = "center";
+						x.textBaseline = "middle";
+						x.lineWidth = 10;
+						x.strokeStyle = "#151B24";
+						x.strokeText(pl.name.slice(0, 12).toUpperCase(), w / 2, h / 2 + 4, w - 20);
+						x.fillStyle = pcol(pl);
+						x.fillText(pl.name.slice(0, 12).toUpperCase(), w / 2, h / 2 + 4, w - 20);
+					}),
+					np = new THREE.Mesh(
+						new THREE.PlaneGeometry(9, 1.7),
+						new THREE.MeshBasicMaterial({ map: nm, transparent: true }),
+					);
+				np.position.set(ox, HDR, 1.74);
+				s.add(np);
+				s.add(B(2 * HW, 0.3, 0.36, "#8E96A3", ox, this.RAIL, 0));
+				s.add(B(2 * HW, -GY, 3.6, "#2A3550", ox, GY / 2, -0.1));
+				s.add(B(2 * HW - 0.4, 0.14, 0.08, "#8E96A3", ox, -0.55, 1.74));
+				const sf = [];
+				for (let k = 0; k < COLS; k++) {
+					const v = this.VAL[k],
+						c = this.SCOL[v],
+						x = ox + this.slotX(k);
+					plate[v] =
+						plate[v] ||
+						canvasTex(256, 112, (g, w, h) => {
+							g.fillStyle = "#151B24";
+							rr(g, 2, 2, w - 4, h - 4, 22);
+							g.fill();
+							g.fillStyle = c;
+							rr(g, 10, 10, w - 20, h - 20, 16);
+							g.fill();
+							g.font = "64px Bungee, 'Arial Black', Impact, sans-serif";
+							g.textAlign = "center";
+							g.textBaseline = "middle";
+							g.fillStyle = v === 500 ? "#3A2A00" : "#F4F6F9";
+							g.fillText(String(v), w / 2, h / 2 + 4);
+						});
+					const pm = new THREE.Mesh(new THREE.PlaneGeometry(2.9, 1.27), new THREE.MeshBasicMaterial({ map: plate[v] }));
+					pm.position.set(x, -1.75, 1.73);
+					s.add(pm);
+					const fm = new THREE.MeshStandardMaterial({ color: c, flatShading: true, roughness: 0.6 }),
+						f = new THREE.Mesh(new THREE.BoxGeometry(SW - DW, FLOOR, 3.4), fm);
+					f.position.set(x, FLOOR / 2, -0.05);
+					f.receiveShadow = true;
+					s.add(f);
+					sf.push({ m: fm, c: new THREE.Color(c), fl: 0, fc: new THREE.Color() });
+				}
+				W.slotF.push(sf);
+				for (let k = 1; k < COLS; k++) {
+					const x = ox - HW + k * SW;
+					s.add(B(DW, SH - FLOOR, 3.2, "#F4F6F9", x, (SH + FLOOR) / 2, -0.15));
+					const t = Cy(DW / 2, DW / 2, 3.2, 8, "#F4F6F9", x, SH, -0.15);
+					t.rotation.x = Math.PI / 2;
+					s.add(t);
+				}
+				pg.forEach(([x, y]) => allPegs.push([ox + x, y]));
+				/* the x3 sign under the slots */
+				const g = new THREE.Group(),
+					tx = (W.x3Tex =
+						W.x3Tex ||
+						canvasTex(192, 96, (x, w, h) => {
+							x.font = "62px Bungee, 'Arial Black', Impact, sans-serif";
+							x.textAlign = "center";
+							x.textBaseline = "middle";
+							x.fillStyle = "#151B24";
+							x.fillText("×3", w / 2, h / 2 + 4);
+						})),
+					tp = new THREE.Mesh(
+						new THREE.PlaneGeometry(1.5, 0.75),
+						new THREE.MeshBasicMaterial({ map: tx, transparent: true }),
+					),
+					ar = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.4, 3), new THREE.MeshBasicMaterial({ color: "#FFC83D" }));
+				tp.position.z = 0.09;
+				ar.position.set(0, 0.68, 0);
+				g.add(B(1.9, 0.86, 0.16, "#FFC83D", 0, 0, 0), tp, ar);
+				g.position.set(ox, -0.55, 1.86);
+				s.add(g);
+				W.signs.push({ g, ox });
+			});
+			/* pegs of every board: instanced posts, flanges and caps */
+			const inst = (geo, col, z) => {
+					const m = new THREE.InstancedMesh(
+							geo,
+							new THREE.MeshStandardMaterial({ flatShading: true, roughness: 0.45, metalness: 0.1 }),
+							allPegs.length,
+						),
+						o = new THREE.Object3D(),
+						c = new THREE.Color(col);
+					allPegs.forEach(([x, y], i) => {
+						o.position.set(x, y, z);
+						o.updateMatrix();
+						m.setMatrixAt(i, o.matrix);
+						m.setColorAt(i, c);
+					});
+					m.castShadow = m.receiveShadow = true;
+					s.add(m);
+					return m;
+				},
+				cyz = (r, h, seg) => new THREE.CylinderGeometry(r, r, h, seg).rotateX(Math.PI / 2);
+			inst(cyz(0.26, 3, 10), "#C9CED8", -0.25);
+			inst(cyz(0.48, 0.12, 10), "#8E96A3", -1.63);
+			inst(cyz(0.38, 0.22, 10), "#FFC83D", 1.32);
+			/* magnets on the rail, one per truck */
+			W.mag = {};
+			W.plist.forEach((p) => {
+				const g = new THREE.Group(),
+					cab = Cy(0.05, 0.05, 1, 5, "#3A3F48", 0, 0, 0),
+					mg = new THREE.Group();
+				g.add(B(1, 0.5, 0.8, "#FFC83D", 0, this.RAIL, 0), B(0.6, 0.18, 0.6, "#23272F", 0, this.RAIL - 0.34, 0));
+				mg.add(Cy(0.75, 0.75, 0.3, 12, "#2A2F3A", 0, 0.15, 0), Cy(0.78, 0.78, 0.08, 12, "#E5484D", 0, 0.04, 0));
+				g.add(cab, mg);
+				g.userData = { cab, mg };
+				s.add(g);
+				W.mag[p.key] = g;
+			});
+			W.trapV = {};
+			W.bpill = {};
+		},
+		spawn: (W, i) => ({ x: W.laneX(i), z: 0, yaw: i % 2 ? Math.PI : 0 }),
+		initEnt(W, e) {
+			e.fc = e.i % 2 ? -1 : 1;
+			e.ox = e.x;
+			e.st = 0;
+			e.ax = 0;
+			e.y = this.TOPY;
+			e.ang = e.tt = 0;
+			e.dn = 0;
+			e.lt = [];
+			e.pd = [];
+			e.trp = [];
+			e.tgl = [];
+			e.sel = 0;
+			e.g.scale.setScalar(this.TS);
+			e.f = { an: 0, tt: 0, st: 0, hp: 0, ls: [0, 0, 0], lt: [], pd: [], tr: { r: 0, l: [] }, tg: { r: 0, l: [] } };
+			loadPlanck();
+		},
+		/* ---- controls: the plan panel and the play buttons in one root, data-ph = plan | play ---- */
+		ctlHTML() {
+			const G0 = this.gaps(),
+				ymax = this.Y0 + (this.ROWS - 1) * this.RY + 1.6,
+				px = (x) => (((x + this.HW) / (2 * this.HW)) * 100).toFixed(1),
+				py = (y) => ((1 - (y + 0.6) / (ymax + 0.6)) * 100).toFixed(1);
+			const pegs = this.pegs()
+					.map(([x, y]) => `<span class="sbp" style="left:${px(x)}%;top:${py(y)}%"></span>`)
+					.join(""),
+				gaps = G0.map(
+					(g, i) =>
+						`<button class="sbg" data-g="${i}" style="left:${px(g.x - g.w / 2 + 0.15)}%;width:${(((g.w - 0.3) / (2 * this.HW)) * 100).toFixed(1)}%;top:${py(g.y)}%"></button>`,
+				).join(""),
+				slots = this.VAL.map((v, k) => `<span class="sbs" style="left:${px(this.slotX(k))}%">${v}</span>`).join(""),
+				tray = this.TRAPS.map(
+					(t, i) =>
+						`<button class="sbt" data-t="${i}" style="--bc:${t.col}"><i>${t.ic}</i><b>${t.n}</b><em>${t.c}</em></button>`,
+				).join("");
+			return `<div class="sbctl" data-ph="play"><div class="sbplan"><div class="sbtop"><b class="sbtgt">Sabotage</b><span class="sbcoin">${this.BUDGET}</span><span class="sbtime">30</span><button class="sbdone">DONE</button></div><div class="sbmain"><div class="sbtray">${tray}</div><div class="sbwrap"><div class="sbboard">${pegs}${gaps}${slots}</div></div></div></div><div class="rjctl"><button class="rjb sbl" style="--bc:#2F7DE1" aria-label="Left"><i>◀</i></button><button class="rjb pkhop sbh" style="--bc:#FF8A1F" aria-label="Hop"><b>HOP</b></button><button class="rjb sbr" style="--bc:#2F7DE1" aria-label="Right"><i>▶</i></button></div></div>`;
+		},
+		wire() {
+			document.querySelectorAll(".sbctl").forEach((root) => {
+				if (root.dataset.wired) return;
+				root.dataset.wired = "1";
+				root.addEventListener("pointerdown", (ev) => {
+					const b = ev.target.closest && ev.target.closest(".sbplan button");
+					if (!b) return;
+					ev.preventDefault();
+					MG.sabo.tap(W, b);
+				});
+				[
+					["sbl", "l"],
+					["sbh", "h"],
+					["sbr", "r"],
+				].forEach(([c, sd]) =>
+					cxWireBtn(
+						root.querySelector("." + c),
+						() => MG.sabo.press(W, sd, true),
+						() => MG.sabo.press(W, sd, false),
+					),
+				);
+			});
+		},
+		press: MG.plinko.press,
+		onKey(W, k, down) {
+			if (k === "arrowleft" || k === "a") this.press(W, "l", down);
+			else if (k === "arrowright" || k === "d") this.press(W, "r", down);
+			else if (down && [" ", "enter", "w", "arrowup"].includes(k)) this.press(W, "h", true);
+		},
+		/* a tap in the plan panel: pick a trap, place / remove one in a gap, or DONE */
+		tap(W, b) {
+			if (!W || !W.me) return;
+			const e = W.me,
+				S = this.sched(W);
+			if (!S.plan || e.rr !== S.r || (e.pd[S.r] !== undefined && !b.dataset.g && !b.dataset.t)) return;
+			if (b.dataset.t !== undefined) e.sel = +b.dataset.t;
+			else if (b.dataset.g !== undefined) this.place(W, e, e.sel, +b.dataset.g);
+			else if (b.classList.contains("sbdone")) {
+				e.pd[S.r] = Math.round(W.t * 100) / 100;
+				e.f.pd = e.pd.slice();
+			}
+			if (e.isMe) sfx("click");
+		},
+		spent(e) {
+			return (e.trp || []).reduce((a, [t]) => a + this.TRAPS[t].c, 0);
+		},
+		/* place trap t in gap gi (or take back the one there); at most one wall per row */
+		place(W, e, t, gi) {
+			const i = e.trp.findIndex((q) => q[1] === gi);
+			if (i >= 0) e.trp.splice(i, 1);
+			else {
+				const T = this.TRAPS[t],
+					row = this.gaps()[gi].row;
+				if (this.spent(e) + T.c > this.BUDGET) return false;
+				if (T.k === "wall" && e.trp.some(([q, g]) => this.TRAPS[q].k === "wall" && this.gaps()[g].row === row))
+					return false;
+				e.trp.push([t, gi]);
+			}
+			e.f.tr = { r: e.rr, l: e.trp.map((q) => q.slice()) };
+			return true;
+		},
+		/* CPUs plan a few traps in the middle rows, then press DONE after a while */
+		botPlan(W, e, S) {
+			if (e.bp === S.r) return;
+			e.bp = S.r;
+			const G0 = this.gaps();
+			for (let n = 0; n < 12; n++) {
+				const left = this.BUDGET - this.spent(e),
+					ok = this.TRAPS.map((t, i) => i).filter((i) => this.TRAPS[i].c <= left);
+				if (!ok.length) break;
+				const g = G0.map((q, i) => i).filter((i) => G0[i].row >= 1 && G0[i].row <= 4 && !e.trp.some((q) => q[1] === i));
+				if (!g.length) break;
+				this.place(W, e, ok[Math.floor(Math.random() * ok.length)], g[Math.floor(Math.random() * g.length)]);
+			}
+			e.botDone = W.t + 4 + Math.random() * 10;
+		},
+		/* ---- rounds ---- */
+		newRound(W, e, r) {
+			e.rr = r;
+			e.pw = null;
+			e.b = null;
+			e.st = 0;
+			e.ax = 0;
+			e.swing = 0;
+			e.z = 0;
+			e.trp = [];
+			e.tgl = [];
+			e.trig = {};
+			e.half = 0;
+			e.tgSeen = {};
+			e.stunT = e.revT = e.glueT = -9;
+			e.f.tr = { r, l: [] };
+			e.f.tg = { r, l: [] };
+			this.aim(W, e, 0);
+		},
+		aim(W, e, dt) {
+			const lim = this.HW - 1.4;
+			e.ax = Math.max(-lim, Math.min(lim, e.ax - (e.tl || 0) * this.AIMV * dt));
+			e.swing = (e.swing || 0) + ((e.tl || 0) * 0.12 - (e.swing || 0)) * Math.min(1, dt * 5);
+			e.x = e.ox + e.ax;
+			e.y = this.TOPY;
+			e.tt = e.swing + Math.sin(W.t * 2.2 + e.i) * 0.03;
+		},
+		/* this truck's physics world (board-local x): pegs, walls, dividers and the walls its saboteur placed */
+		world(W, e) {
+			if (e.pw || !window.planck) return e.pw;
+			const pl = window.planck,
+				V = pl.Vec2,
+				w = new pl.World({ gravity: V(0, -this.GRAV) }),
+				g = w.createBody(),
+				{ HW, SW, SH, FLOOR, DW, PR } = this,
+				fx = (sh, r, f, u) => g.createFixture({ shape: sh, restitution: r, friction: f, userData: u || null });
+			fx(pl.Edge(V(-HW - 1, FLOOR), V(HW + 1, FLOOR)), 0, 0.7);
+			[-1, 1].forEach((sd) => fx(pl.Edge(V(sd * HW, 0), V(sd * HW, this.CEIL + 1)), 0.23, 0.2));
+			fx(pl.Edge(V(-HW, this.CEIL), V(HW, this.CEIL)), 0.23, 0.2);
+			this.pegs().forEach(([x, y]) => fx(pl.Circle(V(x, y), PR), this.PEGR, 0.4));
+			for (let k = 1; k < this.COLS; k++) {
+				const x = -HW + k * SW;
+				fx(pl.Box(DW / 2, (SH - FLOOR) / 2, V(x, (SH + FLOOR) / 2), 0), 0.1, 0.3);
+				fx(pl.Circle(V(x, SH), DW / 2), 0.3, 0.3);
+			}
+			e.traps = this.trapsOn(W, e.k, e.rr).map((q) => q.slice());
+			e.traps.forEach(([t, gi], idx) => {
+				if (this.TRAPS[t].k !== "wall") return;
+				const q = this.gaps()[gi];
+				fx(pl.Box((q.w - 2 * PR) / 2 - 0.02, 0.16, V(q.x, q.y), 0), 0.35, 0.3, { trap: idx });
+			});
+			e.pw = w;
+			e.acc = 0;
+			return w;
+		},
+		drop(W, e) {
+			const pl = window.planck,
+				V = pl.Vec2;
+			e.b = e.pw.createBody({
+				type: "dynamic",
+				position: V(e.ax, this.TOPY),
+				linearDamping: 0.02,
+				angularDamping: 0.3,
+				bullet: true,
+			});
+			e.b.createFixture(this.shapeT(), { density: 1, friction: this.FRIC, restitution: 0.35 });
+			e.b.setLinearVelocity(V(0, -1));
+			e.st = 1;
+			e.lastTouch = -9;
+			e.hopCd = 0;
+			e.stk = 0;
+			e.py0 = this.TOPY;
+			e.hopQ = undefined;
+			mgLog(W, `${mgName(e)} drops in round ${e.rr + 1} (${e.traps.length} traps on the board)`);
+			if (e.isMe) sfx("magnet");
+		},
+		/* a trap goes off on this truck's board: its effect, shown to everyone (e.f.tg), the saboteur scores */
+		trigger(W, e, idx) {
+			if (e.trig[idx]) return;
+			e.trig[idx] = 1;
+			e.tgl.push(idx);
+			e.f.tg = { r: e.rr, l: e.tgl.slice() };
+			const T = this.TRAPS[e.traps[idx][0]],
+				b = e.b,
+				V = window.planck.Vec2,
+				p = b.getPosition(),
+				v = b.getLinearVelocity(),
+				at = [e.ox + p.x, p.y + 1.6, 0];
+			if (T.k === "half") {
+				e.half++;
+				fb(W, e, "×½!", { tone: "bad", at });
+			} else if (T.k === "stun") {
+				e.stunT = W.t + 3;
+				fb(W, e, "STUNNED!", { tone: "bad", at });
+			} else if (T.k === "rev") {
+				e.revT = W.t + 4;
+				fb(W, e, "REVERSED!", { tone: "bad", at });
+			} else if (T.k === "glue") {
+				e.glueT = W.t + 1.6;
+				e.glueP = [p.x, p.y];
+				fb(W, e, "GLUED!", { tone: "bad", at });
+			} else if (T.k === "jump") {
+				b.setLinearVelocity(V(v.x * 0.4, 10));
+				fb(W, e, "BOING!", { tone: "bad", at });
+			} else if (T.k === "bomb") {
+				b.setLinearVelocity(V((Math.random() < 0.5 ? -1 : 1) * 8, 6));
+				fb(W, e, "BOOM!", { tone: "bad", at });
+				if (e.isMe) W.shake = 0.6;
+			} else fb(W, e, "Blocked!", { tone: "bad", at });
+			mgLog(W, `${mgName(e)} hits a ${T.n} from ${mgName(W.ents[this.sabOf(W, e.k, e.rr)])}`);
+			if (e.isMe) sfx("loss");
+		},
+		/* the saboteur's side: points for every trap of yours your target set off */
+		sabTick(W, e, S) {
+			const vk = this.victimOf(W, e.k, S.r);
+			this.hitsOn(W, vk, S.r).forEach((idx) => {
+				if (e.tgSeen[idx]) return;
+				e.tgSeen[idx] = 1;
+				e.sc += this.TRAPPTS;
+				fb(W, e, `+${this.TRAPPTS} trap!`, { tone: "good" });
+				mgLog(W, `${mgName(e)} scores ${this.TRAPPTS} for a trap`);
+				if (e.isMe) sfx("coin");
+			});
+		},
+		rules(W, e, dt) {
+			if (e.d) return;
+			const S = this.sched(W);
+			if (S.r !== e.rr) this.newRound(W, e, S.r);
+			if (S.over) {
+				e.st = 3;
+				e.d = true;
+				e.b = null;
+				e.x = e.ox + (e.i % 2 ? 1 : -1) * 4;
+				e.z = 4.4;
+				e.y = this.GY + this.R;
+				e.ang = e.tt = 0;
+				e.vx = 0;
+				e.f.st = 3;
+				fb(W, e, `${e.sc}`, { stamp: true });
+				if (e.isMe) sfx("fanfare");
+				return;
+			}
+			this.sabTick(W, e, S);
+			if (S.plan) {
+				if (e.bot) {
+					this.botPlan(W, e, S);
+					if (W.t >= e.botDone && e.pd[S.r] === undefined) {
+						e.pd[S.r] = Math.round(W.t * 100) / 100;
+						e.f.pd = e.pd.slice();
+					}
+				}
+				this.aim(W, e, 0);
+				this.sync(e);
+				return;
+			}
+			if (e.st === 0) {
+				this.aim(W, e, dt);
+				e.hopQ = undefined;
+				if (S.D !== null && W.t >= S.D) {
+					if (!this.world(W, e)) return;
+					this.drop(W, e);
+				} else return this.sync(e);
+			}
+			const w = this.world(W, e);
+			if (!w || !e.b) return this.sync(e);
+			const V = window.planck.Vec2,
+				b = e.b;
+			e.acc = Math.min(0.1, e.acc + dt);
+			while (e.acc >= 1 / 60) {
+				const h = 1 / 60;
+				if (e.st === 1) {
+					/* steering: off while stunned, the other way round while reversed */
+					const tl = (e.tl || 0) * (W.t < e.revT ? -1 : 1);
+					if (tl && W.t >= e.stunT) b.applyForceToCenter(V(-tl * this.PUSH * b.getMass(), 0), true);
+					if (W.t < e.glueT) {
+						b.setTransform(V(e.glueP[0], e.glueP[1]), b.getAngle());
+						b.setLinearVelocity(V(0, 0));
+					}
+				}
+				w.step(h, 8, 3);
+				const c = this.touching(b),
+					p = b.getPosition();
+				if (c) {
+					e.lastTouch = W.t;
+					for (let k = b.getContactList(); k; k = k.next) {
+						const ct = k.contact;
+						if (!ct.isTouching()) continue;
+						const fa = ct.getFixtureA(),
+							u = (fa.getBody() === b ? ct.getFixtureB() : fa).getUserData();
+						if (u && u.trap !== undefined && e.st === 1) this.trigger(W, e, u.trap);
+					}
+				}
+				/* gate-like traps go off when the ball crosses their gap downwards */
+				if (e.st === 1)
+					e.traps.forEach(([t, gi], idx) => {
+						if (this.TRAPS[t].k === "wall" || e.trig[idx]) return;
+						const g = this.gaps()[gi];
+						if (e.py0 >= g.y && p.y < g.y && Math.abs(p.x - g.x) <= g.w / 2 - this.PR) this.trigger(W, e, idx);
+					});
+				e.py0 = p.y;
+				e.acc -= h;
+			}
+			const p = b.getPosition();
+			if (e.st === 1) {
+				if (p.y < this.SH && W.t - e.lastTouch < 0.05) this.score(W, e);
+				else if (W.t >= S.D + this.ROUNDT) {
+					e.st = 2;
+					e.dn++;
+					e.lt[e.rr] = Math.round(W.t * 100) / 100;
+					e.f.lt = e.lt.slice();
+					fb(W, e, "Stuck!", { tone: "bad" });
+				} else {
+					if (
+						e.hopQ !== undefined &&
+						W.t - e.hopQ < 0.2 &&
+						W.t - e.lastTouch < 0.25 &&
+						W.t >= e.hopCd &&
+						W.t >= e.stunT &&
+						p.y >= this.SH
+					) {
+						const ux = -(e.tl || 0) * 0.55 * (W.t < e.revT ? -1 : 1),
+							l = Math.hypot(ux, 1),
+							v = b.getLinearVelocity();
+						b.setLinearVelocity(V(v.x * 0.4 + (ux / l) * this.HOPV, Math.max(0, v.y) * 0.3 + (1 / l) * this.HOPV));
+						e.hopCd = W.t + this.HOPCD;
+						e.hopQ = undefined;
+						e.f.hp++;
+					}
+					e.stk = b.getLinearVelocity().length() < 0.35 && W.t >= e.glueT ? e.stk + dt : 0;
+					if (e.stk > 1.6) {
+						e.stk = 0;
+						b.setLinearVelocity(V((Math.random() < 0.5 ? -1 : 1) * 3, 2));
+					}
+				}
+			}
+			const vx = b.getLinearVelocity().x;
+			e.ang = b.getAngle();
+			e.x = e.ox + p.x;
+			e.y = p.y;
+			e.vx = vx;
+			const tg = Math.max(-0.35, Math.min(0.35, -vx * 0.05)) + (e.st === 1 ? (e.tl || 0) * 0.22 : 0);
+			e.tt += (tg - e.tt) * Math.min(1, dt * 6);
+			this.sync(e);
+		},
+		sync(e) {
+			e.vz = 0;
+			e.f.an = Math.round(e.ang * 100) / 100;
+			e.f.tt = Math.round(e.tt * 100) / 100;
+			e.f.st = e.st;
+		},
+		score(W, e) {
+			const p = e.b.getPosition(),
+				k = Math.max(0, Math.min(this.COLS - 1, Math.floor((p.x + this.HW) / this.SW))),
+				x3 = k === this.mslot(W.t),
+				v = Math.round(this.VAL[k] * (x3 ? 3 : 1) * 0.5 ** e.half);
+			e.sc += v;
+			e.st = 2;
+			e.dn++;
+			e.lt[e.rr] = Math.round(W.t * 100) / 100;
+			e.f.lt = e.lt.slice();
+			e.f.ls = [e.f.ls[0] + 1, k, x3 ? 1 : 0];
+			fb(W, e, `+${v}`, { tone: v >= 300 ? "good" : v <= 50 ? "bad" : "" });
+			if (x3) fb(W, e, "×3!", { stamp: true });
+			mgLog(W, `${mgName(e)} round ${e.rr + 1}: slot ${k} = ${v}, total ${e.sc}`);
+			if (e.isMe) sfx(x3 || v >= 500 ? "fanfare" : v <= 50 ? "loss" : "coin");
+		},
+		timeUp(W, e) {
+			if (e.st !== 3) fb(W, e, `${e.sc}`, { stamp: true });
+		},
+		fmt: (W, e) => `${e.sc} pts · round ${MG.sabo.sched(W).r + 1}/${MG.sabo.DROPS}`,
+		/* ---- cameras ---- */
+		btmCover: MG.plinko.btmCover,
+		cam(W, tgt, pos, far) {
+			const e = W.me,
+				asp = GFX.w / GFX.h,
+				tn = Math.tan((20 * Math.PI) / 180),
+				S = this.sched(W),
+				b = this.btmCover(W),
+				ox = e.ox || 0;
+			/* your own whole board while planning and aiming (and on the ready screen), then it follows your ball */
+			if (e.st !== 1 && e.st !== 2) {
+				const y0 = this.GY - 0.4,
+					y1 = this.HDR + 1,
+					D = Math.max((y1 - y0) / 2 / (1 - b) / tn, (this.HW + 1) / (tn * asp)) * 1.04,
+					t = new THREE.Vector3(ox, (y0 + y1) / 2 - D * tn * b, 0);
+				return [t, t.clone().add(new THREE.Vector3(0, D * 0.08, D))];
+			}
+			const D = asp < 1 ? 26 : 24,
+				hw = D * tn * asp,
+				hh = D * tn,
+				sh = hh * b,
+				mx = this.HW + 1 - hw,
+				lo = this.GY - 0.5 + hh * (1 - b) - sh,
+				hi = this.HDR + 0.6 - hh,
+				x = ox + (mx <= 0 ? 0 : Math.max(-mx, Math.min(mx, e.x - ox))),
+				y = lo > hi ? (lo + hi) / 2 : Math.max(lo, Math.min(hi, e.y - sh)),
+				t = new THREE.Vector3(x, y, 0);
+			return [t, t.clone().add(new THREE.Vector3(0, D * 0.1, D))];
+		},
+		/* the TV: every board */
+		tvsCam(W, a) {
+			const el = document.querySelector("#mg .tvscards"),
+				r = el && el.getBoundingClientRect(),
+				b = r && r.height ? Math.max(0, Math.min(0.35, (innerHeight - r.top) / innerHeight + 0.01)) : 0,
+				tn = Math.tan((20 * Math.PI) / 180),
+				y0 = this.GY - 0.4,
+				y1 = this.HDR + 1,
+				half = (W.plist.length * this.BW) / 2,
+				/* the ready screen: the boards sit right of the intro card (its left 30%) */
+				c = !W.startAt || W.t < 0 ? 0.3 : 0,
+				D = Math.max((y1 - y0) / 2 / (1 - b) / tn, half / (1 - c) / (tn * a)) * 1.03,
+				t = new THREE.Vector3(-D * tn * a * c, (y0 + y1) / 2 - D * tn * b, 0);
+			return [t, t.clone().add(new THREE.Vector3(0, D * 0.06, D))];
+		},
+		/* ---- drawing ---- */
+		render(W, e, dt) {
+			this.scene(W, dt);
+			const f = e.f || {};
+			if (!e.local) {
+				const k = 1 - Math.exp(-dt * 14);
+				e.ang = lerpA(e.ang || 0, f.an || 0, k);
+				e.tt = (e.tt || 0) + ((f.tt || 0) - (e.tt || 0)) * k;
+				const n = e.net;
+				if (n && Math.hypot(n.x - e.x, (n.y || 0) - e.y, n.z - e.z) > 6) {
+					e.x = n.x;
+					e.y = n.y || 0;
+					e.z = n.z;
+				}
+			}
+			e.pitch = e.tt * e.fc;
+			e.tr.rotation.z = e.pitch;
+			e.g.position.set(e.x + this.WB * Math.sin(e.tt), e.y - this.WB * Math.cos(e.tt), e.z);
+			const bl = this.ball(W, e),
+				ha = W.t - (e.hopT ?? -9),
+				q = ha < 0.35 ? 0.13 * Math.sin((ha / 0.35) * Math.PI) : 0;
+			bl.g.visible = !e.gone;
+			bl.g.position.set(e.x, e.y, e.z);
+			bl.g.scale.set(1 + q, 1 - q, 1 + q);
+			bl.spin.rotation.z = e.ang;
+			const col = pcol(e.p),
+				st = e.local ? e.st : f.st || 0;
+			if ((f.hp || 0) !== (e.hpSeen || 0)) {
+				e.hpSeen = f.hp || 0;
+				e.hopT = W.t;
+				if (W.split || e.isMe) sfx("step");
+			}
+			{
+				const sa = W.t - (e.hopT ?? -9);
+				springSet(e.tr, sa < 0.07 ? (sa / 0.07) * 0.3 : Math.max(0, 0.3 * (1 - (sa - 0.07) / 0.3)));
+			}
+			if (f.ls && f.ls[0] !== (e.lsSeen || 0)) {
+				e.lsSeen = f.ls[0];
+				const sl = W.slotF[e.i] && W.slotF[e.i][f.ls[1]];
+				if (sl) {
+					sl.fl = W.t;
+					sl.fc.set(col);
+				}
+				burst(W.sc, e.ox + this.slotX(f.ls[1]), 1.5, 0.5, {
+					n: f.ls[2] ? 22 : 12,
+					shape: "coin",
+					cols: ["#FFC83D", "#FFE27A"],
+					spd: 3,
+					up: 7,
+					life: 0.9,
+				});
+			}
+			const mg = W.mag[e.k];
+			if (mg) {
+				const hang = st === 0 && !e.gone,
+					u = mg.userData,
+					my = hang ? e.y + this.R - 0.02 : this.RAIL - 1.3;
+				mg.position.x = hang ? e.x : mg.position.x + (e.ox - mg.position.x) * Math.min(1, dt * 3);
+				u.my = u.my === undefined ? my : u.my + (my - u.my) * Math.min(1, dt * (hang ? 20 : 3));
+				u.mg.position.y = u.my;
+				u.mg.rotation.z = hang ? e.tt * 0.3 : 0;
+				const top = this.RAIL - 0.43,
+					len = Math.max(0.05, top - u.my - 0.3);
+				u.cab.scale.y = len;
+				u.cab.position.y = u.my + 0.3 + len / 2;
+				mg.visible = !e.gone;
+			}
+			if (e === W.me) this.ui(W, e);
+		},
+		/* the controls' root for this world (the TV keeps one copy per phone) */
+		root(W) {
+			if (typeof TVS !== "undefined" && TVS) {
+				const s = TVS.worlds.find((q) => q.W === W);
+				return s && s.ctl && s.ctl.querySelector(".sbctl");
+			}
+			return document.querySelector("#mg .sbctl");
+		},
+		/* the plan panel: your target's name, coins left, seconds left, the traps you placed; DONE once pressed */
+		ui(W, e) {
+			const root = this.root(W);
+			if (!root) return;
+			const S = this.sched(W),
+				ph = S.plan && !S.over ? "plan" : "play";
+			if (root.getAttribute("data-ph") !== ph) root.setAttribute("data-ph", ph);
+			if (ph !== "plan") return;
+			const vk = this.victimOf(W, e.k, S.r),
+				v = W.ents[vk],
+				left = this.BUDGET - this.spent(e),
+				secs = Math.max(0, Math.ceil(S.P + this.PLANT - W.t)),
+				done = e.pd[S.r] !== undefined,
+				sig = JSON.stringify([vk, left, secs, e.sel, e.trp, done]);
+			if (root.sbSig === sig) return;
+			root.sbSig = sig;
+			const set = (sel, txt) => {
+				const n = root.querySelector(sel);
+				if (n && n.textContent !== txt) n.textContent = txt;
+			};
+			set(".sbtgt", `Sabotage ${v ? v.p.name : ""}!`);
+			set(".sbcoin", String(left));
+			set(".sbtime", `${secs} s`);
+			set(".sbdone", done ? "WAITING…" : "DONE");
+			root.querySelectorAll(".sbt").forEach((b, i) => {
+				const c = (i === e.sel ? "on" : "") + (this.TRAPS[i].c > left ? " off" : "");
+				if ((b.getAttribute("class") || "") !== "sbt " + c) b.setAttribute("class", ("sbt " + c).trim());
+			});
+			root.querySelectorAll(".sbg").forEach((b) => {
+				const q = e.trp.find((t) => t[1] === +b.dataset.g),
+					T = q && this.TRAPS[q[0]],
+					txt = T ? T.ic : "",
+					cls = T ? "sbg on" : "sbg";
+				if (b.textContent !== txt) b.textContent = txt;
+				if (b.getAttribute("class") !== cls) b.setAttribute("class", cls);
+				const bc = T ? T.col : "";
+				if ((b.style.getPropertyValue("--bc") || "") !== bc) b.style.setProperty("--bc", bc);
+			});
+		},
+		/* trap models, hidden until set off (or the reveal after the round) */
+		trapMesh(W, t, g) {
+			const T = this.TRAPS[t],
+				m = new THREE.Group();
+			if (T.k === "wall") {
+				m.add(B(g.w - 0.7, 0.32, 2.4, "#5E636D", 0, 0, -0.3));
+				[-1, 1].forEach((sd) => m.add(B(0.4, 0.36, 2.42, "#FFC83D", (sd * (g.w - 1.2)) / 2, 0, -0.3)));
+			} else if (T.k === "glue") {
+				const gl = mesh(new THREE.IcosahedronGeometry(0.7, 1), "#3DDC84", { roughness: 0.2 });
+				gl.scale.set(1.5, 0.45, 1.4);
+				gl.position.z = -0.2;
+				m.add(gl);
+			} else if (T.k === "jump") {
+				m.add(B(g.w - 0.9, 0.18, 2.2, "#2F7DE1", 0, 0, -0.3));
+				[-1, 1].forEach((sd) => m.add(Cy(0.08, 0.08, 0.5, 6, "#C9CED8", sd * 0.8, -0.3, -0.3)));
+			} else if (T.k === "bomb") {
+				m.add(mesh(new THREE.IcosahedronGeometry(0.5, 1), "#23272F"));
+				const l = new THREE.Mesh(
+					new THREE.SphereGeometry(0.14, 8, 6),
+					new THREE.MeshBasicMaterial({ color: "#FF3B30" }),
+				);
+				l.position.set(0, 0.45, 0.25);
+				m.add(l);
+			} else {
+				const st = new THREE.Mesh(
+					new THREE.BoxGeometry(g.w - 0.75, 0.21, 2.4),
+					new THREE.MeshBasicMaterial({ color: T.col, transparent: true, opacity: 0.7, depthWrite: false }),
+				);
+				st.position.z = -0.3;
+				m.add(st);
+			}
+			/* its icon in a pill over it */
+			W.trapTex = W.trapTex || {};
+			const tx =
+					W.trapTex[t] ||
+					(W.trapTex[t] = canvasTex(128, 128, (x, w, h) => {
+						x.fillStyle = "#151B24";
+						x.beginPath();
+						x.arc(w / 2, h / 2, w / 2 - 4, 0, Math.PI * 2);
+						x.fill();
+						x.fillStyle = T.col;
+						x.beginPath();
+						x.arc(w / 2, h / 2, w / 2 - 14, 0, Math.PI * 2);
+						x.fill();
+						x.font = "900 64px Arial, sans-serif";
+						x.textAlign = "center";
+						x.textBaseline = "middle";
+						x.fillStyle = "#FFFFFF";
+						x.fillText(T.ic, w / 2, h / 2 + 4);
+					})),
+				ic = new THREE.Sprite(new THREE.SpriteMaterial({ map: tx, depthTest: false, transparent: true }));
+			ic.scale.setScalar(1.1);
+			ic.position.set(0, 0.95, 1.4);
+			ic.renderOrder = 6;
+			m.add(ic);
+			m.position.set(g.x, g.y, 0);
+			m.visible = false;
+			return m;
+		},
+		/* once a frame: the bulbs, the x3 signs, slot flashes, the traps on every board, the planning pills, the countdowns */
+		scene(W, dt) {
+			if (W.scF === W.t) return;
+			W.scF = W.t;
+			const S = this.sched(W),
+				t = Math.max(0, W.t);
+			{
+				const ph = Math.floor(t * 8);
+				if (ph !== W.bph) {
+					W.bph = ph;
+					const on = new THREE.Color("#FFE9A8"),
+						off = new THREE.Color("#6B5A3A");
+					W.bulbs.forEach((bl) => {
+						for (let i = 0; i < bl.count; i++) bl.setColorAt(i, (i + ph) % 4 < 2 ? on : off);
+						bl.instanceColor.needsUpdate = true;
+					});
+				}
+			}
+			const mp = this.mpos(W.t),
+				ms = Math.round(mp);
+			W.signs.forEach((q) => (q.g.position.x = q.ox + this.slotX(0) + mp * this.SW));
+			W.slotF.forEach((sf) =>
+				sf.forEach((s, k) => {
+					const fl = s.fl ? Math.max(0, 1 - (W.t - s.fl) / 0.9) : 0,
+						gl = k === ms && W.t >= 0 && !S.plan ? 0.35 + 0.15 * Math.sin(W.t * 10) : 0;
+					s.m.color.copy(s.c).lerp(s.fc, fl);
+					s.m.emissive.copy(fl ? s.fc : s.c).multiplyScalar(Math.max(gl, fl * 0.8));
+				}),
+			);
+			/* traps: built from each saboteur's list for this round, shown once set off or in the reveal */
+			const reveal = S.E !== null && W.t >= 0;
+			W.plist.forEach((pl, bi) => {
+				const k = pl.key,
+					L = S.plan ? [] : this.trapsOn(W, k, S.r),
+					key = S.r + ":" + JSON.stringify(L),
+					tv = W.trapV[k] || (W.trapV[k] = { key: "", g: null, items: [] });
+				if (tv.key !== key) {
+					if (tv.g) W.sc.remove(tv.g);
+					tv.key = key;
+					tv.g = new THREE.Group();
+					tv.g.position.x = W.laneX(bi);
+					tv.items = L.map(([ty, gi]) => {
+						const m = this.trapMesh(W, ty, this.gaps()[gi]);
+						tv.g.add(m);
+						return { m, shown: 0 };
+					});
+					W.sc.add(tv.g);
+				}
+				const hits = this.hitsOn(W, k, S.r);
+				tv.items.forEach((it, idx) => {
+					const on = reveal || hits.includes(idx);
+					if (on && !it.shown) {
+						it.shown = W.t;
+						burst(W.sc, tv.g.position.x + it.m.position.x, it.m.position.y, 1.4, {
+							n: 10,
+							shape: "ico",
+							cols: ["#FFFFFF", this.TRAPS[L[idx][0]].col],
+							spd: 3,
+							up: 2,
+							life: 0.5,
+						});
+					}
+					it.m.visible = !!on;
+					if (on) it.m.scale.setScalar(Math.min(1, 0.3 + (W.t - it.shown) * 4));
+				});
+				/* planning: a pill over each board, PLANNING or READY */
+				let pp = W.bpill[k];
+				if (S.plan && !pp) {
+					pp = W.bpill[k] = pillSprite();
+					W.sc.add(pp.sp);
+				}
+				if (pp) {
+					pp.sp.visible = !!S.plan;
+					if (S.plan) {
+						const e = W.ents[k],
+							a = e && (e.local ? e.pd : e.f && e.f.pd),
+							ready = a && a[S.r] !== undefined;
+						pp.set(ready ? "READY ✓" : "PLANNING…", pcol(pl));
+						pp.sp.position.set(W.laneX(bi), 13, 2);
+						pp.sp.scale.set(7.5, 2.5, 1);
+					}
+				}
+			});
+			/* the big word: SABOTAGE! / ROUND n at the start of planning, its last seconds, then 3 2 1 DROP!, REVEAL! */
+			if (W.t >= 0) {
+				const pl = S.P + this.PLANT - W.t;
+				W.big = S.over
+					? ""
+					: S.plan
+						? W.t - S.P < 1.5
+							? S.r
+								? `ROUND ${S.r + 1}`
+								: "SABOTAGE!"
+							: pl <= 5 && pl > 0
+								? String(Math.ceil(pl))
+								: ""
+						: S.D !== null && W.t < S.D
+							? S.D - W.t <= 3
+								? String(Math.ceil(S.D - W.t))
+								: ""
+							: S.D !== null && W.t - S.D < 0.7
+								? "DROP!"
+								: reveal && W.t - S.E + this.BETWEEN < 1.2
+									? "REVEAL!"
+									: "";
+				W.bigT = W.t + 0.2;
+			}
+		},
+		/* CPUs: aim for the middle-ish, then steer towards the best slot (counting the x3) and hop when stuck */
+		bot(W, e, dt) {
+			e.sk = e.sk ?? 0.3 + Math.random() * 0.7;
+			const S = this.sched(W);
+			if (S.plan) return null;
+			if (e.st === 0) {
+				if (e.aimR !== S.r) {
+					e.aimR = S.r;
+					e.aimX = (Math.random() - 0.5) * (Math.random() < 0.5 ? 2 : 10);
+				}
+				const dx = e.aimX - e.ax;
+				e.tl = Math.abs(dx) > 0.3 ? (dx < 0 ? 1 : -1) : 0;
+				return null;
+			}
+			if (e.st !== 1 || !e.b) {
+				e.tl = 0;
+				return null;
+			}
+			e.bt = (e.bt || 0) - dt;
+			if (e.bt > 0) return null;
+			e.bt = 0.12 + 0.35 * (1 - e.sk) + Math.random() * 0.1;
+			const p = e.b.getPosition(),
+				m = this.mslot(W.t + Math.sqrt((2 * Math.max(0, p.y - this.SH)) / this.GRAV) * 1.7);
+			let best = -1e9,
+				tx = p.x;
+			for (let k = 0; k < this.COLS; k++) {
+				const x = this.slotX(k),
+					v = this.VAL[k] * (k === m ? 3 : 1) - Math.abs(x - p.x) * (60 + 400 / Math.max(1, p.y));
+				if (v > best) {
+					best = v;
+					tx = x;
+				}
+			}
+			const dx = tx - p.x;
+			e.tl = dx > 0.5 ? -1 : dx < -0.5 ? 1 : 0;
+			if (p.y > this.SH + 0.6 && W.t - e.lastTouch < 0.2 && (e.stk > 0.4 || Math.random() < 0.08 * e.sk)) e.hopQ = W.t;
+			return null;
+		},
+		watchSum: (W) =>
+			W.list
+				.filter((e) => !e.gone)
+				.map((e) => `${mgName(e)} ${e.sc}`)
+				.join(", "),
+		botScore: () => 300 + rnd(8) * 100,
+	},
+});
+
 /* ---------- team minigames ---------- */
 /* Monster Mash (1 vs 3 boss fight) on Mud Brawl's arena (MG.bumper: build, bowl, mud fall).
    The monster (side 0, a giant truck) sits on a turntable in the middle: tap FIRE to shoot tyres (aimed with the stick),
