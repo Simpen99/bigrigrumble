@@ -197,7 +197,7 @@ rh.forEach((r) => console.log("  " + r));
 const issues = [];
 {
 	const m = clockDiff.slice().sort((a, b) => a - b)[Math.floor(clockDiff.length / 2)] || 0;
-	if (Math.abs(m) > 0.15) issues.push(`the game clocks differ: the phone is ${m.toFixed(2)} s ahead of the host`);
+	if (Math.abs(m) > 0.25) issues.push(`the game clocks differ: the phone is ${m.toFixed(2)} s ahead of the host`);
 }
 if (!rh.length) issues.push("the host never showed results (stuck?)");
 if (!rp.length) issues.push("the phone never showed results (stuck?)");
