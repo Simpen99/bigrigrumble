@@ -774,7 +774,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-12 18:14 ccdf42f";
+const BUILD = "2026-10-12 18:50 cbdaf40";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -29834,7 +29834,7 @@ Object.assign(MG, {
 		   speed, how long a ball may hang before it drops by itself */
 		GRAV: 13,
 		PEGR: 0.59,
-		FRIC: 0.08,
+		FRIC: 0.05,
 		PUSH: 2.6,
 		HOPV: 6.5,
 		HOPCD: 1.1,
@@ -31029,7 +31029,7 @@ Object.assign(MG, {
 			}
 			W.flips.forEach((f, i) => (W.flipG[i].rotation.z = this.flipA(f, W.t - W.flipT[i])));
 			W.bumpG.forEach((b) => {
-				const k = Math.max(0, 1 - (W.t - b.t) / 0.35);
+				const k = W.t >= b.t ? Math.max(0, 1 - (W.t - b.t) / 0.35) : 0;
 				b.g.scale.setScalar(1 + 0.18 * k);
 				b.rm.color.set(k > 0.3 ? "#FFFFFF" : "#FFE27A");
 			});

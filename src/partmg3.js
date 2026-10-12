@@ -1854,7 +1854,7 @@ Object.assign(MG, {
 		   speed, how long a ball may hang before it drops by itself */
 		GRAV: 13,
 		PEGR: 0.59,
-		FRIC: 0.08,
+		FRIC: 0.05,
 		PUSH: 2.6,
 		HOPV: 6.5,
 		HOPCD: 1.1,
@@ -3049,7 +3049,7 @@ Object.assign(MG, {
 			}
 			W.flips.forEach((f, i) => (W.flipG[i].rotation.z = this.flipA(f, W.t - W.flipT[i])));
 			W.bumpG.forEach((b) => {
-				const k = Math.max(0, 1 - (W.t - b.t) / 0.35);
+				const k = W.t >= b.t ? Math.max(0, 1 - (W.t - b.t) / 0.35) : 0;
 				b.g.scale.setScalar(1 + 0.18 * k);
 				b.rm.color.set(k > 0.3 ? "#FFFFFF" : "#FFE27A");
 			});
