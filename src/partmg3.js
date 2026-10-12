@@ -1815,23 +1815,24 @@ Object.assign(MG, {
 		truckMode: "springs",
 		hi: true,
 		unit: "pts",
-		dur: 70,
+		dur: 90,
 		bare: true,
 		/* the light panel's values (2026-10-11): low sun straight in front, bright fill */
 		sun: [0, 9, 31.6],
 		lt: { amb: 0.84, sun: 0.44, warm: 0.28, haze: 70 },
 		fx: { col: 0.06 },
-		how: "Roll down the peg board 3 times in your ball; the slots' points add up. Steer, hop off the pegs, catch the sliding ×3!",
-		tvHint: "Hold LEFT / RIGHT to move the magnet, then to steer as you fall. Middle: drop, then hop off pegs.",
+		how: "3 rounds, everyone drops at once, a new board every round. Steer and hop your ball into the best slot, catch the sliding ×3!",
+		tvHint:
+			"Before the drop: LEFT / RIGHT move your magnet. Falling: LEFT / RIGHT steer, the middle button hops off pegs.",
 		tapHint:
-			"◀ ▶ move the magnet, then steer as you fall. HOP drops you, then pops you off the pegs (arrow keys, Space).",
+			"◀ ▶ move your magnet before the drop, then steer as you fall; HOP pops you off the pegs (arrow keys, Space).",
 		/* board: COLS slots SW wide between walls at ±HW; ROWS peg rows RY apart from Y0 up (even rows line up with the
 		   slot dividers, odd rows sit between; every gap a ball must pass is ~3.4 m, the ball 2.9); slot dividers SH high on
 		   the floor FLOOR; the ground GY below the plinth */
 		COLS: 7,
 		SW: 4.4,
 		HW: 15.4,
-		ROWS: 6,
+		ROWS: 8,
 		RY: 3.4,
 		Y0: 5,
 		PR: 0.32,
@@ -1839,27 +1840,32 @@ Object.assign(MG, {
 		FLOOR: 0.12,
 		DW: 0.24,
 		GY: -2.6,
-		R: 0.98 /* the ball */,
-		TS: 0.51 /* the truck's scale inside it */,
-		WB: 0.74 /* the truck's wheels this far below the ball's centre */,
-		TOPY: 24.8 /* a hanging ball's centre */,
-		CEIL: 27 /* just under the magnet rail */,
-		RAIL: 27.9,
-		HDR: 29.2 /* the header's middle */,
+		R: 0.83 /* the ball */,
+		TS: 0.43 /* the truck's scale inside it */,
+		WB: 0.63 /* the truck's wheels this far below the ball's centre */,
+		TOPY: 31.6 /* a hanging ball's centre (the top peg row is at 28.8) */,
+		CEIL: 33.8 /* just under the magnet rail */,
+		RAIL: 34.7,
+		HDR: 36 /* the header's middle */,
 		VAL: [100, 300, 50, 500, 50, 300, 100],
 		SCOL: { 500: "#FFC83D", 300: "#1FA35C", 100: "#2F7DE1", 50: "#E5484D" },
 		MP: 11 /* the x3 sign's trip there and back, s */,
-		DROPS: 3,
+		DROPS: 3 /* rounds */,
+		/* rounds: everyone aims for AIMT s (the first round AIM0 s after GO), then all drop at once; a round ends BETWEEN s
+		   after the last ball lands, or ROUNDT s after the drop at the latest */
+		AIM0: 4,
+		ROUNDT: 20,
+		BETWEEN: 1.6,
 		/* feel: gravity, peg bounce, ball friction (low: it glides), steering push (m/s²), hop speed and cooldown, magnet
 		   speed, how long a ball may hang before it drops by itself */
 		GRAV: 13,
-		PEGR: 0.59,
+		PEGR: 0.68,
 		FRIC: 0.05,
 		PUSH: 2.6,
 		HOPV: 6.5,
 		HOPCD: 1.1,
 		AIMV: 7,
-		AIMT: 5,
+		AIMT: 4,
 		/* flippers (replace a peg, flick up on their own rhythm) and x2 gates (between two pegs in a row: pass through
 		   one for double points on this drop; two make x4) */
 		NFLIP: 3,
@@ -1868,9 +1874,10 @@ Object.assign(MG, {
 		/* pop bumpers: how many, radius, kick speed, points per hit */
 		NBUMP: 3,
 		BR: 0.62,
-		BUMPV: 9,
+		BUMPV: 10.3,
 		BUMPPTS: 25,
-		/* TNT pegs: one at a time, live TNTL s (from the seed: W.tnt), the blast reaches TNTR m and throws at up to TNTV */
+		/* TNT pegs: one at a time, live TNTL s (from the seed, counted from the round's drop: W.tnt), the blast reaches TNTR m
+		   and throws at up to TNTV */
 		TNTL: 8,
 		TNTR: 5,
 		TNTV: 12,
@@ -1888,12 +1895,11 @@ Object.assign(MG, {
 			}
 			return (this.PG = L);
 		},
-		/* this game's board, the same on every device (from the seed): W.pegs (the grid minus the flipper and bumper pegs),
-		   W.flips [{x, y, dir}] (W.flipT = when each last fired), W.bumps [{x, y}], W.gates [{x, y, w}], W.tnt [{n, t, i, x, y}]
-		   (when and on which peg each TNT turns up; W.tntX = the ones that went off) */
-		layout(W) {
-			if (W.pegs) return;
-			const r = mulberry((W.mg.seed || 1) * 7 + 3),
+		/* round rd's board, the same on every device (from the seed and the round): W.pegs (the grid minus the flipper and
+		   bumper pegs), W.flips [{x, y, dir}] (W.flipT = when each last fired), W.bumps [{x, y}], W.gates [{x, y, w}],
+		   W.tnt [{n, dt, i, x, y}] (s after the drop and on which peg each TNT turns up; W.tntX = the ones that went off) */
+		layout(W, rd) {
+			const r = mulberry((W.mg.seed || 1) * 7 + 3 + rd * 7919),
 				all = this.pegs(),
 				row = (y) => Math.round((y - this.Y0) / this.RY),
 				cand = all.filter(([x, y]) => row(y) >= 1 && row(y) <= 4 && Math.abs(x) < this.HW - 0.5),
@@ -1945,11 +1951,11 @@ Object.assign(MG, {
 					);
 				});
 			W.tnt = [];
-			W.tntX = {};
-			for (let n = 0, t = 5 + r() * 3; t < this.dur - 6 && tc.length; n++) {
+			W.tntX = W.tntX || {};
+			for (let k = 0, t = 1 + r() * 2; t < this.ROUNDT - 3 && tc.length; k++) {
 				const i = tc[Math.floor(r() * tc.length)];
-				W.tnt.push({ n, t, i, x: W.pegs[i][0], y: W.pegs[i][1] });
-				t += this.TNTL + 2 + r() * 4;
+				W.tnt.push({ n: rd * 10 + k, dt: t, i, x: W.pegs[i][0], y: W.pegs[i][1] });
+				t += this.TNTL + 1 + r() * 3;
 			}
 		},
 		/* a flipper's angle s seconds after it fired: rests tipped down, snaps up, holds, eases back. It fires when a ball
@@ -1959,10 +1965,45 @@ Object.assign(MG, {
 				a = -0.45 + k;
 			return f.dir > 0 ? a : Math.PI - a;
 		},
-		/* the TNT that is live now (one at a time), or null */
+		/* the TNT that is live now (one at a time, only while balls fall), or null; q.t = when it turned up */
 		tntNow(W) {
-			for (const q of W.tnt) if (W.t >= q.t && W.t < q.t + this.TNTL && W.tntX[q.n] === undefined) return q;
+			const S = this.sched(W);
+			if (S.E !== null) return null;
+			for (const q of W.tnt) {
+				q.t = S.D + q.dt;
+				if (W.t >= q.t && W.t < q.t + this.TNTL && W.tntX[q.n] === undefined) return q;
+			}
 			return null;
+		},
+		/* the round schedule, worked out the same way on every device from the trucks' landing times (e.f.lt[round]):
+		   {r: round, D: its drop time, E: when it ends (null while balls are still falling), over: all rounds done}. It also
+		   swaps the board when a new round starts */
+		roundEnd(W, r, D) {
+			const lts = W.list
+					.filter((o) => !o.gone)
+					.map((o) => {
+						const a = o.local ? o.lt : o.f && o.f.lt;
+						return a ? a[r] : undefined;
+					}),
+				cap = D + this.ROUNDT;
+			if (lts.length && lts.every((v) => typeof v === "number")) return Math.min(Math.max(...lts), cap) + this.BETWEEN;
+			return W.t >= cap ? cap + this.BETWEEN : null;
+		},
+		sched(W) {
+			if (W.schT === W.t && W.sch) return W.sch;
+			let r = 0,
+				D = this.AIM0,
+				E;
+			for (;;) {
+				E = this.roundEnd(W, r, D);
+				if (E === null || W.t < E || r === this.DROPS - 1) break;
+				r++;
+				D = E + this.AIMT;
+			}
+			W.schT = W.t;
+			W.sch = { r, D, E, over: E !== null && W.t >= E && r === this.DROPS - 1 };
+			if (W.lr !== r) this.setBoard(W, r);
+			return W.sch;
 		},
 		slotX: (k) => -MG.plinko.HW + (k + 0.5) * MG.plinko.SW,
 		/* the x3 sign: position in slots (0 .. COLS-1), sliding there and back at a steady speed; the slot it's under counts */
@@ -2050,101 +2091,6 @@ Object.assign(MG, {
 				t.rotation.x = Math.PI / 2;
 				s.add(t);
 			}
-			/* pegs: a steel post out of the board with a flange; the caps are one instanced mesh so a knock can light them */
-			this.layout(W);
-			const pg = W.pegs;
-			/* flippers: a red paddle with a white stripe on a yellow hub */
-			W.flipG = W.flips.map((f) => {
-				const g = new THREE.Group(),
-					L = this.FL,
-					tip = Cy(0.16, 0.16, 2.6, 8, "#E5484D", L, 0, -0.3),
-					hub = Cy(0.4, 0.4, 0.3, 12, "#FFC83D", 0, 0, 1.15),
-					ax = Cy(0.3, 0.3, 2.9, 10, "#C9CED8", 0, 0, -0.25);
-				[tip, hub, ax].forEach((m) => (m.rotation.x = Math.PI / 2));
-				g.add(
-					B(L, 0.32, 2.6, "#E5484D", L / 2, 0, -0.3),
-					B(L * 0.75, 0.04, 2.2, "#F4F6F9", L / 2, 0.18, -0.3),
-					tip,
-					hub,
-					ax,
-				);
-				g.position.set(f.x, f.y, 0);
-				g.rotation.z = this.flipA(f, 99);
-				s.add(g);
-				return g;
-			});
-			/* x2 gates: a green light strip across the gap with a soft glow round it (additive halos in front and on the
-			   board, so it glows on the TV too, where the post effects are off), the x2 on the board under it */
-			const halo = canvasTex(256, 128, (x, w, h) => {
-				const g = x.createRadialGradient(h / 2, h / 2, 4, h / 2, h / 2, h / 2);
-				g.addColorStop(0, "rgba(140,255,190,0.9)");
-				g.addColorStop(0.35, "rgba(70,230,140,0.45)");
-				g.addColorStop(1, "rgba(40,200,110,0)");
-				x.save();
-				x.scale(w / h, 1);
-				x.fillStyle = g;
-				x.fillRect(0, 0, h, h);
-				x.restore();
-			});
-			W.gateM = W.gates.map((q) => {
-				const m = new THREE.MeshBasicMaterial({
-						color: "#8CFFC0",
-						transparent: true,
-						opacity: 0.55,
-						depthWrite: false,
-					}),
-					st = new THREE.Mesh(new THREE.BoxGeometry(q.w - 0.75, 0.21, 2.4), m),
-					tx = canvasTex(128, 64, (x, w, h) => {
-						x.font = "48px Bungee, 'Arial Black', Impact, sans-serif";
-						x.textAlign = "center";
-						x.textBaseline = "middle";
-						x.lineWidth = 8;
-						x.strokeStyle = "#0E5A32";
-						x.strokeText("×2", w / 2, h / 2 + 3);
-						x.fillStyle = "#7CF2B0";
-						x.fillText("×2", w / 2, h / 2 + 3);
-					}),
-					lb = new THREE.Mesh(
-						new THREE.PlaneGeometry(2, 1),
-						new THREE.MeshBasicMaterial({ map: tx, transparent: true }),
-					);
-				st.position.set(q.x, q.y, -0.3);
-				st.renderOrder = 1;
-				const hm = new THREE.MeshBasicMaterial({
-					map: halo,
-					transparent: true,
-					opacity: 0.8,
-					blending: THREE.AdditiveBlending,
-					depthWrite: false,
-				});
-				[1.35, -1.6].forEach((z, j) => {
-					const p = new THREE.Mesh(new THREE.PlaneGeometry(q.w + (j ? 1.6 : 0.8), j ? 1.54 : 0.91), hm);
-					p.position.set(q.x, q.y, z);
-					p.renderOrder = 4;
-					s.add(p);
-				});
-				lb.position.set(q.x, q.y - 0.95, -1.64);
-				s.add(st, lb);
-				return { m, hm, fl: -9 };
-			});
-			/* pop bumpers: a red drum out of the board, white skirt, yellow cap, a ring that flashes when it kicks */
-			W.bumpG = W.bumps.map((q) => {
-				const g = new THREE.Group(),
-					rm = new THREE.MeshBasicMaterial({ color: "#FFE27A" }),
-					ring = new THREE.Mesh(new THREE.TorusGeometry(0.74, 0.08, 6, 24), rm),
-					parts = [
-						Cy(0.9, 0.9, 0.12, 16, "#8E96A3", 0, 0, -1.63),
-						Cy(this.BR, this.BR, 2.8, 16, "#E5484D", 0, 0, -0.3),
-						Cy(0.76, 0.76, 0.22, 16, "#F4F6F9", 0, 0, 1.0),
-						Cy(0.5, 0.5, 0.3, 16, "#FFC83D", 0, 0, 1.1),
-					];
-				parts.forEach((m) => (m.rotation.x = Math.PI / 2));
-				ring.position.z = 1.16;
-				g.add(...parts, ring);
-				g.position.set(q.x, q.y, 0);
-				s.add(g);
-				return { g, rm, t: -9 };
-			});
 			/* the TNT barrel (one at a time, moved onto its peg) */
 			{
 				const g = new THREE.Group(),
@@ -2170,34 +2116,7 @@ Object.assign(MG, {
 				s.add(g);
 				W.tntG = g;
 			}
-			pg.forEach(([x, y]) => {
-				const p = Cy(0.26, 0.26, 3, 10, "#C9CED8", x, y, -0.25);
-				p.rotation.x = Math.PI / 2;
-				const fl = Cy(0.48, 0.48, 0.12, 10, "#8E96A3", x, y, -1.63);
-				fl.rotation.x = Math.PI / 2;
-				s.add(p, fl);
-			});
-			{
-				const g = new THREE.CylinderGeometry(0.38, 0.38, 0.22, 10);
-				g.rotateX(Math.PI / 2);
-				const cap = new THREE.InstancedMesh(
-					g,
-					new THREE.MeshStandardMaterial({ flatShading: true, roughness: 0.45, metalness: 0.1 }),
-					pg.length,
-				);
-				const o = new THREE.Object3D(),
-					c = new THREE.Color("#FFC83D");
-				pg.forEach(([x, y], i) => {
-					o.position.set(x, y, 1.32);
-					o.updateMatrix();
-					cap.setMatrixAt(i, o.matrix);
-					cap.setColorAt(i, c);
-				});
-				cap.castShadow = true;
-				s.add(cap);
-				W.caps = cap;
-				W.pegFl = pg.map(() => null);
-			}
+			this.setBoard(W, 0);
 			/* marquee bulbs on the frame and the header, chasing (W.bulbs: one instanced mesh each, the cabinet adds its own) */
 			{
 				const P = [];
@@ -2262,6 +2181,138 @@ Object.assign(MG, {
 				g.userData = { cab, mg };
 				s.add(g);
 				W.mag[p.key] = g;
+			});
+		},
+		/* round rd's pegs, flippers, x2 gates and bumpers (W.bd, rebuilt every round): pegs are a steel post out of the board
+		   with a flange and a cap (instanced; the caps light up when knocked), flippers a red paddle with a white stripe on a
+		   yellow hub, gates a green light strip across the gap with a soft glow round it (additive halos in front and on the
+		   board, so it glows on the TV too, where the post effects are off) and the x2 on the board under it, bumpers a red
+		   drum out of the board with a white skirt, yellow cap and a ring that flashes when it kicks */
+		setBoard(W, rd) {
+			W.lr = rd;
+			this.layout(W, rd);
+			if (W.bd) {
+				W.sc.remove(W.bd);
+				W.bd.traverse((o) => o.geometry && o.geometry.dispose());
+			}
+			const s = (W.bd = new THREE.Group()),
+				pg = W.pegs,
+				inst = (geo, col, z, n) => {
+					const m = new THREE.InstancedMesh(
+							geo,
+							new THREE.MeshStandardMaterial({ flatShading: true, roughness: 0.45, metalness: 0.1 }),
+							n,
+						),
+						o = new THREE.Object3D(),
+						c = new THREE.Color(col);
+					pg.forEach(([x, y], i) => {
+						o.position.set(x, y, z);
+						o.updateMatrix();
+						m.setMatrixAt(i, o.matrix);
+						m.setColorAt(i, c);
+					});
+					m.castShadow = m.receiveShadow = true;
+					s.add(m);
+					return m;
+				},
+				cyz = (r, h, seg) => new THREE.CylinderGeometry(r, r, h, seg).rotateX(Math.PI / 2);
+			W.sc.add(s);
+			inst(cyz(0.26, 3, 10), "#C9CED8", -0.25, pg.length);
+			inst(cyz(0.48, 0.12, 10), "#8E96A3", -1.63, pg.length);
+			W.caps = inst(cyz(0.38, 0.22, 10), "#FFC83D", 1.32, pg.length);
+			W.pegFl = pg.map(() => null);
+			W.flipT = W.flips.map(() => -99);
+			W.flipG = W.flips.map((f) => {
+				const g = new THREE.Group(),
+					L = this.FL,
+					tip = Cy(0.16, 0.16, 2.6, 8, "#E5484D", L, 0, -0.3),
+					hub = Cy(0.4, 0.4, 0.3, 12, "#FFC83D", 0, 0, 1.15),
+					ax = Cy(0.3, 0.3, 2.9, 10, "#C9CED8", 0, 0, -0.25);
+				[tip, hub, ax].forEach((m) => (m.rotation.x = Math.PI / 2));
+				g.add(
+					B(L, 0.32, 2.6, "#E5484D", L / 2, 0, -0.3),
+					B(L * 0.75, 0.04, 2.2, "#F4F6F9", L / 2, 0.18, -0.3),
+					tip,
+					hub,
+					ax,
+				);
+				g.position.set(f.x, f.y, 0);
+				g.rotation.z = this.flipA(f, 99);
+				s.add(g);
+				return g;
+			});
+			const halo =
+					W.haloTex ||
+					(W.haloTex = canvasTex(256, 128, (x, w, h) => {
+						const g = x.createRadialGradient(h / 2, h / 2, 4, h / 2, h / 2, h / 2);
+						g.addColorStop(0, "rgba(140,255,190,0.9)");
+						g.addColorStop(0.35, "rgba(70,230,140,0.45)");
+						g.addColorStop(1, "rgba(40,200,110,0)");
+						x.save();
+						x.scale(w / h, 1);
+						x.fillStyle = g;
+						x.fillRect(0, 0, h, h);
+						x.restore();
+					})),
+				x2 =
+					W.x2Tex ||
+					(W.x2Tex = canvasTex(128, 64, (x, w, h) => {
+						x.font = "48px Bungee, 'Arial Black', Impact, sans-serif";
+						x.textAlign = "center";
+						x.textBaseline = "middle";
+						x.lineWidth = 8;
+						x.strokeStyle = "#0E5A32";
+						x.strokeText("×2", w / 2, h / 2 + 3);
+						x.fillStyle = "#7CF2B0";
+						x.fillText("×2", w / 2, h / 2 + 3);
+					}));
+			W.gateM = W.gates.map((q) => {
+				const m = new THREE.MeshBasicMaterial({
+						color: "#8CFFC0",
+						transparent: true,
+						opacity: 0.55,
+						depthWrite: false,
+					}),
+					st = new THREE.Mesh(new THREE.BoxGeometry(q.w - 0.75, 0.21, 2.4), m),
+					lb = new THREE.Mesh(
+						new THREE.PlaneGeometry(2, 1),
+						new THREE.MeshBasicMaterial({ map: x2, transparent: true }),
+					),
+					hm = new THREE.MeshBasicMaterial({
+						map: halo,
+						transparent: true,
+						opacity: 0.8,
+						blending: THREE.AdditiveBlending,
+						depthWrite: false,
+					});
+				st.position.set(q.x, q.y, -0.3);
+				st.renderOrder = 1;
+				[1.35, -1.6].forEach((z, j) => {
+					const h = new THREE.Mesh(new THREE.PlaneGeometry(q.w + (j ? 1.6 : 0.8), j ? 1.54 : 0.91), hm);
+					h.position.set(q.x, q.y, z);
+					h.renderOrder = 4;
+					s.add(h);
+				});
+				lb.position.set(q.x, q.y - 0.95, -1.64);
+				s.add(st, lb);
+				return { m, hm, fl: -9 };
+			});
+			W.bumpG = W.bumps.map((q) => {
+				const g = new THREE.Group(),
+					rm = new THREE.MeshBasicMaterial({ color: "#FFE27A" }),
+					ring = new THREE.Mesh(new THREE.TorusGeometry(0.74, 0.08, 6, 24), rm),
+					parts = [
+						Cy(0.9, 0.9, 0.12, 16, "#8E96A3", 0, 0, -1.63),
+						Cy(this.BR, this.BR, 2.8, 16, "#E5484D", 0, 0, -0.3),
+						Cy(0.76, 0.76, 0.22, 16, "#F4F6F9", 0, 0, 1.0),
+						Cy(0.5, 0.5, 0.3, 16, "#FFC83D", 0, 0, 1.1),
+					];
+				parts.forEach((m) => (m.rotation.x = Math.PI / 2));
+				ring.position.z = 1.16;
+				g.add(...parts, ring);
+				g.position.set(q.x, q.y, 0);
+				s.add(g);
+				return { g, rm, t: -9 };
 			});
 		},
 		/* the board is the playfield of a giant arcade cabinet, seen from inside: side walls fanning out to the edges of
@@ -2366,7 +2417,7 @@ Object.assign(MG, {
 			e.ang = 0;
 			e.tt = 0;
 			e.dn = 0;
-			e.aimT = 0;
+			e.lt = [];
 			e.g.scale.setScalar(this.TS);
 			e.f = {
 				an: 0,
@@ -2379,6 +2430,7 @@ Object.assign(MG, {
 				fp: [0, 0, 0],
 				bp: [0, 0],
 				tx: [0, 0],
+				lt: [],
 			};
 			loadPlanck();
 		},
@@ -2402,8 +2454,8 @@ Object.assign(MG, {
 				{ HW, SW, SH, FLOOR, DW, PR } = this,
 				fx = (sh, r, f) => g.createFixture(sh, { restitution: r, friction: f });
 			fx(pl.Edge(V(-HW - 1, FLOOR), V(HW + 1, FLOOR)), 0, 0.7);
-			[-1, 1].forEach((sd) => fx(pl.Edge(V(sd * HW, 0), V(sd * HW, this.CEIL + 1)), 0.2, 0.2));
-			fx(pl.Edge(V(-HW, this.CEIL), V(HW, this.CEIL)), 0.2, 0.2);
+			[-1, 1].forEach((sd) => fx(pl.Edge(V(sd * HW, 0), V(sd * HW, this.CEIL + 1)), 0.23, 0.2));
+			fx(pl.Edge(V(-HW, this.CEIL), V(HW, this.CEIL)), 0.23, 0.2);
 			/* pegs, bumpers and flippers are tagged (userData) so a ball touching them can tell which */
 			W.pegs.forEach(([x, y], i) =>
 				g.createFixture({
@@ -2416,14 +2468,14 @@ Object.assign(MG, {
 			W.bumps.forEach((q, i) =>
 				g.createFixture({
 					shape: pl.Circle(V(q.x, q.y), this.BR),
-					restitution: 0.6,
+					restitution: 0.69,
 					friction: 0.2,
 					userData: { bump: i },
 				}),
 			);
 			e.flb = W.flips.map((f, i) => {
 				const b = w.createBody({ type: "kinematic", position: V(f.x, f.y), angle: this.flipA(f, W.t - W.flipT[i]) }),
-					o = { restitution: 0.3, friction: 0.3, userData: { flip: i } };
+					o = { restitution: 0.35, friction: 0.3, userData: { flip: i } };
 				b.createFixture(pl.Box(this.FL / 2, 0.16, V(this.FL / 2, 0), 0), o);
 				b.createFixture(pl.Circle(V(0, 0), 0.32), o);
 				b.createFixture(pl.Circle(V(this.FL, 0), 0.16), o);
@@ -2455,7 +2507,7 @@ Object.assign(MG, {
 				const [x, y] = this.ctr(o);
 				if (!kb) {
 					kb = e.kin[o.k] = e.pw.createBody({ type: "kinematic", position: V(x, y) });
-					kb.createFixture(this.shapeT(), { friction: this.FRIC, restitution: 0.3 });
+					kb.createFixture(this.shapeT(), { friction: this.FRIC, restitution: 0.35 });
 				}
 				const p = kb.getPosition();
 				if (!kb.isActive() || Math.hypot(x - p.x, y - p.y) > 4) {
@@ -2469,7 +2521,7 @@ Object.assign(MG, {
 			for (let c = b.getContactList(); c; c = c.next) if (c.contact.isTouching()) return c.contact;
 			return null;
 		},
-		/* controls: e.tl = +1 (◀ held) / -1 (▶ held); HOP is queued as the time it was pressed (good for HOPQ s) */
+		/* controls: e.tl = +1 (◀ held) / -1 (▶ held); HOP is queued as the time it was pressed (good for 0.2 s) */
 		ctlHTML() {
 			return `<div class="rjctl"><button class="rjb" id="pkl" style="--bc:#2F7DE1" aria-label="Left"><i>◀</i></button><button class="rjb pkhop" id="pkh" style="--bc:#FF8A1F" aria-label="Drop or hop"><b>HOP</b></button><button class="rjb" id="pkr" style="--bc:#2F7DE1" aria-label="Right"><i>▶</i></button></div>`;
 		},
@@ -2502,7 +2554,7 @@ Object.assign(MG, {
 			else if (k === "arrowright" || k === "d") this.press(W, "r", down);
 			else if (down && [" ", "enter", "w", "arrowup"].includes(k)) this.press(W, "h", true);
 		},
-		/* the magnet moves during the countdown too */
+		/* the magnet moves during the countdown too; everyone drops together when the round's countdown runs out */
 		pre(W, e, dt) {
 			if (e.st === 0) this.aim(W, e, dt);
 		},
@@ -2525,7 +2577,7 @@ Object.assign(MG, {
 				angularDamping: 0.3,
 				bullet: true,
 			});
-			e.b.createFixture(this.shapeT(), { density: 1, friction: this.FRIC, restitution: 0.3 });
+			e.b.createFixture(this.shapeT(), { density: 1, friction: this.FRIC, restitution: 0.35 });
 			e.b.setLinearVelocity(V(0, -1));
 			e.st = 1;
 			e.dropT = W.t;
@@ -2535,18 +2587,47 @@ Object.assign(MG, {
 			e.gx = [];
 			e.py0 = this.TOPY;
 			e.hopQ = undefined;
-			mgLog(W, `${mgName(e)} drops #${e.dn + 1} at x ${e.ax.toFixed(1)}`);
+			mgLog(W, `${mgName(e)} drops in round ${e.rr + 1} at x ${e.ax.toFixed(1)}`);
 			if (e.isMe) sfx("magnet");
+		},
+		/* a new round: back on the magnet at its home spot, a fresh physics world for the new board */
+		newRound(W, e, r) {
+			e.rr = r;
+			e.pw = null;
+			e.b = null;
+			e.st = 0;
+			e.ax = e.x0;
+			e.swing = 0;
+			e.aimX = undefined;
+			e.z = 0;
+			this.aim(W, e, 0);
 		},
 		rules(W, e, dt) {
 			if (e.d) return;
+			const S = this.sched(W);
+			if (S.r !== e.rr) this.newRound(W, e, S.r);
+			/* all rounds done: parked on the cabinet floor in front of the board, by the walls */
+			if (S.over) {
+				e.st = 3;
+				e.d = true;
+				e.b = null;
+				e.x = [-1, 1, -1, 1, -1, 1][e.i] * (this.HW + 0.9 + Math.floor(e.i / 2) * 0.9);
+				e.z = 4.2 + Math.floor(e.i / 2) * 3.2;
+				e.y = this.GY + this.R;
+				e.ang = e.tt = 0;
+				e.vx = 0;
+				e.f.st = 3;
+				fb(W, e, `${e.sc}`, { stamp: true });
+				if (e.isMe) sfx("fanfare");
+				return;
+			}
 			const w = this.world(W, e);
 			if (!w) return;
 			const pl = window.planck,
 				V = pl.Vec2;
 			if (e.st === 0) {
 				this.aim(W, e, dt);
-				if ((e.hopQ !== undefined && W.t - e.hopQ < 0.2) || W.t - e.aimT > this.AIMT) this.drop(W, e);
+				if (W.t >= S.D) this.drop(W, e);
 				e.hopQ = undefined;
 			}
 			/* fixed physics steps; ◀ ▶ push the ball a little that way */
@@ -2591,8 +2672,17 @@ Object.assign(MG, {
 				e.acc -= h;
 			}
 			const b = e.b;
-			/* in a slot: it counts the moment the ball touches anything down there (no hopping out) */
+			/* in a slot: it counts the moment the ball touches anything down there (no hopping out); still falling when the
+			   round runs out of time: stuck, no points */
 			if (b && e.st === 1 && b.getPosition().y < this.SH && W.t - e.lastTouch < 0.05) this.score(W, e);
+			else if (b && e.st === 1 && W.t >= S.D + this.ROUNDT) {
+				e.st = 2;
+				e.dn++;
+				e.lt[e.rr] = Math.round(W.t * 100) / 100;
+				e.f.lt = e.lt.slice();
+				fb(W, e, "Stuck!", { tone: "bad" });
+				mgLog(W, `${mgName(e)} stuck in round ${e.rr + 1}`);
+			}
 			if (b && e.st === 1) {
 				/* HOP: the ball pops up off whatever it touches, leaning to the side held */
 				if (
@@ -2618,28 +2708,6 @@ Object.assign(MG, {
 				if (e.stk > 1.6) {
 					e.stk = 0;
 					b.setLinearVelocity(V((Math.random() < 0.5 ? -1 : 1) * 3, 2));
-				}
-			} else if (e.st === 2 && W.t - e.scT > 1.4) {
-				/* lifted off the board: back on the magnet for the next drop, or parked beside the board when done */
-				w.destroyBody(e.b);
-				e.b = null;
-				if (e.dn >= this.DROPS) {
-					e.st = 3;
-					e.d = true;
-					/* parked on the cabinet floor in front of the board, by the walls */
-					e.x = [-1, 1, -1, 1, -1, 1][e.i] * (this.HW + 0.9 + Math.floor(e.i / 2) * 0.9);
-					e.z = 4.2 + Math.floor(e.i / 2) * 3.2;
-					e.y = this.GY + this.R;
-					e.ang = e.tt = 0;
-					e.vx = 0;
-					fb(W, e, `${e.sc}`, { stamp: true });
-					if (e.isMe) sfx("fanfare");
-				} else {
-					e.st = 0;
-					e.aimT = W.t;
-					e.ax = e.x0;
-					e.swing = 0;
-					this.aim(W, e, 0);
 				}
 			}
 			if (e.b) {
@@ -2740,19 +2808,21 @@ Object.assign(MG, {
 			e.st = 2;
 			e.scT = W.t;
 			e.dn++;
+			e.lt[e.rr] = Math.round(W.t * 100) / 100;
+			e.f.lt = e.lt.slice();
 			e.f.ls = [e.f.ls[0] + 1, k, x3 ? 1 : 0];
 			fb(W, e, `+${v}`, { tone: v >= 300 ? "good" : v <= 50 ? "bad" : "" });
 			if (x3) fb(W, e, "×3!", { stamp: true });
 			mgLog(
 				W,
-				`${mgName(e)} drop ${e.dn}: slot ${k} ${this.VAL[k]}${x3 ? " x3" : ""}${g2 > 1 ? " x" + g2 : ""} = ${v}, total ${e.sc}`,
+				`${mgName(e)} round ${e.dn}: slot ${k} ${this.VAL[k]}${x3 ? " x3" : ""}${g2 > 1 ? " x" + g2 : ""} = ${v}, total ${e.sc}`,
 			);
 			if (e.isMe) sfx(x3 || v >= 500 ? "fanfare" : v <= 50 ? "loss" : "coin");
 		},
 		timeUp(W, e) {
 			if (e.st !== 3) fb(W, e, `${e.sc}`, { stamp: true });
 		},
-		fmt: (W, e) => `${e.sc} pts · drop ${Math.min(MG.plinko.DROPS, e.dn + 1)}/${MG.plinko.DROPS}`,
+		fmt: (W, e) => `${e.sc} pts · round ${MG.plinko.sched(W).r + 1}/${MG.plinko.DROPS}`,
 		/* the share of the screen's height the buttons and the x3 strip cover at the bottom (phone mode; the board is framed
 		   above them) */
 		btmCover(W) {
@@ -2797,9 +2867,9 @@ Object.assign(MG, {
 				asp = GFX.w / GFX.h,
 				tn = Math.tan((20 * Math.PI) / 180),
 				b = this.btmCover(W);
-			/* the whole board while you wait (the ready screen and countdown) and once you're done; the zoom in to your ball
-			   starts just before GO */
-			if (e.st === 3 || W.t < -0.7) return this.tvsCam(W, asp, 0, b, true);
+			/* the whole board while everyone aims (and on the ready screen) and once you're done; the zoom in to your ball
+			   starts just before the drop */
+			if (e.st === 3 || W.t < this.sched(W).D - 0.7) return this.tvsCam(W, asp, 0, b, true);
 			const [cx, cy] = this.ctr(e),
 				D = asp < 1 ? 34 : 30,
 				hw = D * tn * asp,
@@ -2813,7 +2883,9 @@ Object.assign(MG, {
 				t = new THREE.Vector3(x, y, 0);
 			return [t, t.clone().add(new THREE.Vector3(0, D * 0.1, D))];
 		},
-		/* the TV: the whole board, the parked trucks beside it */
+		/* the TV: the whole board while everyone aims, then it follows the falling balls (at least FOLLOWH m of the board
+		   in view); the phone's overview (narrow) is always the whole board */
+		FOLLOWH: 19,
 		tvsCam(W, a, halfW, b, narrow) {
 			/* on the TV the player cards cover the bottom: frame the board above them */
 			if (b === undefined) {
@@ -2821,10 +2893,27 @@ Object.assign(MG, {
 					r = el && el.getBoundingClientRect();
 				b = r && r.height ? Math.max(0, Math.min(0.35, (innerHeight - r.top) / innerHeight + 0.01)) : 0;
 			}
-			const tn = Math.tan((20 * Math.PI) / 180),
-				y0 = this.GY - 0.4,
-				y1 = this.HDR + 1,
-				D = Math.max((y1 - y0) / 2 / (1 - b) / tn, (this.HW + (narrow ? 1 : 7)) / (tn * a)) * 1.04,
+			const tn = Math.tan((20 * Math.PI) / 180);
+			let y0 = this.GY - 0.4,
+				y1 = this.HDR + 1;
+			if (!narrow) {
+				const S = this.sched(W),
+					fl = W.list.filter((o) => !o.gone && (o.local ? o.st : o.f && o.f.st) === 1);
+				if (fl.length && W.t > S.D - 0.3) {
+					const ys = fl.map((o) => o.y);
+					let lo = Math.max(y0, Math.min(...ys) - 7),
+						hi = Math.min(y1, Math.max(...ys) + 4.5);
+					if (hi - lo < this.FOLLOWH) {
+						const m = (lo + hi) / 2;
+						lo = Math.max(y0, m - this.FOLLOWH / 2);
+						hi = Math.min(y1, lo + this.FOLLOWH);
+						lo = hi - this.FOLLOWH;
+					}
+					y0 = lo;
+					y1 = hi;
+				}
+			}
+			const D = Math.max((y1 - y0) / 2 / (1 - b) / tn, (this.HW + (narrow ? 1 : 2)) / (tn * a)) * 1.04,
 				t = new THREE.Vector3(0, (y0 + y1) / 2 - D * tn * b, 0);
 			return [t, t.clone().add(new THREE.Vector3(0, D * 0.08, D))];
 		},
@@ -2983,8 +3072,6 @@ Object.assign(MG, {
 				u.cab.position.y = u.my + 0.3 + len / 2;
 				mg.visible = !e.gone;
 			}
-			/* hanging long: the HOP button acted out by the truck */
-			if (st === 0 && W.t > 0 && W.t - e.stT > 2.2 && (e.isMe || W.split)) inputHint(W, e, "HOP", "tap", col);
 			if (e.isMe) crowdStep(W, null, st === 1 ? 0.8 : 0.3);
 		},
 		/* a truck's plastic ball: a faceted clear shell tinted in its colour, two seams in its colour that show the spin,
@@ -3034,6 +3121,23 @@ Object.assign(MG, {
 		scene(W, dt) {
 			if (W.scF === W.t) return;
 			W.scF = W.t;
+			/* the round's countdown: "ROUND 2", then 3 2 1 and DROP! (the first round's after GO) */
+			if (W.t >= 0) {
+				const S = this.sched(W),
+					left = S.D - W.t,
+					st = S.D - (S.r ? this.AIMT : this.AIM0);
+				W.big =
+					S.E !== null && S.r === this.DROPS - 1 && W.t >= S.E
+						? ""
+						: S.r && W.t - st < 1.2 && left > 0
+							? `ROUND ${S.r + 1}`
+							: left > 0 && left <= 3
+								? String(Math.ceil(left))
+								: left <= 0 && left > -0.7
+									? "DROP!"
+									: "";
+				W.bigT = W.t + 0.2;
+			}
 			const t = Math.max(0, W.t);
 			{
 				const ph = Math.floor(t * 8);
@@ -3114,10 +3218,6 @@ Object.assign(MG, {
 					e.aimX = Math.random() < 0.4 + e.sk * 0.3 ? (Math.random() - 0.5) * 2.4 : (Math.random() - 0.5) * 18;
 				const dx = e.aimX - e.ax;
 				e.tl = Math.abs(dx) > 0.3 ? (dx < 0 ? 1 : -1) : 0;
-				if (!e.tl && W.t - e.aimT > 0.6 + Math.random() * 0.4) {
-					e.hopQ = W.t;
-					e.aimX = undefined;
-				}
 				return null;
 			}
 			if (e.st !== 1 || !e.b) {
@@ -3148,7 +3248,7 @@ Object.assign(MG, {
 		watchSum: (W) =>
 			W.list
 				.filter((e) => !e.gone)
-				.map((e) => `${mgName(e)} ${e.sc} (${e.dn} drops)`)
+				.map((e) => `${mgName(e)} ${e.sc} (${e.dn} rounds)`)
 				.join(", "),
 		botScore: () => 300 + rnd(9) * 100,
 	},
