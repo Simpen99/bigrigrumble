@@ -801,7 +801,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-12 20:36 34df25f";
+const BUILD = "2026-10-12 20:36 b29f699";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -8833,7 +8833,7 @@ function musScene(v) {
 		v === "game" &&
 		G &&
 		!G.practice &&
-		!(G.tv && role === "client") &&
+		!(G.tv && role === "client" && !SCREEN) &&
 		!W &&
 		!mgOpen &&
 		!mgBusy &&
@@ -9818,7 +9818,15 @@ function makeCode() {
 	for (let i = 0; i < 5; i++) s += A[rnd(A.length)];
 	return s;
 }
-let pendingCode = "";
+let pendingCode = "",
+	/* a phone joining from a linked big screen's QR (?hub=): that screen runs its minigames */
+	pendingHub = "",
+	/* the join screen's choice: "phone" (a player) or "screen" (a linked big screen, no player of its own) */
+	joinAs = "phone";
+/* this device is a linked big screen (joined a big-screen game as a screen, not a player): {key, acts} */
+let SCREEN = null;
+/* this device shows the big-screen view: the host of a big-screen game, or a linked big screen */
+const tvView = () => !!(G && G.tv && (role === "host" || SCREEN));
 function startHub(tries = 0) {
 	if (!NET.ok || !HG) return;
 	NET.host(HG.code)
@@ -9909,6 +9917,18 @@ function hostOnPeers() {
 	for (const p of peers) {
 		if (p.sameTab) continue;
 		const pr = p.presence || {};
+		/* a linked big screen: it sends the minigame results of the players on it (queued, each act once) */
+		if (pr.join === HG.id && pr.screen && typeof pr.screen.key === "string" && Array.isArray(pr.acts)) {
+			for (const a of pr.acts.slice(-20)) {
+				if (!a || typeof a.id !== "string" || SCREEN_DONE.has(a.id)) continue;
+				const pl = pByKey(a.for);
+				if (pl && pl.hub === pr.screen.key) {
+					SCREEN_DONE.add(a.id);
+					handleAct(pl, a);
+				}
+			}
+			continue;
+		}
 		if (pr.join !== HG.id || !pr.me || typeof pr.me.key !== "string") continue;
 		const key = pr.me.key.slice(0, 24);
 		let pl = pByKey(key);
@@ -9924,6 +9944,15 @@ function hostOnPeers() {
 				changed = true;
 			}
 		}
+		/* which linked big screen the player plays on (none: the host's screen) */
+		if (pl && !pl.bot && !pl.local && HG.phase === "lobby") {
+			const hub = typeof pr.me.hub === "string" && pr.me.hub ? pr.me.hub.slice(0, 24) : undefined;
+			if (pl.hub !== hub) {
+				if (hub) pl.hub = hub;
+				else delete pl.hub;
+				changed = true;
+			}
+		}
 		if (pl && !pl.local && !pl.bot && pr.act) handleAct(pl, pr.act);
 	}
 	if (changed) push();
@@ -9936,8 +9965,16 @@ function hostOnPeers() {
 function ctrl(p) {
 	return p && (p.key === me.key || (role === "host" && p.local));
 }
+const SCREEN_DONE = new Set();
 function act(a, key = me.key) {
 	a.id = rid();
+	if (SCREEN) {
+		/* a linked screen acts for the players on it: a queue, so two results in quick succession both get through */
+		a.for = key;
+		SCREEN.acts = SCREEN.acts.slice(-15).concat([a]);
+		setPresence({ acts: SCREEN.acts });
+		return;
+	}
 	if (role === "host") {
 		const p = pByKey(key);
 		if (p) handleAct(p, a);
@@ -9950,16 +9987,33 @@ function clientJoin(gid) {
 	joinId = gid;
 	G = null;
 	hostSeenAt = Date.now();
-	setPresence({ game: null, join: gid, me: { key: me.key, name: me.name || "Driver", truck: me.truck }, act: null });
+	setPresence({
+		game: null,
+		join: gid,
+		me: { key: me.key, name: me.name || "Driver", truck: me.truck, hub: pendingHub || undefined },
+		act: null,
+	});
+	clientOnPeers();
+}
+/* join a big-screen game as a linked big screen: no player of its own, it shows the game and runs the minigames of the
+   phones that joined through its QR code */
+function screenJoin(gid) {
+	role = "client";
+	joinId = gid;
+	G = null;
+	hostSeenAt = Date.now();
+	SCREEN = { key: me.key, acts: [] };
+	setPresence({ game: null, join: gid, me: null, act: null, acts: [], screen: { key: me.key } });
 	clientOnPeers();
 }
 function clientLeave(msg) {
 	role = "none";
+	SCREEN = null;
 	G = null;
 	joinId = null;
 	notice = msg || "";
 	closeMg();
-	setPresence({ join: null, me: null, act: null, here: { name: me.name || "Driver" } });
+	setPresence({ join: null, me: null, act: null, acts: null, screen: null, here: { name: me.name || "Driver" } });
 	render();
 }
 function clientOnPeers() {
@@ -10019,7 +10073,7 @@ function render() {
 	}
 	document.body.dataset.view = v;
 	{
-		const tvp = role === "client" && !!G && !!G.tv;
+		const tvp = role === "client" && !!G && !!G.tv && !SCREEN;
 		document.body.classList.toggle("tvphone", tvp);
 		if (tvp && !document.getElementById("rotov")) {
 			const o = document.createElement("div");
@@ -10028,8 +10082,8 @@ function render() {
 			document.body.appendChild(o);
 		}
 	}
-	const tvHost = !!(role === "host" && G && G.tv),
-		ctlr = !!(role === "client" && G && G.tv && v === "game");
+	const tvHost = tvView(),
+		ctlr = !!(role === "client" && G && G.tv && v === "game" && !SCREEN);
 	document.body.classList.toggle("tv", tvHost);
 	document.body.classList.toggle("ctl", ctlr);
 	GFX.ctl = ctlr;
@@ -10082,7 +10136,7 @@ function render() {
 	else if (v === "waiting")
 		app.innerHTML = `<div class="stage"></div><div class="sheet"><h2>Connecting to the host…</h2><p class="note">Hang tight. If this takes more than a few seconds, the host may have closed the game.</p><div style="margin-top:12px">${statusHTML()}</div><button class="btn ghost" data-a="leave" style="margin-top:12px">Back</button></div>`;
 	else if (v === "lobby") {
-		app.innerHTML = role === "host" && G.tv ? tvLobbyHTML() : lobbyHTML();
+		app.innerHTML = tvView() ? (role === "host" ? tvLobbyHTML() : screenLobbyHTML()) : lobbyHTML();
 		drawQR();
 	} else if (v === "over") app.innerHTML = overHTML();
 	if (keep) {
@@ -10114,9 +10168,9 @@ function homeHTML() {
   <p class="note" style="margin-top:4px">Each truck brings its own die. Small numbers under a face are coins you gain or pay when you roll it. The standard 1–6 die is always available too.</p></section>
   <section class="sheet stack">
     ${canResume ? `<button class="btn go" data-a="resume">Resume your hosted game</button>` : ""}
-    <button class="btn ${canResume ? "ghost" : "go"}" data-a="host">Host Game</button>
+    <button class="btn ${canResume ? "ghost" : "go"}" data-a="hosttv">📺 Host on a big screen</button>
+    <button class="btn ghost" data-a="host">📱 Host on this phone</button>
     <button class="btn sign" data-a="joinlist">Join Game</button>
-    <button class="btn ghost" data-a="hosttv">📺 Host on a TV / big screen</button>
     <button class="btn ghost" data-a="practice">🎮 Minigame practice</button>
     ${FINE && GFX.ok ? `<button class="btn ghost" data-a="editor">🛠 Map editor</button>` : ""}
     <div>${statusHTML()}</div>
@@ -10155,17 +10209,44 @@ function joinHTML() {
 				.join("");
 	}
 	return `<div class="stage short"><div class="brand"><i></i>Big Rig Rumble</div></div><section class="sheet"><h2>Join Game</h2>
+  <div class="seg" style="margin-bottom:12px"><button data-jas="phone" class="${joinAs !== "screen" ? "on" : ""}">📱 Join with this phone</button><button data-jas="screen" class="${joinAs === "screen" ? "on" : ""}">📺 Join as a big screen</button></div>${joinAs === "screen" ? `<p class="note" style="margin:-4px 0 12px">For a TV or monitor somewhere else: it shows the game, and phones next to it scan its code to play on it.</p>` : ""}
   <div class="row" style="align-items:flex-end;margin-bottom:12px"><label class="field" style="flex:2">Game code<input id="jcode" maxlength="6" autocapitalize="characters" autocomplete="off" value="${esc(pendingCode)}" placeholder="ABCDE" style="text-transform:uppercase;letter-spacing:3px;font-weight:800"></label><button class="btn sign" data-a="connect" style="flex:1">${NET.status === "connected" && NET.code && NET.code === pendingCode && gamesAvailable().length ? "Join" : "Connect"}</button></div>${body}
-  <p class="note">You'll join as <b>${esc(me.name || "Driver")}</b> driving ${esc(TRUCKS[me.truck].name)}. Match the code with the one on the host's screen.</p>
+  ${joinAs === "screen" ? "" : `<p class="note">You'll join as <b>${esc(me.name || "Driver")}</b> driving ${esc(TRUCKS[me.truck].name)}. Match the code with the one on the host's screen.</p>`}
   <div style="margin-top:10px">${statusHTML()}</div></section><button class="btn ghost" data-a="home" style="margin-top:12px">Back</button>`;
 }
 function playerRow(p, host) {
 	const on = role === "host" ? online(p.key) : true;
-	const tag = p.bot ? "CPU" : p.local ? "on the host's phone" : !on ? "offline" : "";
+	const tag = p.bot
+		? "CPU"
+		: p.local
+			? "on the host's phone"
+			: !on
+				? "offline"
+				: p.hub
+					? SCREEN && p.hub === SCREEN.key
+						? "on this screen"
+						: "on a linked screen"
+					: "";
 	return `<li><span class="dot" style="background:${pcol(p)}"></span><img alt="" src="${thumb(p.truck)}"><span class="nm">${esc(p.name)}${p.key === me.key ? " (you)" : ""}<small>${esc(TRUCKS[p.truck].name)}${tag ? ", " + tag : ""}</small></span>${G.teams ? `<button class="teamb" data-team="${esc(p.key)}" style="--tc:${TEAMS[p.team || 0].col}" ${host ? "" : "disabled"}>${TEAMS[p.team || 0].name.replace("Team ", "")}</button>` : ""}${host && p.key !== me.key ? `<button class="xbtn" data-kick="${esc(p.key)}" aria-label="Remove ${esc(p.name)}">Remove</button>` : ""}</li>`;
 }
 function joinURL() {
-	return location.origin + location.pathname + "?join=" + encodeURIComponent((G && G.code) || "");
+	return (
+		location.origin +
+		location.pathname +
+		"?join=" +
+		encodeURIComponent((G && G.code) || "") +
+		(SCREEN ? "&hub=" + encodeURIComponent(SCREEN.key) : "")
+	);
+}
+/* a linked big screen's lobby: its own QR (phones that scan it play on this screen) and who's in */
+function screenLobbyHTML() {
+	const n = G.players.length,
+		here = G.players.filter((p) => SCREEN && p.hub === SCREEN.key).length;
+	return `<div class="tvlobby"><div class="logo tvlogo"><span class="l1">BIG RIG</span><span class="l2">RUMBLE</span><span class="l3">Linked big screen</span></div>
+  <section class="sheet tvjoin"><h2>Scan to play on this screen</h2><div class="qr big" id="qr"></div><p>or open <b>${esc(location.host + location.pathname)}</b>, enter the code and tap the game</p><div class="code">${esc(G.code)}</div><div>${statusHTML()}</div></section>
+  <section class="sheet tvdrivers"><h2>Drivers (${n}/8)</h2>${n ? `<ul class="plist">${G.players.map((p) => playerRow(p, false)).join("")}</ul>` : `<div class="empty">Waiting for drivers…</div>`}
+    <p class="note">${here ? `${here} ${here === 1 ? "driver plays" : "drivers play"} on this screen.` : "Nobody plays on this screen yet: scan the code with a phone."} ${esc(G.hostName || "The host")} starts the race.</p></section>
+  <section class="sheet tvset"><h2>Linked to ${esc(G.hostName || "the host")}'s game</h2><p class="note">This screen shows the board and runs the minigames for the phones that joined through its code.</p><button class="btn ghost" data-a="leave" style="margin-top:12px">Leave</button></section></div>`;
 }
 function lobbyHTML() {
 	const host = role === "host";
@@ -10395,9 +10476,9 @@ function handleFx() {
 	}
 	if (W && (!G.mg || W.mg.nonce !== G.mg.nonce) && G.phase === "minigame") closeMg();
 	if (TVC && (!G.mg || TVC.mg.nonce !== G.mg.nonce) && G.phase === "minigame") closeMg();
-	if (G.phase === "minigame" && G.mg && G.mg.tv && role === "host" && !mgBusy) {
+	if (G.phase === "minigame" && G.mg && G.mg.tv && (role === "host" || SCREEN) && !mgBusy) {
 		if (G.mg.tv === "split") openTvSplit(G.mg);
-		else openTvMg(G.mg);
+		else if (role === "host") openTvMg(G.mg);
 	}
 	if (G.phase === "minigame" && G.mg && !mgBusy) {
 		const pend = mgPending();
@@ -11878,7 +11959,9 @@ function startMinigame(duel, forceG, split) {
 	}
 	if (forceG && !split && MG[g].team) split = forcedSplit(g);
 	let simDev = "host";
-	const tvg = !HG.tv ? 0 : tvPlayable(g) ? 1 : "split";
+	/* with linked big screens every minigame runs one world per player, each on the screen its player plays on */
+	const hubs = HG.tv && HG.players.some((q) => !q.bot && q.hub),
+		tvg = !HG.tv ? 0 : tvPlayable(g) && !hubs ? 1 : "split";
 	if (tvg === 1) {
 	} else if (duel) {
 		const ps = duel.map(pByKey);
@@ -11887,7 +11970,9 @@ function startMinigame(duel, forceG, split) {
 			if (h) simDev = h.key;
 		}
 	} else if (HG.tv) {
-		const h = HG.players.find((q) => !q.bot && online(q.key));
+		/* the CPUs run in one player's world: preferably one on the host's own screen */
+		const h =
+			HG.players.find((q) => !q.bot && !q.hub && online(q.key)) || HG.players.find((q) => !q.bot && online(q.key));
 		if (h) simDev = h.key;
 	}
 	HG.phase = "minigame";
@@ -12192,7 +12277,7 @@ const lavaHint = () => (MAP.lava ? `<p class="panhint">${lavaChip(G.round)} ${es
 function panelHTML() {
 	const c = G.players[G.turn],
 		mine = G.players.filter(ctrl);
-	if (role === "host" && G.tv) return tvPanelHTML();
+	if (tvView()) return tvPanelHTML();
 	if (!mine.length) return `<div class="pan"><p>You're watching this game.</p></div>`;
 	if (G.phase === "turn" && c && G.hold && !G.intro)
 		return `<div class="pan"><p>${MAP.rival ? "🧲 Magnet Mike is watching…" : "🌋 Lava news…"} ${esc(c.name)} is up next.</p></div>`;
@@ -13106,6 +13191,17 @@ function applyNet(e, s) {
 function netRecv() {
 	if (W.split) {
 		if (TVS) netApply(TVS.worlds.filter((s) => s.W !== W && s.W.out).map((s) => ({ presence: s.W.out })));
+		/* linked screens: the other screens' worlds come in over the network (rts: their worlds' states) */
+		if (TVS && TVS.hubs && RT)
+			try {
+				const ps = RT.peers();
+				netApply(ps);
+				ps.forEach((p) => {
+					const r = !p.sameTab && p.presence && p.presence.rts;
+					if (r && r.n === W.mg.nonce && Array.isArray(r.l))
+						netApply(r.l.filter(Boolean).map((o) => ({ presence: o })));
+				});
+			} catch (e) {}
 		return;
 	}
 	if (!RT || W.localOnly) return;
@@ -15186,7 +15282,8 @@ function openTvMg(mg) {
     <div class="m3lb${def.lbTop ? " top" : ""}" id="m3lb"></div><div class="m3intro" id="m3in"><h3>${esc(def.name)}</h3><p>${esc(def.how)}</p><p class="m3ctl">${def.aim ? "Left side of your phone drives, right side aims." : `Drag on your phone to drive. Tap ${esc(ramLbl(def))} to ${def.ramLabel ? "use it" : "charge into someone"}.`}</p></div>
     <div class="m3center${def.msgTop ? " hi" : ""}"><div class="m3big" id="m3c"></div><div class="m3msg" id="m3m" hidden></div></div>
     <div class="m3ready" id="m3r"><h3>Get ready</h3><div id="m3rl"></div><button class="btn ghost" id="m3rs" hidden style="margin-top:8px">Start without the others</button></div>`;
-	$("#m3rs").addEventListener("click", () => mgStartCountdown());
+	if (SCREEN) $("#m3rs").remove();
+	else $("#m3rs").addEventListener("click", () => mgStartCountdown());
 	syncStart();
 }
 /* knocked out of an arena game: after 1.2 s (you see yourself go down) the camera frames the trucks still in play */
@@ -15662,9 +15759,15 @@ function tvsAct(s, on) {
 }
 function openTvSplit(mg) {
 	const def = MG[mg.g];
-	mgBusy = true;
-	const humans = (mg.part ? G.players.filter((q) => mg.part.includes(q.key)) : G.players).filter((q) => !q.bot);
+	/* the players this screen runs: on the host the ones without a linked screen, on a linked screen its own */
+	const myHub = SCREEN ? SCREEN.key : undefined,
+		hubs = G.players.some((q) => !q.bot && q.hub),
+		humans = (mg.part ? G.players.filter((q) => mg.part.includes(q.key)) : G.players).filter(
+			(q) => !q.bot && q.hub === myHub,
+		);
+	/* no players here (a linked screen nobody paired with): this screen just shows the board */
 	if (!humans.length || !GFX.ok) return;
+	mgBusy = true;
 	const mode = def.kind === "lane" ? "shared" : mg.g === "race" && humans.length === 2 ? "dyn" : "grid";
 	mgOpen = true;
 	const box = $("#mg");
@@ -15690,12 +15793,14 @@ function openTvSplit(mg) {
 					.join("")) +
 		`<div class="m3intro tvsin" id="m3in"><h3>${esc(def.name)}</h3><p>${esc(def.how)}</p><p class="m3ctl">📱 ${esc(def.tvHint || "Your phone is the controller.")}</p></div>
     <div class="m3ready" id="m3r"><h3>Get ready</h3><div id="m3rl"></div><button class="btn ghost" id="m3rs" hidden style="margin-top:8px">Start without the others</button></div>`;
-	$("#m3rs").addEventListener("click", () => mgStartCountdown());
+	if (SCREEN) $("#m3rs").remove();
+	else $("#m3rs").addEventListener("click", () => mgStartCountdown());
 	const hold = document.createElement("div");
 	hold.className = "tvctlhold";
 	hold.hidden = true;
-	const simK = humans.some((h) => h.key === mg.simDev) ? mg.simDev : humans[0].key;
-	TVS = { mg, def, mode, main: GFX.cam, worlds: [], hold, sz: "" };
+	/* the CPUs run in the simDev player's world; with linked screens only on the screen that player is on */
+	const simK = humans.some((h) => h.key === mg.simDev) ? mg.simDev : hubs ? null : humans[0].key;
+	TVS = { mg, def, mode, main: GFX.cam, worlds: [], hold, sz: "", hubs };
 	humans.forEach((q, i) => {
 		const cam = new THREE.PerspectiveCamera(40, 1, 0.5, 240);
 		GFX.cam = cam;
@@ -15858,6 +15963,11 @@ function tvsFrame() {
 	if (TVS !== T) return;
 	if (T.mode === "shared") tvsShared(fw, fh, real);
 	else if (T.mode === "dyn") tvsDyn(fw, fh, real);
+	/* linked screens: share this screen's worlds (its players and, if it runs them, the CPUs) with the others */
+	if (T.hubs && RT && now - (T.lastRts || 0) > 60) {
+		T.lastRts = now;
+		RT.presence({ rts: { n: T.mg.nonce, l: T.worlds.map((s) => s.W.out || null) } }).catch(() => {});
+	}
 	tvsSend();
 }
 /* lane games: everyone is side by side, so the TV shows one wide view of world 0 */
@@ -38010,12 +38120,19 @@ document.addEventListener("click", (e) => {
 		else if (role === "client") act({ t: "prac", g: b.dataset.tvprac });
 		return;
 	}
+	if (b.dataset.jas) {
+		joinAs = b.dataset.jas === "screen" ? "screen" : "phone";
+		render.last = null;
+		render();
+		return;
+	}
 	if (b.dataset.join) {
 		if (!me.name) {
 			me.name = "Driver";
 			saveMe();
 		}
-		clientJoin(b.dataset.join);
+		if (joinAs === "screen") screenJoin(b.dataset.join);
+		else clientJoin(b.dataset.join);
 		return;
 	}
 	if (b.dataset.kick && role === "host") {
@@ -38078,7 +38195,8 @@ document.addEventListener("click", (e) => {
 					me.name = "Driver";
 					saveMe();
 				}
-				clientJoin(g.id);
+				if (joinAs === "screen") screenJoin(g.id);
+				else clientJoin(g.id);
 			} else {
 				NET.join(c);
 				render.last = null;
@@ -38214,9 +38332,12 @@ setInterval(() => {
 		.toUpperCase()
 		.replace(/[^A-Z]/g, "")
 		.slice(0, 6);
+	pendingHub = (new URLSearchParams(location.search).get("hub") || "").slice(0, 24);
 	if (jc) {
 		pendingCode = jc;
-		notice = `You're joining game ${jc}. Pick your name and truck, then tap Join Game.`;
+		notice = pendingHub
+			? `You're joining game ${jc} to play on a linked big screen. Pick your name and truck, then tap Join Game.`
+			: `You're joining game ${jc}. Pick your name and truck, then tap Join Game.`;
 		NET.join(jc);
 	}
 	render.last = null;

@@ -45,12 +45,19 @@ document.addEventListener("click", (e) => {
 		else if (role === "client") act({ t: "prac", g: b.dataset.tvprac });
 		return;
 	}
+	if (b.dataset.jas) {
+		joinAs = b.dataset.jas === "screen" ? "screen" : "phone";
+		render.last = null;
+		render();
+		return;
+	}
 	if (b.dataset.join) {
 		if (!me.name) {
 			me.name = "Driver";
 			saveMe();
 		}
-		clientJoin(b.dataset.join);
+		if (joinAs === "screen") screenJoin(b.dataset.join);
+		else clientJoin(b.dataset.join);
 		return;
 	}
 	if (b.dataset.kick && role === "host") {
@@ -113,7 +120,8 @@ document.addEventListener("click", (e) => {
 					me.name = "Driver";
 					saveMe();
 				}
-				clientJoin(g.id);
+				if (joinAs === "screen") screenJoin(g.id);
+				else clientJoin(g.id);
 			} else {
 				NET.join(c);
 				render.last = null;
@@ -249,9 +257,12 @@ setInterval(() => {
 		.toUpperCase()
 		.replace(/[^A-Z]/g, "")
 		.slice(0, 6);
+	pendingHub = (new URLSearchParams(location.search).get("hub") || "").slice(0, 24);
 	if (jc) {
 		pendingCode = jc;
-		notice = `You're joining game ${jc}. Pick your name and truck, then tap Join Game.`;
+		notice = pendingHub
+			? `You're joining game ${jc} to play on a linked big screen. Pick your name and truck, then tap Join Game.`
+			: `You're joining game ${jc}. Pick your name and truck, then tap Join Game.`;
 		NET.join(jc);
 	}
 	render.last = null;

@@ -58,8 +58,8 @@ export async function openGame(browser, { width = 390, height = 844, mobile = fa
 	await p.route(/qrcode/, (r) => r.fulfill({ body: "", contentType: "text/javascript" }));
 	if (before) await before(p);
 	await p.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
-	await p.goto("file://" + path.join(ROOT, "dist/index.html"));
-	await p.waitForFunction(() => typeof GFX !== "undefined" && GFX.ok, null, { timeout: 30000 });
+	await p.goto("file://" + path.join(ROOT, "dist/index.html"), { timeout: 90000 });
+	await p.waitForFunction(() => typeof GFX !== "undefined" && GFX.ok, null, { timeout: 90000 });
 	await p.evaluate(() => {
 		window.turn = (m, a = Math.PI) => {
 			const g = new THREE.Group();

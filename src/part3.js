@@ -106,7 +106,15 @@ function makeCode() {
 	for (let i = 0; i < 5; i++) s += A[rnd(A.length)];
 	return s;
 }
-let pendingCode = "";
+let pendingCode = "",
+	/* a phone joining from a linked big screen's QR (?hub=): that screen runs its minigames */
+	pendingHub = "",
+	/* the join screen's choice: "phone" (a player) or "screen" (a linked big screen, no player of its own) */
+	joinAs = "phone";
+/* this device is a linked big screen (joined a big-screen game as a screen, not a player): {key, acts} */
+let SCREEN = null;
+/* this device shows the big-screen view: the host of a big-screen game, or a linked big screen */
+const tvView = () => !!(G && G.tv && (role === "host" || SCREEN));
 function startHub(tries = 0) {
 	if (!NET.ok || !HG) return;
 	NET.host(HG.code)
@@ -197,6 +205,18 @@ function hostOnPeers() {
 	for (const p of peers) {
 		if (p.sameTab) continue;
 		const pr = p.presence || {};
+		/* a linked big screen: it sends the minigame results of the players on it (queued, each act once) */
+		if (pr.join === HG.id && pr.screen && typeof pr.screen.key === "string" && Array.isArray(pr.acts)) {
+			for (const a of pr.acts.slice(-20)) {
+				if (!a || typeof a.id !== "string" || SCREEN_DONE.has(a.id)) continue;
+				const pl = pByKey(a.for);
+				if (pl && pl.hub === pr.screen.key) {
+					SCREEN_DONE.add(a.id);
+					handleAct(pl, a);
+				}
+			}
+			continue;
+		}
 		if (pr.join !== HG.id || !pr.me || typeof pr.me.key !== "string") continue;
 		const key = pr.me.key.slice(0, 24);
 		let pl = pByKey(key);
@@ -212,6 +232,15 @@ function hostOnPeers() {
 				changed = true;
 			}
 		}
+		/* which linked big screen the player plays on (none: the host's screen) */
+		if (pl && !pl.bot && !pl.local && HG.phase === "lobby") {
+			const hub = typeof pr.me.hub === "string" && pr.me.hub ? pr.me.hub.slice(0, 24) : undefined;
+			if (pl.hub !== hub) {
+				if (hub) pl.hub = hub;
+				else delete pl.hub;
+				changed = true;
+			}
+		}
 		if (pl && !pl.local && !pl.bot && pr.act) handleAct(pl, pr.act);
 	}
 	if (changed) push();
@@ -224,8 +253,16 @@ function hostOnPeers() {
 function ctrl(p) {
 	return p && (p.key === me.key || (role === "host" && p.local));
 }
+const SCREEN_DONE = new Set();
 function act(a, key = me.key) {
 	a.id = rid();
+	if (SCREEN) {
+		/* a linked screen acts for the players on it: a queue, so two results in quick succession both get through */
+		a.for = key;
+		SCREEN.acts = SCREEN.acts.slice(-15).concat([a]);
+		setPresence({ acts: SCREEN.acts });
+		return;
+	}
 	if (role === "host") {
 		const p = pByKey(key);
 		if (p) handleAct(p, a);
@@ -238,16 +275,33 @@ function clientJoin(gid) {
 	joinId = gid;
 	G = null;
 	hostSeenAt = Date.now();
-	setPresence({ game: null, join: gid, me: { key: me.key, name: me.name || "Driver", truck: me.truck }, act: null });
+	setPresence({
+		game: null,
+		join: gid,
+		me: { key: me.key, name: me.name || "Driver", truck: me.truck, hub: pendingHub || undefined },
+		act: null,
+	});
+	clientOnPeers();
+}
+/* join a big-screen game as a linked big screen: no player of its own, it shows the game and runs the minigames of the
+   phones that joined through its QR code */
+function screenJoin(gid) {
+	role = "client";
+	joinId = gid;
+	G = null;
+	hostSeenAt = Date.now();
+	SCREEN = { key: me.key, acts: [] };
+	setPresence({ game: null, join: gid, me: null, act: null, acts: [], screen: { key: me.key } });
 	clientOnPeers();
 }
 function clientLeave(msg) {
 	role = "none";
+	SCREEN = null;
 	G = null;
 	joinId = null;
 	notice = msg || "";
 	closeMg();
-	setPresence({ join: null, me: null, act: null, here: { name: me.name || "Driver" } });
+	setPresence({ join: null, me: null, act: null, acts: null, screen: null, here: { name: me.name || "Driver" } });
 	render();
 }
 function clientOnPeers() {
@@ -307,7 +361,7 @@ function render() {
 	}
 	document.body.dataset.view = v;
 	{
-		const tvp = role === "client" && !!G && !!G.tv;
+		const tvp = role === "client" && !!G && !!G.tv && !SCREEN;
 		document.body.classList.toggle("tvphone", tvp);
 		if (tvp && !document.getElementById("rotov")) {
 			const o = document.createElement("div");
@@ -316,8 +370,8 @@ function render() {
 			document.body.appendChild(o);
 		}
 	}
-	const tvHost = !!(role === "host" && G && G.tv),
-		ctlr = !!(role === "client" && G && G.tv && v === "game");
+	const tvHost = tvView(),
+		ctlr = !!(role === "client" && G && G.tv && v === "game" && !SCREEN);
 	document.body.classList.toggle("tv", tvHost);
 	document.body.classList.toggle("ctl", ctlr);
 	GFX.ctl = ctlr;
@@ -370,7 +424,7 @@ function render() {
 	else if (v === "waiting")
 		app.innerHTML = `<div class="stage"></div><div class="sheet"><h2>Connecting to the host…</h2><p class="note">Hang tight. If this takes more than a few seconds, the host may have closed the game.</p><div style="margin-top:12px">${statusHTML()}</div><button class="btn ghost" data-a="leave" style="margin-top:12px">Back</button></div>`;
 	else if (v === "lobby") {
-		app.innerHTML = role === "host" && G.tv ? tvLobbyHTML() : lobbyHTML();
+		app.innerHTML = tvView() ? (role === "host" ? tvLobbyHTML() : screenLobbyHTML()) : lobbyHTML();
 		drawQR();
 	} else if (v === "over") app.innerHTML = overHTML();
 	if (keep) {
@@ -402,9 +456,9 @@ function homeHTML() {
   <p class="note" style="margin-top:4px">Each truck brings its own die. Small numbers under a face are coins you gain or pay when you roll it. The standard 1–6 die is always available too.</p></section>
   <section class="sheet stack">
     ${canResume ? `<button class="btn go" data-a="resume">Resume your hosted game</button>` : ""}
-    <button class="btn ${canResume ? "ghost" : "go"}" data-a="host">Host Game</button>
+    <button class="btn ${canResume ? "ghost" : "go"}" data-a="hosttv">📺 Host on a big screen</button>
+    <button class="btn ghost" data-a="host">📱 Host on this phone</button>
     <button class="btn sign" data-a="joinlist">Join Game</button>
-    <button class="btn ghost" data-a="hosttv">📺 Host on a TV / big screen</button>
     <button class="btn ghost" data-a="practice">🎮 Minigame practice</button>
     ${FINE && GFX.ok ? `<button class="btn ghost" data-a="editor">🛠 Map editor</button>` : ""}
     <div>${statusHTML()}</div>
@@ -443,17 +497,44 @@ function joinHTML() {
 				.join("");
 	}
 	return `<div class="stage short"><div class="brand"><i></i>Big Rig Rumble</div></div><section class="sheet"><h2>Join Game</h2>
+  <div class="seg" style="margin-bottom:12px"><button data-jas="phone" class="${joinAs !== "screen" ? "on" : ""}">📱 Join with this phone</button><button data-jas="screen" class="${joinAs === "screen" ? "on" : ""}">📺 Join as a big screen</button></div>${joinAs === "screen" ? `<p class="note" style="margin:-4px 0 12px">For a TV or monitor somewhere else: it shows the game, and phones next to it scan its code to play on it.</p>` : ""}
   <div class="row" style="align-items:flex-end;margin-bottom:12px"><label class="field" style="flex:2">Game code<input id="jcode" maxlength="6" autocapitalize="characters" autocomplete="off" value="${esc(pendingCode)}" placeholder="ABCDE" style="text-transform:uppercase;letter-spacing:3px;font-weight:800"></label><button class="btn sign" data-a="connect" style="flex:1">${NET.status === "connected" && NET.code && NET.code === pendingCode && gamesAvailable().length ? "Join" : "Connect"}</button></div>${body}
-  <p class="note">You'll join as <b>${esc(me.name || "Driver")}</b> driving ${esc(TRUCKS[me.truck].name)}. Match the code with the one on the host's screen.</p>
+  ${joinAs === "screen" ? "" : `<p class="note">You'll join as <b>${esc(me.name || "Driver")}</b> driving ${esc(TRUCKS[me.truck].name)}. Match the code with the one on the host's screen.</p>`}
   <div style="margin-top:10px">${statusHTML()}</div></section><button class="btn ghost" data-a="home" style="margin-top:12px">Back</button>`;
 }
 function playerRow(p, host) {
 	const on = role === "host" ? online(p.key) : true;
-	const tag = p.bot ? "CPU" : p.local ? "on the host's phone" : !on ? "offline" : "";
+	const tag = p.bot
+		? "CPU"
+		: p.local
+			? "on the host's phone"
+			: !on
+				? "offline"
+				: p.hub
+					? SCREEN && p.hub === SCREEN.key
+						? "on this screen"
+						: "on a linked screen"
+					: "";
 	return `<li><span class="dot" style="background:${pcol(p)}"></span><img alt="" src="${thumb(p.truck)}"><span class="nm">${esc(p.name)}${p.key === me.key ? " (you)" : ""}<small>${esc(TRUCKS[p.truck].name)}${tag ? ", " + tag : ""}</small></span>${G.teams ? `<button class="teamb" data-team="${esc(p.key)}" style="--tc:${TEAMS[p.team || 0].col}" ${host ? "" : "disabled"}>${TEAMS[p.team || 0].name.replace("Team ", "")}</button>` : ""}${host && p.key !== me.key ? `<button class="xbtn" data-kick="${esc(p.key)}" aria-label="Remove ${esc(p.name)}">Remove</button>` : ""}</li>`;
 }
 function joinURL() {
-	return location.origin + location.pathname + "?join=" + encodeURIComponent((G && G.code) || "");
+	return (
+		location.origin +
+		location.pathname +
+		"?join=" +
+		encodeURIComponent((G && G.code) || "") +
+		(SCREEN ? "&hub=" + encodeURIComponent(SCREEN.key) : "")
+	);
+}
+/* a linked big screen's lobby: its own QR (phones that scan it play on this screen) and who's in */
+function screenLobbyHTML() {
+	const n = G.players.length,
+		here = G.players.filter((p) => SCREEN && p.hub === SCREEN.key).length;
+	return `<div class="tvlobby"><div class="logo tvlogo"><span class="l1">BIG RIG</span><span class="l2">RUMBLE</span><span class="l3">Linked big screen</span></div>
+  <section class="sheet tvjoin"><h2>Scan to play on this screen</h2><div class="qr big" id="qr"></div><p>or open <b>${esc(location.host + location.pathname)}</b>, enter the code and tap the game</p><div class="code">${esc(G.code)}</div><div>${statusHTML()}</div></section>
+  <section class="sheet tvdrivers"><h2>Drivers (${n}/8)</h2>${n ? `<ul class="plist">${G.players.map((p) => playerRow(p, false)).join("")}</ul>` : `<div class="empty">Waiting for drivers…</div>`}
+    <p class="note">${here ? `${here} ${here === 1 ? "driver plays" : "drivers play"} on this screen.` : "Nobody plays on this screen yet: scan the code with a phone."} ${esc(G.hostName || "The host")} starts the race.</p></section>
+  <section class="sheet tvset"><h2>Linked to ${esc(G.hostName || "the host")}'s game</h2><p class="note">This screen shows the board and runs the minigames for the phones that joined through its code.</p><button class="btn ghost" data-a="leave" style="margin-top:12px">Leave</button></section></div>`;
 }
 function lobbyHTML() {
 	const host = role === "host";
@@ -683,9 +764,9 @@ function handleFx() {
 	}
 	if (W && (!G.mg || W.mg.nonce !== G.mg.nonce) && G.phase === "minigame") closeMg();
 	if (TVC && (!G.mg || TVC.mg.nonce !== G.mg.nonce) && G.phase === "minigame") closeMg();
-	if (G.phase === "minigame" && G.mg && G.mg.tv && role === "host" && !mgBusy) {
+	if (G.phase === "minigame" && G.mg && G.mg.tv && (role === "host" || SCREEN) && !mgBusy) {
 		if (G.mg.tv === "split") openTvSplit(G.mg);
-		else openTvMg(G.mg);
+		else if (role === "host") openTvMg(G.mg);
 	}
 	if (G.phase === "minigame" && G.mg && !mgBusy) {
 		const pend = mgPending();

@@ -479,6 +479,17 @@ function applyNet(e, s) {
 function netRecv() {
 	if (W.split) {
 		if (TVS) netApply(TVS.worlds.filter((s) => s.W !== W && s.W.out).map((s) => ({ presence: s.W.out })));
+		/* linked screens: the other screens' worlds come in over the network (rts: their worlds' states) */
+		if (TVS && TVS.hubs && RT)
+			try {
+				const ps = RT.peers();
+				netApply(ps);
+				ps.forEach((p) => {
+					const r = !p.sameTab && p.presence && p.presence.rts;
+					if (r && r.n === W.mg.nonce && Array.isArray(r.l))
+						netApply(r.l.filter(Boolean).map((o) => ({ presence: o })));
+				});
+			} catch (e) {}
 		return;
 	}
 	if (!RT || W.localOnly) return;
@@ -2559,7 +2570,8 @@ function openTvMg(mg) {
     <div class="m3lb${def.lbTop ? " top" : ""}" id="m3lb"></div><div class="m3intro" id="m3in"><h3>${esc(def.name)}</h3><p>${esc(def.how)}</p><p class="m3ctl">${def.aim ? "Left side of your phone drives, right side aims." : `Drag on your phone to drive. Tap ${esc(ramLbl(def))} to ${def.ramLabel ? "use it" : "charge into someone"}.`}</p></div>
     <div class="m3center${def.msgTop ? " hi" : ""}"><div class="m3big" id="m3c"></div><div class="m3msg" id="m3m" hidden></div></div>
     <div class="m3ready" id="m3r"><h3>Get ready</h3><div id="m3rl"></div><button class="btn ghost" id="m3rs" hidden style="margin-top:8px">Start without the others</button></div>`;
-	$("#m3rs").addEventListener("click", () => mgStartCountdown());
+	if (SCREEN) $("#m3rs").remove();
+	else $("#m3rs").addEventListener("click", () => mgStartCountdown());
 	syncStart();
 }
 /* knocked out of an arena game: after 1.2 s (you see yourself go down) the camera frames the trucks still in play */
@@ -3035,9 +3047,15 @@ function tvsAct(s, on) {
 }
 function openTvSplit(mg) {
 	const def = MG[mg.g];
-	mgBusy = true;
-	const humans = (mg.part ? G.players.filter((q) => mg.part.includes(q.key)) : G.players).filter((q) => !q.bot);
+	/* the players this screen runs: on the host the ones without a linked screen, on a linked screen its own */
+	const myHub = SCREEN ? SCREEN.key : undefined,
+		hubs = G.players.some((q) => !q.bot && q.hub),
+		humans = (mg.part ? G.players.filter((q) => mg.part.includes(q.key)) : G.players).filter(
+			(q) => !q.bot && q.hub === myHub,
+		);
+	/* no players here (a linked screen nobody paired with): this screen just shows the board */
 	if (!humans.length || !GFX.ok) return;
+	mgBusy = true;
 	const mode = def.kind === "lane" ? "shared" : mg.g === "race" && humans.length === 2 ? "dyn" : "grid";
 	mgOpen = true;
 	const box = $("#mg");
@@ -3063,12 +3081,14 @@ function openTvSplit(mg) {
 					.join("")) +
 		`<div class="m3intro tvsin" id="m3in"><h3>${esc(def.name)}</h3><p>${esc(def.how)}</p><p class="m3ctl">📱 ${esc(def.tvHint || "Your phone is the controller.")}</p></div>
     <div class="m3ready" id="m3r"><h3>Get ready</h3><div id="m3rl"></div><button class="btn ghost" id="m3rs" hidden style="margin-top:8px">Start without the others</button></div>`;
-	$("#m3rs").addEventListener("click", () => mgStartCountdown());
+	if (SCREEN) $("#m3rs").remove();
+	else $("#m3rs").addEventListener("click", () => mgStartCountdown());
 	const hold = document.createElement("div");
 	hold.className = "tvctlhold";
 	hold.hidden = true;
-	const simK = humans.some((h) => h.key === mg.simDev) ? mg.simDev : humans[0].key;
-	TVS = { mg, def, mode, main: GFX.cam, worlds: [], hold, sz: "" };
+	/* the CPUs run in the simDev player's world; with linked screens only on the screen that player is on */
+	const simK = humans.some((h) => h.key === mg.simDev) ? mg.simDev : hubs ? null : humans[0].key;
+	TVS = { mg, def, mode, main: GFX.cam, worlds: [], hold, sz: "", hubs };
 	humans.forEach((q, i) => {
 		const cam = new THREE.PerspectiveCamera(40, 1, 0.5, 240);
 		GFX.cam = cam;
@@ -3231,6 +3251,11 @@ function tvsFrame() {
 	if (TVS !== T) return;
 	if (T.mode === "shared") tvsShared(fw, fh, real);
 	else if (T.mode === "dyn") tvsDyn(fw, fh, real);
+	/* linked screens: share this screen's worlds (its players and, if it runs them, the CPUs) with the others */
+	if (T.hubs && RT && now - (T.lastRts || 0) > 60) {
+		T.lastRts = now;
+		RT.presence({ rts: { n: T.mg.nonce, l: T.worlds.map((s) => s.W.out || null) } }).catch(() => {});
+	}
 	tvsSend();
 }
 /* lane games: everyone is side by side, so the TV shows one wide view of world 0 */
