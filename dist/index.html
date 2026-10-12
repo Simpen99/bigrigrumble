@@ -515,6 +515,12 @@ body.ctl .btn{min-height:58px;font-size:18px}
 .rjb{flex:1;border:3px solid #151B24;border-radius:24px;background:var(--bc);color:#fff;font-family:var(--display);font-size:20px;display:flex;align-items:center;justify-content:center;gap:12px;box-shadow:inset 0 -6px 0 rgba(0,0,0,.25),0 8px 20px rgba(0,0,0,.3);touch-action:none;-webkit-user-select:none;user-select:none;text-shadow:0 2px 0 rgba(0,0,0,.3)}
 .rjb i{font-style:normal;font-size:34px;line-height:1}
 .rjb.kick{filter:brightness(.8);transform:translateY(3px)}
+.pkbar{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 24% + 26px);width:min(92%,520px);height:24px;display:flex;border:2.5px solid #151B24;border-radius:10px;pointer-events:none;box-shadow:0 4px 0 rgba(0,0,0,.25)}
+.pkbar i{flex:1;font:800 11px/19px Rubik,Arial,sans-serif;color:#fff;text-align:center;font-style:normal;border-right:2px solid #151B24}
+.pkbar i:first-child{border-radius:7px 0 0 7px}
+.pkbar i:nth-child(7){border-right:0;border-radius:0 7px 7px 0}
+.pkx3{position:absolute;top:-18px;transform:translateX(-50%);background:#FFC83D;color:#151B24;font:900 11px/14px Bungee,'Arial Black',sans-serif;padding:0 5px;border-radius:6px;border:2px solid #151B24}
+.pkme{position:absolute;bottom:-9px;width:11px;height:11px;border-radius:50%;transform:translateX(-50%);border:2px solid #151B24}
 .tvc .rjctl{left:0;right:0;top:0;bottom:0;height:auto;gap:0}
 .tvc .rjb{border-radius:0;border-width:0 2px;font-size:30px}
 .swl{position:absolute;display:flex;align-items:center;gap:8px;color:#fff;font-weight:800;text-shadow:0 2px 0 rgba(0,0,0,.45);pointer-events:none;opacity:.9}
@@ -768,7 +774,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-11 23:02 cdf8511";
+const BUILD = "2026-10-12 18:14 ccdf42f";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -29839,6 +29845,15 @@ Object.assign(MG, {
 		NFLIP: 3,
 		NGATE: 2,
 		FL: 1.9 /* flipper length */,
+		/* pop bumpers: how many, radius, kick speed, points per hit */
+		NBUMP: 3,
+		BR: 0.62,
+		BUMPV: 9,
+		BUMPPTS: 25,
+		/* TNT pegs: one at a time, live TNTL s (from the seed: W.tnt), the blast reaches TNTR m and throws at up to TNTV */
+		TNTL: 8,
+		TNTR: 5,
+		TNTV: 12,
 		kits() {
 			loadPlanck();
 		},
@@ -29853,8 +29868,9 @@ Object.assign(MG, {
 			}
 			return (this.PG = L);
 		},
-		/* this game's board, the same on every device (from the seed): W.pegs (the grid minus the flipper pegs), W.flips
-		   [{x, y, dir, per, ph}], W.gates [{x, y, w}] */
+		/* this game's board, the same on every device (from the seed): W.pegs (the grid minus the flipper and bumper pegs),
+		   W.flips [{x, y, dir}] (W.flipT = when each last fired), W.bumps [{x, y}], W.gates [{x, y, w}], W.tnt [{n, t, i, x, y}]
+		   (when and on which peg each TNT turns up; W.tntX = the ones that went off) */
 		layout(W) {
 			if (W.pegs) return;
 			const r = mulberry((W.mg.seed || 1) * 7 + 3),
@@ -29866,14 +29882,16 @@ Object.assign(MG, {
 				const p = cand.splice(Math.floor(r() * cand.length), 1)[0];
 				if (!fl.some((q) => row(q[1]) === row(p[1]))) fl.push(p);
 			}
-			W.flips = fl.map(([x, y]) => ({
-				x,
-				y,
-				dir: x < -0.1 ? 1 : x > 0.1 ? -1 : r() < 0.5 ? -1 : 1,
-				per: 2.2 + r() * 1.2,
-				ph: r() * 4,
-			}));
-			W.pegs = all.filter((p) => !fl.includes(p));
+			W.flips = fl.map(([x, y]) => ({ x, y, dir: x < -0.1 ? 1 : x > 0.1 ? -1 : r() < 0.5 ? -1 : 1 }));
+			W.flipT = W.flips.map(() => -99);
+			const bc = cand.filter(([x, y]) => !fl.some((q) => Math.hypot(q[0] - x, q[1] - y) < 4.5)),
+				bm = [];
+			while (bm.length < this.NBUMP && bc.length) {
+				const q = bc.splice(Math.floor(r() * bc.length), 1)[0];
+				if (!bm.some((b) => Math.hypot(b[0] - q[0], b[1] - q[1]) < 5)) bm.push(q);
+			}
+			W.bumps = bm.map(([x, y]) => ({ x, y }));
+			W.pegs = all.filter((p) => !fl.includes(p) && !bm.includes(p));
 			const gaps = [];
 			for (let k = 0; k <= 4; k++) {
 				const ps = W.pegs.filter((p) => row(p[1]) === k).sort((a, b) => a[0] - b[0]);
@@ -29881,7 +29899,11 @@ Object.assign(MG, {
 					const a = ps[j],
 						b = ps[j + 1],
 						x = (a[0] + b[0]) / 2;
-					if (b[0] - a[0] < this.SW + 0.1 && !W.flips.some((f) => Math.hypot(f.x - x, f.y - a[1]) < 4))
+					if (
+						b[0] - a[0] < this.SW + 0.1 &&
+						!W.flips.some((f) => Math.hypot(f.x - x, f.y - a[1]) < 4) &&
+						!W.bumps.some((q) => Math.hypot(q.x - x, q.y - a[1]) < 3.5)
+					)
 						gaps.push({ x, y: a[1], w: b[0] - a[0] });
 				}
 			}
@@ -29890,13 +29912,37 @@ Object.assign(MG, {
 				const g = gaps.splice(Math.floor(r() * gaps.length), 1)[0];
 				if (!W.gates.some((q) => Math.abs(q.y - g.y) < 0.1)) W.gates.push(g);
 			}
+			const tc = W.pegs
+				.map((q, i) => i)
+				.filter((i) => {
+					const [x, y] = W.pegs[i];
+					return (
+						row(y) >= 1 &&
+						row(y) <= 4 &&
+						Math.abs(x) < this.HW - 0.5 &&
+						!W.flips.some((q) => Math.hypot(q.x - x, q.y - y) < 3) &&
+						!W.bumps.some((q) => Math.hypot(q.x - x, q.y - y) < 3)
+					);
+				});
+			W.tnt = [];
+			W.tntX = {};
+			for (let n = 0, t = 5 + r() * 3; t < this.dur - 6 && tc.length; n++) {
+				const i = tc[Math.floor(r() * tc.length)];
+				W.tnt.push({ n, t, i, x: W.pegs[i][0], y: W.pegs[i][1] });
+				t += this.TNTL + 2 + r() * 4;
+			}
 		},
-		/* a flipper's angle at time t: rests tipped down, flicks up fast, holds, eases back */
-		flipA(f, t) {
-			const u = (((t + f.ph) % f.per) + f.per) % f.per,
-				k = u < 0.1 ? u / 0.1 : u < 0.3 ? 1 : u < 0.8 ? 1 - (u - 0.3) / 0.5 : 0,
+		/* a flipper's angle s seconds after it fired: rests tipped down, snaps up, holds, eases back. It fires when a ball
+		   lands on it (shared as e.f.fp, the fire time), with a short cooldown */
+		flipA(f, s) {
+			const k = s < 0 || s > 0.8 ? 0 : s < 0.08 ? s / 0.08 : s < 0.25 ? 1 : 1 - (s - 0.25) / 0.55,
 				a = -0.45 + k;
 			return f.dir > 0 ? a : Math.PI - a;
+		},
+		/* the TNT that is live now (one at a time), or null */
+		tntNow(W) {
+			for (const q of W.tnt) if (W.t >= q.t && W.t < q.t + this.TNTL && W.tntX[q.n] === undefined) return q;
+			return null;
 		},
 		slotX: (k) => -MG.plinko.HW + (k + 0.5) * MG.plinko.SW,
 		/* the x3 sign: position in slots (0 .. COLS-1), sliding there and back at a steady speed; the slot it's under counts */
@@ -30003,7 +30049,7 @@ Object.assign(MG, {
 					ax,
 				);
 				g.position.set(f.x, f.y, 0);
-				g.rotation.z = this.flipA(f, 0);
+				g.rotation.z = this.flipA(f, 99);
 				s.add(g);
 				return g;
 			});
@@ -30061,6 +30107,49 @@ Object.assign(MG, {
 				s.add(st, lb);
 				return { m, hm, fl: -9 };
 			});
+			/* pop bumpers: a red drum out of the board, white skirt, yellow cap, a ring that flashes when it kicks */
+			W.bumpG = W.bumps.map((q) => {
+				const g = new THREE.Group(),
+					rm = new THREE.MeshBasicMaterial({ color: "#FFE27A" }),
+					ring = new THREE.Mesh(new THREE.TorusGeometry(0.74, 0.08, 6, 24), rm),
+					parts = [
+						Cy(0.9, 0.9, 0.12, 16, "#8E96A3", 0, 0, -1.63),
+						Cy(this.BR, this.BR, 2.8, 16, "#E5484D", 0, 0, -0.3),
+						Cy(0.76, 0.76, 0.22, 16, "#F4F6F9", 0, 0, 1.0),
+						Cy(0.5, 0.5, 0.3, 16, "#FFC83D", 0, 0, 1.1),
+					];
+				parts.forEach((m) => (m.rotation.x = Math.PI / 2));
+				ring.position.z = 1.16;
+				g.add(...parts, ring);
+				g.position.set(q.x, q.y, 0);
+				s.add(g);
+				return { g, rm, t: -9 };
+			});
+			/* the TNT barrel (one at a time, moved onto its peg) */
+			{
+				const g = new THREE.Group(),
+					body = Cy(0.52, 0.52, 1, 14, "#D63A3A", 0, 0, 1),
+					bands = [0.62, 1.38].map((z) => Cy(0.55, 0.55, 0.08, 14, "#23272F", 0, 0, z)),
+					fuse = Cy(0.04, 0.04, 0.45, 5, "#3A3F48", 0.22, 0.6, 1),
+					tx = canvasTex(128, 64, (x, w, h) => {
+						x.font = "44px Bungee, 'Arial Black', Impact, sans-serif";
+						x.textAlign = "center";
+						x.textBaseline = "middle";
+						x.fillStyle = "#FFE27A";
+						x.fillText("TNT", w / 2, h / 2 + 3);
+					}),
+					lb = new THREE.Mesh(
+						new THREE.PlaneGeometry(0.9, 0.45),
+						new THREE.MeshBasicMaterial({ map: tx, transparent: true }),
+					);
+				[body, ...bands].forEach((m) => (m.rotation.x = Math.PI / 2));
+				fuse.rotation.z = -0.4;
+				lb.position.z = 1.52;
+				g.add(body, ...bands, fuse, lb);
+				g.visible = false;
+				s.add(g);
+				W.tntG = g;
+			}
 			pg.forEach(([x, y]) => {
 				const p = Cy(0.26, 0.26, 3, 10, "#C9CED8", x, y, -0.25);
 				p.rotation.x = Math.PI / 2;
@@ -30259,7 +30348,18 @@ Object.assign(MG, {
 			e.dn = 0;
 			e.aimT = 0;
 			e.g.scale.setScalar(this.TS);
-			e.f = { an: 0, tt: 0, st: 0, hp: 0, im: [0, 0, 0], ls: [0, 0, 0], gt: [0, 0] };
+			e.f = {
+				an: 0,
+				tt: 0,
+				st: 0,
+				hp: 0,
+				im: [0, 0, 0],
+				ls: [0, 0, 0],
+				gt: [0, 0],
+				fp: [0, 0, 0],
+				bp: [0, 0],
+				tx: [0, 0],
+			};
 			loadPlanck();
 		},
 		/* a ball's centre for any truck: local ones from their body, others from where they're drawn */
@@ -30284,10 +30384,26 @@ Object.assign(MG, {
 			fx(pl.Edge(V(-HW - 1, FLOOR), V(HW + 1, FLOOR)), 0, 0.7);
 			[-1, 1].forEach((sd) => fx(pl.Edge(V(sd * HW, 0), V(sd * HW, this.CEIL + 1)), 0.2, 0.2));
 			fx(pl.Edge(V(-HW, this.CEIL), V(HW, this.CEIL)), 0.2, 0.2);
-			W.pegs.forEach(([x, y]) => fx(pl.Circle(V(x, y), PR), this.PEGR, 0.4));
-			e.flb = W.flips.map((f) => {
-				const b = w.createBody({ type: "kinematic", position: V(f.x, f.y), angle: this.flipA(f, W.t) }),
-					o = { restitution: 0.3, friction: 0.3 };
+			/* pegs, bumpers and flippers are tagged (userData) so a ball touching them can tell which */
+			W.pegs.forEach(([x, y], i) =>
+				g.createFixture({
+					shape: pl.Circle(V(x, y), PR),
+					restitution: this.PEGR,
+					friction: 0.4,
+					userData: { peg: i },
+				}),
+			);
+			W.bumps.forEach((q, i) =>
+				g.createFixture({
+					shape: pl.Circle(V(q.x, q.y), this.BR),
+					restitution: 0.6,
+					friction: 0.2,
+					userData: { bump: i },
+				}),
+			);
+			e.flb = W.flips.map((f, i) => {
+				const b = w.createBody({ type: "kinematic", position: V(f.x, f.y), angle: this.flipA(f, W.t - W.flipT[i]) }),
+					o = { restitution: 0.3, friction: 0.3, userData: { flip: i } };
 				b.createFixture(pl.Box(this.FL / 2, 0.16, V(this.FL / 2, 0), 0), o);
 				b.createFixture(pl.Circle(V(0, 0), 0.32), o);
 				b.createFixture(pl.Circle(V(this.FL, 0), 0.16), o);
@@ -30421,7 +30537,7 @@ Object.assign(MG, {
 				this.kinFollow(W, e, h);
 				/* flippers: turned to where they are at the end of this step (all devices agree: a function of time) */
 				e.ptm += h;
-				e.flb.forEach(({ f, b }) => b.setAngularVelocity((this.flipA(f, e.ptm) - b.getAngle()) / h));
+				e.flb.forEach(({ f, b }, i) => b.setAngularVelocity((this.flipA(f, e.ptm - W.flipT[i]) - b.getAngle()) / h));
 				const b = e.b;
 				if (b && e.st === 1 && e.tl) b.applyForceToCenter(V(-e.tl * this.PUSH * b.getMass(), 0), true);
 				const v0 = b && b.getLinearVelocity().clone();
@@ -30429,6 +30545,7 @@ Object.assign(MG, {
 				if (b) {
 					const c = this.touching(b);
 					if (c) e.lastTouch = W.t;
+					if (c && e.st === 1) this.contacts(W, e);
 					/* a hard knock: shared so every screen lights the peg (and sparks) */
 					const dv = b.getLinearVelocity().clone().sub(v0).length();
 					if (c && dv > 3.5 && W.t - (e.imT || 0) > 0.12) {
@@ -30521,6 +30638,78 @@ Object.assign(MG, {
 			e.f.tt = Math.round(e.tt * 100) / 100;
 			e.f.st = e.st;
 		},
+		/* what the ball touches: a flipper fires, a bumper kicks it away (+points), the live TNT goes off */
+		contacts(W, e) {
+			for (let c = e.b.getContactList(); c; c = c.next) {
+				const ct = c.contact;
+				if (!ct.isTouching()) continue;
+				const fa = ct.getFixtureA(),
+					fo = fa.getBody() === e.b ? ct.getFixtureB() : fa,
+					u = fo.getUserData();
+				if (!u) continue;
+				if (u.flip !== undefined) this.flipHit(W, e, u.flip);
+				else if (u.bump !== undefined) this.bumpHit(W, e, u.bump);
+				else if (u.peg !== undefined) this.tntHit(W, e, u.peg);
+			}
+		},
+		flipHit(W, e, i) {
+			if (W.t - W.flipT[i] < 0.9) return;
+			W.flipT[i] = W.t + 0.05;
+			e.f.fp = [e.f.fp[0] + 1, i, Math.round(W.flipT[i] * 100) / 100];
+			mgLog(W, mgName(e) + " fires flipper " + i);
+		},
+		bumpHit(W, e, i) {
+			e.bmT = e.bmT || {};
+			if (W.t - (e.bmT[i] ?? -9) < 0.3) return;
+			e.bmT[i] = W.t;
+			const q = W.bumps[i],
+				p = e.b.getPosition(),
+				dx = p.x - q.x,
+				dy = p.y - q.y,
+				l = Math.hypot(dx, dy) || 1;
+			e.b.setLinearVelocity(window.planck.Vec2((dx / l) * this.BUMPV, (dy / l) * this.BUMPV + 1));
+			e.sc += this.BUMPPTS;
+			fb(W, e, "+" + this.BUMPPTS, { tone: "good" });
+			e.f.bp = [e.f.bp[0] + 1, i];
+			mgLog(W, mgName(e) + " hits bumper " + i + " (+" + this.BUMPPTS + ")");
+		},
+		tntHit(W, e, i) {
+			const q = this.tntNow(W);
+			if (!q || q.i !== i) return;
+			e.f.tx = [e.f.tx[0] + 1, q.n];
+			fb(W, e, "BOOM!", { stamp: true });
+			mgLog(W, mgName(e) + " sets off TNT " + q.n);
+			this.boom(W, q);
+		},
+		/* a TNT goes off (here, or heard from another device): every ball this device runs within TNTR is thrown away */
+		boom(W, q) {
+			if (W.tntX[q.n] !== undefined) return;
+			W.tntX[q.n] = W.t;
+			const V = window.planck && window.planck.Vec2;
+			W.list.forEach((o) => {
+				if (!V || !o.local || !o.b || o.st !== 1) return;
+				const p = o.b.getPosition(),
+					dx = p.x - q.x,
+					dy = p.y - q.y,
+					d = Math.hypot(dx, dy);
+				if (d > this.TNTR) return;
+				const k = 1 - d / this.TNTR,
+					l = d || 1,
+					v = o.b.getLinearVelocity();
+				o.b.setLinearVelocity(V(v.x * 0.3 + (dx / l) * this.TNTV * k, v.y * 0.3 + (dy / l) * this.TNTV * k + 3 * k));
+				if (o.isMe) W.shake = 0.6;
+			});
+			burst(W.sc, q.x, q.y, 1.4, {
+				n: 30,
+				shape: "ico",
+				cols: ["#FF8A1F", "#FFC83D", "#E5484D", "#3A3F48"],
+				spd: 7,
+				up: 4,
+				life: 0.9,
+				size: 1.4,
+			});
+			if (W.split || W.list.some((o) => o.isMe)) sfx("cannon");
+		},
 		score(W, e) {
 			const p = e.b.getPosition(),
 				k = Math.max(0, Math.min(this.COLS - 1, Math.floor((p.x + this.HW) / this.SW))),
@@ -30544,13 +30733,42 @@ Object.assign(MG, {
 			if (e.st !== 3) fb(W, e, `${e.sc}`, { stamp: true });
 		},
 		fmt: (W, e) => `${e.sc} pts · drop ${Math.min(MG.plinko.DROPS, e.dn + 1)}/${MG.plinko.DROPS}`,
-		/* the share of the screen's height the buttons cover at the bottom (phone mode; the board is framed above them) */
+		/* the share of the screen's height the buttons and the x3 strip cover at the bottom (phone mode; the board is framed
+		   above them) */
 		btmCover(W) {
 			if (W.split || W.tv) return 0;
-			const el = document.querySelector("#mg .rjctl");
-			if (!el || !GFX.h) return 0.26;
-			const r = el.getBoundingClientRect();
-			return r.height ? Math.max(0, Math.min(0.45, (GFX.h - r.top) / GFX.h)) : 0;
+			const els = ["#mg .rjctl", "#mg .pkbar"].map((q) => document.querySelector(q)).filter(Boolean);
+			if (!els.length || !GFX.h) return 0.26;
+			const top = Math.min(
+				...els.map((el) => {
+					const r = el.getBoundingClientRect();
+					return r.height ? r.top - 18 : GFX.h;
+				}),
+			);
+			return Math.max(0, Math.min(0.5, (GFX.h - top) / GFX.h));
+		},
+		/* phone mode: a strip over the buttons with the slots, where the x3 sign is now and where your ball is across the board,
+		   so you can steer for the x3 before it's in view */
+		bar(W, e) {
+			if (!W.pkBar || !W.pkBar.isConnected) {
+				const box = document.getElementById("mg");
+				if (!box) return;
+				const el = document.createElement("div");
+				el.className = "pkbar";
+				el.innerHTML =
+					this.VAL.map(
+						(v) => '<i style="background:' + this.SCOL[v] + (v === 500 ? ";color:#3A2A00" : "") + '">' + v + "</i>",
+					).join("") +
+					'<b class="pkx3">×3</b><u class="pkme" style="background:' +
+					pcol(e.p) +
+					'"></u>';
+				box.appendChild(el);
+				W.pkBar = el;
+			}
+			const el = W.pkBar;
+			el.children[this.COLS].style.left = ((this.mpos(W.t) + 0.5) / this.COLS) * 100 + "%";
+			el.children[this.COLS + 1].style.left = Math.max(2, Math.min(98, ((e.x + this.HW) / (2 * this.HW)) * 100)) + "%";
+			el.children[this.COLS + 1].style.opacity = e.st === 3 ? 0 : 1;
 		},
 		/* phone mode: follows your truck (portrait sees about 12 m across) in the part of the screen over the buttons,
 		   the whole board once you're done */
@@ -30663,6 +30881,36 @@ Object.assign(MG, {
 						life: 0.5,
 					});
 			}
+			/* a flipper fired (here or elsewhere: the latest fire time wins), a bumper kicked, a TNT went off */
+			if (f.fp && f.fp[0] !== (e.fpSeen || 0)) {
+				e.fpSeen = f.fp[0];
+				const i = f.fp[1];
+				if (W.flipT[i] !== undefined) W.flipT[i] = Math.max(W.flipT[i], f.fp[2]);
+				if (W.split || e.isMe) sfx("click");
+			}
+			if (f.bp && f.bp[0] !== (e.bpSeen || 0)) {
+				e.bpSeen = f.bp[0];
+				const b = W.bumpG[f.bp[1]],
+					q = W.bumps[f.bp[1]];
+				if (b) b.t = W.t;
+				if (q)
+					burst(W.sc, q.x, q.y, 1.4, {
+						n: 10,
+						shape: "cube",
+						cols: ["#FFE27A", "#FFFFFF", col],
+						spd: 4,
+						up: 2,
+						life: 0.4,
+						size: 0.7,
+					});
+				if (W.split || e.isMe) sfx("ram");
+			}
+			if (f.tx && f.tx[0] !== (e.txSeen || 0)) {
+				e.txSeen = f.tx[0];
+				const q = W.tnt[f.tx[1]];
+				if (q) this.boom(W, q);
+			}
+			if (e.isMe && !W.split && !W.tv) this.bar(W, e);
 			/* the hop: the ball pops (squash and stretch), the truck's wheels kick inside, a puff under it */
 			if ((f.hp || 0) !== (e.hpSeen || 0)) {
 				e.hpSeen = f.hp || 0;
@@ -30779,7 +31027,33 @@ Object.assign(MG, {
 					});
 				}
 			}
-			W.flips.forEach((f, i) => (W.flipG[i].rotation.z = this.flipA(f, Math.max(0, W.t))));
+			W.flips.forEach((f, i) => (W.flipG[i].rotation.z = this.flipA(f, W.t - W.flipT[i])));
+			W.bumpG.forEach((b) => {
+				const k = Math.max(0, 1 - (W.t - b.t) / 0.35);
+				b.g.scale.setScalar(1 + 0.18 * k);
+				b.rm.color.set(k > 0.3 ? "#FFFFFF" : "#FFE27A");
+			});
+			{
+				const q = this.tntNow(W),
+					g = W.tntG;
+				g.visible = !!q;
+				if (q) {
+					const a = Math.min(1, (W.t - q.t) / 0.25),
+						left = q.t + this.TNTL - W.t;
+					g.position.set(q.x, q.y, 0);
+					g.scale.setScalar(a * (1 + Math.sin(W.t * (left < 2 ? 22 : 9)) * 0.06));
+					if (Math.random() < dt * 18)
+						burst(W.sc, q.x + 0.32, q.y + 0.82, 1, {
+							n: 1,
+							shape: "ico",
+							cols: ["#FFE27A", "#FF8A1F"],
+							spd: 1,
+							up: 1.2,
+							life: 0.35,
+							size: 0.4,
+						});
+				}
+			}
 			W.gateM.forEach((g) => {
 				const k = W.t >= g.fl ? Math.max(0, 1 - (W.t - g.fl) / 0.6) : 0,
 					w = Math.sin(Math.max(0, W.t) * 4);
