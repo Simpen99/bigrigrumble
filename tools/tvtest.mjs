@@ -13,7 +13,7 @@
    the minigame worlds each screen runs, how far apart the two screens draw the same truck, and whether the screen's
    player gets a result
    --early stops after the first in-game screenshots; --ready only checks the ready screen (trucks under the intro card / ready panel) and stops; --no-shots skips
-   the contact sheet; --probe "<js>" prints that expression, evaluated on the TV, once a second (--sprobe: on the linked screen)
+   the contact sheet; --probe "<js>" prints that expression, evaluated on the TV, once a second (--sprobe: on the linked screen, --pprobe: on the last phone)
    (e.g. --probe "TVS.worlds.map((s) => s.W.me.sc)"). */
 import fs from "fs";
 import path from "path";
@@ -373,6 +373,16 @@ while (Date.now() - t0 < 240000) {
 			await shoot("3mid");
 		}
 	}
+	if (opt.pprobe && s && Math.floor(s.t) !== Math.floor(lastProbe))
+		console.log(
+			`  phone probe ${s.t.toFixed(1)} s: ${await PH[PH.length - 1].p.evaluate((x) => {
+				try {
+					return JSON.stringify(eval(x));
+				} catch (e) {
+					return "error: " + e.message;
+				}
+			}, opt.pprobe)}`,
+		);
 	if (opt.sprobe && SC && s && Math.floor(s.t) !== Math.floor(lastProbe))
 		console.log(
 			`  screen probe ${s.t.toFixed(1)} s: ${await SC.p.evaluate((x) => {
