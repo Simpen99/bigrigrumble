@@ -1870,6 +1870,9 @@ Object.assign(MG, {
 		   one for double points on this drop; two make x4) */
 		NFLIP: 3,
 		NGATE: 2,
+		/* a split gate (one per round, higher up): your ball comes out as two, both steered by you, both score; the two
+		   leave the gate SPLITV m/s apart */
+		SPLITV: 2.6,
 		FL: 1.9 /* flipper length */,
 		/* pop bumpers: how many, radius, kick speed, points per hit */
 		NBUMP: 3,
@@ -1896,7 +1899,8 @@ Object.assign(MG, {
 			return (this.PG = L);
 		},
 		/* round rd's board, the same on every device (from the seed and the round): W.pegs (the grid minus the flipper and
-		   bumper pegs), W.flips [{x, y, dir}] (W.flipT = when each last fired), W.bumps [{x, y}], W.gates [{x, y, w}],
+		   bumper pegs), W.flips [{x, y, dir}] (W.flipT = when each last fired), W.bumps [{x, y}], W.gates [{x, y, w}] (x2) and
+		   W.splits [{x, y, w}] (split gate),
 		   W.tnt [{n, dt, i, x, y}] (s after the drop and on which peg each TNT turns up; W.tntX = the ones that went off) */
 		layout(W, rd) {
 			const r = mulberry((W.mg.seed || 1) * 7 + 3 + rd * 7919),
@@ -1938,6 +1942,23 @@ Object.assign(MG, {
 				const g = gaps.splice(Math.floor(r() * gaps.length), 1)[0];
 				if (!W.gates.some((q) => Math.abs(q.y - g.y) < 0.1)) W.gates.push(g);
 			}
+			const sg = [];
+			for (let k = 3; k <= 6; k++) {
+				const ps = W.pegs.filter((q) => row(q[1]) === k).sort((a, b) => a[0] - b[0]);
+				for (let j = 0; j + 1 < ps.length; j++) {
+					const a = ps[j],
+						b = ps[j + 1],
+						x = (a[0] + b[0]) / 2;
+					if (
+						b[0] - a[0] < this.SW + 0.1 &&
+						!W.flips.some((f) => Math.hypot(f.x - x, f.y - a[1]) < 4) &&
+						!W.bumps.some((q) => Math.hypot(q.x - x, q.y - a[1]) < 3.5) &&
+						!W.gates.some((q) => Math.hypot(q.x - x, q.y - a[1]) < 3)
+					)
+						sg.push({ x, y: a[1], w: b[0] - a[0] });
+				}
+			}
+			W.splits = sg.length ? [sg[Math.floor(r() * sg.length)]] : [];
 			const tc = W.pegs
 				.map((q, i) => i)
 				.filter((i) => {
@@ -2241,19 +2262,20 @@ Object.assign(MG, {
 				s.add(g);
 				return g;
 			});
-			const halo =
-					W.haloTex ||
-					(W.haloTex = canvasTex(256, 128, (x, w, h) => {
+			const glow = (k, c0, c1, c2) =>
+					W[k] ||
+					(W[k] = canvasTex(256, 128, (x, w, h) => {
 						const g = x.createRadialGradient(h / 2, h / 2, 4, h / 2, h / 2, h / 2);
-						g.addColorStop(0, "rgba(140,255,190,0.9)");
-						g.addColorStop(0.35, "rgba(70,230,140,0.45)");
-						g.addColorStop(1, "rgba(40,200,110,0)");
+						g.addColorStop(0, c0);
+						g.addColorStop(0.35, c1);
+						g.addColorStop(1, c2);
 						x.save();
 						x.scale(w / h, 1);
 						x.fillStyle = g;
 						x.fillRect(0, 0, h, h);
 						x.restore();
 					})),
+				halo = glow("haloTex", "rgba(140,255,190,0.9)", "rgba(70,230,140,0.45)", "rgba(40,200,110,0)"),
 				x2 =
 					W.x2Tex ||
 					(W.x2Tex = canvasTex(128, 64, (x, w, h) => {
@@ -2266,6 +2288,54 @@ Object.assign(MG, {
 						x.fillStyle = "#7CF2B0";
 						x.fillText("×2", w / 2, h / 2 + 3);
 					}));
+			/* a gate: a light strip across the gap with a soft glow round it, its label on the board under it */
+			const gate = (q, col, hl, lbTex, lw) => {
+				const m = new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.55, depthWrite: false }),
+					st = new THREE.Mesh(new THREE.BoxGeometry(q.w - 0.75, 0.21, 2.4), m),
+					lb = new THREE.Mesh(
+						new THREE.PlaneGeometry(lw, 1),
+						new THREE.MeshBasicMaterial({ map: lbTex, transparent: true }),
+					),
+					hm = new THREE.MeshBasicMaterial({
+						map: hl,
+						transparent: true,
+						opacity: 0.8,
+						blending: THREE.AdditiveBlending,
+						depthWrite: false,
+					});
+				st.position.set(q.x, q.y, -0.3);
+				st.renderOrder = 1;
+				[1.35, -1.6].forEach((z, j) => {
+					const h = new THREE.Mesh(new THREE.PlaneGeometry(q.w + (j ? 1.6 : 0.8), j ? 1.54 : 0.91), hm);
+					h.position.set(q.x, q.y, z);
+					h.renderOrder = 4;
+					s.add(h);
+				});
+				lb.position.set(q.x, q.y - 0.95, -1.64);
+				s.add(st, lb);
+				return { m, hm, fl: -9, col };
+			};
+			const spl =
+				W.splTex ||
+				(W.splTex = canvasTex(256, 64, (x, w, h) => {
+					x.font = "44px Bungee, 'Arial Black', Impact, sans-serif";
+					x.textAlign = "center";
+					x.textBaseline = "middle";
+					x.lineWidth = 8;
+					x.strokeStyle = "#6A1440";
+					x.strokeText("SPLIT", w / 2, h / 2 + 3);
+					x.fillStyle = "#FFB3D9";
+					x.fillText("SPLIT", w / 2, h / 2 + 3);
+				}));
+			W.splitM = W.splits.map((q) =>
+				gate(
+					q,
+					"#FF8CC8",
+					glow("haloTexP", "rgba(255,150,210,0.9)", "rgba(255,90,170,0.45)", "rgba(230,60,150,0)"),
+					spl,
+					3,
+				),
+			);
 			W.gateM = W.gates.map((q) => {
 				const m = new THREE.MeshBasicMaterial({
 						color: "#8CFFC0",
@@ -2431,7 +2501,10 @@ Object.assign(MG, {
 				bp: [0, 0],
 				tx: [0, 0],
 				lt: [],
+				sg: [0, 0],
+				c2: 0,
 			};
+			e.balls = [];
 			loadPlanck();
 		},
 		/* a ball's centre for any truck: local ones from their body, others from where they're drawn */
@@ -2496,17 +2569,22 @@ Object.assign(MG, {
 		kinFollow(W, e, h) {
 			const pl = window.planck,
 				V = pl.Vec2;
+			const all = [];
 			W.list.forEach((o) => {
 				if (o === e) return;
-				let kb = e.kin[o.k];
-				const on = !o.gone && (o.local ? o.st === 1 || o.st === 2 : o.f && (o.f.st === 1 || o.f.st === 2));
+				const on = !o.gone && (o.local ? o.st === 1 || o.st === 2 : o.f && (o.f.st === 1 || o.f.st === 2)),
+					c2 = o.local ? o.balls && o.balls[1] && o.balls[1].b.getPosition() : o.f && o.f.c2;
+				all.push([o.k, on, ...this.ctr(o)]);
+				all.push([o.k + "#2", on && !!c2, c2 ? (c2.x ?? c2[0]) : 0, c2 ? (c2.y ?? c2[1]) : 0]);
+			});
+			all.forEach(([key, on, x, y]) => {
+				let kb = e.kin[key];
 				if (!on) {
 					if (kb && kb.isActive()) kb.setActive(false);
 					return;
 				}
-				const [x, y] = this.ctr(o);
 				if (!kb) {
-					kb = e.kin[o.k] = e.pw.createBody({ type: "kinematic", position: V(x, y) });
+					kb = e.kin[key] = e.pw.createBody({ type: "kinematic", position: V(x, y) });
 					kb.createFixture(this.shapeT(), { friction: this.FRIC, restitution: 0.35 });
 				}
 				const p = kb.getPosition();
@@ -2569,32 +2647,40 @@ Object.assign(MG, {
 		drop(W, e) {
 			const pl = window.planck,
 				V = pl.Vec2;
-			e.b = e.pw.createBody({
-				type: "dynamic",
-				position: V(e.ax, this.TOPY),
-				angle: e.ang,
-				linearDamping: 0.02,
-				angularDamping: 0.3,
-				bullet: true,
-			});
-			e.b.createFixture(this.shapeT(), { density: 1, friction: this.FRIC, restitution: 0.35 });
-			e.b.setLinearVelocity(V(0, -1));
+			const m = this.mkBall(e, e.ax, this.TOPY, 0, -1, []);
+			m.main = true;
+			e.balls = [m];
+			e.b = m.b;
+			e.split2 = false;
 			e.st = 1;
 			e.dropT = W.t;
 			e.lastTouch = -9;
-			e.hopCd = 0;
-			e.stk = 0;
-			e.gx = [];
-			e.py0 = this.TOPY;
 			e.hopQ = undefined;
 			mgLog(W, `${mgName(e)} drops in round ${e.rr + 1} at x ${e.ax.toFixed(1)}`);
 			if (e.isMe) sfx("magnet");
+		},
+		/* one of a truck's balls (its own two never touch each other: collision group -1); gx = the x2 gates it went through */
+		mkBall(e, x, y, vx, vy, gx) {
+			const V = window.planck.Vec2,
+				b = e.pw.createBody({
+					type: "dynamic",
+					position: V(x, y),
+					linearDamping: 0.02,
+					angularDamping: 0.3,
+					bullet: true,
+				});
+			b.createFixture(this.shapeT(), { density: 1, friction: this.FRIC, restitution: 0.35, filterGroupIndex: -1 });
+			b.setLinearVelocity(V(vx, vy));
+			return { b, gx: gx.slice(), py0: y, lastTouch: -9, hopCd: 0, stk: 0, tt: 0, done: false };
 		},
 		/* a new round: back on the magnet at its home spot, a fresh physics world for the new board */
 		newRound(W, e, r) {
 			e.rr = r;
 			e.pw = null;
 			e.b = null;
+			e.balls = [];
+			e.split2 = false;
+			e.f.c2 = 0;
 			e.st = 0;
 			e.ax = e.x0;
 			e.swing = 0;
@@ -2611,6 +2697,8 @@ Object.assign(MG, {
 				e.st = 3;
 				e.d = true;
 				e.b = null;
+				e.balls = [];
+				e.f.c2 = 0;
 				e.x = [-1, 1, -1, 1, -1, 1][e.i] * (this.HW + 0.9 + Math.floor(e.i / 2) * 0.9);
 				e.z = 4.2 + Math.floor(e.i / 2) * 3.2;
 				e.y = this.GY + this.R;
@@ -2630,85 +2718,90 @@ Object.assign(MG, {
 				if (W.t >= S.D) this.drop(W, e);
 				e.hopQ = undefined;
 			}
-			/* fixed physics steps; ◀ ▶ push the ball a little that way */
+			/* fixed physics steps; ◀ ▶ push every ball of yours that's still falling a little that way */
 			e.acc = Math.min(0.1, e.acc + dt);
 			if (Math.abs(e.ptm - W.t) > 0.1) e.ptm = W.t;
 			while (e.acc >= 1 / 60) {
-				const h = 1 / 60;
+				const h = 1 / 60,
+					live = e.st === 1 ? e.balls.filter((q) => !q.done) : [];
 				this.kinFollow(W, e, h);
 				/* flippers: turned to where they are at the end of this step (all devices agree: a function of time) */
 				e.ptm += h;
 				e.flb.forEach(({ f, b }, i) => b.setAngularVelocity((this.flipA(f, e.ptm - W.flipT[i]) - b.getAngle()) / h));
-				const b = e.b;
-				if (b && e.st === 1 && e.tl) b.applyForceToCenter(V(-e.tl * this.PUSH * b.getMass(), 0), true);
-				const v0 = b && b.getLinearVelocity().clone();
+				live.forEach((q) => {
+					if (e.tl) q.b.applyForceToCenter(V(-e.tl * this.PUSH * q.b.getMass(), 0), true);
+					q.v0 = q.b.getLinearVelocity().clone();
+				});
 				w.step(h, 8, 3);
-				if (b) {
-					const c = this.touching(b);
-					if (c) e.lastTouch = W.t;
-					if (c && e.st === 1) this.contacts(W, e);
-					/* a hard knock: shared so every screen lights the peg (and sparks) */
-					const dv = b.getLinearVelocity().clone().sub(v0).length();
-					if (c && dv > 3.5 && W.t - (e.imT || 0) > 0.12) {
-						e.imT = W.t;
-						const wm = c.getWorldManifold(null),
-							q = wm && wm.points && wm.points[0];
-						const p = q || b.getPosition();
-						e.f.im = [e.f.im[0] + 1, Math.round(p.x * 100) / 100, Math.round(p.y * 100) / 100];
-					}
-					/* through a x2 gate (crossing its line downwards between its pegs) */
-					const p = b.getPosition();
-					if (e.st === 1)
-						W.gates.forEach((g, i) => {
-							if (e.gx.includes(i) || !(e.py0 >= g.y && p.y < g.y) || Math.abs(p.x - g.x) > g.w / 2 - this.PR) return;
-							e.gx.push(i);
-							e.f.gt = [e.f.gt[0] + 1, i];
-							fb(W, e, e.gx.length > 1 ? "×4!" : "×2!", { tone: "good" });
-							mgLog(W, mgName(e) + " through x2 gate " + i);
-							if (e.isMe) sfx("coin");
-						});
-					e.py0 = p.y;
-				}
+				live.forEach((q) => this.ballStep(W, e, q));
 				e.acc -= h;
 			}
-			const b = e.b;
-			/* in a slot: it counts the moment the ball touches anything down there (no hopping out); still falling when the
-			   round runs out of time: stuck, no points */
-			if (b && e.st === 1 && b.getPosition().y < this.SH && W.t - e.lastTouch < 0.05) this.score(W, e);
-			else if (b && e.st === 1 && W.t >= S.D + this.ROUNDT) {
-				e.st = 2;
-				e.dn++;
-				e.lt[e.rr] = Math.round(W.t * 100) / 100;
-				e.f.lt = e.lt.slice();
-				fb(W, e, "Stuck!", { tone: "bad" });
-				mgLog(W, `${mgName(e)} stuck in round ${e.rr + 1}`);
-			}
-			if (b && e.st === 1) {
-				/* HOP: the ball pops up off whatever it touches, leaning to the side held */
-				if (
-					e.hopQ !== undefined &&
-					W.t - e.hopQ < 0.2 &&
-					W.t - e.lastTouch < 0.25 &&
-					W.t >= e.hopCd &&
-					b.getPosition().y >= this.SH
-				) {
-					const ux = -(e.tl || 0) * 0.55,
-						uy = 1,
-						l = Math.hypot(ux, uy),
-						v = b.getLinearVelocity();
-					b.setLinearVelocity(V(v.x * 0.4 + (ux / l) * this.HOPV, Math.max(0, v.y) * 0.3 + (uy / l) * this.HOPV));
-					e.hopCd = W.t + this.HOPCD;
+			if (e.st === 1) {
+				let hopped = false;
+				e.balls.forEach((q) => {
+					if (q.done) return;
+					const b = q.b,
+						p = b.getPosition();
+					/* in a slot: it counts the moment the ball touches anything down there (no hopping out); still falling when
+					   the round runs out of time: stuck, no points */
+					if (p.y < this.SH && W.t - q.lastTouch < 0.05) return this.score(W, e, q);
+					if (W.t >= S.D + this.ROUNDT) {
+						q.done = true;
+						fb(W, e, "Stuck!", { tone: "bad", at: [p.x, p.y + 1.6, 0] });
+						mgLog(W, `${mgName(e)} stuck in round ${e.rr + 1}`);
+						return;
+					}
+					/* HOP: the ball pops up off whatever it touches, leaning to the side held */
+					if (
+						e.hopQ !== undefined &&
+						W.t - e.hopQ < 0.2 &&
+						W.t - q.lastTouch < 0.25 &&
+						W.t >= q.hopCd &&
+						p.y >= this.SH
+					) {
+						const ux = -(e.tl || 0) * 0.55,
+							l = Math.hypot(ux, 1),
+							v = b.getLinearVelocity();
+						b.setLinearVelocity(V(v.x * 0.4 + (ux / l) * this.HOPV, Math.max(0, v.y) * 0.3 + (1 / l) * this.HOPV));
+						q.hopCd = W.t + this.HOPCD;
+						q.hopT = W.t;
+						hopped = true;
+					}
+					/* resting on a peg, a flipper or a divider top: nudge it off */
+					q.stk = b.getLinearVelocity().length() < 0.35 ? q.stk + dt : 0;
+					if (q.stk > 1.6) {
+						q.stk = 0;
+						b.setLinearVelocity(V((Math.random() < 0.5 ? -1 : 1) * 3, 2));
+					}
+				});
+				if (hopped) {
 					e.hopQ = undefined;
 					e.f.hp++;
-					mgLog(W, `${mgName(e)} hops at ${b.getPosition().x.toFixed(1)},${b.getPosition().y.toFixed(1)}`);
+					mgLog(W, mgName(e) + " hops");
 				}
-				const sp = b.getLinearVelocity().length();
-				/* resting on a peg, a flipper or a divider top: nudge it off */
-				e.stk = sp < 0.35 ? e.stk + dt : 0;
-				if (e.stk > 1.6) {
-					e.stk = 0;
-					b.setLinearVelocity(V((Math.random() < 0.5 ? -1 : 1) * 3, 2));
+				/* the last ball down ends the truck's round */
+				if (e.balls.length && e.balls.every((q) => q.done)) {
+					e.st = 2;
+					e.scT = W.t;
+					e.dn++;
+					e.lt[e.rr] = Math.round(W.t * 100) / 100;
+					e.f.lt = e.lt.slice();
 				}
+			}
+			/* the copy from a split gate, for the other screens: [x, y, spin, tilt] */
+			{
+				const c = e.balls && e.balls[1];
+				if (c) {
+					const cp = c.b.getPosition(),
+						cvx = c.b.getLinearVelocity().x;
+					c.tt +=
+						(Math.max(-0.35, Math.min(0.35, -cvx * 0.05)) + (c.done ? 0 : (e.tl || 0) * 0.22) - c.tt) *
+						Math.min(1, dt * 6);
+					e.f.c2 = [cp.x, cp.y, c.b.getAngle(), c.tt].map((v) => Math.round(v * 100) / 100);
+				} else e.f.c2 = 0;
+				/* the camera follows a ball still falling (the copy once the main ball is down) */
+				const fq = e.balls && (e.balls.find((q) => !q.done) || e.balls[0]);
+				e.cf = fq ? [fq.b.getPosition().x, fq.b.getPosition().y] : null;
 			}
 			if (e.b) {
 				const p = e.b.getPosition(),
@@ -2726,17 +2819,58 @@ Object.assign(MG, {
 			e.f.tt = Math.round(e.tt * 100) / 100;
 			e.f.st = e.st;
 		},
-		/* what the ball touches: a flipper fires, a bumper kicks it away (+points), the live TNT goes off */
-		contacts(W, e) {
-			for (let c = e.b.getContactList(); c; c = c.next) {
+		/* one physics step's aftermath for one of a truck's balls: what it touches, a hard knock (shared so every screen lights
+		   the peg), x2 gates and the split gate it crosses (its line, downwards, between its pegs) */
+		ballStep(W, e, q) {
+			const b = q.b,
+				c = this.touching(b),
+				p = b.getPosition();
+			if (c) {
+				q.lastTouch = e.lastTouch = W.t;
+				this.contacts(W, e, b);
+				const dv = b.getLinearVelocity().clone().sub(q.v0).length();
+				if (dv > 3.5 && W.t - (e.imT || 0) > 0.12) {
+					e.imT = W.t;
+					const wm = c.getWorldManifold(null),
+						k = (wm && wm.points && wm.points[0]) || p;
+					e.f.im = [e.f.im[0] + 1, Math.round(k.x * 100) / 100, Math.round(k.y * 100) / 100];
+				}
+			}
+			const crossed = (g) => q.py0 >= g.y && p.y < g.y && Math.abs(p.x - g.x) <= g.w / 2 - this.PR;
+			W.gates.forEach((g, i) => {
+				if (q.gx.includes(i) || !crossed(g)) return;
+				q.gx.push(i);
+				e.f.gt = [e.f.gt[0] + 1, i];
+				fb(W, e, q.gx.length > 1 ? "×4!" : "×2!", { tone: "good", at: [p.x, p.y + 1.6, 0] });
+				mgLog(W, mgName(e) + " through x2 gate " + i);
+				if (e.isMe) sfx("coin");
+			});
+			W.splits.forEach((g, i) => {
+				if (!q.main || e.split2 || !crossed(g)) return;
+				e.split2 = true;
+				const v = b.getLinearVelocity();
+				b.setLinearVelocity(window.planck.Vec2(v.x - this.SPLITV / 2, v.y));
+				const c2 = this.mkBall(e, p.x, p.y, v.x + this.SPLITV / 2, v.y, q.gx);
+				c2.tt = q.tt;
+				e.balls.push(c2);
+				e.f.sg = [(e.f.sg ? e.f.sg[0] : 0) + 1, i];
+				fb(W, e, "SPLIT!", { stamp: true });
+				mgLog(W, mgName(e) + " splits");
+				if (e.isMe) sfx("coin");
+			});
+			q.py0 = p.y;
+		},
+		/* what a ball touches: a flipper fires, a bumper kicks it away (+points), the live TNT goes off */
+		contacts(W, e, b) {
+			for (let c = b.getContactList(); c; c = c.next) {
 				const ct = c.contact;
 				if (!ct.isTouching()) continue;
 				const fa = ct.getFixtureA(),
-					fo = fa.getBody() === e.b ? ct.getFixtureB() : fa,
+					fo = fa.getBody() === b ? ct.getFixtureB() : fa,
 					u = fo.getUserData();
 				if (!u) continue;
 				if (u.flip !== undefined) this.flipHit(W, e, u.flip);
-				else if (u.bump !== undefined) this.bumpHit(W, e, u.bump);
+				else if (u.bump !== undefined) this.bumpHit(W, e, u.bump, b);
 				else if (u.peg !== undefined) this.tntHit(W, e, u.peg);
 			}
 		},
@@ -2746,18 +2880,18 @@ Object.assign(MG, {
 			e.f.fp = [e.f.fp[0] + 1, i, Math.round(W.flipT[i] * 100) / 100];
 			mgLog(W, mgName(e) + " fires flipper " + i);
 		},
-		bumpHit(W, e, i) {
+		bumpHit(W, e, i, bb) {
 			e.bmT = e.bmT || {};
 			if (W.t - (e.bmT[i] ?? -9) < 0.3) return;
 			e.bmT[i] = W.t;
 			const q = W.bumps[i],
-				p = e.b.getPosition(),
+				p = bb.getPosition(),
 				dx = p.x - q.x,
 				dy = p.y - q.y,
 				l = Math.hypot(dx, dy) || 1;
-			e.b.setLinearVelocity(window.planck.Vec2((dx / l) * this.BUMPV, (dy / l) * this.BUMPV + 1));
+			bb.setLinearVelocity(window.planck.Vec2((dx / l) * this.BUMPV, (dy / l) * this.BUMPV + 1));
 			e.sc += this.BUMPPTS;
-			fb(W, e, "+" + this.BUMPPTS, { tone: "good" });
+			fb(W, e, "+" + this.BUMPPTS, { tone: "good", at: [p.x, p.y + 1.6, 0] });
 			e.f.bp = [e.f.bp[0] + 1, i];
 			mgLog(W, mgName(e) + " hits bumper " + i + " (+" + this.BUMPPTS + ")");
 		},
@@ -2775,17 +2909,20 @@ Object.assign(MG, {
 			W.tntX[q.n] = W.t;
 			const V = window.planck && window.planck.Vec2;
 			W.list.forEach((o) => {
-				if (!V || !o.local || !o.b || o.st !== 1) return;
-				const p = o.b.getPosition(),
-					dx = p.x - q.x,
-					dy = p.y - q.y,
-					d = Math.hypot(dx, dy);
-				if (d > this.TNTR) return;
-				const k = 1 - d / this.TNTR,
-					l = d || 1,
-					v = o.b.getLinearVelocity();
-				o.b.setLinearVelocity(V(v.x * 0.3 + (dx / l) * this.TNTV * k, v.y * 0.3 + (dy / l) * this.TNTV * k + 3 * k));
-				if (o.isMe) W.shake = 0.6;
+				if (!V || !o.local || !o.balls || o.st !== 1) return;
+				o.balls.forEach((bq) => {
+					if (bq.done) return;
+					const p = bq.b.getPosition(),
+						dx = p.x - q.x,
+						dy = p.y - q.y,
+						d = Math.hypot(dx, dy);
+					if (d > this.TNTR) return;
+					const k = 1 - d / this.TNTR,
+						l = d || 1,
+						v = bq.b.getLinearVelocity();
+					bq.b.setLinearVelocity(V(v.x * 0.3 + (dx / l) * this.TNTV * k, v.y * 0.3 + (dy / l) * this.TNTV * k + 3 * k));
+					if (o.isMe) W.shake = 0.6;
+				});
 			});
 			burst(W.sc, q.x, q.y, 1.4, {
 				n: 30,
@@ -2798,24 +2935,21 @@ Object.assign(MG, {
 			});
 			if (W.split || W.list.some((o) => o.isMe)) sfx("cannon");
 		},
-		score(W, e) {
-			const p = e.b.getPosition(),
+		/* a ball lands in a slot: its value, x3 if the sign is under it, x2 per gate it went through */
+		score(W, e, q) {
+			const p = q.b.getPosition(),
 				k = Math.max(0, Math.min(this.COLS - 1, Math.floor((p.x + this.HW) / this.SW))),
 				x3 = k === this.mslot(W.t),
-				g2 = 2 ** (e.gx || []).length,
+				g2 = 2 ** q.gx.length,
 				v = this.VAL[k] * (x3 ? 3 : 1) * g2;
+			q.done = true;
 			e.sc += v;
-			e.st = 2;
-			e.scT = W.t;
-			e.dn++;
-			e.lt[e.rr] = Math.round(W.t * 100) / 100;
-			e.f.lt = e.lt.slice();
 			e.f.ls = [e.f.ls[0] + 1, k, x3 ? 1 : 0];
-			fb(W, e, `+${v}`, { tone: v >= 300 ? "good" : v <= 50 ? "bad" : "" });
+			fb(W, e, `+${v}`, { tone: v >= 300 ? "good" : v <= 50 ? "bad" : "", at: [p.x, p.y + 1.6, 0] });
 			if (x3) fb(W, e, "×3!", { stamp: true });
 			mgLog(
 				W,
-				`${mgName(e)} round ${e.dn}: slot ${k} ${this.VAL[k]}${x3 ? " x3" : ""}${g2 > 1 ? " x" + g2 : ""} = ${v}, total ${e.sc}`,
+				`${mgName(e)} round ${e.rr + 1}: slot ${k} ${this.VAL[k]}${x3 ? " x3" : ""}${g2 > 1 ? " x" + g2 : ""} = ${v}, total ${e.sc}`,
 			);
 			if (e.isMe) sfx(x3 || v >= 500 ? "fanfare" : v <= 50 ? "loss" : "coin");
 		},
@@ -2870,7 +3004,7 @@ Object.assign(MG, {
 			/* the whole board while everyone aims (and on the ready screen) and once you're done; the zoom in to your ball
 			   starts just before the drop */
 			if (e.st === 3 || W.t < this.sched(W).D - 0.7) return this.tvsCam(W, asp, 0, b, true);
-			const [cx, cy] = this.ctr(e),
+			const [cx, cy] = e.cf || this.ctr(e),
 				D = asp < 1 ? 34 : 30,
 				hw = D * tn * asp,
 				hh = D * tn,
@@ -2901,6 +3035,10 @@ Object.assign(MG, {
 					fl = W.list.filter((o) => !o.gone && (o.local ? o.st : o.f && o.f.st) === 1);
 				if (fl.length && W.t > S.D - 0.3) {
 					const ys = fl.map((o) => o.y);
+					fl.forEach((o) => {
+						const c2 = o.f && o.f.c2;
+						if (c2) ys.push(c2[1]);
+					});
 					let lo = Math.max(y0, Math.min(...ys) - 7),
 						hi = Math.min(y1, Math.max(...ys) + 4.5);
 					if (hi - lo < this.FOLLOWH) {
@@ -2973,6 +3111,44 @@ Object.assign(MG, {
 					size: 0.6,
 				});
 				if (W.split || e.isMe) sfx("click");
+			}
+			/* the copy from a split gate: a second truck in a second ball, drawn from e.f.c2 */
+			{
+				const c2 = f.c2;
+				if (c2 && !e.tr2) {
+					e.g2 = new THREE.Group();
+					e.tr2 = buildTruck(e.p.truck, "springs");
+					e.tr2.scale.setScalar(0.8);
+					e.tr2.rotation.order = "YXZ";
+					e.g2.add(e.tr2);
+					e.g2.scale.setScalar(this.TS);
+					W.sc.add(e.g2);
+				}
+				const b2 = c2 ? this.ball(W, e, "ball2") : e.ball2;
+				if (e.g2) e.g2.visible = !!c2 && !e.gone;
+				if (b2) b2.g.visible = !!c2 && !e.gone;
+				if (c2 && !e.gone) {
+					const [x, y, an, tt] = c2;
+					e.tr2.rotation.set(0, e.yaw, tt * e.fc);
+					e.g2.position.set(x + this.WB * Math.sin(tt), y - this.WB * Math.cos(tt), 0);
+					b2.g.position.set(x, y, 0);
+					b2.spin.rotation.z = an;
+				}
+			}
+			if (f.sg && f.sg[0] !== (e.sgSeen || 0)) {
+				e.sgSeen = f.sg[0];
+				const g = W.splitM[f.sg[1]],
+					q = W.splits[f.sg[1]];
+				if (g) g.fl = W.t;
+				if (q)
+					burst(W.sc, q.x, q.y, 1.4, {
+						n: 12,
+						shape: "ico",
+						cols: ["#FF8CC8", "#FFB3D9", "#FFFFFF"],
+						spd: 3.5,
+						up: 2,
+						life: 0.6,
+					});
 			}
 			/* through a x2 gate: it flashes */
 			if (f.gt && f.gt[0] !== (e.gtSeen || 0)) {
@@ -3076,8 +3252,8 @@ Object.assign(MG, {
 		},
 		/* a truck's plastic ball: a faceted clear shell tinted in its colour, two seams in its colour that show the spin,
 		   a shine that stays put */
-		ball(W, e) {
-			if (e.ball) return e.ball;
+		ball(W, e, key = "ball") {
+			if (e[key]) return e[key];
 			const g = new THREE.Group(),
 				spin = new THREE.Group(),
 				col = new THREE.Color(pcol(e.p)),
@@ -3115,7 +3291,7 @@ Object.assign(MG, {
 			sh.renderOrder = 3;
 			g.add(shell, spin, sh);
 			W.sc.add(g);
-			return (e.ball = { g, spin });
+			return (e[key] = { g, spin });
 		},
 		/* once a frame: chasing bulbs, flippers, gates, the x3 sign and its glowing slot, peg flashes, slot flashes */
 		scene(W, dt) {
@@ -3178,12 +3354,12 @@ Object.assign(MG, {
 						});
 				}
 			}
-			W.gateM.forEach((g) => {
+			W.gateM.concat(W.splitM).forEach((g) => {
 				const k = W.t >= g.fl ? Math.max(0, 1 - (W.t - g.fl) / 0.6) : 0,
 					w = Math.sin(Math.max(0, W.t) * 4);
 				g.m.opacity = 0.5 + 0.12 * w + k * 0.4;
 				g.hm.opacity = 0.5 + 0.15 * w + k * 0.35;
-				g.m.color.set(k > 0.5 ? "#E8FFF2" : "#8CFFC0");
+				g.m.color.set(k > 0.5 ? "#FFFFFF" : g.col || "#8CFFC0");
 			});
 			const mp = this.mpos(W.t),
 				ms = Math.round(mp);
@@ -3242,7 +3418,12 @@ Object.assign(MG, {
 			}
 			const dx = tx - p.x;
 			e.tl = dx > 0.5 ? -1 : dx < -0.5 ? 1 : 0;
-			if (p.y > this.SH + 0.6 && W.t - e.lastTouch < 0.2 && (e.stk > 0.4 || Math.random() < 0.08 * e.sk)) e.hopQ = W.t;
+			if (
+				p.y > this.SH + 0.6 &&
+				W.t - e.lastTouch < 0.2 &&
+				((e.balls[0] && e.balls[0].stk) > 0.4 || Math.random() < 0.08 * e.sk)
+			)
+				e.hopQ = W.t;
 			return null;
 		},
 		watchSum: (W) =>
