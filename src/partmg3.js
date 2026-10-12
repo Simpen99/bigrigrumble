@@ -1854,7 +1854,7 @@ Object.assign(MG, {
 		/* rounds: everyone aims for AIMT s (the first round AIM0 s after GO), then all drop at once; a round ends BETWEEN s
 		   after the last ball lands, or ROUNDT s after the drop at the latest */
 		AIM0: 4,
-		ROUNDT: 20,
+		ROUNDT: 25,
 		BETWEEN: 1.6,
 		/* feel: gravity, peg bounce, ball friction (low: it glides), steering push (m/s²), hop speed and cooldown, magnet
 		   speed, how long a ball may hang before it drops by itself */
@@ -2890,10 +2890,13 @@ Object.assign(MG, {
 				dy = p.y - q.y,
 				l = Math.hypot(dx, dy) || 1;
 			bb.setLinearVelocity(window.planck.Vec2((dx / l) * this.BUMPV, (dy / l) * this.BUMPV + 1));
-			e.sc += this.BUMPPTS;
-			fb(W, e, "+" + this.BUMPPTS, { tone: "good", at: [p.x, p.y + 1.6, 0] });
+			/* x2 per gate this ball went through */
+			const q2 = (e.balls || []).find((o) => o.b === bb),
+				m = 2 ** ((q2 && q2.gx.length) || 0);
+			e.sc += this.BUMPPTS * m;
+			fb(W, e, "+" + this.BUMPPTS + (m > 1 ? " ×" + m : ""), { tone: "good", at: [p.x, p.y + 1.6, 0] });
 			e.f.bp = [e.f.bp[0] + 1, i];
-			mgLog(W, mgName(e) + " hits bumper " + i + " (+" + this.BUMPPTS + ")");
+			mgLog(W, mgName(e) + " hits bumper " + i + " (+" + this.BUMPPTS * m + ")");
 		},
 		tntHit(W, e, i) {
 			const q = this.tntNow(W);
@@ -3201,6 +3204,26 @@ Object.assign(MG, {
 				if (q) this.boom(W, q);
 			}
 			if (e.isMe && !W.split && !W.tv) this.bar(W, e);
+			/* the last 5 s before a falling ball counts as stuck: a small red countdown over it (TV: every truck, phone: yours) */
+			{
+				const S = this.sched(W),
+					left = S.D + this.ROUNDT - W.t,
+					show = st === 1 && S.E === null && left > 0 && left <= 5 && (W.split || e.isMe);
+				if (show) {
+					if (!e.tpill) {
+						e.tpill = pillSprite();
+						W.sc.add(e.tpill.sp);
+					}
+					const [x, y] = (e.local && e.cf) || [e.x, e.y],
+						cam = (typeof TVS !== "undefined" && TVS && TVS.scam) || W.cam,
+						sp = e.tpill.sp;
+					e.tpill.set(String(Math.ceil(left)), "#E5484D");
+					sp.position.set(x, y + this.R + 0.9, 1.5);
+					const h = cam.position.distanceTo(sp.position) * 0.028;
+					sp.scale.set(h * 3, h, 1);
+				}
+				if (e.tpill) e.tpill.sp.visible = !!show;
+			}
 			/* the hop: the ball pops (squash and stretch), the truck's wheels kick inside, a puff under it */
 			if ((f.hp || 0) !== (e.hpSeen || 0)) {
 				e.hpSeen = f.hp || 0;
