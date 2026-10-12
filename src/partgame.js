@@ -1386,14 +1386,22 @@ const vsLabel = (tm) => {
 function startMinigame(duel, forceG, split) {
 	let g;
 	if (forceG) g = forceG;
-	else if (duel) g = DUEL_POOL[rnd(DUEL_POOL.length)];
-	else {
+	else if (duel) {
+		const dp = DUEL_POOL.filter((k) => !(HG.mgOff || []).includes(k));
+		g = (dp.length ? dp : DUEL_POOL)[rnd((dp.length ? dp : DUEL_POOL).length)];
+	} else {
 		HG.used = HG.used || [];
-		/* never the same game twice in a row: with a small team pool that falls back to free-for-all */
-		const pick = (mode) => Object.keys(MG).filter((k) => (MG[k].team || null) === mode && k !== HG.lastMg);
+		/* only games left on in the lobby (HG.mgOff = the ones left out); never the same game twice in a row unless it's the
+		   only one; an empty team pool falls back to free-for-all */
+		const off = HG.mgOff || [],
+			pick = (mode) => {
+				const L = Object.keys(MG).filter((k) => (MG[k].team || null) === mode && !off.includes(k));
+				return L.length > 1 ? L.filter((k) => k !== HG.lastMg) : L;
+			};
 		split = spaceSplit();
 		if (split && !pick(split.mode).length) split = null;
-		const all = pick(split ? split.mode : null);
+		let all = pick(split ? split.mode : null);
+		if (!all.length) all = Object.keys(MG).filter((k) => !MG[k].team);
 		let pool = all.filter((k) => !HG.used.includes(k));
 		if (!pool.length) {
 			HG.used = HG.used.filter((k) => !all.includes(k));
