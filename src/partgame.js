@@ -1415,7 +1415,9 @@ function startMinigame(duel, forceG, split) {
 	}
 	if (forceG && !split && MG[g].team) split = forcedSplit(g);
 	let simDev = "host";
-	const tvg = !HG.tv ? 0 : tvPlayable(g) ? 1 : "split";
+	/* with linked big screens every minigame runs one world per player, each on the screen its player plays on */
+	const hubs = HG.tv && HG.players.some((q) => !q.bot && q.hub),
+		tvg = !HG.tv ? 0 : tvPlayable(g) && !hubs ? 1 : "split";
 	if (tvg === 1) {
 	} else if (duel) {
 		const ps = duel.map(pByKey);
@@ -1424,7 +1426,9 @@ function startMinigame(duel, forceG, split) {
 			if (h) simDev = h.key;
 		}
 	} else if (HG.tv) {
-		const h = HG.players.find((q) => !q.bot && online(q.key));
+		/* the CPUs run in one player's world: preferably one on the host's own screen */
+		const h =
+			HG.players.find((q) => !q.bot && !q.hub && online(q.key)) || HG.players.find((q) => !q.bot && online(q.key));
 		if (h) simDev = h.key;
 	}
 	HG.phase = "minigame";
@@ -1729,7 +1733,7 @@ const lavaHint = () => (MAP.lava ? `<p class="panhint">${lavaChip(G.round)} ${es
 function panelHTML() {
 	const c = G.players[G.turn],
 		mine = G.players.filter(ctrl);
-	if (role === "host" && G.tv) return tvPanelHTML();
+	if (tvView()) return tvPanelHTML();
 	if (!mine.length) return `<div class="pan"><p>You're watching this game.</p></div>`;
 	if (G.phase === "turn" && c && G.hold && !G.intro)
 		return `<div class="pan"><p>${MAP.rival ? "🧲 Magnet Mike is watching…" : "🌋 Lava news…"} ${esc(c.name)} is up next.</p></div>`;

@@ -9,6 +9,9 @@
    - screens that never reach the results, page errors on any device
    node tools/tvtest.mjs sort                 2 phones + 1 CPU
    node tools/tvtest.mjs mash --phones 3 --cpu 1 --lag 80
+   --screen adds a linked big screen (another PC joining as a screen) and pairs the last phone to it; it reports
+   the minigame worlds each screen runs, how far apart the two screens draw the same truck, and whether the screen's
+   player gets a result
    --early stops after the first in-game screenshots; --ready only checks the ready screen (trucks under the intro card / ready panel) and stops; --no-shots skips
    the contact sheet; --probe "<js>" prints that expression, evaluated on the TV, once a second
    (e.g. --probe "TVS.worlds.map((s) => s.W.me.sc)"). */
@@ -45,7 +48,8 @@ const nPh = Math.max(1, +opt.phones || 2),
 const TV = await mk("TV", 0, { width: 960, height: 540 }, false),
 	PH = [];
 for (let i = 0; i < nPh; i++) PH.push(await mk("Phone" + (i + 1), (i * 3 + 2) % 12, { width: 844, height: 390 }, true));
-const devs = [["TV", TV], ...PH.map((d, i) => ["Phone" + (i + 1), d])];
+const SC = opt.screen ? await mk("Screen", 0, { width: 640, height: 360 }, false) : null;
+const devs = [["TV", TV], ...(SC ? [["Screen", SC]] : []), ...PH.map((d, i) => ["Phone" + (i + 1), d])];
 
 /* TV mode game, phones join by code, CPUs, straight into the minigame */
 const code = await TV.p.evaluate(() => {
@@ -53,16 +57,32 @@ const code = await TV.p.evaluate(() => {
 	return HG.code;
 });
 await wait(TV.p, () => NET.status === "hosting");
+if (SC) {
+	await SC.p.evaluate((c) => NET.join(c), code);
+	await wait(SC.p, () => gamesAvailable().length > 0);
+	await SC.p.evaluate(() => screenJoin(gamesAvailable()[0].id));
+}
 for (const d of PH) {
 	await d.p.evaluate((c) => NET.join(c), code);
 	await wait(d.p, () => gamesAvailable().length > 0);
-	await d.p.evaluate(() => clientJoin(gamesAvailable()[0].id));
+	await d.p.evaluate((h) => {
+		pendingHub = h;
+		clientJoin(gamesAvailable()[0].id);
+	}, SC && d === PH[PH.length - 1] ? "kScreen" : "");
 }
+if (SC) await wait(TV.p, () => HG.players.some((p) => p.hub === "kScreen"));
 await wait(TV.p, (n) => HG.players.length === n, nPh);
+/* --screen: the linked screen's lobby and board, saved as tv_<game>_screen_lobby / _board.png */
+if (SC && shots) {
+	await SC.p.waitForTimeout(1500);
+	save(`tv_${g}_screen_lobby.png`, await SC.p.screenshot());
+}
 await TV.p.evaluate(
 	({ n, g }) => {
-		for (let i = 0; i < n; i++) addCpu();
-		hostStart();
+		if (HG.phase === "lobby") {
+			for (let i = 0; i < n; i++) addCpu();
+			hostStart();
+		}
 		clearTimers();
 		HG.intro = false;
 		startMinigame(null, g);
@@ -257,6 +277,14 @@ if (opt.ready) {
 	process.exit(covered[0].length ? 1 : 0);
 }
 for (const d of PH) await d.p.click("#m3rb");
+/* --screen: which players each screen runs */
+const scKey = "kPhone" + PH.length;
+if (SC) {
+	await SC.p.waitForTimeout(1500);
+	const wl = async (p) => p.evaluate(() => (typeof TVS !== "undefined" && TVS ? TVS.worlds.map((s) => s.k) : []));
+	console.log(`  worlds: TV runs ${JSON.stringify(await wl(TV.p))}, the screen runs ${JSON.stringify(await wl(SC.p))}`);
+}
+const scDrift = [];
 
 /* the TV side: every truck's spot on the TV and its size (truck length as a share of the view height) */
 const TVSAMPLE = () => {
@@ -323,6 +351,21 @@ while (Date.now() - t0 < 240000) {
 				process.exit(0);
 			}
 		}
+		/* --screen: the same truck as drawn on both screens (a TV player and the screen's player) */
+		if (SC && s.t > 1.5) {
+			const pos = (p) =>
+				p.evaluate(() => {
+					if (typeof TVS === "undefined" || !TVS) return null;
+					const o = {};
+					TVS.worlds[0].W.list.forEach((e) => (o[e.k] = [e.x, e.z, e.y || 0]));
+					return o;
+				});
+			const a = await pos(TV.p),
+				c = await pos(SC.p);
+			if (a && c)
+				for (const k in a)
+					if (c[k] && !k.startsWith("cpu")) scDrift.push([k, Math.hypot(a[k][0] - c[k][0], a[k][1] - c[k][1], a[k][2] - c[k][2])]);
+		}
 		if (!shotMid && s.t > s.dur / 2) {
 			shotMid = true;
 			for (let i = 0; i < PH.length; i++)
@@ -349,6 +392,10 @@ while (Date.now() - t0 < 240000) {
 const tvDone = lastT > 0 && (await TV.p.evaluate(() => HG.phase)) !== "minigame";
 await TV.p.waitForTimeout(600);
 await shoot("4results");
+if (SC && shots) {
+	await SC.p.waitForTimeout(6000);
+	save(`tv_${g}_screen_board.png`, await SC.p.screenshot());
+}
 const res = await TV.p.evaluate(() =>
 	[...document.querySelectorAll(".reslist li")].map((l) => l.innerText.replace(/\s+/g, " ").trim()),
 );
@@ -359,6 +406,19 @@ const issues = [],
 	pct = (v) => (v * 100).toFixed(1) + "%",
 	med = (a) => (a.length ? a.slice().sort((x, y) => x - y)[Math.floor(a.length / 2)] : 0);
 if (!tvDone) issues.push(`the TV never finished the minigame (game time ${lastT.toFixed(1)} s)`);
+if (SC) {
+	const got = await TV.p.evaluate((k) => (HG.mg && HG.mg.res && k in HG.mg.res) || (HG.phase !== "minigame" && !!HG.mg), scKey),
+		byK = {};
+	scDrift.forEach(([k, d]) => (byK[k] = byK[k] || []).push(d));
+	console.log("\nthe same truck on the TV and on the linked screen:");
+	for (const k in byK) {
+		const L = byK[k].sort((x, y) => x - y);
+		console.log(`  ${k.padEnd(10)} apart by ${L[Math.floor(L.length / 2)].toFixed(2)} m (median), worst ${L[L.length - 1].toFixed(2)} m`);
+	}
+	if (!got) issues.push("the linked screen's player got no result on the host");
+	if ((await SC.p.evaluate(() => (G ? G.phase : "no game"))) === "minigame" && tvDone)
+		issues.push("the linked screen is still in the minigame after the TV finished it");
+}
 covered[0].forEach((c) => issues.push(`ready screen: ${c}`));
 for (let i = 0; i < PH.length; i++) {
 	const st = await PH[i].p.evaluate(() => (G ? G.phase : "no game"));

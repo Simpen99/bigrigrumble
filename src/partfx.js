@@ -1109,7 +1109,7 @@ function musScene(v) {
 		v === "game" &&
 		G &&
 		!G.practice &&
-		!(G.tv && role === "client") &&
+		!(G.tv && role === "client" && !SCREEN) &&
 		!W &&
 		!mgOpen &&
 		!mgBusy &&
