@@ -801,7 +801,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-12 20:36 b29f699";
+const BUILD = "2026-10-12 21:56 3b62fcf";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -9769,8 +9769,20 @@ function clearTimers() {
 	timers.forEach(clearTimeout);
 	timers.clear();
 }
+/* clock sync: the host's clock minus this device's (Date.now), from the host's timestamps (HG.clk, presence clk): the
+   largest of the recent samples, since a message can arrive late but never early. Devices' clocks can be seconds apart,
+   and minigames start at a time on the host's clock (hostTime converts it to this device's) */
+const CLK = { off: 0, s: [] };
+function clkSample(v) {
+	if (typeof v !== "number" || !isFinite(v)) return;
+	CLK.s.push(v - Date.now());
+	if (CLK.s.length > 40) CLK.s.shift();
+	CLK.off = Math.max(...CLK.s);
+}
+const hostTime = (t) => t - (role === "host" ? 0 : CLK.off);
 function push() {
 	HG.v++;
+	HG.clk = Date.now();
 	G = HG;
 	if (!HG.practice) {
 		LS.set("trp_host", HG);
@@ -10021,6 +10033,10 @@ function clientOnPeers() {
 	for (const p of peers) {
 		const g = p.presence && p.presence.game;
 		if (g && g.id === joinId && (!best || g.v > best.v)) best = g;
+		if (g && g.id === joinId) {
+			clkSample(g.clk);
+			clkSample(p.presence.clk);
+		}
 	}
 	if (best) {
 		G = best;
@@ -12200,6 +12216,8 @@ function hostPlayAgain() {
 function hostTick() {
 	if (!HG) return;
 	const now = Date.now();
+	/* the host's clock, for the other devices' clock sync (clkSample) */
+	if (!HG.practice) setPresence({ clk: now });
 	const idle = (p, fn) => {
 		if (!p) return;
 		if (p.bot || online(p.key)) {
@@ -13877,7 +13895,7 @@ function teamLine(mg, p, def) {
 }
 function syncStart() {
 	if (!W || W.startAt || W.localOnly || !G || !G.mg || G.mg.nonce !== W.mg.nonce || !G.mg.t0) return;
-	let s = G.mg.t0;
+	let s = hostTime(G.mg.t0);
 	const now = Date.now();
 	if (s < now - W.def.dur * 500 || s > now + 15000) s = now + 4000;
 	W.startAt = s;
@@ -15658,7 +15676,7 @@ function tvcTick() {
 		} catch (e) {}
 	}
 	const t0 = G.mg.t0,
-		t = t0 ? (Date.now() - t0) / 1000 : null,
+		t = t0 ? (Date.now() - hostTime(t0)) / 1000 : null,
 		def = TVC.def,
 		set = (id, v) => {
 			const n = document.getElementById(id);

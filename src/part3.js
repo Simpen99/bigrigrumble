@@ -57,8 +57,20 @@ function clearTimers() {
 	timers.forEach(clearTimeout);
 	timers.clear();
 }
+/* clock sync: the host's clock minus this device's (Date.now), from the host's timestamps (HG.clk, presence clk): the
+   largest of the recent samples, since a message can arrive late but never early. Devices' clocks can be seconds apart,
+   and minigames start at a time on the host's clock (hostTime converts it to this device's) */
+const CLK = { off: 0, s: [] };
+function clkSample(v) {
+	if (typeof v !== "number" || !isFinite(v)) return;
+	CLK.s.push(v - Date.now());
+	if (CLK.s.length > 40) CLK.s.shift();
+	CLK.off = Math.max(...CLK.s);
+}
+const hostTime = (t) => t - (role === "host" ? 0 : CLK.off);
 function push() {
 	HG.v++;
+	HG.clk = Date.now();
 	G = HG;
 	if (!HG.practice) {
 		LS.set("trp_host", HG);
@@ -309,6 +321,10 @@ function clientOnPeers() {
 	for (const p of peers) {
 		const g = p.presence && p.presence.game;
 		if (g && g.id === joinId && (!best || g.v > best.v)) best = g;
+		if (g && g.id === joinId) {
+			clkSample(g.clk);
+			clkSample(p.presence.clk);
+		}
 	}
 	if (best) {
 		G = best;

@@ -1165,7 +1165,7 @@ function teamLine(mg, p, def) {
 }
 function syncStart() {
 	if (!W || W.startAt || W.localOnly || !G || !G.mg || G.mg.nonce !== W.mg.nonce || !G.mg.t0) return;
-	let s = G.mg.t0;
+	let s = hostTime(G.mg.t0);
 	const now = Date.now();
 	if (s < now - W.def.dur * 500 || s > now + 15000) s = now + 4000;
 	W.startAt = s;
@@ -2946,7 +2946,7 @@ function tvcTick() {
 		} catch (e) {}
 	}
 	const t0 = G.mg.t0,
-		t = t0 ? (Date.now() - t0) / 1000 : null,
+		t = t0 ? (Date.now() - hostTime(t0)) / 1000 : null,
 		def = TVC.def,
 		set = (id, v) => {
 			const n = document.getElementById(id);
