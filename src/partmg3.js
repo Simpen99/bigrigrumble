@@ -3032,7 +3032,12 @@ Object.assign(MG, {
 				y1 = this.HDR + 1;
 			if (!narrow) {
 				const S = this.sched(W),
-					fl = W.list.filter((o) => !o.gone && (o.local ? o.st : o.f && o.f.st) === 1);
+					fl = W.list.filter((o) => {
+						/* still falling, or landed less than 2 s ago (its score pops up) */
+						const st = o.local ? o.st : o.f && o.f.st,
+							lt = (o.local ? o.lt : o.f && o.f.lt) || [];
+						return !o.gone && (st === 1 || (st === 2 && W.t - (lt[S.r] ?? -9) < 2));
+					});
 				if (fl.length && W.t > S.D - 0.3) {
 					const ys = fl.map((o) => o.y);
 					fl.forEach((o) => {
