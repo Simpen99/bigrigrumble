@@ -120,7 +120,9 @@ let samples = 0,
 	lastT = 0,
 	unseen = new Set(),
 	extraRun = 0;
-while (Date.now() - t0 < 240000) {
+/* at least 4 minutes, longer for long games (the game's dur + 60 s) */
+const cap = Math.max(240000, ((await H.p.evaluate(() => (HG.mg && MG[HG.mg.g] ? MG[HG.mg.g].dur : 0))) + 60) * 1000);
+while (Date.now() - t0 < cap) {
 	const [h, p] = await Promise.all([H.p.evaluate(snap), P.p.evaluate(snap)]);
 	/* shared events: mgLog "sends KEY" on one device and "got KEY" on the other give the delivery time */
 	for (const [d, s] of [

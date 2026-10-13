@@ -25,7 +25,7 @@ for (const g of ids) {
 		/* keep merged scenery's originals so mergeReport can list any the game still moves */
 		await p.evaluate(() => (MERGE_TEST = {}));
 		await startMinigame(p, g);
-		await p.waitForFunction(() => !W || W.over, null, { timeout: 240000, polling: 500 });
+		await p.waitForFunction(() => !W || W.over, null, { timeout: Math.max(240000, ((await p.evaluate(() => (W && W.def.dur) || 0)) + 60) * 1000), polling: 500 });
 		moved = await p.evaluate(() => (typeof mergeReport === "function" ? mergeReport() : []));
 	} catch (e) {
 		res = "did not finish: " + e.message.split("\n")[0];
