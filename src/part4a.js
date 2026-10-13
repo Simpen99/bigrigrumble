@@ -1033,6 +1033,17 @@ function stepMG(dt) {
 	}
 	cam.lookAt(GFX.mgCam.t);
 	cam.updateMatrixWorld();
+	/* W.camShift = [x, y] (shares of the screen) moves the picture without turning the camera, e.g. to frame something
+	   straight on beside a panel (Plinko Sabotage's planning); eased like the camera */
+	if (!W.split && !W.tv && (W.camShift || W.csNow)) {
+		const cs = W.camShift || [0, 0],
+			c0 = W.csNow || [0, 0];
+		W.csNow = [c0[0] + (cs[0] - c0[0]) * k, c0[1] + (cs[1] - c0[1]) * k];
+		if (!W.camShift && Math.abs(W.csNow[0]) + Math.abs(W.csNow[1]) < 0.002) W.csNow = null;
+		const c1 = W.csNow || [0, 0];
+		cam.setViewOffset(GFX.w, GFX.h, c1[0] * GFX.w, c1[1] * GFX.h, GFX.w, GFX.h);
+		cam.updateProjectionMatrix();
+	}
 	const so = W.def.sun || [14, 26, 12];
 	W.sun.position.set(GFX.mgCam.t.x + so[0], so[1], GFX.mgCam.t.z + so[2]);
 	W.sun.target.position.copy(GFX.mgCam.t);
@@ -1863,6 +1874,49 @@ function wireSlide(pad, get, flick, mark) {
 	});
 	["pointerup", "pointercancel"].forEach((ev) => pad.addEventListener(ev, (e) => st.delete(e.pointerId)));
 }
+/* trackpad on a TV controller (def.pad = the selector of a pad in ctlHTML, e.g. Plinko Sabotage's planning): the
+   finger's spot on the pad sets inp.x / inp.y (-1 .. 1 across and from the top down, absolute, not a stick) and a dot
+   follows it; lifting the finger calls lift(). Delegated from the controls' wrapper, since the mirror updates the pad */
+function wirePad(wrap, sel, get, lift) {
+	const dot = document.createElement("i");
+	dot.className = "paddot";
+	dot.hidden = true;
+	wrap.parentNode.appendChild(dot);
+	let pid = null;
+	const at = (e) => {
+		const pad = wrap.querySelector(sel),
+			i = get();
+		if (!pad || !i) return;
+		const r = pad.getBoundingClientRect(),
+			u = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)),
+			v = Math.max(0, Math.min(1, (e.clientY - r.top) / r.height));
+		i.x = u * 2 - 1;
+		i.y = v * 2 - 1;
+		dot.hidden = false;
+		dot.style.left = r.left + u * r.width + "px";
+		dot.style.top = r.top + v * r.height + "px";
+	};
+	wrap.addEventListener("pointerdown", (e) => {
+		if (pid !== null || !e.target.closest || !e.target.closest(sel)) return;
+		e.preventDefault();
+		pid = e.pointerId;
+		try {
+			e.target.setPointerCapture(pid);
+		} catch (er) {}
+		at(e);
+	});
+	wrap.addEventListener("pointermove", (e) => {
+		if (e.pointerId === pid) at(e);
+	});
+	const up = (e) => {
+		if (e.pointerId !== pid) return;
+		pid = null;
+		dot.hidden = true;
+		if (e.type === "pointerup") lift();
+	};
+	wrap.addEventListener("pointerup", up);
+	wrap.addEventListener("pointercancel", up);
+}
 function wireStick(get, padSel = "#m3pad", knobSel = "#knob", kx = "x", ky = "y", onChange) {
 	const pad = $(padSel),
 		knob = $(knobSel);
@@ -2267,7 +2321,13 @@ function hud3(dt) {
 		}
 		c.textContent = tx;
 	}
-	$("#m3t").textContent = !W.startAt ? "Waiting" : t < 0 ? "Get ready" : `${Math.max(0, Math.ceil(def.dur - t))} s`;
+	$("#m3t").textContent = !W.startAt
+		? "Waiting"
+		: t < 0
+			? "Get ready"
+			: def.clock
+				? def.clock(W)
+				: `${Math.max(0, Math.ceil(def.dur - t))} s`;
 	if (!W.tv)
 		$("#m3s").textContent =
 			W.me.d && W.myFinal !== undefined
@@ -2642,7 +2702,7 @@ function tvRecv() {
 		let x = +r.x || 0,
 			y = +r.y || 0;
 		const l = Math.hypot(x, y);
-		if (l > 1) {
+		if (l > 1 && !TVS.def.pad) {
 			x /= l;
 			y /= l;
 		}
@@ -2808,7 +2868,31 @@ function openTvCtl(mg, p) {
 				$("#slmark"),
 			);
 		else if (def.swipe) wireSwipe(def, send);
-		else
+		else {
+			/* a game's own view on the controller (Plinko Sabotage: a camera on your target's board), else a trackpad */
+			if (def.tvcOpen)
+				TVC.close = def.tvcOpen({
+					wrap,
+					col: pcol(p),
+					put(x, y) {
+						if (!TVC) return;
+						TVC.inp.x = x;
+						TVC.inp.y = y;
+						TVC.b++;
+						tvcTick();
+					},
+				});
+			else if (def.pad)
+				wirePad(
+					wrap,
+					def.pad,
+					() => TVC && TVC.inp,
+					() => {
+						if (!TVC) return;
+						TVC.b++;
+						tvcTick();
+					},
+				);
 			wrap.addEventListener("pointerdown", (e) => {
 				const b = e.target.closest("button");
 				if (!b || !wrap.contains(b)) return;
@@ -2819,6 +2903,7 @@ function openTvCtl(mg, p) {
 				TVC.inp.hold = true;
 				send(idx, 1);
 			});
+		}
 		TVC.up = (e) => {
 			if (!downs.has(e.pointerId)) return;
 			const idx = downs.get(e.pointerId);
@@ -2905,6 +2990,10 @@ function tvcStop() {
 	} catch (e) {}
 	if (!TVC) return;
 	clearInterval(TVC.iv);
+	if (TVC.close)
+		try {
+			TVC.close();
+		} catch (e) {}
 	if (TVC.up) {
 		removeEventListener("pointerup", TVC.up);
 		removeEventListener("pointercancel", TVC.up);

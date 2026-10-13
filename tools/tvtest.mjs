@@ -192,8 +192,33 @@ const PHONE = () => {
 				sl.dispatchEvent(ev("pointermove", y));
 			}
 		} else if (Math.random() < 0.35) {
-			const pad = document.querySelector("#swpad");
-			if (pad) {
+			const pad = document.querySelector("#swpad"),
+				tp = TVC && TVC.def.pad && document.querySelector("#tvcctl " + TVC.def.pad),
+				tr = tp && tp.getBoundingClientRect();
+			/* a pad (def.pad, e.g. Plinko Sabotage's planning view): swipes and taps at random spots; READY only now and then */
+			if (tr && tr.width && Math.random() < 0.7) {
+				const ev = (type, px, py) => new PointerEvent(type, { bubbles: true, pointerId: 9, clientX: px, clientY: py }),
+					rx = () => tr.left + Math.random() * tr.width,
+					ry = () => tr.top + Math.random() * tr.height,
+					x = rx(),
+					y = ry();
+				/* half swipes (move away), half taps (lift where it went down) */
+				const swipe = Math.random() < 0.5,
+					x2 = swipe ? (x + rx()) / 2 : x,
+					y2 = swipe ? (y + ry()) / 2 : y;
+				tp.dispatchEvent(ev("pointerdown", x, y));
+				tp.dispatchEvent(ev("pointermove", x2, y2));
+				setTimeout(() => tp.dispatchEvent(ev("pointerup", x2, y2)), 200);
+			} else if (tr && tr.width) {
+				const bs = [...document.querySelectorAll("#tvcctl button")].filter(
+					(b) => b.getBoundingClientRect().width && (!/done/.test(b.className) || Math.random() < 0.03),
+				);
+				const bt = bs[Math.floor(Math.random() * bs.length)];
+				if (bt) {
+					bt.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, cancelable: true, pointerId: 8 }));
+					setTimeout(() => dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId: 8 })), 90);
+				}
+			} else if (pad) {
 				const r = pad.getBoundingClientRect(),
 					x = r.left + r.width / 2,
 					y = r.top + r.height / 2,
@@ -320,11 +345,14 @@ const sigs = PH.map(() => ({ first: null, extra: new Set(), gone: new Set() })),
 let lastProbe = -1,
 	shotStart = false,
 	shotMid = false,
-	lastT = 0;
-while (Date.now() - t0 < 240000) {
+	lastT = 0,
+	cap = 240000;
+/* at least 4 minutes, longer for long games (the game's dur + 45 s) */
+while (Date.now() - t0 < cap) {
 	const s = await TV.p.evaluate(TVSAMPLE);
 	if (s) {
 		lastT = s.t;
+		cap = Math.max(cap, (s.dur + 45) * 1000);
 		s.out.forEach((o) => {
 			const f = frame[o.n] || (frame[o.n] = { n: 0, off: 0, offAt: [], sz: [] });
 			f.n++;
@@ -440,11 +468,13 @@ if (SC) {
 		issues.push("the linked screen is still in the minigame after the TV finished it");
 }
 covered[0].forEach((c) => issues.push(`ready screen: ${c}`));
+/* games whose controls switch layout on purpose (def.ctlPhases, e.g. Plinko Sabotage: planning / playing) */
+const ctlPhases = await TV.p.evaluate((g) => !!(MG[g] && MG[g].ctlPhases), g);
 for (let i = 0; i < PH.length; i++) {
 	const st = await PH[i].p.evaluate(() => (G ? G.phase : "no game"));
 	if (tvDone && st === "minigame") issues.push(`Phone${i + 1} is still in the minigame after the TV finished it`);
 	const S = sigs[i];
-	if (S.extra.size || S.gone.size)
+	if ((S.extra.size || S.gone.size) && !ctlPhases)
 		issues.push(
 			`Phone${i + 1}: the controller layout changed during the game${S.gone.size ? `; gone: ${[...S.gone].slice(0, 6).join(" ")}` : ""}${S.extra.size ? `; new: ${[...S.extra].slice(0, 6).join(" ")}` : ""}`,
 		);

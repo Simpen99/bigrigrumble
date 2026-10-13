@@ -519,27 +519,39 @@ body.ctl .btn{min-height:58px;font-size:18px}
 .sbctl .rjctl{pointer-events:auto}
 .sbctl[data-ph=plan] .rjctl{display:none}
 .sbctl[data-ph=play] .sbplan{display:none}
-.sbplan{position:absolute;inset:0;z-index:30;pointer-events:auto;background:#151B24;display:flex;flex-direction:column;gap:8px;padding:calc(env(safe-area-inset-top,0px) + 8px) 10px calc(env(safe-area-inset-bottom,0px) + 8px)}
+.sbplan{position:absolute;inset:0;z-index:30;pointer-events:none}
+.sbpad{position:absolute;left:0;right:0;top:calc(env(safe-area-inset-top,0px) + 50px);bottom:0;pointer-events:auto;touch-action:none;-webkit-user-select:none;user-select:none}
+.sbhint{position:absolute;left:50%;top:6px;transform:translateX(-50%);background:rgba(21,27,36,.82);color:#fff;border-radius:999px;padding:6px 12px;font:700 12px Rubik,Arial,sans-serif;white-space:nowrap;pointer-events:none}
+.sbhint.tv{display:none}
+.sbctl[data-used] .sbhint{display:none}
+.sbbot{position:absolute;left:8px;right:8px;bottom:calc(env(safe-area-inset-bottom,0px) + 8px);pointer-events:auto;display:flex;flex-direction:column;gap:6px;background:rgba(21,27,36,.88);border-radius:14px;padding:8px}
 .sbtop{display:flex;align-items:center;gap:8px;color:#fff;font-family:var(--display);font-size:15px}
 .sbtgt{flex:1;color:#FFC83D;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.sbcoin,.sbtime{background:#2A3550;border-radius:8px;padding:4px 8px}
+.sbcoin,.sbtime{background:#2A3550;border-radius:8px;padding:4px 8px;transition:background .15s}
 .sbcoin::before{content:"🪙 "}
-.sbdone{border:3px solid #151B24;border-radius:12px;background:#1FA35C;color:#fff;font-family:var(--display);font-size:16px;padding:8px 14px;min-height:44px}
-.sbmain{flex:1;min-height:0;display:flex;flex-direction:column-reverse;gap:8px}
+.sbcoin.no,.sbtime.low{background:#E5484D}
 .sbtray{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
 .sbt{border:2.5px solid #151B24;border-radius:10px;background:var(--bc);color:#fff;min-height:44px;padding:3px 2px;display:flex;flex-direction:column;align-items:center;justify-content:center;font:800 10px/1.1 Rubik,Arial,sans-serif}
 .sbt i{font-style:normal;font-size:18px;line-height:1}
 .sbt em{font-style:normal;opacity:.85}
 .sbt.on{outline:3px solid #fff;outline-offset:1px}
 .sbt.off{opacity:.35}
-.sbwrap{flex:1;min-height:0;display:flex;justify-content:center}
-.sbboard{position:relative;width:100%;height:auto;max-height:100%;aspect-ratio:17/24;align-self:center;background:#1B2A4F;border:3px solid #E5484D;border-radius:10px}
-.sbp{position:absolute;width:7px;height:7px;margin:-3.5px 0 0 -3.5px;border-radius:50%;background:#FFC83D;pointer-events:none}
-.sbg{position:absolute;height:34px;margin-top:-17px;border:2px dashed rgba(255,255,255,.3);border-radius:8px;background:transparent;color:#fff;font:900 15px Arial,sans-serif;padding:0}
-.sbg.on{border:2px solid #151B24;background:var(--bc)}
-.sbs{position:absolute;bottom:3px;transform:translateX(-50%);font:800 10px Rubik,Arial,sans-serif;color:#fff;pointer-events:none}
-.sbwrap{align-items:center}
-@media (orientation:landscape){.sbmain{flex-direction:row}.sbboard{height:100%;width:auto;max-width:100%}.sbtray{width:44%;grid-template-columns:repeat(2,1fr);align-content:start}}
+.sbdone{border:2.5px solid #151B24;border-radius:10px;background:#1FA35C;color:#fff;font-family:var(--display);font-size:15px;min-height:44px;padding:3px 2px}
+.sbdone.on{background:#2A3550;color:#9AA3B2}
+@media (orientation:landscape){.sbbot{left:auto;top:calc(env(safe-area-inset-top,0px) + 56px);width:min(36%,320px)}.sbtop{flex-wrap:wrap;font-size:14px}.sbtgt{flex-basis:100%}.sbtray{flex:1;grid-template-columns:repeat(2,1fr);grid-auto-rows:1fr}}
+#mg:has(.sbctl[data-ph=plan]) .m3lb{display:none}
+.tvc .sbplan{background:#151B24}
+.tvc .sbpad{top:0;right:42%;margin:10px;border:3px dashed rgba(255,255,255,.2);border-radius:18px;background:linear-gradient(180deg,#1B2A4F,#16213D)}
+.tvc .sbctl .sbhint{display:none}
+.tvc .sbctl .sbhint.tv{display:block;top:50%;transform:translate(-50%,-50%);background:none;white-space:normal;text-align:center;width:80%;font-size:15px;opacity:.55}
+.tvc .sbbot{left:58%;right:0;top:0;bottom:0;width:auto;border-radius:0;background:none;padding:calc(env(safe-area-inset-top,0px) + 10px) 10px calc(env(safe-area-inset-bottom,0px) + 10px) 2px}
+.tvc .sbtray{flex:1;grid-template-columns:repeat(2,1fr);grid-auto-rows:1fr}
+.tvc .sbt{font-size:12px}.tvc .sbt i{font-size:22px}
+.paddot{position:fixed;width:44px;height:44px;margin:-22px 0 0 -22px;border-radius:50%;background:var(--c,#FFC83D);box-shadow:0 0 0 4px #151B24,0 0 0 7px #F4F6F9;pointer-events:none;z-index:60}
+.paddot[hidden]{display:none}
+.sbview{position:fixed;z-index:40;border-radius:15px;pointer-events:none}
+.sbview[hidden],.sbvhint[hidden]{display:none}
+.sbvhint{position:fixed;z-index:41;transform:translate(-50%,-100%);background:rgba(21,27,36,.82);color:#fff;border-radius:999px;padding:5px 11px;font:700 12px Rubik,Arial,sans-serif;white-space:nowrap;pointer-events:none}
 .pkbar{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 24% + 26px);width:min(92%,520px);height:24px;display:flex;border:2.5px solid #151B24;border-radius:10px;pointer-events:none;box-shadow:0 4px 0 rgba(0,0,0,.25)}
 .pkbar i{flex:1;font:800 11px/19px Rubik,Arial,sans-serif;color:#fff;text-align:center;font-style:normal;border-right:2px solid #151B24}
 .pkbar i:first-child{border-radius:7px 0 0 7px}
@@ -801,7 +813,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-12 21:56 3b62fcf";
+const BUILD = "2026-10-13 20:25 f9a09f2";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -13763,6 +13775,17 @@ function stepMG(dt) {
 	}
 	cam.lookAt(GFX.mgCam.t);
 	cam.updateMatrixWorld();
+	/* W.camShift = [x, y] (shares of the screen) moves the picture without turning the camera, e.g. to frame something
+	   straight on beside a panel (Plinko Sabotage's planning); eased like the camera */
+	if (!W.split && !W.tv && (W.camShift || W.csNow)) {
+		const cs = W.camShift || [0, 0],
+			c0 = W.csNow || [0, 0];
+		W.csNow = [c0[0] + (cs[0] - c0[0]) * k, c0[1] + (cs[1] - c0[1]) * k];
+		if (!W.camShift && Math.abs(W.csNow[0]) + Math.abs(W.csNow[1]) < 0.002) W.csNow = null;
+		const c1 = W.csNow || [0, 0];
+		cam.setViewOffset(GFX.w, GFX.h, c1[0] * GFX.w, c1[1] * GFX.h, GFX.w, GFX.h);
+		cam.updateProjectionMatrix();
+	}
 	const so = W.def.sun || [14, 26, 12];
 	W.sun.position.set(GFX.mgCam.t.x + so[0], so[1], GFX.mgCam.t.z + so[2]);
 	W.sun.target.position.copy(GFX.mgCam.t);
@@ -14593,6 +14616,49 @@ function wireSlide(pad, get, flick, mark) {
 	});
 	["pointerup", "pointercancel"].forEach((ev) => pad.addEventListener(ev, (e) => st.delete(e.pointerId)));
 }
+/* trackpad on a TV controller (def.pad = the selector of a pad in ctlHTML, e.g. Plinko Sabotage's planning): the
+   finger's spot on the pad sets inp.x / inp.y (-1 .. 1 across and from the top down, absolute, not a stick) and a dot
+   follows it; lifting the finger calls lift(). Delegated from the controls' wrapper, since the mirror updates the pad */
+function wirePad(wrap, sel, get, lift) {
+	const dot = document.createElement("i");
+	dot.className = "paddot";
+	dot.hidden = true;
+	wrap.parentNode.appendChild(dot);
+	let pid = null;
+	const at = (e) => {
+		const pad = wrap.querySelector(sel),
+			i = get();
+		if (!pad || !i) return;
+		const r = pad.getBoundingClientRect(),
+			u = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)),
+			v = Math.max(0, Math.min(1, (e.clientY - r.top) / r.height));
+		i.x = u * 2 - 1;
+		i.y = v * 2 - 1;
+		dot.hidden = false;
+		dot.style.left = r.left + u * r.width + "px";
+		dot.style.top = r.top + v * r.height + "px";
+	};
+	wrap.addEventListener("pointerdown", (e) => {
+		if (pid !== null || !e.target.closest || !e.target.closest(sel)) return;
+		e.preventDefault();
+		pid = e.pointerId;
+		try {
+			e.target.setPointerCapture(pid);
+		} catch (er) {}
+		at(e);
+	});
+	wrap.addEventListener("pointermove", (e) => {
+		if (e.pointerId === pid) at(e);
+	});
+	const up = (e) => {
+		if (e.pointerId !== pid) return;
+		pid = null;
+		dot.hidden = true;
+		if (e.type === "pointerup") lift();
+	};
+	wrap.addEventListener("pointerup", up);
+	wrap.addEventListener("pointercancel", up);
+}
 function wireStick(get, padSel = "#m3pad", knobSel = "#knob", kx = "x", ky = "y", onChange) {
 	const pad = $(padSel),
 		knob = $(knobSel);
@@ -14997,7 +15063,13 @@ function hud3(dt) {
 		}
 		c.textContent = tx;
 	}
-	$("#m3t").textContent = !W.startAt ? "Waiting" : t < 0 ? "Get ready" : `${Math.max(0, Math.ceil(def.dur - t))} s`;
+	$("#m3t").textContent = !W.startAt
+		? "Waiting"
+		: t < 0
+			? "Get ready"
+			: def.clock
+				? def.clock(W)
+				: `${Math.max(0, Math.ceil(def.dur - t))} s`;
 	if (!W.tv)
 		$("#m3s").textContent =
 			W.me.d && W.myFinal !== undefined
@@ -15372,7 +15444,7 @@ function tvRecv() {
 		let x = +r.x || 0,
 			y = +r.y || 0;
 		const l = Math.hypot(x, y);
-		if (l > 1) {
+		if (l > 1 && !TVS.def.pad) {
 			x /= l;
 			y /= l;
 		}
@@ -15538,7 +15610,31 @@ function openTvCtl(mg, p) {
 				$("#slmark"),
 			);
 		else if (def.swipe) wireSwipe(def, send);
-		else
+		else {
+			/* a game's own view on the controller (Plinko Sabotage: a camera on your target's board), else a trackpad */
+			if (def.tvcOpen)
+				TVC.close = def.tvcOpen({
+					wrap,
+					col: pcol(p),
+					put(x, y) {
+						if (!TVC) return;
+						TVC.inp.x = x;
+						TVC.inp.y = y;
+						TVC.b++;
+						tvcTick();
+					},
+				});
+			else if (def.pad)
+				wirePad(
+					wrap,
+					def.pad,
+					() => TVC && TVC.inp,
+					() => {
+						if (!TVC) return;
+						TVC.b++;
+						tvcTick();
+					},
+				);
 			wrap.addEventListener("pointerdown", (e) => {
 				const b = e.target.closest("button");
 				if (!b || !wrap.contains(b)) return;
@@ -15549,6 +15645,7 @@ function openTvCtl(mg, p) {
 				TVC.inp.hold = true;
 				send(idx, 1);
 			});
+		}
 		TVC.up = (e) => {
 			if (!downs.has(e.pointerId)) return;
 			const idx = downs.get(e.pointerId);
@@ -15635,6 +15732,10 @@ function tvcStop() {
 	} catch (e) {}
 	if (!TVC) return;
 	clearInterval(TVC.iv);
+	if (TVC.close)
+		try {
+			TVC.close();
+		} catch (e) {}
 	if (TVC.up) {
 		removeEventListener("pointerup", TVC.up);
 		removeEventListener("pointercancel", TVC.up);
@@ -31125,7 +31226,9 @@ Object.assign(MG, {
 		timeUp(W, e) {
 			if (e.st !== 3) fb(W, e, `${e.sc}`, { stamp: true });
 		},
-		fmt: (W, e) => `${e.sc} pts · round ${MG.plinko.sched(W).r + 1}/${MG.plinko.DROPS}`,
+		fmt: (W, e) => `${e.sc} pts`,
+		/* the top chip: the round, not the seconds left (the rounds end when the balls land) */
+		clock: (W) => `Round ${Math.min(MG.plinko.DROPS, MG.plinko.sched(W).r + 1)}/${MG.plinko.DROPS}`,
 		/* the share of the screen's height the buttons and the x3 strip cover at the bottom (phone mode; the board is framed
 		   above them) */
 		btmCover(W) {
@@ -31635,10 +31738,14 @@ Object.assign(MG, {
    in the gaps between its pegs (a ring from the seed: everyone sabotages exactly one rival, a different one each round
    when there are 3+), then everyone drops at once. Traps are hidden, on the TV too, until a ball sets them off; the
    saboteur scores TRAPPTS per trap hit. After the last ball lands every trap is revealed for BETWEEN s.
-   Planning UI: the controls (ctlHTML) hold a plan panel and the play buttons, switched by data-ph on the root; on the TV
-   the phones mirror the TV's copy and send taps back as button presses, so the same handlers run everywhere.
-   Shared per truck in e.f: an / tt / st / hp / ls / lt as in Plinko, pd [round] = when its planning was done,
-   tr {r, l: [[trap, gap]]} = the traps it placed this round, tg {r, l: [trap index]} = the traps on its board it set off */
+   Planning happens on the 3D board: the phone's camera moves to your target's board, you drag onto a gap and lift to drop
+   the selected trap (W.sbIn from a raycast, planInput). On the TV every board shows its saboteur's traps and cursor live
+   (they vanish at the drop), and the phone is a trackpad (def.pad: inp.x / inp.y, a lift = inp.boost) plus the tray.
+   The controls (ctlHTML) hold the plan panel and the play buttons, switched by data-ph on the root; on the TV the phones
+   mirror the TV's copy and send taps back as button presses, so the same handlers run everywhere.
+   Shared per truck in e.f: an / tt / st / hp / ls / lt as in Plinko, pd [round] = when it pressed READY,
+   tr {r, l: [[trap, gap]]} = the traps it placed this round, tg {r, l: [trap index]} = the traps on its board it set off,
+   cu [gap, trap, finger down] = its planning cursor (0 outside planning) */
 Object.assign(MG, {
 	sabo: {
 		name: "Plinko Sabotage",
@@ -31647,16 +31754,22 @@ Object.assign(MG, {
 		truckMode: "springs",
 		hi: true,
 		unit: "pts",
-		dur: 200,
+		dur: 290,
 		bare: true,
 		sun: [0, 9, 31.6],
 		lt: { amb: 0.84, sun: 0.44, warm: 0.28, haze: 70 },
 		fx: { col: 0.06 },
 		how: "Hide traps on a rival's board, then everyone drops: traps stay hidden until someone hits them. Score from your slots, plus points for every trap your rival hits!",
 		tvHint:
-			"Planning (your phone shows your rival's board): tap a trap, then a gap. Playing: LEFT / RIGHT move and steer, the middle button hops.",
+			"Planning: your phone shows your rival's board: pick a trap, tap a gap. Playing: LEFT / RIGHT move and steer, the middle button hops.",
 		tapHint:
-			"Planning: tap a trap, then a gap on your rival's board. Playing: ◀ ▶ move and steer, HOP pops you off the pegs.",
+			"Planning: pick a trap, tap a gap on your rival's board (swipe to look around). Playing: ◀ ▶ move and steer, HOP pops you off the pegs.",
+		pad: ".sbpad",
+		ctlPhases: true,
+		clock(W) {
+			const S = this.sched(W);
+			return S.plan ? `Plan ${Math.max(0, Math.ceil(S.P + this.PLANT - W.t))} s` : `Round ${S.r + 1}/${this.DROPS}`;
+		},
 		/* one board: COLS slots SW wide between walls at ±HW, ROWS peg rows RY apart from Y0 up; boards BW apart */
 		COLS: 5,
 		SW: 3.4,
@@ -31681,7 +31794,7 @@ Object.assign(MG, {
 		SCOL: { 500: "#FFC83D", 200: "#2F7DE1", 50: "#E5484D" },
 		MP: 9,
 		DROPS: 3,
-		PLANT: 30,
+		PLANT: 60,
 		AIMT: 4,
 		ROUNDT: 25,
 		BETWEEN: 3.5,
@@ -31820,115 +31933,105 @@ Object.assign(MG, {
 				over: E !== null && W.t >= E && r === this.DROPS - 1,
 			});
 		},
-		/* ---- scene: the cabinet round all the boards, one board per truck side by side ---- */
-		build(W) {
-			const s = W.sc,
-				n = W.plist.length,
-				{ HW, SW, COLS, SH, FLOOR, DW, GY, HDR } = this;
-			W.laneX = (i) => (i - (n - 1) / 2) * this.BW;
-			MG.plinko.cabinet.call(Object.assign(Object.create(MG.plinko), { HW: (n * this.BW) / 2 - 1.5, HDR, GY }), W);
-			const top = HDR + 0.9,
+		/* one board at x = ox (its owner's name on the header): back, slots and plates, walls, dividers, the x3 sign; its
+		   pegs go into allPegs (instanced by pegMeshes). Also builds the controller's view of a single board (tvcOpen) */
+		boardAt(W, s, pl, ox, plate, allPegs) {
+			const { HW, SW, COLS, SH, FLOOR, DW, GY, HDR } = this,
+				top = HDR + 0.9,
 				bh = top - GY,
-				plate = {},
-				pg = this.pegs(),
-				allPegs = [];
-			W.slotF = [];
-			W.signs = [];
-			W.plist.forEach((pl, bi) => {
-				const ox = W.laneX(bi);
-				s.add(B(2 * HW, bh, 0.4, "#1B2A4F", ox, GY + bh / 2, -1.95));
-				for (let k = 0; k < COLS; k++)
-					s.add(
-						B(SW - 0.1, top - 1.8, 0.06, k % 2 ? "#26437E" : "#1F3869", ox + this.slotX(k), (top - 1.8) / 2, -1.72),
-					);
-				[-1, 1].forEach((sd) => {
-					s.add(B(0.7, bh, 3.6, "#E5484D", ox + sd * (HW + 0.35), GY + bh / 2, -0.1));
-					s.add(B(0.3, bh, 0.06, "#B8333A", ox + sd * (HW + 0.35), GY + bh / 2, 1.73));
-				});
-				/* the header carries the board's owner, in their colour */
-				s.add(B(2 * HW + 1.4, 1.8, 3.6, "#E5484D", ox, HDR, -0.1));
-				const nm = canvasTex(512, 96, (x, w, h) => {
-						x.font = "56px Bungee, 'Arial Black', Impact, sans-serif";
+				pg = this.pegs();
+			s.add(B(2 * HW, bh, 0.4, "#1B2A4F", ox, GY + bh / 2, -1.95));
+			for (let k = 0; k < COLS; k++)
+				s.add(B(SW - 0.1, top - 1.8, 0.06, k % 2 ? "#26437E" : "#1F3869", ox + this.slotX(k), (top - 1.8) / 2, -1.72));
+			[-1, 1].forEach((sd) => {
+				s.add(B(0.7, bh, 3.6, "#E5484D", ox + sd * (HW + 0.35), GY + bh / 2, -0.1));
+				s.add(B(0.3, bh, 0.06, "#B8333A", ox + sd * (HW + 0.35), GY + bh / 2, 1.73));
+			});
+			/* the header carries the board's owner, in their colour */
+			s.add(B(2 * HW + 1.4, 1.8, 3.6, "#E5484D", ox, HDR, -0.1));
+			const nm = canvasTex(512, 96, (x, w, h) => {
+					x.font = "56px Bungee, 'Arial Black', Impact, sans-serif";
+					x.textAlign = "center";
+					x.textBaseline = "middle";
+					x.lineWidth = 10;
+					x.strokeStyle = "#151B24";
+					x.strokeText(pl.name.slice(0, 12).toUpperCase(), w / 2, h / 2 + 4, w - 20);
+					x.fillStyle = pcol(pl);
+					x.fillText(pl.name.slice(0, 12).toUpperCase(), w / 2, h / 2 + 4, w - 20);
+				}),
+				np = new THREE.Mesh(
+					new THREE.PlaneGeometry(9, 1.7),
+					new THREE.MeshBasicMaterial({ map: nm, transparent: true }),
+				);
+			np.position.set(ox, HDR, 1.74);
+			s.add(np);
+			s.add(B(2 * HW, 0.3, 0.36, "#8E96A3", ox, this.RAIL, 0));
+			s.add(B(2 * HW, -GY, 3.6, "#2A3550", ox, GY / 2, -0.1));
+			s.add(B(2 * HW - 0.4, 0.14, 0.08, "#8E96A3", ox, -0.55, 1.74));
+			const sf = [];
+			for (let k = 0; k < COLS; k++) {
+				const v = this.VAL[k],
+					c = this.SCOL[v],
+					x = ox + this.slotX(k);
+				plate[v] =
+					plate[v] ||
+					canvasTex(256, 112, (g, w, h) => {
+						g.fillStyle = "#151B24";
+						rr(g, 2, 2, w - 4, h - 4, 22);
+						g.fill();
+						g.fillStyle = c;
+						rr(g, 10, 10, w - 20, h - 20, 16);
+						g.fill();
+						g.font = "64px Bungee, 'Arial Black', Impact, sans-serif";
+						g.textAlign = "center";
+						g.textBaseline = "middle";
+						g.fillStyle = v === 500 ? "#3A2A00" : "#F4F6F9";
+						g.fillText(String(v), w / 2, h / 2 + 4);
+					});
+				const pm = new THREE.Mesh(new THREE.PlaneGeometry(2.9, 1.27), new THREE.MeshBasicMaterial({ map: plate[v] }));
+				pm.position.set(x, -1.75, 1.73);
+				s.add(pm);
+				const fm = new THREE.MeshStandardMaterial({ color: c, flatShading: true, roughness: 0.6 }),
+					f = new THREE.Mesh(new THREE.BoxGeometry(SW - DW, FLOOR, 3.4), fm);
+				f.position.set(x, FLOOR / 2, -0.05);
+				f.receiveShadow = true;
+				s.add(f);
+				sf.push({ m: fm, c: new THREE.Color(c), fl: 0, fc: new THREE.Color() });
+			}
+			W.slotF.push(sf);
+			for (let k = 1; k < COLS; k++) {
+				const x = ox - HW + k * SW;
+				s.add(B(DW, SH - FLOOR, 3.2, "#F4F6F9", x, (SH + FLOOR) / 2, -0.15));
+				const t = Cy(DW / 2, DW / 2, 3.2, 8, "#F4F6F9", x, SH, -0.15);
+				t.rotation.x = Math.PI / 2;
+				s.add(t);
+			}
+			pg.forEach(([x, y]) => allPegs.push([ox + x, y]));
+			/* the x3 sign under the slots */
+			const g = new THREE.Group(),
+				tx = (W.x3Tex =
+					W.x3Tex ||
+					canvasTex(192, 96, (x, w, h) => {
+						x.font = "62px Bungee, 'Arial Black', Impact, sans-serif";
 						x.textAlign = "center";
 						x.textBaseline = "middle";
-						x.lineWidth = 10;
-						x.strokeStyle = "#151B24";
-						x.strokeText(pl.name.slice(0, 12).toUpperCase(), w / 2, h / 2 + 4, w - 20);
-						x.fillStyle = pcol(pl);
-						x.fillText(pl.name.slice(0, 12).toUpperCase(), w / 2, h / 2 + 4, w - 20);
-					}),
-					np = new THREE.Mesh(
-						new THREE.PlaneGeometry(9, 1.7),
-						new THREE.MeshBasicMaterial({ map: nm, transparent: true }),
-					);
-				np.position.set(ox, HDR, 1.74);
-				s.add(np);
-				s.add(B(2 * HW, 0.3, 0.36, "#8E96A3", ox, this.RAIL, 0));
-				s.add(B(2 * HW, -GY, 3.6, "#2A3550", ox, GY / 2, -0.1));
-				s.add(B(2 * HW - 0.4, 0.14, 0.08, "#8E96A3", ox, -0.55, 1.74));
-				const sf = [];
-				for (let k = 0; k < COLS; k++) {
-					const v = this.VAL[k],
-						c = this.SCOL[v],
-						x = ox + this.slotX(k);
-					plate[v] =
-						plate[v] ||
-						canvasTex(256, 112, (g, w, h) => {
-							g.fillStyle = "#151B24";
-							rr(g, 2, 2, w - 4, h - 4, 22);
-							g.fill();
-							g.fillStyle = c;
-							rr(g, 10, 10, w - 20, h - 20, 16);
-							g.fill();
-							g.font = "64px Bungee, 'Arial Black', Impact, sans-serif";
-							g.textAlign = "center";
-							g.textBaseline = "middle";
-							g.fillStyle = v === 500 ? "#3A2A00" : "#F4F6F9";
-							g.fillText(String(v), w / 2, h / 2 + 4);
-						});
-					const pm = new THREE.Mesh(new THREE.PlaneGeometry(2.9, 1.27), new THREE.MeshBasicMaterial({ map: plate[v] }));
-					pm.position.set(x, -1.75, 1.73);
-					s.add(pm);
-					const fm = new THREE.MeshStandardMaterial({ color: c, flatShading: true, roughness: 0.6 }),
-						f = new THREE.Mesh(new THREE.BoxGeometry(SW - DW, FLOOR, 3.4), fm);
-					f.position.set(x, FLOOR / 2, -0.05);
-					f.receiveShadow = true;
-					s.add(f);
-					sf.push({ m: fm, c: new THREE.Color(c), fl: 0, fc: new THREE.Color() });
-				}
-				W.slotF.push(sf);
-				for (let k = 1; k < COLS; k++) {
-					const x = ox - HW + k * SW;
-					s.add(B(DW, SH - FLOOR, 3.2, "#F4F6F9", x, (SH + FLOOR) / 2, -0.15));
-					const t = Cy(DW / 2, DW / 2, 3.2, 8, "#F4F6F9", x, SH, -0.15);
-					t.rotation.x = Math.PI / 2;
-					s.add(t);
-				}
-				pg.forEach(([x, y]) => allPegs.push([ox + x, y]));
-				/* the x3 sign under the slots */
-				const g = new THREE.Group(),
-					tx = (W.x3Tex =
-						W.x3Tex ||
-						canvasTex(192, 96, (x, w, h) => {
-							x.font = "62px Bungee, 'Arial Black', Impact, sans-serif";
-							x.textAlign = "center";
-							x.textBaseline = "middle";
-							x.fillStyle = "#151B24";
-							x.fillText("×3", w / 2, h / 2 + 4);
-						})),
-					tp = new THREE.Mesh(
-						new THREE.PlaneGeometry(1.5, 0.75),
-						new THREE.MeshBasicMaterial({ map: tx, transparent: true }),
-					),
-					ar = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.4, 3), new THREE.MeshBasicMaterial({ color: "#FFC83D" }));
-				tp.position.z = 0.09;
-				ar.position.set(0, 0.68, 0);
-				g.add(B(1.9, 0.86, 0.16, "#FFC83D", 0, 0, 0), tp, ar);
-				g.position.set(ox, -0.55, 1.86);
-				s.add(g);
-				W.signs.push({ g, ox });
-			});
-			/* pegs of every board: instanced posts, flanges and caps */
+						x.fillStyle = "#151B24";
+						x.fillText("×3", w / 2, h / 2 + 4);
+					})),
+				tp = new THREE.Mesh(
+					new THREE.PlaneGeometry(1.5, 0.75),
+					new THREE.MeshBasicMaterial({ map: tx, transparent: true }),
+				),
+				ar = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.4, 3), new THREE.MeshBasicMaterial({ color: "#FFC83D" }));
+			tp.position.z = 0.09;
+			ar.position.set(0, 0.68, 0);
+			g.add(B(1.9, 0.86, 0.16, "#FFC83D", 0, 0, 0), tp, ar);
+			g.position.set(ox, -0.55, 1.86);
+			s.add(g);
+			W.signs.push({ g, ox });
+		},
+		/* the pegs of every board: instanced posts, flanges and caps */
+		pegMeshes(s, allPegs) {
 			const inst = (geo, col, z) => {
 					const m = new THREE.InstancedMesh(
 							geo,
@@ -31951,6 +32054,20 @@ Object.assign(MG, {
 			inst(cyz(0.26, 3, 10), "#C9CED8", -0.25);
 			inst(cyz(0.48, 0.12, 10), "#8E96A3", -1.63);
 			inst(cyz(0.38, 0.22, 10), "#FFC83D", 1.32);
+		},
+		/* ---- scene: the cabinet round all the boards, one board per truck side by side ---- */
+		build(W) {
+			const s = W.sc,
+				n = W.plist.length,
+				{ GY, HDR } = this,
+				plate = {},
+				allPegs = [];
+			W.laneX = (i) => (i - (n - 1) / 2) * this.BW;
+			MG.plinko.cabinet.call(Object.assign(Object.create(MG.plinko), { HW: (n * this.BW) / 2 - 1.5, HDR, GY }), W);
+			W.slotF = [];
+			W.signs = [];
+			W.plist.forEach((pl, bi) => this.boardAt(W, s, pl, W.laneX(bi), plate, allPegs));
+			this.pegMeshes(s, allPegs);
 			/* magnets on the rail, one per truck */
 			W.mag = {};
 			W.plist.forEach((p) => {
@@ -31986,24 +32103,14 @@ Object.assign(MG, {
 			loadPlanck();
 		},
 		/* ---- controls: the plan panel and the play buttons in one root, data-ph = plan | play ---- */
+		/* the plan panel: a pad (phone mode: see-through over the 3D board, drag onto a gap; TV controller: a trackpad
+		   for the cursor on the TV), the target / coins / time line and the tray of traps with READY */
 		ctlHTML() {
-			const G0 = this.gaps(),
-				ymax = this.Y0 + (this.ROWS - 1) * this.RY + 1.6,
-				px = (x) => (((x + this.HW) / (2 * this.HW)) * 100).toFixed(1),
-				py = (y) => ((1 - (y + 0.6) / (ymax + 0.6)) * 100).toFixed(1);
-			const pegs = this.pegs()
-					.map(([x, y]) => `<span class="sbp" style="left:${px(x)}%;top:${py(y)}%"></span>`)
-					.join(""),
-				gaps = G0.map(
-					(g, i) =>
-						`<button class="sbg" data-g="${i}" style="left:${px(g.x - g.w / 2 + 0.15)}%;width:${(((g.w - 0.3) / (2 * this.HW)) * 100).toFixed(1)}%;top:${py(g.y)}%"></button>`,
-				).join(""),
-				slots = this.VAL.map((v, k) => `<span class="sbs" style="left:${px(this.slotX(k))}%">${v}</span>`).join(""),
-				tray = this.TRAPS.map(
-					(t, i) =>
-						`<button class="sbt" data-t="${i}" style="--bc:${t.col}"><i>${t.ic}</i><b>${t.n}</b><em>${t.c}</em></button>`,
-				).join("");
-			return `<div class="sbctl" data-ph="play"><div class="sbplan"><div class="sbtop"><b class="sbtgt">Sabotage</b><span class="sbcoin">${this.BUDGET}</span><span class="sbtime">30</span><button class="sbdone">DONE</button></div><div class="sbmain"><div class="sbtray">${tray}</div><div class="sbwrap"><div class="sbboard">${pegs}${gaps}${slots}</div></div></div></div><div class="rjctl"><button class="rjb sbl" style="--bc:#2F7DE1" aria-label="Left"><i>◀</i></button><button class="rjb pkhop sbh" style="--bc:#FF8A1F" aria-label="Hop"><b>HOP</b></button><button class="rjb sbr" style="--bc:#2F7DE1" aria-label="Right"><i>▶</i></button></div></div>`;
+			const tray = this.TRAPS.map(
+				(t, i) =>
+					`<button class="sbt" data-t="${i}" style="--bc:${t.col}"><i>${t.ic}</i><b>${t.n}</b><em>${t.c}</em></button>`,
+			).join("");
+			return `<div class="sbctl" data-ph="play"><div class="sbplan"><div class="sbpad"><span class="sbhint">Tap a gap to drop the trap · swipe to look around</span><span class="sbhint tv">Slide to move your cursor on the TV · lift to drop</span></div><div class="sbbot"><div class="sbtop"><b class="sbtgt">Sabotage</b><span class="sbcoin">${this.BUDGET}</span><span class="sbtime">${this.PLANT} s</span></div><div class="sbtray">${tray}<button class="sbdone">READY</button></div></div></div><div class="rjctl"><button class="rjb sbl" style="--bc:#2F7DE1" aria-label="Left"><i>◀</i></button><button class="rjb pkhop sbh" style="--bc:#FF8A1F" aria-label="Hop"><b>HOP</b></button><button class="rjb sbr" style="--bc:#2F7DE1" aria-label="Right"><i>▶</i></button></div></div>`;
 		},
 		wire() {
 			document.querySelectorAll(".sbctl").forEach((root) => {
@@ -32014,6 +32121,60 @@ Object.assign(MG, {
 					if (!b) return;
 					ev.preventDefault();
 					MG.sabo.tap(W, b);
+				});
+				/* phone mode: the finger on the board, as a point in the board plane (z = 0) from the camera; a tap drops the
+				   trap, a swipe scrolls the view up / down the board (W.sbDrag, px) */
+				const pad = root.querySelector(".sbpad");
+				let pid = null,
+					sx = 0,
+					sy = 0,
+					ly = 0,
+					moved = false;
+				const at = (ev, h) => {
+					if (!W || !W.me || W.split || !GFX.cam) return;
+					const r = GFX.r.domElement.getBoundingClientRect(),
+						rc = new THREE.Raycaster();
+					rc.setFromCamera(
+						new THREE.Vector2(((ev.clientX - r.left) / r.width) * 2 - 1, 1 - ((ev.clientY - r.top) / r.height) * 2),
+						GFX.cam,
+					);
+					const o = rc.ray.origin,
+						d = rc.ray.direction;
+					if (Math.abs(d.z) < 1e-4) return;
+					const s = -o.z / d.z;
+					W.sbIn = { x: o.x + d.x * s, y: o.y + d.y * s, h, up: !h };
+				};
+				pad.addEventListener("pointerdown", (ev) => {
+					if (pid !== null) return;
+					ev.preventDefault();
+					pid = ev.pointerId;
+					sx = ev.clientX;
+					sy = ly = ev.clientY;
+					moved = false;
+					try {
+						pad.setPointerCapture(pid);
+					} catch (e) {}
+					at(ev, true);
+				});
+				pad.addEventListener("pointermove", (ev) => {
+					if (ev.pointerId !== pid || !W) return;
+					if (!moved && Math.hypot(ev.clientX - sx, ev.clientY - sy) > 10) {
+						moved = true;
+						if (W.sbIn) W.sbIn.h = false;
+					}
+					if (moved) W.sbDrag = (W.sbDrag || 0) + ev.clientY - ly;
+					else at(ev, true);
+					ly = ev.clientY;
+				});
+				pad.addEventListener("pointerup", (ev) => {
+					if (ev.pointerId !== pid) return;
+					pid = null;
+					if (!moved) at(ev, false);
+				});
+				pad.addEventListener("pointercancel", (ev) => {
+					if (ev.pointerId !== pid) return;
+					pid = null;
+					if (W && W.sbIn) W.sbIn.h = false;
 				});
 				[
 					["sbl", "l"],
@@ -32034,15 +32195,15 @@ Object.assign(MG, {
 			else if (k === "arrowright" || k === "d") this.press(W, "r", down);
 			else if (down && [" ", "enter", "w", "arrowup"].includes(k)) this.press(W, "h", true);
 		},
-		/* a tap in the plan panel: pick a trap, place / remove one in a gap, or DONE */
+		/* a tap in the plan panel: pick a trap, or READY */
 		tap(W, b) {
 			if (!W || !W.me) return;
 			const e = W.me,
 				S = this.sched(W);
-			if (!S.plan || e.rr !== S.r || (e.pd[S.r] !== undefined && !b.dataset.g && !b.dataset.t)) return;
+			if (!S.plan || e.rr !== S.r) return;
 			if (b.dataset.t !== undefined) e.sel = +b.dataset.t;
-			else if (b.dataset.g !== undefined) this.place(W, e, e.sel, +b.dataset.g);
 			else if (b.classList.contains("sbdone")) {
+				if (e.pd[S.r] !== undefined) return;
 				e.pd[S.r] = Math.round(W.t * 100) / 100;
 				e.f.pd = e.pd.slice();
 			}
@@ -32051,35 +32212,321 @@ Object.assign(MG, {
 		spent(e) {
 			return (e.trp || []).reduce((a, [t]) => a + this.TRAPS[t].c, 0);
 		},
-		/* place trap t in gap gi (or take back the one there); at most one wall per row */
+		/* put trap t in gap gi: the same trap there again takes it back, another one swaps it; false when it doesn't fit
+		   the coins left, or it's a second wall in that row */
 		place(W, e, t, gi) {
-			const i = e.trp.findIndex((q) => q[1] === gi);
-			if (i >= 0) e.trp.splice(i, 1);
-			else {
+			const i = e.trp.findIndex((q) => q[1] === gi),
+				old = i >= 0 ? e.trp.splice(i, 1)[0] : null;
+			let ok = true;
+			if (!old || old[0] !== t) {
 				const T = this.TRAPS[t],
 					row = this.gaps()[gi].row;
-				if (this.spent(e) + T.c > this.BUDGET) return false;
-				if (T.k === "wall" && e.trp.some(([q, g]) => this.TRAPS[q].k === "wall" && this.gaps()[g].row === row))
-					return false;
-				e.trp.push([t, gi]);
+				ok =
+					this.spent(e) + T.c <= this.BUDGET &&
+					!(T.k === "wall" && e.trp.some(([q, g]) => this.TRAPS[q].k === "wall" && this.gaps()[g].row === row));
+				if (ok) e.trp.push([t, gi]);
+				else if (old) e.trp.splice(i, 0, old);
 			}
 			e.f.tr = { r: e.rr, l: e.trp.map((q) => q.slice()) };
-			return true;
+			return ok;
 		},
-		/* CPUs plan a few traps in the middle rows, then press DONE after a while */
-		botPlan(W, e, S) {
-			if (e.bp === S.r) return;
-			e.bp = S.r;
-			const G0 = this.gaps();
-			for (let n = 0; n < 12; n++) {
-				const left = this.BUDGET - this.spent(e),
-					ok = this.TRAPS.map((t, i) => i).filter((i) => this.TRAPS[i].c <= left);
-				if (!ok.length) break;
-				const g = G0.map((q, i) => i).filter((i) => G0[i].row >= 1 && G0[i].row <= 4 && !e.trp.some((q) => q[1] === i));
-				if (!g.length) break;
-				this.place(W, e, ok[Math.floor(Math.random() * ok.length)], g[Math.floor(Math.random() * g.length)]);
+		/* a gap as a spot on the TV controller's pad (-1 .. 1, the inverse of planInput's mapping) */
+		padXY(gi) {
+			const g = this.gaps()[gi],
+				yl = this.Y0 - 0.6 * this.RY,
+				yh = this.Y0 + (this.ROWS - 1.4) * this.RY;
+			return [g.x / (this.HW - 0.8), (2 * (yh - g.y)) / (yh - yl) - 1];
+		},
+		/* the TV controller's planning view: a camera on your target's board (built here from the same parts), zoomed to the
+		   pad's width; swipe up / down to look around, tap a gap to drop the selected trap (sent like a trackpad: the gap's
+		   spot, then a lift). The target and your traps come from the mirrored root's data-vk / data-trp */
+		tvcOpen(api) {
+			const wrap = api.wrap,
+				cv = document.createElement("canvas"),
+				hint = document.createElement("div"),
+				V = { sc: new THREE.Scene(), cam: new THREE.PerspectiveCamera(30, 1, 1, 300), y: null, w: 0, h: 0, raf: 0 },
+				VW = { slotF: [], signs: [] },
+				tn = Math.tan((15 * Math.PI) / 180);
+			let rd;
+			try {
+				rd = new THREE.WebGLRenderer({ canvas: cv, antialias: true });
+			} catch (e) {
+				return null;
 			}
-			e.botDone = W.t + 4 + Math.random() * 10;
+			cv.className = "sbview";
+			hint.className = "sbvhint";
+			hint.textContent = "Tap a gap to drop the trap · swipe to look around";
+			cv.hidden = hint.hidden = true;
+			wrap.parentNode.append(cv, hint);
+			rd.setPixelRatio(Math.min(2, devicePixelRatio || 1));
+			V.sc.background = new THREE.Color("#10151E");
+			const sun = new THREE.DirectionalLight("#FFFFFF", 0.6);
+			sun.position.set(4, 40, 30);
+			V.sc.add(new THREE.AmbientLight("#FFFFFF", 0.72), sun);
+			const board = new THREE.Group(),
+				traps = new THREE.Group(),
+				mark = new THREE.Group();
+			V.sc.add(board, traps, mark);
+			const fr = new THREE.Mesh(
+					new THREE.PlaneGeometry(this.SW - 0.3, 1.9),
+					new THREE.MeshBasicMaterial({ transparent: true, depthTest: false, depthWrite: false }),
+				),
+				ic = new THREE.Sprite(new THREE.SpriteMaterial({ transparent: true, depthTest: false, opacity: 0.85 }));
+			fr.renderOrder = 7;
+			ic.renderOrder = 8;
+			ic.scale.setScalar(1.25);
+			ic.position.z = 0.4;
+			mark.add(fr, ic);
+			mark.visible = false;
+			let vk = null,
+				trp = null,
+				tapT = -1e9,
+				pid = null,
+				sy = 0,
+				ly = 0,
+				sx = 0,
+				moved = false;
+			const clear = (g) => {
+					while (g.children.length) g.remove(g.children[0]);
+				},
+				view = () => {
+					const asp = V.w / Math.max(1, V.h),
+						D = (this.HW + 1) / (tn * asp),
+						hh = D * tn,
+						lo = this.GY - 0.4 + hh,
+						hi = this.HDR + 2.4 - hh;
+					if (V.y === null) V.y = hi;
+					V.y = lo > hi ? (lo + hi) / 2 : Math.max(lo, Math.min(hi, V.y));
+					return { D, hh };
+				},
+				tap = (ev) => {
+					const rc = cv.getBoundingClientRect(),
+						ray = new THREE.Raycaster();
+					ray.setFromCamera(
+						new THREE.Vector2(((ev.clientX - rc.left) / rc.width) * 2 - 1, 1 - ((ev.clientY - rc.top) / rc.height) * 2),
+						V.cam,
+					);
+					const o = ray.ray.origin,
+						d = ray.ray.direction;
+					if (Math.abs(d.z) < 1e-4) return;
+					const k = -o.z / d.z,
+						gi = this.nearGap(o.x + d.x * k, o.y + d.y * k, true);
+					if (gi < 0) return;
+					const g = this.gaps()[gi],
+						sel = [...wrap.querySelectorAll(".sbt")].findIndex((b) => b.classList.contains("on"));
+					mark.position.set(g.x, g.y, 1.3);
+					fr.material.map = VW.curTex;
+					fr.material.color.set(api.col || "#FFFFFF");
+					fr.material.needsUpdate = true;
+					ic.material.map = this.iconTex(VW, Math.max(0, sel));
+					ic.material.needsUpdate = true;
+					tapT = performance.now();
+					api.put(...this.padXY(gi));
+				};
+			wrap.addEventListener("pointerdown", (ev) => {
+				if (pid !== null || cv.hidden || !ev.target.closest || !ev.target.closest(".sbpad")) return;
+				ev.preventDefault();
+				pid = ev.pointerId;
+				sx = ev.clientX;
+				sy = ly = ev.clientY;
+				moved = false;
+				try {
+					ev.target.setPointerCapture(pid);
+				} catch (e) {}
+			});
+			wrap.addEventListener("pointermove", (ev) => {
+				if (ev.pointerId !== pid) return;
+				if (!moved && Math.hypot(ev.clientX - sx, ev.clientY - sy) > 10) moved = true;
+				if (moved && V.h) V.y += ((ev.clientY - ly) * 2 * view().hh) / V.h;
+				ly = ev.clientY;
+			});
+			const up = (ev) => {
+				if (ev.pointerId !== pid) return;
+				pid = null;
+				if (ev.type === "pointerup" && !moved) tap(ev);
+			};
+			wrap.addEventListener("pointerup", up);
+			wrap.addEventListener("pointercancel", up);
+			const loop = () => {
+				V.raf = requestAnimationFrame(loop);
+				const root = wrap.querySelector(".sbctl"),
+					pad = wrap.querySelector(".sbpad"),
+					on = !!root && !!pad && root.getAttribute("data-ph") === "plan",
+					rc = on && pad.getBoundingClientRect();
+				cv.hidden = hint.hidden = !(rc && rc.width);
+				if (cv.hidden) return;
+				const w = Math.round(rc.width - 6),
+					h = Math.round(rc.height - 6);
+				if (w !== V.w || h !== V.h) {
+					V.w = w;
+					V.h = h;
+					Object.assign(cv.style, { left: rc.left + 3 + "px", top: rc.top + 3 + "px" });
+					rd.setSize(w, h);
+					V.cam.aspect = w / h;
+					V.cam.updateProjectionMatrix();
+					hint.style.left = rc.left + rc.width / 2 + "px";
+					hint.style.top = rc.bottom - 12 + "px";
+				}
+				/* the target's board, built again when the target changes (a new round) */
+				if (root.dataset.vk !== vk) {
+					vk = root.dataset.vk;
+					V.y = null;
+					clear(board);
+					const pl = (G && G.players.find((q) => q.key === vk)) || { name: "", key: vk },
+						pegs = [];
+					this.boardAt(VW, board, pl, 0, {}, pegs);
+					this.pegMeshes(board, pegs);
+					const G0 = this.gaps(),
+						frame = (dash, lw) =>
+							canvasTex(256, 128, (x, cw, ch) => {
+								if (!dash) {
+									x.strokeStyle = "#151B24";
+									x.lineWidth = lw + 12;
+									rr(x, 14, 14, cw - 28, ch - 28, 30);
+									x.stroke();
+								}
+								x.strokeStyle = "#FFFFFF";
+								x.lineWidth = lw;
+								if (dash) x.setLineDash([22, 14]);
+								rr(x, 14, 14, cw - 28, ch - 28, 30);
+								x.stroke();
+							});
+					VW.gapTex = VW.gapTex || frame(true, 8);
+					VW.curTex = VW.curTex || frame(false, 14);
+					const gm = new THREE.InstancedMesh(
+							new THREE.PlaneGeometry(1, 1),
+							new THREE.MeshBasicMaterial({ map: VW.gapTex, transparent: true, opacity: 0.35, depthWrite: false }),
+							G0.length,
+						),
+						o = new THREE.Object3D();
+					G0.forEach((g, i) => {
+						o.position.set(g.x, g.y, 1.1);
+						o.scale.set(g.w - 0.8, 1.4, 1);
+						o.updateMatrix();
+						gm.setMatrixAt(i, o.matrix);
+					});
+					board.add(gm);
+				}
+				/* your traps, as the TV has them */
+				if ((root.dataset.trp || "") !== trp) {
+					trp = root.dataset.trp || "";
+					clear(traps);
+					trp
+						.split(" ")
+						.filter(Boolean)
+						.forEach((q) => {
+							const [t, gi] = q.split(".").map(Number),
+								g = this.gaps()[gi];
+							if (!g || !this.TRAPS[t]) return;
+							const m = this.trapMesh(VW, t, g);
+							m.visible = true;
+							traps.add(m);
+						});
+					tapT = -1e9;
+				}
+				/* the tapped gap shows the trap at once, until the TV's answer comes back */
+				const ta = (performance.now() - tapT) / 1000;
+				mark.visible = ta < 1.2;
+				if (mark.visible) fr.scale.setScalar(1 + 0.15 * Math.max(0, 1 - ta * 4));
+				const { D } = view();
+				V.cam.position.set(0, V.y + D * 0.04, D);
+				V.cam.lookAt(0, V.y, 0);
+				rd.render(V.sc, V.cam);
+			};
+			loop();
+			return () => {
+				cancelAnimationFrame(V.raf);
+				try {
+					rd.dispose();
+					rd.forceContextLoss();
+				} catch (e) {}
+				cv.remove();
+				hint.remove();
+			};
+		},
+		/* the gap nearest a point on the board (board-local); strict: -1 when it's not near any */
+		nearGap(x, y, strict) {
+			let best = -1,
+				bd = 1e9;
+			this.gaps().forEach((g, i) => {
+				const d = Math.hypot((x - g.x) / this.SW, (y - g.y) / this.RY);
+				if (d < bd) {
+					bd = d;
+					best = i;
+				}
+			});
+			return strict && bd > 0.8 ? -1 : best;
+		},
+		/* the planning cursor of a local human: the TV's trackpad (inp.x / inp.y over the gap rows, a lift = inp.boost) or
+		   the finger on the phone's board (W.sbIn); lifting drops the selected trap into the gap under the cursor */
+		planInput(W, e, S) {
+			let x,
+				y,
+				h,
+				up = false;
+			if (W.split) {
+				const i = W.inp,
+					yl = this.Y0 - 0.6 * this.RY,
+					yh = this.Y0 + (this.ROWS - 1.4) * this.RY;
+				up = !!i.boost;
+				i.boost = false;
+				h = 1;
+				x = Math.max(-1, Math.min(1, i.x || 0)) * (this.HW - 0.8);
+				y = yh - ((Math.max(-1, Math.min(1, i.y || 0)) + 1) / 2) * (yh - yl);
+			} else {
+				const q = W.sbIn,
+					v = W.ents[this.victimOf(W, e.k, S.r)];
+				if (!q) return;
+				h = q.h ? 1 : 0;
+				up = q.up;
+				q.up = false;
+				x = q.x - (v ? v.ox : 0);
+				y = q.y;
+			}
+			const gi = this.nearGap(x, y, !W.split);
+			if (h || gi >= 0) e.cu = gi;
+			e.cuH = h && gi >= 0 ? 1 : 0;
+			if (!up || gi < 0) return;
+			const ok = this.place(W, e, e.sel, gi);
+			if (!ok) W.sbNo = W.t;
+			if (e.isMe) sfx(ok ? "click" : "loss");
+		},
+		/* CPUs pick a few traps for the middle rows, then put them down one by one (the cursor shows on the TV), then READY */
+		botPlan(W, e, S) {
+			if (e.bp !== S.r) {
+				e.bp = S.r;
+				const G0 = this.gaps();
+				let left = this.BUDGET;
+				e.bq = [];
+				for (let n = 0; n < 12; n++) {
+					const ok = this.TRAPS.map((t, i) => i).filter((i) => this.TRAPS[i].c <= left);
+					if (!ok.length) break;
+					const t = ok[Math.floor(Math.random() * ok.length)],
+						wall = (i) => this.TRAPS[i].k === "wall",
+						g = G0.map((q, i) => i).filter(
+							(i) =>
+								G0[i].row >= 1 &&
+								G0[i].row <= 4 &&
+								!e.bq.some((q) => q[1] === i || (wall(t) && wall(q[0]) && G0[q[1]].row === G0[i].row)),
+						);
+					if (!g.length) break;
+					left -= this.TRAPS[t].c;
+					e.bq.push([t, g[Math.floor(Math.random() * g.length)]]);
+				}
+				e.bnext = W.t + 1.5 + Math.random() * 2;
+				e.botDone = 1e9;
+			}
+			if (!e.bq.length) return;
+			const [t, gi] = e.bq[0];
+			e.sel = t;
+			e.cu = gi;
+			e.cuH = 1;
+			if (W.t < e.bnext) return;
+			this.place(W, e, t, gi);
+			e.bq.shift();
+			e.cuH = 0;
+			e.bnext = W.t + 1 + Math.random() * 2.5;
+			if (!e.bq.length) e.botDone = W.t + 1 + Math.random() * 4;
 		},
 		/* ---- rounds ---- */
 		newRound(W, e, r) {
@@ -32098,6 +32545,10 @@ Object.assign(MG, {
 			e.stunT = e.revT = e.glueT = -9;
 			e.f.tr = { r, l: [] };
 			e.f.tg = { r, l: [] };
+			e.f.cu = 0;
+			e.cu = this.gaps().findIndex((g) => g.row === 2 && Math.abs(g.x) < 0.1);
+			e.cuH = 0;
+			if (e.isMe) W.sbIn = W.sbY = null;
 			this.aim(W, e, 0);
 		},
 		aim(W, e, dt) {
@@ -32224,6 +32675,7 @@ Object.assign(MG, {
 				return;
 			}
 			this.sabTick(W, e, S);
+			if (!S.plan && e.f.cu) e.f.cu = 0;
 			if (S.plan) {
 				if (e.bot) {
 					this.botPlan(W, e, S);
@@ -32231,7 +32683,8 @@ Object.assign(MG, {
 						e.pd[S.r] = Math.round(W.t * 100) / 100;
 						e.f.pd = e.pd.slice();
 					}
-				}
+				} else if (e.isMe) this.planInput(W, e, S);
+				e.f.cu = [e.cu, e.sel, e.cuH];
 				this.aim(W, e, 0);
 				this.sync(e);
 				return;
@@ -32350,22 +32803,61 @@ Object.assign(MG, {
 		timeUp(W, e) {
 			if (e.st !== 3) fb(W, e, `${e.sc}`, { stamp: true });
 		},
-		fmt: (W, e) => `${e.sc} pts · round ${MG.sabo.sched(W).r + 1}/${MG.sabo.DROPS}`,
+		fmt: (W, e) => `${e.sc} pts`,
 		/* ---- cameras ---- */
 		btmCover: MG.plinko.btmCover,
+		/* planning (phone mode): the shares of the screen the tray covers [at the bottom, at the right] (landscape: a column on
+		   the right) */
+		cover(W) {
+			if (W.split || W.tv) return [0, 0];
+			const el = document.querySelector("#mg .sbbot"),
+				r = el && el.getBoundingClientRect();
+			if (!r || !r.height || !GFX.h) return [0.3, 0];
+			if (GFX.w > GFX.h) return [0, Math.max(0, Math.min(0.5, (GFX.w - r.left + 8) / GFX.w))];
+			return [Math.max(0, Math.min(0.6, (GFX.h - r.top + 10) / GFX.h)), 0];
+		},
 		cam(W, tgt, pos, far) {
 			const e = W.me,
 				asp = GFX.w / GFX.h,
 				tn = Math.tan((20 * Math.PI) / 180),
 				S = this.sched(W),
-				b = this.btmCover(W),
-				ox = e.ox || 0;
-			/* your own whole board while planning and aiming (and on the ready screen), then it follows your ball */
+				pv = S.plan && W.t >= 0 && W.ents[this.victimOf(W, e.k, S.r)],
+				[b, rc] = pv ? this.cover(W) : [this.btmCover(W), 0],
+				ox = (pv ? pv.ox : e.ox) || 0;
+			/* your target's whole board while planning, your own while aiming (and on the ready screen), then it follows
+			   your ball */
+			W.camShift = null;
 			if (e.st !== 1 && e.st !== 2) {
 				const y0 = this.GY - 0.4,
 					y1 = this.HDR + 1,
-					D = Math.max((y1 - y0) / 2 / (1 - b) / tn, (this.HW + 1) / (tn * asp)) * 1.04,
-					t = new THREE.Vector3(ox, (y0 + y1) / 2 - D * tn * b, 0);
+					top = !W.split && !W.tv && document.querySelector("#mg .m3top"),
+					tc = top && GFX.h ? Math.max(0, Math.min(0.2, top.getBoundingClientRect().bottom / GFX.h)) : 0,
+					/* planning: the board's width, but at least 60% of its height in view */
+					D = pv
+						? Math.max(((this.HW + 1) / (tn * asp * (1 - rc))) * 1.04, ((y1 - y0) * 0.3) / (1 - b - tc) / tn)
+						: Math.max((y1 - y0) / 2 / (1 - b - tc) / tn, (this.HW + 1) / (tn * asp * (1 - rc))) * 1.04,
+					hb = D * tn * (1 - b - tc);
+				let cy = (y0 + y1) / 2;
+				/* planning: the target's board zoomed to the width; when it's taller than the view a swipe scrolls it */
+				if (pv && (y1 - y0) / 2 > hb) {
+					const lo = y0 + hb,
+						hi = y1 - hb,
+						dy = ((W.sbDrag || 0) * 2 * D * tn) / Math.max(1, GFX.h),
+						y = Math.max(lo, Math.min(hi, (W.sbY ?? hi) + dy));
+					if (GFX.mgCam && W.sbY != null) {
+						GFX.mgCam.t.y += y - W.sbY;
+						GFX.mgCam.p.y += y - W.sbY;
+					}
+					W.sbY = cy = y;
+				}
+				W.sbDrag = 0;
+				/* planning: square on to the target's board, the picture shifted beside the tray / above it (no angle) */
+				if (pv) {
+					W.camShift = [rc / 2, (b - tc) / 2];
+					const t = new THREE.Vector3(ox, cy, 0);
+					return [t, new THREE.Vector3(ox, cy, D)];
+				}
+				const t = new THREE.Vector3(ox + D * tn * asp * rc, cy - D * tn * (b - tc), 0);
 				return [t, t.clone().add(new THREE.Vector3(0, D * 0.08, D))];
 			}
 			const D = asp < 1 ? 26 : 24,
@@ -32485,31 +32977,145 @@ Object.assign(MG, {
 				left = this.BUDGET - this.spent(e),
 				secs = Math.max(0, Math.ceil(S.P + this.PLANT - W.t)),
 				done = e.pd[S.r] !== undefined,
-				sig = JSON.stringify([vk, left, secs, e.sel, e.trp, done]);
+				no = W.sbNo !== undefined && W.t - W.sbNo < 0.6,
+				used = e.trp.length > 0 || !!root.dataset.used,
+				sig = JSON.stringify([vk, left, secs, e.sel, done, no, used]);
 			if (root.sbSig === sig) return;
 			root.sbSig = sig;
-			const set = (sel, txt) => {
+			const set = (sel, txt, cls) => {
 				const n = root.querySelector(sel);
-				if (n && n.textContent !== txt) n.textContent = txt;
+				if (!n) return;
+				if (n.textContent !== txt) n.textContent = txt;
+				if (cls !== undefined && n.getAttribute("class") !== cls) n.setAttribute("class", cls);
 			};
+			if (used && !root.dataset.used) root.setAttribute("data-used", "1");
+			root.setAttribute("data-vk", vk);
+			root.setAttribute("data-trp", e.trp.map((q) => q.join(".")).join(" "));
 			set(".sbtgt", `Sabotage ${v ? v.p.name : ""}!`);
-			set(".sbcoin", String(left));
-			set(".sbtime", `${secs} s`);
-			set(".sbdone", done ? "WAITING…" : "DONE");
+			set(".sbcoin", String(left), no ? "sbcoin no" : "sbcoin");
+			set(".sbtime", `${secs} s`, secs <= 10 ? "sbtime low" : "sbtime");
+			set(".sbdone", done ? "READY ✓" : "READY", done ? "sbdone on" : "sbdone");
 			root.querySelectorAll(".sbt").forEach((b, i) => {
 				const c = (i === e.sel ? "on" : "") + (this.TRAPS[i].c > left ? " off" : "");
-				if ((b.getAttribute("class") || "") !== "sbt " + c) b.setAttribute("class", ("sbt " + c).trim());
+				if ((b.getAttribute("class") || "") !== ("sbt " + c).trim()) b.setAttribute("class", ("sbt " + c).trim());
 			});
-			root.querySelectorAll(".sbg").forEach((b) => {
-				const q = e.trp.find((t) => t[1] === +b.dataset.g),
-					T = q && this.TRAPS[q[0]],
-					txt = T ? T.ic : "",
-					cls = T ? "sbg on" : "sbg";
-				if (b.textContent !== txt) b.textContent = txt;
-				if (b.getAttribute("class") !== cls) b.setAttribute("class", cls);
-				const bc = T ? T.col : "";
-				if ((b.style.getPropertyValue("--bc") || "") !== bc) b.style.setProperty("--bc", bc);
-			});
+		},
+		/* a trap's icon: a round badge in its colour */
+		iconTex(W, t) {
+			const T = this.TRAPS[t];
+			W.trapTex = W.trapTex || {};
+			return (
+				W.trapTex[t] ||
+				(W.trapTex[t] = canvasTex(128, 128, (x, w, h) => {
+					x.fillStyle = "#151B24";
+					x.beginPath();
+					x.arc(w / 2, h / 2, w / 2 - 4, 0, Math.PI * 2);
+					x.fill();
+					x.fillStyle = T.col;
+					x.beginPath();
+					x.arc(w / 2, h / 2, w / 2 - 14, 0, Math.PI * 2);
+					x.fill();
+					x.font = "900 64px Arial, sans-serif";
+					x.textAlign = "center";
+					x.textBaseline = "middle";
+					x.fillStyle = "#FFFFFF";
+					x.fillText(T.ic, w / 2, h / 2 + 4);
+				}))
+			);
+		},
+		/* while planning: faint dashed frames in the gaps of a board being sabotaged, and its saboteur's cursor (a frame
+		   in their colour with the selected trap's icon; on the TV always, with their name, until they're READY; on a
+		   phone only your own, while your finger is down) */
+		planMarks(W, bi, k, S, see, dt) {
+			W.pm = W.pm || {};
+			let m = W.pm[k];
+			if (!see && !m) return;
+			if (!m) {
+				const G0 = this.gaps(),
+					frame = (dash, lw) =>
+						canvasTex(256, 128, (x, w, h) => {
+							if (!dash) {
+								x.strokeStyle = "#151B24";
+								x.lineWidth = lw + 12;
+								rr(x, 14, 14, w - 28, h - 28, 30);
+								x.stroke();
+							}
+							x.strokeStyle = "#FFFFFF";
+							x.lineWidth = lw;
+							if (dash) x.setLineDash([22, 14]);
+							rr(x, 14, 14, w - 28, h - 28, 30);
+							x.stroke();
+						}),
+					ft = (W.gapTex = W.gapTex || frame(true, 8)),
+					ct = (W.curTex = W.curTex || frame(false, 14)),
+					gm = new THREE.InstancedMesh(
+						new THREE.PlaneGeometry(1, 1),
+						new THREE.MeshBasicMaterial({ map: ft, transparent: true, opacity: 0.3, depthWrite: false }),
+						G0.length,
+					),
+					o = new THREE.Object3D();
+				G0.forEach((g, i) => {
+					o.position.set(W.laneX(bi) + g.x, g.y, 1.1);
+					o.scale.set(g.w - 0.8, 1.4, 1);
+					o.updateMatrix();
+					gm.setMatrixAt(i, o.matrix);
+				});
+				gm.renderOrder = 5;
+				const cur = new THREE.Group(),
+					fr = new THREE.Mesh(
+						new THREE.PlaneGeometry(this.SW - 0.3, 1.9),
+						new THREE.MeshBasicMaterial({ map: ct, transparent: true, depthWrite: false, depthTest: false }),
+					),
+					ic = new THREE.Sprite(new THREE.SpriteMaterial({ transparent: true, depthTest: false, opacity: 0.85 }));
+				fr.renderOrder = 7;
+				ic.renderOrder = 8;
+				ic.scale.setScalar(1.25);
+				ic.position.z = 0.4;
+				cur.add(fr, ic);
+				W.sc.add(gm, cur);
+				m = W.pm[k] = { gm, cur, fr, ic, t: -1, p: null, pill: null };
+			}
+			m.gm.visible = !!see;
+			const sk = this.sabOf(W, k, S.r),
+				sb = W.ents[sk],
+				d = sb && (sb.local ? [sb.cu, sb.sel, sb.cuH] : sb.f && sb.f.cu),
+				pd = sb && (sb.local ? sb.pd : sb.f && sb.f.pd),
+				tvw = !!(W.split || W.tv),
+				on =
+					!!see &&
+					!!d &&
+					d[0] >= 0 &&
+					d[0] < this.gaps().length &&
+					(tvw ? !(pd && pd[S.r] !== undefined) : sk === (W.me && W.me.k) && !!d[2]);
+			m.cur.visible = on;
+			if (m.pill) m.pill.sp.visible = on && tvw;
+			if (!on) {
+				m.p = null;
+				return;
+			}
+			const g = this.gaps()[d[0]],
+				tx = W.laneX(bi) + g.x;
+			if (!m.p) m.p = new THREE.Vector3(tx, g.y, 1.3);
+			const kk = 1 - Math.exp(-dt * 16);
+			m.p.x += (tx - m.p.x) * kk;
+			m.p.y += (g.y - m.p.y) * kk;
+			m.cur.position.copy(m.p);
+			m.fr.material.color.set(pcol(sb.p));
+			if (m.t !== d[1]) {
+				m.t = d[1];
+				m.ic.material.map = this.iconTex(W, d[1] || 0);
+				m.ic.material.needsUpdate = true;
+			}
+			m.fr.scale.setScalar(1 + 0.05 * Math.sin(W.t * 8));
+			if (tvw) {
+				if (!m.pill) {
+					m.pill = pillSprite();
+					W.sc.add(m.pill.sp);
+				}
+				m.pill.set(sb.p.name.slice(0, 10), pcol(sb.p));
+				m.pill.sp.position.set(m.p.x, m.p.y + 1.7, 1.6);
+				m.pill.sp.scale.set(3.9, 1.3, 1);
+			}
 		},
 		/* trap models, hidden until set off (or the reveal after the round) */
 		trapMesh(W, t, g) {
@@ -32543,25 +33149,9 @@ Object.assign(MG, {
 				m.add(st);
 			}
 			/* its icon in a pill over it */
-			W.trapTex = W.trapTex || {};
-			const tx =
-					W.trapTex[t] ||
-					(W.trapTex[t] = canvasTex(128, 128, (x, w, h) => {
-						x.fillStyle = "#151B24";
-						x.beginPath();
-						x.arc(w / 2, h / 2, w / 2 - 4, 0, Math.PI * 2);
-						x.fill();
-						x.fillStyle = T.col;
-						x.beginPath();
-						x.arc(w / 2, h / 2, w / 2 - 14, 0, Math.PI * 2);
-						x.fill();
-						x.font = "900 64px Arial, sans-serif";
-						x.textAlign = "center";
-						x.textBaseline = "middle";
-						x.fillStyle = "#FFFFFF";
-						x.fillText(T.ic, w / 2, h / 2 + 4);
-					})),
-				ic = new THREE.Sprite(new THREE.SpriteMaterial({ map: tx, depthTest: false, transparent: true }));
+			const ic = new THREE.Sprite(
+				new THREE.SpriteMaterial({ map: this.iconTex(W, t), depthTest: false, transparent: true }),
+			);
 			ic.scale.setScalar(1.1);
 			ic.position.set(0, 0.95, 1.4);
 			ic.renderOrder = 6;
@@ -32599,11 +33189,15 @@ Object.assign(MG, {
 					s.m.emissive.copy(fl ? s.fc : s.c).multiplyScalar(Math.max(gl, fl * 0.8));
 				}),
 			);
-			/* traps: built from each saboteur's list for this round, shown once set off or in the reveal */
-			const reveal = S.E !== null && W.t >= 0;
+			/* traps: built from each saboteur's list for this round, shown once set off or in the reveal; while planning, the
+			   TV shows every board's traps and its saboteur's cursor, a phone only the board it's sabotaging */
+			const reveal = S.E !== null && W.t >= 0,
+				tvw = !!(W.split || W.tv),
+				myV = W.me && W.t >= 0 ? this.victimOf(W, W.me.k, S.r) : null;
 			W.plist.forEach((pl, bi) => {
 				const k = pl.key,
-					L = S.plan ? [] : this.trapsOn(W, k, S.r),
+					see = S.plan && W.t >= 0 && (tvw || k === myV),
+					L = S.plan && !see ? [] : this.trapsOn(W, k, S.r),
 					key = S.r + ":" + JSON.stringify(L),
 					tv = W.trapV[k] || (W.trapV[k] = { key: "", g: null, items: [] });
 				if (tv.key !== key) {
@@ -32620,7 +33214,8 @@ Object.assign(MG, {
 				}
 				const hits = this.hitsOn(W, k, S.r);
 				tv.items.forEach((it, idx) => {
-					const on = reveal || hits.includes(idx);
+					const on = reveal || see || hits.includes(idx);
+					if (!on) it.shown = 0;
 					if (on && !it.shown) {
 						it.shown = W.t;
 						burst(W.sc, tv.g.position.x + it.m.position.x, it.m.position.y, 1.4, {
@@ -32648,10 +33243,11 @@ Object.assign(MG, {
 							a = e && (e.local ? e.pd : e.f && e.f.pd),
 							ready = a && a[S.r] !== undefined;
 						pp.set(ready ? "READY ✓" : "PLANNING…", pcol(pl));
-						pp.sp.position.set(W.laneX(bi), 13, 2);
-						pp.sp.scale.set(7.5, 2.5, 1);
+						pp.sp.position.set(W.laneX(bi), 1.2, 2.2);
+						pp.sp.scale.set(6, 2, 1);
 					}
 				}
+				this.planMarks(W, bi, k, S, see, dt);
 			});
 			/* the big word: SABOTAGE! / ROUND n at the start of planning, its last seconds, then 3 2 1 DROP!, REVEAL! */
 			if (W.t >= 0) {
