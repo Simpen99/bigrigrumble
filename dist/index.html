@@ -813,7 +813,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-14 00:22 11dfdfe";
+const BUILD = "2026-10-14 00:29 3b4507a";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -33733,7 +33733,7 @@ Object.assign(MG, {
 						})),
 				gm = new THREE.InstancedMesh(
 					new THREE.PlaneGeometry(1, 1),
-					new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.32, depthWrite: false }),
+					new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.22, depthWrite: false }),
 					Math.max(1, G0.length),
 				),
 				o = new THREE.Object3D();

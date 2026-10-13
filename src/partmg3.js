@@ -5464,7 +5464,7 @@ Object.assign(MG, {
 						})),
 				gm = new THREE.InstancedMesh(
 					new THREE.PlaneGeometry(1, 1),
-					new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.32, depthWrite: false }),
+					new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.22, depthWrite: false }),
 					Math.max(1, G0.length),
 				),
 				o = new THREE.Object3D();
