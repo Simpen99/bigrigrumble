@@ -813,7 +813,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-13 20:21 b770974";
+const BUILD = "2026-10-13 20:25 f9a09f2";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -13775,6 +13775,17 @@ function stepMG(dt) {
 	}
 	cam.lookAt(GFX.mgCam.t);
 	cam.updateMatrixWorld();
+	/* W.camShift = [x, y] (shares of the screen) moves the picture without turning the camera, e.g. to frame something
+	   straight on beside a panel (Plinko Sabotage's planning); eased like the camera */
+	if (!W.split && !W.tv && (W.camShift || W.csNow)) {
+		const cs = W.camShift || [0, 0],
+			c0 = W.csNow || [0, 0];
+		W.csNow = [c0[0] + (cs[0] - c0[0]) * k, c0[1] + (cs[1] - c0[1]) * k];
+		if (!W.camShift && Math.abs(W.csNow[0]) + Math.abs(W.csNow[1]) < 0.002) W.csNow = null;
+		const c1 = W.csNow || [0, 0];
+		cam.setViewOffset(GFX.w, GFX.h, c1[0] * GFX.w, c1[1] * GFX.h, GFX.w, GFX.h);
+		cam.updateProjectionMatrix();
+	}
 	const so = W.def.sun || [14, 26, 12];
 	W.sun.position.set(GFX.mgCam.t.x + so[0], so[1], GFX.mgCam.t.z + so[2]);
 	W.sun.target.position.copy(GFX.mgCam.t);
@@ -32815,6 +32826,7 @@ Object.assign(MG, {
 				ox = (pv ? pv.ox : e.ox) || 0;
 			/* your target's whole board while planning, your own while aiming (and on the ready screen), then it follows
 			   your ball */
+			W.camShift = null;
 			if (e.st !== 1 && e.st !== 2) {
 				const y0 = this.GY - 0.4,
 					y1 = this.HDR + 1,
@@ -32839,6 +32851,12 @@ Object.assign(MG, {
 					W.sbY = cy = y;
 				}
 				W.sbDrag = 0;
+				/* planning: square on to the target's board, the picture shifted beside the tray / above it (no angle) */
+				if (pv) {
+					W.camShift = [rc / 2, (b - tc) / 2];
+					const t = new THREE.Vector3(ox, cy, 0);
+					return [t, new THREE.Vector3(ox, cy, D)];
+				}
 				const t = new THREE.Vector3(ox + D * tn * asp * rc, cy - D * tn * (b - tc), 0);
 				return [t, t.clone().add(new THREE.Vector3(0, D * 0.08, D))];
 			}

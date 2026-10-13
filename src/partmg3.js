@@ -4559,6 +4559,7 @@ Object.assign(MG, {
 				ox = (pv ? pv.ox : e.ox) || 0;
 			/* your target's whole board while planning, your own while aiming (and on the ready screen), then it follows
 			   your ball */
+			W.camShift = null;
 			if (e.st !== 1 && e.st !== 2) {
 				const y0 = this.GY - 0.4,
 					y1 = this.HDR + 1,
@@ -4583,6 +4584,12 @@ Object.assign(MG, {
 					W.sbY = cy = y;
 				}
 				W.sbDrag = 0;
+				/* planning: square on to the target's board, the picture shifted beside the tray / above it (no angle) */
+				if (pv) {
+					W.camShift = [rc / 2, (b - tc) / 2];
+					const t = new THREE.Vector3(ox, cy, 0);
+					return [t, new THREE.Vector3(ox, cy, D)];
+				}
 				const t = new THREE.Vector3(ox + D * tn * asp * rc, cy - D * tn * (b - tc), 0);
 				return [t, t.clone().add(new THREE.Vector3(0, D * 0.08, D))];
 			}

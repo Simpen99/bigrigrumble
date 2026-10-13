@@ -1033,6 +1033,17 @@ function stepMG(dt) {
 	}
 	cam.lookAt(GFX.mgCam.t);
 	cam.updateMatrixWorld();
+	/* W.camShift = [x, y] (shares of the screen) moves the picture without turning the camera, e.g. to frame something
+	   straight on beside a panel (Plinko Sabotage's planning); eased like the camera */
+	if (!W.split && !W.tv && (W.camShift || W.csNow)) {
+		const cs = W.camShift || [0, 0],
+			c0 = W.csNow || [0, 0];
+		W.csNow = [c0[0] + (cs[0] - c0[0]) * k, c0[1] + (cs[1] - c0[1]) * k];
+		if (!W.camShift && Math.abs(W.csNow[0]) + Math.abs(W.csNow[1]) < 0.002) W.csNow = null;
+		const c1 = W.csNow || [0, 0];
+		cam.setViewOffset(GFX.w, GFX.h, c1[0] * GFX.w, c1[1] * GFX.h, GFX.w, GFX.h);
+		cam.updateProjectionMatrix();
+	}
 	const so = W.def.sun || [14, 26, 12];
 	W.sun.position.set(GFX.mgCam.t.x + so[0], so[1], GFX.mgCam.t.z + so[2]);
 	W.sun.target.position.copy(GFX.mgCam.t);
