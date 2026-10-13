@@ -813,7 +813,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-13 21:48 1132d26";
+const BUILD = "2026-10-13 22:38 fae335f";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -31786,12 +31786,16 @@ Object.assign(MG, {
 			return S.plan ? `Plan ${Math.max(0, Math.ceil(S.P + this.PLANT - W.t))} s` : `Round ${S.r + 1}/${this.DROPS}`;
 		},
 		/* one board: COLS slots SW wide between walls at ±HW, ROWS peg rows RY apart from Y0 up; boards BW apart */
-		COLS: 5,
-		SW: 3.4,
-		HW: 8.5,
-		ROWS: 7,
-		RY: 2.8,
-		Y0: 4.4,
+		/* each board is a full Plinko board in Plinko's units (the physics too, so it plays the same), drawn at K scale
+		   (W.bg[board]: a group at its lane, scaled about the ground) so the boards fit side by side BW apart; e.x / e.y
+		   are world positions (wx / wy), the physics board-local */
+		K: 0.6,
+		COLS: 7,
+		SW: 4.4,
+		HW: 15.4,
+		ROWS: 8,
+		RY: 3.4,
+		Y0: 5,
 		PR: 0.32,
 		SH: 2.2,
 		FLOOR: 0.12,
@@ -31801,13 +31805,13 @@ Object.assign(MG, {
 		R: 0.83,
 		TS: 0.43,
 		WB: 0.63,
-		TOPY: 24 /* a hanging ball's centre (the top peg row is at 21.2) */,
-		CEIL: 26.2,
-		RAIL: 27.1,
-		HDR: 28.4,
-		VAL: [200, 50, 500, 50, 200],
-		SCOL: { 500: "#FFC83D", 200: "#2F7DE1", 50: "#E5484D" },
-		MP: 9,
+		TOPY: 31.6 /* a hanging ball's centre (the top peg row is at 28.8) */,
+		CEIL: 33.8,
+		RAIL: 34.7,
+		HDR: 36,
+		VAL: [100, 300, 50, 500, 50, 300, 100],
+		SCOL: { 500: "#FFC83D", 300: "#1FA35C", 100: "#2F7DE1", 50: "#E5484D" },
+		MP: 11,
 		DROPS: 3,
 		PLANT: 60,
 		AIMT: 4,
@@ -31821,21 +31825,21 @@ Object.assign(MG, {
 		PUSH: 2.6,
 		HOPV: 6.5,
 		HOPCD: 1.1,
-		AIMV: 6,
+		AIMV: 7,
 		/* the Plinko board parts on every board, the same layout for everyone each round (Plinko's layout() with these
 		   counts, rows LR and sizes): flippers, x2 gates, one split gate, pop bumpers, TNT */
-		NFLIP: 2,
+		NFLIP: 3,
 		NGATE: 2,
-		NBUMP: 2,
-		LR: { f: [1, 4], g: [0, 3], s: [3, 5] },
-		SPLITV: 2.2,
-		FL: 1.5,
-		BR: 0.55,
-		BUMPV: 9.5,
+		NBUMP: 3,
+		LR: { f: [1, 4], g: [0, 4], s: [3, 6] },
+		SPLITV: 2.6,
+		FL: 1.9,
+		BR: 0.62,
+		BUMPV: 10.3,
 		BUMPPTS: 25,
 		TNTL: 8,
-		TNTR: 4,
-		TNTV: 11,
+		TNTR: 5,
+		TNTV: 12,
 		/* traps: key, name, icon, cost, colour */
 		TRAPS: [
 			{ k: "wall", n: "Wall", ic: "▬", c: 20, col: "#8E96A3" },
@@ -31862,6 +31866,16 @@ Object.assign(MG, {
 		mkBall: MG.plinko.mkBall,
 		slotX(k) {
 			return -this.HW + (k + 0.5) * this.SW;
+		},
+		/* board-local → world, and back (e.ox = the board's lane) */
+		wx(e, x) {
+			return e.ox + this.K * x;
+		},
+		wy(y) {
+			return this.GY + this.K * (y - this.GY);
+		},
+		ly(y) {
+			return this.GY + (y - this.GY) / this.K;
 		},
 		/* the full peg grid (board-local x); the round's layout (W.L) takes out the flipper and bumper pegs */
 		pegs() {
@@ -31907,11 +31921,17 @@ Object.assign(MG, {
 			W.bx = W.plist.map((pl, bi) => {
 				const g = new THREE.Group(),
 					tg = this.tntModel();
-				g.position.x = W.laneX(bi);
+				this.boardPose(W, g, bi);
 				W.bd.add(g);
 				g.add(tg);
 				return Object.assign(this.boardFx(W, g, L), { tntG: tg, k: pl.key });
 			});
+		},
+		/* a group in board bi's local units: at its lane, scaled K about the ground */
+		boardPose(W, g, bi) {
+			g.position.set(W.laneX(bi), this.GY * (1 - this.K), 0);
+			g.scale.setScalar(this.K);
+			return g;
 		},
 		/* who sabotages whom: a ring of the players shuffled by the seed, turned a different step each round */
 		ring(W) {
@@ -32018,7 +32038,7 @@ Object.assign(MG, {
 					x.fillText(pl.name.slice(0, 12).toUpperCase(), w / 2, h / 2 + 4, w - 20);
 				}),
 				np = new THREE.Mesh(
-					new THREE.PlaneGeometry(9, 1.7),
+					new THREE.PlaneGeometry(14, 1.7),
 					new THREE.MeshBasicMaterial({ map: nm, transparent: true }),
 				);
 			np.position.set(ox, HDR, 1.74);
@@ -32046,7 +32066,7 @@ Object.assign(MG, {
 						g.fillStyle = v === 500 ? "#3A2A00" : "#F4F6F9";
 						g.fillText(String(v), w / 2, h / 2 + 4);
 					});
-				const pm = new THREE.Mesh(new THREE.PlaneGeometry(2.9, 1.27), new THREE.MeshBasicMaterial({ map: plate[v] }));
+				const pm = new THREE.Mesh(new THREE.PlaneGeometry(3.6, 1.36), new THREE.MeshBasicMaterial({ map: plate[v] }));
 				pm.position.set(x, -1.75, 1.73);
 				s.add(pm);
 				const fm = new THREE.MeshStandardMaterial({ color: c, flatShading: true, roughness: 0.6 }),
@@ -32094,10 +32114,18 @@ Object.assign(MG, {
 				{ GY, HDR } = this,
 				plate = {};
 			W.laneX = (i) => (i - (n - 1) / 2) * this.BW;
-			MG.plinko.cabinet.call(Object.assign(Object.create(MG.plinko), { HW: (n * this.BW) / 2 - 1.5, HDR, GY }), W);
+			MG.plinko.cabinet.call(
+				Object.assign(Object.create(MG.plinko), { HW: (n * this.BW) / 2 - 1.5, HDR: this.wy(HDR), GY }),
+				W,
+			);
 			W.slotF = [];
 			W.signs = [];
-			W.plist.forEach((pl, bi) => this.boardAt(W, s, pl, W.laneX(bi), plate));
+			W.bg = W.plist.map((pl, bi) => {
+				const g = this.boardPose(W, new THREE.Group(), bi);
+				s.add(g);
+				this.boardAt(W, g, pl, 0, plate);
+				return g;
+			});
 			this.setBoard(W, 0);
 			/* magnets on the rail, one per truck */
 			W.mag = {};
@@ -32109,7 +32137,7 @@ Object.assign(MG, {
 				mg.add(Cy(0.75, 0.75, 0.3, 12, "#2A2F3A", 0, 0.15, 0), Cy(0.78, 0.78, 0.08, 12, "#E5484D", 0, 0.04, 0));
 				g.add(cab, mg);
 				g.userData = { cab, mg };
-				s.add(g);
+				W.bg[W.plist.indexOf(p)].add(g);
 				W.mag[p.key] = g;
 			});
 			W.trapV = {};
@@ -32121,7 +32149,7 @@ Object.assign(MG, {
 			e.ox = e.x;
 			e.st = 0;
 			e.ax = 0;
-			e.y = this.TOPY;
+			e.y = this.wy(this.TOPY);
 			e.ang = e.tt = 0;
 			e.dn = 0;
 			e.lt = [];
@@ -32129,7 +32157,7 @@ Object.assign(MG, {
 			e.trp = [];
 			e.tgl = [];
 			e.sel = 0;
-			e.g.scale.setScalar(this.TS);
+			e.g.scale.setScalar(this.TS * this.K);
 			e.balls = [];
 			e.f = {
 				an: 0,
@@ -32531,8 +32559,8 @@ Object.assign(MG, {
 				h = q.h ? 1 : 0;
 				up = q.up;
 				q.up = false;
-				x = q.x - (v ? v.ox : 0);
-				y = q.y;
+				x = (q.x - (v ? v.ox : 0)) / this.K;
+				y = this.ly(q.y);
 			}
 			const gi = this.nearGap(W, x, y, !W.split);
 			if (h || gi >= 0) e.cu = gi;
@@ -32609,8 +32637,8 @@ Object.assign(MG, {
 			const lim = this.HW - 1.4;
 			e.ax = Math.max(-lim, Math.min(lim, e.ax - (e.tl || 0) * this.AIMV * dt));
 			e.swing = (e.swing || 0) + ((e.tl || 0) * 0.12 - (e.swing || 0)) * Math.min(1, dt * 5);
-			e.x = e.ox + e.ax;
-			e.y = this.TOPY;
+			e.x = this.wx(e, e.ax);
+			e.y = this.wy(this.TOPY);
 			e.tt = e.swing + Math.sin(W.t * 2.2 + e.i) * 0.03;
 		},
 		/* a board's flipper fire times this round (W.fT[key]: set by its owner's balls, or heard through e.f.fp) */
@@ -32685,7 +32713,7 @@ Object.assign(MG, {
 				V = window.planck.Vec2,
 				p = b.getPosition(),
 				v = b.getLinearVelocity(),
-				at = [e.ox + p.x, p.y + 1.6, 0];
+				at = [this.wx(e, p.x), this.wy(p.y + 1.6), 0];
 			if (T.k === "fake") {
 				if (q.hx[idx]) return;
 				q.hx[idx] = 1;
@@ -32739,7 +32767,7 @@ Object.assign(MG, {
 				e.cf = null;
 				e.x = e.ox + (e.i % 2 ? 1 : -1) * 4;
 				e.z = 4.4;
-				e.y = this.GY + this.R;
+				e.y = this.GY + this.R * this.K;
 				e.ang = e.tt = 0;
 				e.vx = 0;
 				e.f.st = 3;
@@ -32800,7 +32828,7 @@ Object.assign(MG, {
 					if (p.y < this.SH && W.t - q.lastTouch < 0.05) return this.score(W, e, q);
 					if (W.t >= S.D + this.ROUNDT) {
 						q.done = true;
-						fb(W, e, "Stuck!", { tone: "bad", at: [e.ox + p.x, p.y + 1.6, 0] });
+						fb(W, e, "Stuck!", { tone: "bad", at: [this.wx(e, p.x), this.wy(p.y + 1.6), 0] });
 						mgLog(W, `${mgName(e)} stuck in round ${e.rr + 1}`);
 						return;
 					}
@@ -32846,16 +32874,16 @@ Object.assign(MG, {
 				c.tt +=
 					(Math.max(-0.35, Math.min(0.35, -cvx * 0.05)) + (c.done ? 0 : (e.tl || 0) * 0.22) - c.tt) *
 					Math.min(1, dt * 6);
-				e.f.c2 = [e.ox + cp.x, cp.y, c.b.getAngle(), c.tt].map((v) => Math.round(v * 100) / 100);
+				e.f.c2 = [this.wx(e, cp.x), this.wy(cp.y), c.b.getAngle(), c.tt].map((v) => Math.round(v * 100) / 100);
 			} else e.f.c2 = 0;
 			const fq = e.balls.find((q) => !q.done) || e.balls[0],
 				fp = fq.b.getPosition();
-			e.cf = [e.ox + fp.x, fp.y];
+			e.cf = [this.wx(e, fp.x), this.wy(fp.y)];
 			const p = e.b.getPosition(),
 				vx = e.b.getLinearVelocity().x;
 			e.ang = e.b.getAngle();
-			e.x = e.ox + p.x;
-			e.y = p.y;
+			e.x = this.wx(e, p.x);
+			e.y = this.wy(p.y);
 			e.vx = vx;
 			const tg = Math.max(-0.35, Math.min(0.35, -vx * 0.05)) + (e.st === 1 ? (e.tl || 0) * 0.22 : 0);
 			e.tt += (tg - e.tt) * Math.min(1, dt * 6);
@@ -32886,7 +32914,7 @@ Object.assign(MG, {
 				if (q.gx.includes(i) || !crossed(g)) return;
 				q.gx.push(i);
 				e.f.gt = [e.f.gt[0] + 1, i];
-				fb(W, e, q.gx.length > 1 ? "×4!" : "×2!", { tone: "good", at: [e.ox + p.x, p.y + 1.6, 0] });
+				fb(W, e, q.gx.length > 1 ? "×4!" : "×2!", { tone: "good", at: [this.wx(e, p.x), this.wy(p.y + 1.6), 0] });
 				mgLog(W, mgName(e) + " through x2 gate " + i);
 				if (e.isMe) sfx("coin");
 			});
@@ -32931,7 +32959,10 @@ Object.assign(MG, {
 				m = 2 ** q.gx.length;
 			bb.setLinearVelocity(window.planck.Vec2((dx / l) * this.BUMPV, (dy / l) * this.BUMPV + 1));
 			e.sc += this.BUMPPTS * m;
-			fb(W, e, "+" + this.BUMPPTS + (m > 1 ? " ×" + m : ""), { tone: "good", at: [e.ox + p.x, p.y + 1.6, 0] });
+			fb(W, e, "+" + this.BUMPPTS + (m > 1 ? " ×" + m : ""), {
+				tone: "good",
+				at: [this.wx(e, p.x), this.wy(p.y + 1.6), 0],
+			});
 			e.f.bp = [e.f.bp[0] + 1, i];
 		},
 		/* TNT: the same schedule on every board (from the drop), each board's barrels go off on their own (W.tntXB[key]) */
@@ -32973,7 +33004,7 @@ Object.assign(MG, {
 					bq.b.setLinearVelocity(V(v.x * 0.3 + (dx / l) * this.TNTV * k, v.y * 0.3 + (dy / l) * this.TNTV * k + 3 * k));
 					if (e.isMe) W.shake = 0.6;
 				});
-			burst(W.sc, e.ox + q.x, q.y, 1.4, {
+			burst(W.sc, this.wx(e, q.x), this.wy(q.y), 1.4, {
 				n: 24,
 				shape: "ico",
 				cols: ["#FF8A1F", "#FFC83D", "#E5484D", "#3A3F48"],
@@ -33000,7 +33031,10 @@ Object.assign(MG, {
 			q.done = true;
 			e.sc += v;
 			e.f.ls = [e.f.ls[0] + 1, k, x3 ? 1 : 0];
-			fb(W, e, `+${v}`, { tone: v >= 300 ? "good" : v <= 50 ? "bad" : "", at: [e.ox + p.x, p.y + 1.6, 0] });
+			fb(W, e, `+${v}`, {
+				tone: v >= 300 ? "good" : v <= 50 ? "bad" : "",
+				at: [this.wx(e, p.x), this.wy(p.y + 1.6), 0],
+			});
 			if (x3) fb(W, e, "×3!", { stamp: true });
 			mgLog(
 				W,
@@ -33036,17 +33070,17 @@ Object.assign(MG, {
 			   your ball; the reveal after each round (and the end) zooms out to every board, square on above the buttons */
 			W.camShift = null;
 			if (S.E !== null && W.t >= 0 && (W.t < S.E || S.over)) {
-				const y0 = this.GY - 0.4,
-					y1 = this.HDR + 1,
+				const y0 = this.wy(this.GY - 0.4),
+					y1 = this.wy(this.HDR + 1),
 					top = document.querySelector("#mg .m3top"),
 					tc = top && GFX.h ? Math.max(0, Math.min(0.2, top.getBoundingClientRect().bottom / GFX.h)) : 0,
 					n = W.plist.length,
-					/* portrait is too narrow for every board side by side: 1.5 boards wide, panning from the first to the last
+					/* portrait is too narrow for every board side by side: one board wide, panning from the first to the last
 					   (the end of the game: your own) */
 					pan = asp < 1 && n > 1,
 					u = Math.max(0, Math.min(1, (W.t - (S.E - this.BETWEEN) - 0.4) / (this.BETWEEN - 1.2))),
 					D =
-						Math.max((y1 - y0) / 2 / (1 - b - tc) / tn, (pan ? this.BW * 0.75 : (n * this.BW) / 2) / (tn * asp)) * 1.03,
+						Math.max((y1 - y0) / 2 / (1 - b - tc) / tn, (pan ? this.BW * 0.52 : (n * this.BW) / 2) / (tn * asp)) * 1.03,
 					t = new THREE.Vector3(
 						!pan ? 0 : S.over && W.t >= S.E ? e.ox : W.laneX(0) + u * u * (3 - 2 * u) * (W.laneX(n - 1) - W.laneX(0)),
 						(y0 + y1) / 2,
@@ -33056,14 +33090,14 @@ Object.assign(MG, {
 				return [t, new THREE.Vector3(t.x, t.y, D)];
 			}
 			if (e.st !== 1 && e.st !== 2) {
-				const y0 = this.GY - 0.4,
-					y1 = this.HDR + 1,
+				const y0 = this.wy(this.GY - 0.4),
+					y1 = this.wy(this.HDR + 1),
 					top = !W.split && !W.tv && document.querySelector("#mg .m3top"),
 					tc = top && GFX.h ? Math.max(0, Math.min(0.2, top.getBoundingClientRect().bottom / GFX.h)) : 0,
 					/* planning: the board's width, but at least 60% of its height in view */
 					D = pv
-						? Math.max(((this.HW + 1) / (tn * asp * (1 - rc))) * 1.04, ((y1 - y0) * 0.3) / (1 - b - tc) / tn)
-						: Math.max((y1 - y0) / 2 / (1 - b - tc) / tn, (this.HW + 1) / (tn * asp * (1 - rc))) * 1.04,
+						? Math.max(((this.K * (this.HW + 1)) / (tn * asp * (1 - rc))) * 1.04, ((y1 - y0) * 0.3) / (1 - b - tc) / tn)
+						: Math.max((y1 - y0) / 2 / (1 - b - tc) / tn, (this.K * (this.HW + 1)) / (tn * asp * (1 - rc))) * 1.04,
 					hb = D * tn * (1 - b - tc);
 				let cy = (y0 + y1) / 2;
 				/* planning: the target's board zoomed to the width; when it's taller than the view a swipe scrolls it */
@@ -33088,14 +33122,14 @@ Object.assign(MG, {
 				const t = new THREE.Vector3(ox + D * tn * asp * rc, cy - D * tn * (b - tc), 0);
 				return [t, t.clone().add(new THREE.Vector3(0, D * 0.08, D))];
 			}
-			/* following the ball: in portrait the board's whole width (it's small), in landscape closer */
-			const D = asp < 1 ? ((this.HW + 1) / (tn * asp)) * 1.02 : 24,
+			/* following the ball: framed like Plinko's (in its units) */
+			const D = (asp < 1 ? 26 : 24) * this.K,
 				hw = D * tn * asp,
 				hh = D * tn,
 				sh = hh * b,
-				mx = this.HW + 1 - hw,
-				lo = this.GY - 0.5 + hh * (1 - b) - sh,
-				hi = this.HDR + 0.6 - hh,
+				mx = this.K * (this.HW + 1) - hw,
+				lo = this.wy(this.GY - 0.5) + hh * (1 - b) - sh,
+				hi = this.wy(this.HDR + 0.6) - hh,
 				[fx, fy] = e.cf || [e.x, e.y],
 				x = ox + (mx <= 0 ? 0 : Math.max(-mx, Math.min(mx, fx - ox))),
 				y = lo > hi ? (lo + hi) / 2 : Math.max(lo, Math.min(hi, fy - sh)),
@@ -33108,8 +33142,8 @@ Object.assign(MG, {
 				r = el && el.getBoundingClientRect(),
 				b = r && r.height ? Math.max(0, Math.min(0.35, (innerHeight - r.top) / innerHeight + 0.01)) : 0,
 				tn = Math.tan((20 * Math.PI) / 180),
-				y0 = this.GY - 0.4,
-				y1 = this.HDR + 1,
+				y0 = this.wy(this.GY - 0.4),
+				y1 = this.wy(this.HDR + 1),
 				half = (W.plist.length * this.BW) / 2,
 				/* the ready screen: the boards sit right of the intro card (its left 30%) */
 				c = !W.startAt || W.t < 0 ? 0.3 : 0,
@@ -33134,13 +33168,14 @@ Object.assign(MG, {
 			}
 			e.pitch = e.tt * e.fc;
 			e.tr.rotation.z = e.pitch;
-			e.g.position.set(e.x + this.WB * Math.sin(e.tt), e.y - this.WB * Math.cos(e.tt), e.z);
+			const K = this.K;
+			e.g.position.set(e.x + this.WB * K * Math.sin(e.tt), e.y - this.WB * K * Math.cos(e.tt), e.z);
 			const bl = this.ball(W, e),
 				ha = W.t - (e.hopT ?? -9),
 				q = ha < 0.35 ? 0.13 * Math.sin((ha / 0.35) * Math.PI) : 0;
 			bl.g.visible = !e.gone;
 			bl.g.position.set(e.x, e.y, e.z);
-			bl.g.scale.set(1 + q, 1 - q, 1 + q);
+			bl.g.scale.set((1 + q) * K, (1 - q) * K, (1 + q) * K);
 			bl.spin.rotation.z = e.ang;
 			const col = pcol(e.p),
 				st = e.local ? e.st : f.st || 0;
@@ -33160,7 +33195,7 @@ Object.assign(MG, {
 					sl.fl = W.t;
 					sl.fc.set(col);
 				}
-				burst(W.sc, e.ox + this.slotX(f.ls[1]), 1.5, 0.5, {
+				burst(W.sc, this.wx(e, this.slotX(f.ls[1])), this.wy(1.5), 0.5, {
 					n: f.ls[2] ? 22 : 12,
 					shape: "coin",
 					cols: ["#FFC83D", "#FFE27A"],
@@ -33174,8 +33209,8 @@ Object.assign(MG, {
 			if (mg) {
 				const hang = st === 0 && !e.gone,
 					u = mg.userData,
-					my = hang ? e.y + this.R - 0.02 : this.RAIL - 1.3;
-				mg.position.x = hang ? e.x : mg.position.x + (e.ox - mg.position.x) * Math.min(1, dt * 3);
+					my = hang ? this.ly(e.y) + this.R - 0.02 : this.RAIL - 1.3;
+				mg.position.x = hang ? (e.x - e.ox) / K : mg.position.x * (1 - Math.min(1, dt * 3));
 				u.my = u.my === undefined ? my : u.my + (my - u.my) * Math.min(1, dt * (hang ? 20 : 3));
 				u.mg.position.y = u.my;
 				u.mg.rotation.z = hang ? e.tt * 0.3 : 0;
@@ -33192,7 +33227,8 @@ Object.assign(MG, {
 		parts(W, e, f, col) {
 			const bx = W.bx && W.bx[e.i],
 				L = W.L,
-				pop = (q, cols, n) => burst(W.sc, e.ox + q.x, q.y, 1.4, { n, shape: "ico", cols, spd: 3, up: 2, life: 0.5 });
+				pop = (q, cols, n) =>
+					burst(W.sc, this.wx(e, q.x), this.wy(q.y), 1.4, { n, shape: "ico", cols, spd: 3, up: 2, life: 0.5 });
 			if (f.gt && f.gt[0] !== (e.gtSeen || 0)) {
 				e.gtSeen = f.gt[0];
 				const g = bx && bx.gateM[f.gt[1]],
@@ -33220,7 +33256,7 @@ Object.assign(MG, {
 					q = L.bumps[f.bp[1]];
 				if (b) b.t = W.t;
 				if (q)
-					burst(W.sc, e.ox + q.x, q.y, 1.4, {
+					burst(W.sc, this.wx(e, q.x), this.wy(q.y), 1.4, {
 						n: 10,
 						shape: "cube",
 						cols: ["#FFE27A", "#FFFFFF", col],
@@ -33243,7 +33279,7 @@ Object.assign(MG, {
 				e.tr2.scale.setScalar(0.8);
 				e.tr2.rotation.order = "YXZ";
 				e.g2.add(e.tr2);
-				e.g2.scale.setScalar(this.TS);
+				e.g2.scale.setScalar(this.TS * this.K);
 				W.sc.add(e.g2);
 			}
 			const b2 = c2 ? this.ball(W, e, "ball2") : e.ball2;
@@ -33252,8 +33288,9 @@ Object.assign(MG, {
 			if (c2 && !e.gone) {
 				const [x, y, an, tt] = c2;
 				e.tr2.rotation.set(0, e.yaw, tt * e.fc);
-				e.g2.position.set(x + this.WB * Math.sin(tt), y - this.WB * Math.cos(tt), 0);
+				e.g2.position.set(x + this.WB * this.K * Math.sin(tt), y - this.WB * this.K * Math.cos(tt), 0);
 				b2.g.position.set(x, y, 0);
+				b2.g.scale.setScalar(this.K);
 				b2.spin.rotation.z = an;
 			}
 		},
@@ -33357,10 +33394,10 @@ Object.assign(MG, {
 					ic = new THREE.Sprite(new THREE.SpriteMaterial({ transparent: true, depthTest: false, opacity: 0.85 }));
 				fr.renderOrder = 7;
 				ic.renderOrder = 8;
-				ic.scale.setScalar(1.25);
+				ic.scale.setScalar(2);
 				ic.position.z = 0.4;
 				cur.add(fr, ic);
-				W.sc.add(cur);
+				W.bg[bi].add(cur);
 				m = W.pm[k] = { gm: null, r: -1, cur, fr, ic, t: -1, p: null, pill: null };
 			}
 			/* the dashed frames in this round's trap gaps */
@@ -33377,13 +33414,13 @@ Object.assign(MG, {
 					),
 					o = new THREE.Object3D();
 				G0.forEach((g, i) => {
-					o.position.set(W.laneX(bi) + g.x, g.y, 1.1);
+					o.position.set(g.x, g.y, 1.1);
 					o.scale.set(g.w - 0.8, 1.4, 1);
 					o.updateMatrix();
 					gm.setMatrixAt(i, o.matrix);
 				});
 				gm.renderOrder = 5;
-				W.sc.add(gm);
+				W.bg[bi].add(gm);
 				m.gm = gm;
 				m.r = W.lr;
 			}
@@ -33406,7 +33443,7 @@ Object.assign(MG, {
 				return;
 			}
 			const g = this.gaps(W)[d[0]],
-				tx = W.laneX(bi) + g.x;
+				tx = g.x;
 			if (!m.p) m.p = new THREE.Vector3(tx, g.y, 1.3);
 			const kk = 1 - Math.exp(-dt * 16);
 			m.p.x += (tx - m.p.x) * kk;
@@ -33422,11 +33459,11 @@ Object.assign(MG, {
 			if (tvw) {
 				if (!m.pill) {
 					m.pill = pillSprite();
-					W.sc.add(m.pill.sp);
+					W.bg[bi].add(m.pill.sp);
 				}
 				m.pill.set(sb.p.name.slice(0, 10), pcol(sb.p));
-				m.pill.sp.position.set(m.p.x, m.p.y + 1.7, 1.6);
-				m.pill.sp.scale.set(3.9, 1.3, 1);
+				m.pill.sp.position.set(m.p.x, m.p.y + 2.4, 1.6);
+				m.pill.sp.scale.set(6.6, 2.2, 1);
 			}
 		},
 		/* trap models, hidden until set off (or the reveal after the round) */
@@ -33490,8 +33527,8 @@ Object.assign(MG, {
 			const ic = new THREE.Sprite(
 				new THREE.SpriteMaterial({ map: this.iconTex(W, t), depthTest: false, transparent: true }),
 			);
-			ic.scale.setScalar(1.1);
-			ic.position.set(0, 0.95, 1.4);
+			ic.scale.setScalar(1.8);
+			ic.position.set(0, 1.25, 1.4);
 			ic.renderOrder = 6;
 			m.add(ic);
 			m.userData.ic = ic;
@@ -33564,13 +33601,12 @@ Object.assign(MG, {
 					if (tv.g) W.sc.remove(tv.g);
 					tv.key = key;
 					tv.g = new THREE.Group();
-					tv.g.position.x = W.laneX(bi);
 					tv.items = L.map(([ty, gi]) => {
 						const m = this.trapMesh(W, ty, this.gaps(W)[gi]);
 						tv.g.add(m);
 						return { m, shown: 0 };
 					});
-					W.sc.add(tv.g);
+					W.bg[bi].add(tv.g);
 				}
 				const hits = this.hitsOn(W, k, S.r),
 					wv = Math.sin(Math.max(0, W.t) * 4);
@@ -33588,7 +33624,7 @@ Object.assign(MG, {
 						on = full || (T.k === "fake" && W.t >= 0 && !S.plan);
 					if (full && tv.seen[id] === undefined) {
 						tv.seen[id] = W.t;
-						burst(W.sc, tv.g.position.x + it.m.position.x, it.m.position.y, 1.4, {
+						burst(W.sc, W.laneX(bi) + this.K * it.m.position.x, this.wy(it.m.position.y), 1.4, {
 							n: 10,
 							shape: "ico",
 							cols: ["#FFFFFF", T.col],
@@ -33611,7 +33647,7 @@ Object.assign(MG, {
 				let pp = W.bpill[k];
 				if (S.plan && !pp) {
 					pp = W.bpill[k] = pillSprite();
-					W.sc.add(pp.sp);
+					W.bg[bi].add(pp.sp);
 				}
 				if (pp) {
 					pp.sp.visible = !!S.plan;
@@ -33620,8 +33656,8 @@ Object.assign(MG, {
 							a = e && (e.local ? e.pd : e.f && e.f.pd),
 							ready = a && a[S.r] !== undefined;
 						pp.set(ready ? "READY ✓" : "PLANNING…", pcol(pl));
-						pp.sp.position.set(W.laneX(bi), 1.2, 2.2);
-						pp.sp.scale.set(6, 2, 1);
+						pp.sp.position.set(0, 1.4, 2.2);
+						pp.sp.scale.set(10, 3.3, 1);
 					}
 				}
 				this.planMarks(W, bi, k, S, see, dt);
@@ -33651,7 +33687,7 @@ Object.assign(MG, {
 					g.position.set(q.x, q.y, 0);
 					g.scale.setScalar(a * (1 + Math.sin(W.t * (left < 2 ? 22 : 9)) * 0.06));
 					if (Math.random() < dt * 12)
-						burst(W.sc, W.laneX(bi) + q.x + 0.32, q.y + 0.82, 1, {
+						burst(W.sc, W.laneX(bi) + this.K * (q.x + 0.32), this.wy(q.y + 0.82), 1, {
 							n: 1,
 							shape: "ico",
 							cols: ["#FFE27A", "#FF8A1F"],
