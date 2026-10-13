@@ -106,6 +106,7 @@ function chamferPrism(P, d, r, cs) {
 function buildTruck(i, mode) {
 	const hose = mode === "hose",
 		mon = mode === "monster",
+		armour = mode === "armour",
 		springs = mode === "springs";
 	const B = (w, h, d, c, x, y, z, o) => {
 		let sq = null;
@@ -676,6 +677,11 @@ function buildTruck(i, mode) {
 		host.add(bp, l1, l2);
 	}
 	if (mon) monsterize(g, monAx, anims, wheelsL, t.kind === "monster");
+	/* armour: roof ornaments off, the strongbox goes on the roof itself */
+	if (armour) {
+		roof.forEach((o) => o.parent && o.parent.remove(o));
+		armourize(g, W);
+	}
 	{
 		/* paint (body and accent colour) gets its own materials per truck, tagged for the new look's slight shine (lookEnv) */
 		const pc = [c, a].map((x) => new THREE.Color(x).getHex()),
@@ -879,6 +885,68 @@ function monsterize(g, xs, anims, wheelsL, own) {
 			fl.scale.set(1, k, 1);
 			fl.position.y = ht + 0.08 + 0.12 * k;
 		});
+	});
+}
+/* armour mode (Getaway's cash truck): the truck's own body and paint, bolted up for a cash run: riveted steel skirts
+   over the wheels, a slanted ram plate with ribs on the front, a steel strongbox with gold badges on the roof (the
+   money bags sit on it) and amber security beacons */
+function armourize(g, W) {
+	g.updateMatrixWorld(true);
+	const bb = new THREE.Box3().setFromObject(g),
+		fx = bb.max.x,
+		rx = bb.min.x,
+		ST = "#5A6272",
+		DK = "#3D424C",
+		GO = "#FFC83D",
+		L = (fx - rx) * 0.84,
+		cx = (fx + rx) / 2 - 0.05;
+	/* side skirts: just outside whatever the truck has at their height (steps, wheels), a plate, a lip along its
+	   bottom, two rows of rivets */
+	let mz = W / 2;
+	g.traverse((o) => {
+		if (!o.isMesh) return;
+		const b = new THREE.Box3().setFromObject(o);
+		if (b.max.y > 0.44 && b.min.y < 0.76) mz = Math.max(mz, b.max.z, -b.min.z);
+	});
+	const z0 = mz + 0.06;
+
+	[-1, 1].forEach((sd) => {
+		g.add(B_(L, 0.28, 0.07, ST, cx, 0.6, sd * z0), B_(L, 0.06, 0.1, DK, cx, 0.45, sd * (z0 + 0.01)));
+		for (let x = cx - L / 2 + 0.15; x < cx + L / 2 - 0.1; x += 0.3)
+			[0.52, 0.68].forEach((y) => {
+				const rv = Cy(0.035, 0.035, 0.05, 6, "#C9CED8", x, y, sd * (z0 + 0.05));
+				rv.rotation.x = Math.PI / 2;
+				g.add(rv);
+			});
+	});
+	/* the ram plate: leaning back over the bumper, three ribs, a yellow top edge */
+	const ram = new THREE.Group();
+	ram.add(B_(0.08, 0.56, W + 0.16, ST, 0, 0, 0), B_(0.1, 0.07, W + 0.18, GO, 0.01, 0.3, 0));
+	[-0.38, 0, 0.38].forEach((z) => ram.add(B_(0.12, 0.5, 0.07, DK, 0.06, -0.02, z)));
+	ram.position.set(fx + 0.1, 0.48, 0);
+	ram.rotation.z = 0.32;
+	g.add(ram);
+	/* roof strongbox with a gold badge each side, beacons on its front corners */
+	const top = truckTop(g),
+		bw = 0.86,
+		bd = W * 0.66,
+		by = top.y + 0.17;
+	g.add(
+		B_(bw, 0.32, bd, ST, top.x, by, 0),
+		B_(bw + 0.06, 0.05, bd + 0.06, DK, top.x, by + 0.18, 0),
+		B_(bw + 0.06, 0.05, bd + 0.06, DK, top.x, by - 0.14, 0),
+	);
+	[-1, 1].forEach((sd) => {
+		g.add(
+			B_(0.24, 0.2, 0.03, GO, top.x, by, sd * (bd / 2 + 0.02)),
+			B_(0.14, 0.11, 0.03, "#C8961E", top.x, by, sd * (bd / 2 + 0.035)),
+		);
+		g.add(
+			Cy(0.07, 0.08, 0.12, 8, "#FFB547", top.x + bw / 2 - 0.08, by + 0.27, sd * (bd / 2 - 0.08), {
+				emissive: "#FF9A1F",
+				emissiveIntensity: 1.2,
+			}),
+		);
 	});
 }
 /* plain box for the monster kit (no chamfer: small parts stay crisp) */

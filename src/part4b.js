@@ -5582,10 +5582,11 @@ const MG = {
 				p.g = g;
 			});
 		},
+		/* the highway (also Getaway's: this.LANES lanes, this.ROADL long, this.signTxt(z) on the gantries): dashed lane
+		   lines, guardrails, sign gantries, fields and houses */
 		road(W, wid) {
-			// four-lane highway: dashed lane lines, guardrails, sign gantries, fields and houses
 			const s = W.sc,
-				L = 1100,
+				L = this.ROADL || 1100,
 				zc = -L / 2 + 30;
 			s.add(texBox(220, 0.4, L, grassTex(), 10, 0, -0.25, zc));
 			s.add(texBox(wid + 1.4, 0.1, L, asphaltTex(), 8, 0, 0.05, zc));
@@ -5613,7 +5614,7 @@ const MG = {
 			roadLines(s, [-(wid / 2 + 0.35), wid / 2 + 0.35], 30, -L + 30, 0.104);
 			roadLines(
 				s,
-				[1, 2, 3].map((l) => (l - this.LANES / 2) * this.LW),
+				Array.from({ length: this.LANES - 1 }, (_, i) => (i + 1 - this.LANES / 2) * this.LW),
 				21.3,
 				-L + 30,
 				0.104,
@@ -5634,7 +5635,7 @@ const MG = {
 							x.textAlign = "center";
 							x.textBaseline = "middle";
 							x.fillStyle = "#fff";
-							x.fillText("POST OFFICE ▲", w / 2, h / 2 + 2);
+							x.fillText(this.signTxt ? this.signTxt(z) : "POST OFFICE ▲", w / 2, h / 2 + 2);
 						}),
 					}),
 				);

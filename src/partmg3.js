@@ -7077,3 +7077,577 @@ Object.assign(MG, {
 			s === 0 ? rnd(4) * 100 + rnd(6) : rnd(2) ? 1000 + rnd(3) * 100 + 45 : rnd(3) * 100 + 10 + rnd(30),
 	}),
 });
+
+/* Getaway (1 vs 3): a highway chase. The solo truck is an armoured cash truck (bigger, heavier) with BAGS cash bags on
+   its roof; the other three are cops. Everyone cruises up the road (-z) on their own: the stick steers across the lanes,
+   up / down speed up and brake within a band round V0. A cop's ram knocks one bag off (gone for good, +1 for that cop),
+   then the truck can't lose another for IMM s. The truck's button drops an oil slick behind it: cops that drive into it
+   spin out. Slower traffic (Rush Hour's cars, from the seed) fills the lanes for both sides; hitting a car costs speed.
+   The truck escapes if it reaches the tunnel TL m up the road with any cash; the cops win by stripping every bag, or if
+   time runs out first.
+   Sync: the truck's device owns its bags (e.f.bg), shares lost bags as e.f.lb [[n, cop key]] (the cop's device credits
+   it), oil slicks as e.f.oil [[id, x, z, t]] and the escape as e.f.esc; every device checks its own trucks against the
+   traffic (a function of time) and the slicks. Rams come through the engine (collide / rth → onRammed on the truck's
+   device). */
+Object.assign(MG, {
+	getaway: {
+		name: "Getaway",
+		kind: "arena",
+		ctrl: "stick",
+		team: "1v3",
+		hi: true,
+		unit: "bags",
+		dur: 75,
+		bare: true,
+		lt: { amb: 0.6, sun: 0.88, warm: 0.4, haze: 60 },
+		bound: { t: "none" },
+		/* the road: LANES lanes LW wide, ROADL long, the tunnel TL up it; traffic at CARV */
+		LANES: 6,
+		LW: 3.6,
+		ROADL: 1300,
+		TL: 1050,
+		CARV: 9,
+		CARCOL: MG.hop.CARCOL,
+		/* driving: cruise V0, the stick adds up to UP (truck) / UPC (cops) or takes off DN; lateral push LATA */
+		V0: 16,
+		UP: 4,
+		UPC: 7.5,
+		DN: 6,
+		LATA: 34,
+		/* cash: BAGS on the truck, IMM s safe after losing one; oil: cooldown OILCD, lasts OILT, radius OILR */
+		BAGS: 10,
+		IMM: 2.5,
+		OILCD: 7,
+		OILT: 8,
+		OILR: 1.9,
+		how: "1 vs 3 highway chase! The cash truck has to reach the tunnel with any cash left; the cops ram it to knock the money bags off. Mind the traffic!",
+		teamHow: (s) =>
+			s === 0
+				? "You're the CASH TRUCK: reach the tunnel with cash left. OIL behind you spins the cops out."
+				: "You're a COP: ram the cash truck to knock its money bags off before it reaches the tunnel!",
+		stickHint: (fine) =>
+			fine
+				? "WASD or arrows: steer, up = faster, down = brake. Space: ram (cops) / oil (cash truck)."
+				: "Drag to steer: up = faster, down = brake. The button: RAM for cops, OIL for the cash truck.",
+		ramLabel: (side) => (side === 0 ? "OIL" : "RAM"),
+		canRam: (e) => e.side === 1,
+		ramCd(W) {
+			const e = W.me;
+			return e.side === 0 ? Math.min(1, Math.max(0, ((e.oilCd || 0) - W.t) / this.OILCD)) : Math.min(1, e.bcd / 2);
+		},
+		ramReady(W) {
+			const e = W.me;
+			return e.side === 0 ? W.t >= (e.oilCd || 0) : e.bcd <= 0;
+		},
+		kits() {
+			MG.hop.kits.call(MG.hop);
+		},
+		lx(l) {
+			return (l - (this.LANES - 1) / 2) * this.LW;
+		},
+		carZ(W, c) {
+			return c.z0 - this.CARV * Math.max(0, W.t);
+		},
+		signTxt(z) {
+			return `TUNNEL ${Math.max(0, Math.round(this.TL + z))} m ▲`;
+		},
+		/* the cash truck (side 0) */
+		solo(W) {
+			return W.list.find((e) => e.side === 0 && !e.gone) || null;
+		},
+		build(W) {
+			const s = W.sc,
+				wid = this.LANES * this.LW;
+			MG.hop.road.call(this, W, wid);
+			/* traffic from the seed: rows of 1-3 cars, always at least three lanes free */
+			W.cars = [];
+			const kits = {};
+			for (let z = -55; z > -this.TL + 25; z -= 15 + W.rng() * 12) {
+				const lanes = [0, 1, 2, 3, 4, 5].sort(() => W.rng() - 0.5),
+					nc = 1 + Math.floor(W.rng() * 2.4);
+				for (let k = 0; k < nc; k++) {
+					const c = {
+							id: W.cars.length,
+							l: lanes[k],
+							z0: z - W.rng() * 4,
+							c: this.CARCOL[Math.floor(W.rng() * this.CARCOL.length)],
+						},
+						ty = CAR_TYPES[c.id % 4],
+						kit = kits[ty + c.c] || (kits[ty + c.c] = bakeKit(carModel(ty, c.c))),
+						g = kitGroup(kit);
+					g.position.set(this.lx(c.l), 0, c.z0);
+					s.add(g);
+					c.g = g;
+					W.cars.push(c);
+				}
+			}
+			W.cars.sort((a, b) => b.z0 - a.z0);
+			this.tunnel(W, wid);
+			W.oilM = {};
+		},
+		/* the tunnel: a concrete portal into a grassy hill, its name on the beam, amber lamps */
+		tunnel(W, wid) {
+			const s = W.sc,
+				z = -this.TL,
+				hw = wid / 2 + 1.6;
+			s.add(texBox(wid + 120, 18, 140, grassTex(), 10, 0, 8.6, z - 72));
+			s.add(B(wid + 40, 6, 40, "#5E9E4F", 0, 19, z - 50));
+			[-1, 1].forEach((sd) => {
+				s.add(B(3.2, 10, 3.4, "#9AA1AC", sd * (hw + 1.6), 5, z));
+				s.add(B(0.5, 10.2, 3.5, "#C9CED8", sd * (hw + 0.05), 5, z));
+			});
+			s.add(B(wid + 9.6, 2.6, 3.4, "#9AA1AC", 0, 8.7, z));
+			s.add(B(wid + 3.2, 7.4, 0.3, "#07090D", 0, 3.7, z - 1.55));
+			for (let i = 0; i < 6; i++) {
+				const m = B(0.9, 0.25, 0.3, "#FFB547", -wid / 2 + 2 + (i * (wid - 4)) / 5, 7.2, z + 1.8, {
+					emissive: "#FF9A1F",
+					emissiveIntensity: 1.4,
+				});
+				s.add(m);
+			}
+			const sg = new THREE.Mesh(
+				new THREE.PlaneGeometry(wid * 0.6, 1.6),
+				new THREE.MeshBasicMaterial({
+					map: canvasTex(512, 72, (x, w, h) => {
+						x.font = "52px Bungee, 'Arial Black', Impact, sans-serif";
+						x.textAlign = "center";
+						x.textBaseline = "middle";
+						x.fillStyle = "#151B24";
+						x.fillText("BORDER TUNNEL", w / 2, h / 2 + 3);
+					}),
+					transparent: true,
+				}),
+			);
+			sg.position.set(0, 8.7, z + 1.75);
+			s.add(sg);
+		},
+		/* the cash truck leads in the middle; the cops line up behind */
+		spawn(W, i) {
+			const e = W.list[i];
+			if (e && e.side === 0) return { x: 0, z: -14, yaw: Math.PI / 2 };
+			const solo = W.list[0] && W.list[0].side === 0,
+				j = solo ? i - 1 : i;
+			return { x: [-5.4, 5.4, 0, -9, 9][j % 5], z: 0, yaw: Math.PI / 2 };
+		},
+		initEnt(W, e) {
+			e.vx = e.vz = 0;
+			e.oilHit = {};
+			e.hitC = {};
+			if (e.side === 0) {
+				e.bags = this.BAGS;
+				e.lbN = 0;
+				e.mass = 3.2;
+				e.rad = 1.25;
+				/* the armoured version of its own truck (buildTruck mode "armour"), a size up */
+				const sc = 0.8 * 1.3;
+				e.g.remove(e.tr);
+				e.tr = buildTruck(e.p.truck, "armour");
+				e.tr.scale.setScalar(sc);
+				e.g.add(e.tr);
+				e.g.children.forEach((o) => {
+					if (o.isSprite) o.position.y = 3.3;
+				});
+				e.f = { bg: this.BAGS, lb: [], oil: [], esc: 0 };
+			} else e.f = {};
+		},
+		/* driving: cruise up the road; the stick steers and sets the speed; the button rams (cops) or drops oil (truck) */
+		phys(W, e, inp, dt) {
+			const solo = e.side === 0,
+				T = solo ? null : this.solo(W),
+				/* catch-up: a cop more than 20 m behind the truck gets extra top speed, so the pack stays together (and on
+				   the TV) */
+				lag = T ? e.z - T.z - 20 : 0,
+				top = this.V0 + (solo ? this.UP : this.UPC) + (lag > 0 ? Math.min(12, lag * 0.3) : 0),
+				low = this.V0 - this.DN,
+				on = inp && !e.d;
+			let fv = -e.vz;
+			const thr = on ? -(inp.y || 0) : 0,
+				want = thr >= 0 ? this.V0 + thr * (top - this.V0) : this.V0 + thr * (this.V0 - low),
+				acc = (W.t < (e.crT || 0) ? 5 : 11) * dt;
+			fv += Math.max(-acc, Math.min(acc, want - fv));
+			if (on) e.vx += (inp.x || 0) * this.LATA * dt;
+			e.slideT = Math.max(0, (e.slideT || 0) - dt);
+			e.bcd = Math.max(0, (e.bcd || 0) - dt);
+			e.boostT = Math.max(0, (e.boostT || 0) - dt);
+			if (on && inp.boost) {
+				if (solo) this.oil(W, e);
+				else if (e.bcd <= 0) {
+					/* the ram: a lunge forward and towards the stick (aim assist onto a truck in front, for you) */
+					let dx = inp.x || 0,
+						dz = -1;
+					const l = Math.hypot(dx, dz);
+					dx /= l;
+					dz /= l;
+					if (e.isMe) {
+						const at = ramAssist(W, e, dx, dz);
+						if (at) [dx, dz] = at;
+					}
+					e.vx += dx * 11;
+					fv += Math.max(4, -dz * 9);
+					e.boostT = 0.45;
+					e.bcd = 2;
+				}
+			}
+			if (inp) inp.boost = false;
+			/* spun out on oil: speed bleeds off, the truck slews */
+			const spin = W.t < (e.spinT || 0);
+			if (spin) {
+				fv *= Math.exp(-1.6 * dt);
+				e.vx += Math.sin(W.t * 9 + e.i) * 20 * dt;
+			}
+			e.vx *= Math.exp(-(e.slideT > 0 || spin ? 1.2 : 3.4) * dt);
+			const mx = e.boostT > 0 ? 16 : 9;
+			e.vx = Math.max(-mx, Math.min(mx, e.vx));
+			fv = Math.max(0, Math.min(top + (e.boostT > 0 ? 8 : 0), fv));
+			e.vz = -fv;
+			e.x += e.vx * dt;
+			e.z += e.vz * dt;
+			/* guardrails */
+			const hw = (this.LANES * this.LW) / 2 - (e.rad || 0.95) * 0.85;
+			if (Math.abs(e.x) > hw) {
+				e.x = Math.sign(e.x) * hw;
+				e.vx *= -0.4;
+				e.vz *= 0.97;
+			}
+			e.yaw = spin ? e.yaw + 11 * dt : lerpA(e.yaw, Math.atan2(-e.vz, e.vx), Math.min(1, dt * 8));
+			this.traffic(W, e);
+			e.f.t = Math.round(W.t * 100) / 100;
+		},
+		/* bumping into a car: thrown out beside it, down to below the traffic's speed for a moment */
+		traffic(W, e) {
+			const r = e.rad || 0.95;
+			for (const c of W.cars) {
+				const cz = this.carZ(W, c);
+				if (cz > e.z + 5) continue;
+				if (cz < e.z - 5) break;
+				if (c.kT !== undefined) continue;
+				const cx = this.lx(c.l),
+					dx = e.x - cx;
+				if (Math.abs(dx) > 1 + r || Math.abs(e.z - cz) > 2.2 + r * 0.7) continue;
+				const sd = dx >= 0 ? 1 : -1;
+				/* the cash truck just shoves cars off the road (shared as e.f.tk, so every screen sees it fly) */
+				if (e.side === 0) {
+					c.kT = W.t;
+					c.kd = -sd;
+					e.f.tk = (e.f.tk || []).concat([[c.id, Math.round(W.t * 100) / 100, -sd]]).slice(-8);
+					e.vz *= 0.97;
+					this.carFx(W, c, e);
+					continue;
+				}
+				e.x = cx + sd * (1.05 + r);
+				e.vx = sd * 5;
+				e.vz = -(this.CARV - 3);
+				e.slideT = 0.5;
+				e.crT = W.t + 1.2;
+				if (W.t - (e.hitC[c.id] ?? -9) > 1.5) {
+					e.hitC[c.id] = W.t;
+					fb(W, e, "CRASH!", { tone: "bad" });
+					mgLog(W, `${mgName(e)} hits traffic`);
+					e.lastHit = { k: "traffic", t: W.t };
+					if (e.isMe) {
+						W.shake = 0.45;
+						sfx("honk");
+					}
+				}
+			}
+		},
+		/* a car knocked off the road: glass and bits, a crunch */
+		carFx(W, c, by) {
+			const x = this.lx(c.l),
+				z = this.carZ(W, c);
+			burst(W.sc, x, 0.9, z, {
+				n: 14,
+				shape: "cube",
+				cols: [c.c, "#C9CED8", "#9FD8F0"],
+				spd: 5,
+				up: 5,
+				life: 0.8,
+				size: 0.7,
+			});
+			if (by && (by.isMe || W.split || W.tv)) sfx("crush");
+		},
+		/* the cash truck's oil slick, a few metres behind it */
+		oil(W, e) {
+			if (W.t < (e.oilCd || 0) || e.d) return;
+			e.oilCd = W.t + this.OILCD;
+			e.oilN = (e.oilN || 0) + 1;
+			const r = (v) => Math.round(v * 100) / 100;
+			e.f.oil = e.f.oil.concat([[e.oilN, r(e.x), r(e.z + 3.2), r(W.t)]]).slice(-4);
+			mgLog(W, `${mgName(e)} drops oil`);
+			if (e.isMe) sfx("splash");
+		},
+		/* a cop rams the cash truck (on the truck's device): one bag off, unless it lost one just now */
+		onRammed(W, e, by) {
+			if (e.side !== 0 || !by || by.side !== 1 || e.esc || e.bags <= 0 || W.t < (e.immT || 0)) return;
+			e.bags--;
+			e.immT = W.t + this.IMM;
+			e.lbN++;
+			e.f.bg = e.bags;
+			e.f.lb = e.f.lb.concat([[e.lbN, by.k]]).slice(-6);
+			fb(W, e, "−1 💰", { tone: "bad" });
+			mgLog(W, `${mgName(by)} knocks a bag off ${mgName(e)} (${e.bags} left)`);
+			if (!e.bags) fb(W, e, "STRIPPED!", { stamp: true });
+		},
+		rules(W, e, dt) {
+			if (e.d) return;
+			const T = this.solo(W),
+				tf = (T && T.f) || {};
+			/* the cash truck reaches the tunnel */
+			if (e === T && e.z < -this.TL && e.bags > 0 && !e.esc) {
+				e.esc = W.t;
+				e.f.esc = 1;
+				fb(W, e, "ESCAPED!", { stamp: true });
+				mgLog(W, `${mgName(e)} escapes with ${e.bags} bags`);
+				if (e.isMe) sfx("fanfare");
+			}
+			if (e.side === 1 && T) {
+				/* a bag this cop knocked off (the truck's device decides) */
+				(tf.lb || []).forEach(([n, k]) => {
+					if (k !== e.k || n <= (e.lbSeen || 0)) return;
+					e.lbSeen = n;
+					e.sc++;
+					fb(W, e, "+1 💰", { tone: "good" });
+					if (e.isMe) sfx("coin");
+				});
+				/* oil slicks */
+				(tf.oil || []).forEach(([id, x, z, t]) => {
+					if (W.t - t > this.OILT || e.oilHit[id] || Math.hypot(e.x - x, e.z - z) > this.OILR) return;
+					e.oilHit[id] = 1;
+					e.spinT = W.t + 1.1;
+					e.vz *= 0.6;
+					fb(W, e, "SPIN OUT!", { tone: "bad" });
+					mgLog(W, `${mgName(e)} spins out on oil`);
+					if (e.isMe) {
+						W.shake = 0.3;
+						sfx("skid");
+					}
+				});
+			}
+			/* it's over once the truck is through the tunnel or has nothing left (a moment later, so it shows) */
+			const over = tf.esc || (tf.bg !== undefined && tf.bg <= 0);
+			if (over && e.dT === undefined) e.dT = W.t + 1.5;
+			if (e.dT !== undefined && W.t >= e.dT) e.d = true;
+		},
+		timeUp() {},
+		/* truck: 1000 if it escaped + bags left; cops: bags knocked off */
+		final(W, e) {
+			return e.side === 0 ? (e.esc ? 1000 : 0) + e.bags : e.sc;
+		},
+		fmtE(W, e) {
+			if (e.side === 0) return `💰 ${e.local ? e.bags : e.f && e.f.bg !== undefined ? e.f.bg : this.BAGS}`;
+			return `+${Math.round(e.sc)} 💰`;
+		},
+		fmtTeam(v, s) {
+			if (s === 0) return v >= 1000 ? `Escaped with ${v - 1000} 💰` : v > 0 ? `Caught with ${v} 💰` : "Stripped clean";
+			return `${v} 💰 knocked off`;
+		},
+		teamWin(res, tm) {
+			const k = Object.keys(tm).find((q) => tm[q] === 0);
+			return k in res && res[k] >= 1000 ? 0 : 1;
+		},
+		botScore: (s) => (s === 0 ? (rnd(2) ? 1000 + 1 + rnd(7) : 0) : rnd(4)),
+		/* the top chip: how far the tunnel is */
+		clock(W) {
+			const T = this.solo(W);
+			return T ? `Tunnel ${Math.max(0, Math.round(this.TL + T.z))} m` : "";
+		},
+		/* cameras: yours from behind and above, looking up the road; the TV follows the whole pack */
+		cam(W, tgt, pos, far) {
+			if (W.tv) {
+				/* the whole pack, led a little up the road since the camera eases after a moving target */
+				const L = W.list.filter((e) => !e.gone),
+					zs = L.map((e) => e.z),
+					z0 = Math.min(...zs),
+					z1 = Math.max(...zs),
+					zc = (z0 + z1) / 2 - 5,
+					sp = z1 - z0;
+				const t = new THREE.Vector3(0, 0, zc - 6),
+					p = new THREE.Vector3(0, 19 + sp * 0.8, zc + 22 + sp * 0.62);
+				return [t, p];
+			}
+			const e = W.me,
+				x = e.x * 0.85,
+				t = new THREE.Vector3(x, 0, e.z - 13 * far),
+				p = new THREE.Vector3(x, 11.5 * far, e.z + 13.5 * far);
+			return [t, p];
+		},
+		/* visuals: traffic moving, the bags on the truck's roof, light bars on the cops, oil slicks, lost bags */
+		render(W, e, dt) {
+			this.scene(W);
+			const f = e.f || {};
+			/* another device's truck: projected on by the update's real age (its game time e.f.t, clocks are synced), the
+			   engine's guess doesn't know how old an update is and at highway speed every 0.1 s is 2 m */
+			if (!e.local && e.net && f.t !== undefined) {
+				const n = e.net,
+					age = Math.max(0, Math.min(0.6, W.t - f.t)),
+					k = Math.min(1, dt * 18);
+				e.x += (n.x + (n.vx || 0) * age - e.x) * k;
+				e.z += (n.z + (n.vz || 0) * age - e.z) * k;
+			}
+			if (e.side === 0) {
+				if (!e.bagG) {
+					const top = truckTop(e.tr),
+						g = new THREE.Group(),
+						kit = this.bagKit();
+					for (let i = 0; i < this.BAGS; i++) {
+						const b = kitGroup(kit, 0),
+							row = Math.floor(i / 5),
+							col = i % 5;
+						b.position.set(
+							top.x - 0.9 + (i % 5) * 0.45,
+							top.y + 0.18 + (row ? 0.3 : 0),
+							(row ? 0.15 : -0.2) + (col % 2) * 0.05,
+						);
+						b.rotation.y = i * 1.3;
+						g.add(b);
+					}
+					e.g.add(g);
+					e.bagG = g;
+				}
+				const n = e.local ? e.bags : (f.bg ?? this.BAGS);
+				e.bagG.children.forEach((b, i) => (b.visible = i < n));
+				/* a bag knocked off: notes everywhere */
+				const lb = f.lb || [],
+					last = lb.length ? lb[lb.length - 1][0] : 0;
+				if (last !== (e.lbFx || 0)) {
+					e.lbFx = last;
+					burst(W.sc, e.x, 2.2, e.z, {
+						n: 22,
+						shape: "cube",
+						cols: ["#3DBA6E", "#9BE3B0", "#F4F6F9", "#C9A86A"],
+						spd: 6,
+						up: 6,
+						life: 1.1,
+						size: 0.8,
+					});
+					if (W.split || e.isMe || W.tv) sfx("coin");
+				}
+				/* a gold glint while it can't lose a bag */
+				if (e.local && W.t < (e.immT || 0)) e.bagG.position.y = Math.sin(W.t * 30) * 0.03;
+			} else {
+				if (!e.bar) {
+					const top = truckTop(e.tr),
+						g = new THREE.Group(),
+						red = B(0.32, 0.2, 0.7, "#E5484D", 0, 0, -0.38, { emissive: "#FF2A2A", emissiveIntensity: 1 }),
+						blue = B(0.32, 0.2, 0.7, "#2F7DE1", 0, 0, 0.38, { emissive: "#2A6BFF", emissiveIntensity: 1 });
+					g.add(B(0.4, 0.12, 1.6, "#23272F", 0, -0.12, 0), red, blue);
+					g.position.set(top.x, top.y + 0.18, 0);
+					e.g.add(g);
+					e.bar = { g, red, blue };
+				}
+				const ph = Math.floor(W.t * 6 + e.i) % 2;
+				e.bar.red.material.emissiveIntensity = ph ? 1.6 : 0.1;
+				e.bar.blue.material.emissiveIntensity = ph ? 0.1 : 1.6;
+			}
+		},
+		/* a money bag: a squat sack with a tied neck */
+		bagKit() {
+			if (this.BK) return this.BK;
+			const g = new THREE.Group(),
+				sack = mesh(new THREE.IcosahedronGeometry(0.22, 1), "#C9A86A");
+			sack.scale.set(1, 0.85, 1);
+			g.add(sack, Cy(0.08, 0.11, 0.1, 6, "#A88A52", 0, 0.2, 0), B(0.2, 0.04, 0.2, "#3DBA6E", 0, 0.05, 0.2));
+			return (this.BK = bakeKit(g, { ao: false, ground: false }));
+		},
+		/* once a frame: the traffic, the oil slicks */
+		scene(W) {
+			if (W.scF === W.t) return;
+			W.scF = W.t;
+			const T = this.solo(W);
+			/* cars the cash truck hit (here or on its device) fly off the road: sideways, up, spinning, into the field */
+			((T && T.f && T.f.tk) || []).forEach(([id, t, d]) => {
+				const c = W.cars.find((q) => q.id === id);
+				if (c && c.kT === undefined) {
+					c.kT = t;
+					c.kd = d;
+					this.carFx(W, c, T);
+				}
+			});
+			W.cars.forEach((c) => {
+				const z = this.carZ(W, c);
+				if (c.kT === undefined) return (c.g.position.z = z);
+				const a = Math.max(0, W.t - c.kT),
+					s = Math.min(1, a / 1.4);
+				c.g.position.set(this.lx(c.l) + c.kd * (16 * s - 4 * s * s), Math.max(0, 5 * a - 6 * a * a), z + a * 4);
+				c.g.rotation.set(0, c.kd * a * 3.2, c.kd * Math.min(1.4, a * 2.4));
+			});
+			const oil = (T && T.f && T.f.oil) || [];
+			oil.forEach(([id, x, z, t]) => {
+				let m = W.oilM[id];
+				if (!m) {
+					m = W.oilM[id] = decal(W.sc, new THREE.CircleGeometry(this.OILR, 18), "#101317", x, 0.13, z, 0.85);
+					m.scale.set(1, 0.75, 1);
+					m.userData.t = t;
+				}
+			});
+			for (const id in W.oilM) {
+				const m = W.oilM[id],
+					a = W.t - m.userData.t;
+				m.visible = a < this.OILT;
+				if (m.visible) m.material.opacity = 0.85 * Math.min(1, (this.OILT - a) / 1.5) * Math.min(1, a * 4 + 0.3);
+			}
+		},
+		/* CPUs: the truck keeps to a clear lane at full speed and oils a cop close behind; cops steer at it, catch up and
+		   ram when close; both swerve round traffic ahead */
+		bot(W, e) {
+			const o = { x: 0, y: -1, boost: false };
+			if (W.t < 0 || e.d) return o;
+			e.sk = e.sk ?? 0.4 + Math.random() * 0.6;
+			const T = this.solo(W),
+				oil = (T && T.f && T.f.oil) || [],
+				blocked = (x, far) =>
+					W.cars.some((c) => {
+						const cz = this.carZ(W, c);
+						return cz < e.z && cz > e.z - far && Math.abs(this.lx(c.l) - x) < 2.4;
+					}) ||
+					(e.side === 1 &&
+						oil.some(
+							([, ox, oz, t]) => W.t - t < this.OILT && oz < e.z && oz > e.z - far * 0.6 && Math.abs(ox - x) < 2.6,
+						)),
+				clear = (want) => {
+					let best = want,
+						bd = 1e9;
+					for (let l = 0; l < this.LANES; l++) {
+						const x = this.lx(l);
+						if (blocked(x, 26)) continue;
+						const d = Math.abs(x - want) + Math.abs(x - e.x) * 0.5;
+						if (d < bd) {
+							bd = d;
+							best = x;
+						}
+					}
+					return best;
+				};
+			let tx = e.x;
+			if (e.side === 0 || !T) {
+				const cops = W.list.filter((q) => q.side === 1 && !q.gone),
+					near = cops.find((q) => Math.abs(q.x - e.x) < 4.5 && Math.abs(q.z - e.z) < 5);
+				tx = blocked(e.x, 24) ? clear(e.x) : near ? e.x + (e.x > near.x ? 6 : -6) : e.x;
+				if (cops.some((q) => q.z > e.z + 2 && q.z < e.z + 9 && Math.abs(q.x - e.x) < 3) && Math.random() < 0.12 * e.sk)
+					o.boost = true;
+			} else {
+				/* a beat late and a little off: re-aim every 0.3-0.8 s with a miss of up to a lane, and ease off to about the
+				   truck's speed once close instead of riding its bumper */
+				if (W.t >= (e.reT || 0)) {
+					e.reT = W.t + 0.3 + Math.random() * 0.5 * (1.4 - e.sk);
+					e.aimX = T.x + (Math.random() - 0.5) * 2.4 * (1.3 - e.sk);
+				}
+				const dz = e.z - T.z;
+				tx = blocked(e.aimX, 22) ? clear(e.aimX) : e.aimX;
+				o.y = dz > 6 ? -1 : dz > 1.5 ? -0.65 : dz < -3 ? 0.7 : 0;
+				if (Math.hypot(T.x - e.x, T.z - e.z) < 4 && e.bcd <= 0 && Math.random() < 0.1 * e.sk) o.boost = true;
+			}
+			o.x = Math.max(-1, Math.min(1, (tx - e.x) * 0.45));
+			return o;
+		},
+		watchSum(W) {
+			const T = this.solo(W);
+			return T ? `cash truck: ${T.f.bg} bags${T.f.esc ? ", escaped" : ""}, at ${Math.round(-T.z)} m` : "";
+		},
+		/* tools/nettest.mjs: the bags and the escape must agree */
+		syncSnap(W) {
+			const T = this.solo(W);
+			return T ? { bags: T.local ? T.bags : T.f.bg, esc: !!(T.f && T.f.esc) } : 0;
+		},
+	},
+});
