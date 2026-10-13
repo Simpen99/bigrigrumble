@@ -1664,6 +1664,8 @@ function hostPlayAgain() {
 function hostTick() {
 	if (!HG) return;
 	const now = Date.now();
+	/* the host's clock, for the other devices' clock sync (clkSample) */
+	if (!HG.practice) setPresence({ clk: now });
 	const idle = (p, fn) => {
 		if (!p) return;
 		if (p.bot || online(p.key)) {

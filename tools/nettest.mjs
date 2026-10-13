@@ -5,6 +5,7 @@
    node tools/nettest.mjs mash                   default: 2 CPUs, no lag
    node tools/nettest.mjs paint --lag 120        120 ms each way (+-40 ms jitter), like a busy home wifi
    node tools/nettest.mjs mash --solo phone      team games: who is the solo truck (host | phone | cpu)
+   node tools/nettest.mjs mash --skew 1000       the phone's clock runs 1 s ahead of the host's
    --cpu N CPU trucks (default 2), --log prints both devices' play-by-play (H: host, P: phone). */
 import { args, launch, openGame } from "./lib.mjs";
 import { FAKE, fakeNet } from "./fakenet.mjs";
@@ -31,6 +32,12 @@ const b = await launch(),
 					(n) => localStorage.setItem("trp_me", JSON.stringify({ key: "k" + n, name: n, truck: n === "Host" ? 0 : 3 })),
 					name,
 				);
+				/* --skew ms: the phone's clock runs that far ahead of the host's (real devices' clocks differ) */
+				if (name !== "Host" && +opt.skew)
+					await p.addInitScript((ms) => {
+						const n0 = Date.now;
+						Date.now = () => n0() + ms;
+					}, +opt.skew);
 			},
 		}),
 	H = await mk("Host"),
@@ -104,7 +111,8 @@ const drift = {},
 	extraBad = [],
 	t0 = Date.now();
 const fpsH = [],
-	fpsP = [];
+	fpsP = [],
+	clockDiff = [];
 const sent = {},
 	got = {};
 let samples = 0,
@@ -126,6 +134,7 @@ while (Date.now() - t0 < 240000) {
 		}
 	if (h && p && h.t > 1) {
 		samples++;
+		clockDiff.push(p.t - h.t);
 		fpsH.push(h.fps);
 		fpsP.push(p.fps);
 		lastT = h.t;
@@ -186,6 +195,10 @@ const [rh, rp] = await Promise.all([rows(H.p), rows(P.p)]);
 console.log("\nresults on the host:");
 rh.forEach((r) => console.log("  " + r));
 const issues = [];
+{
+	const m = clockDiff.slice().sort((a, b) => a - b)[Math.floor(clockDiff.length / 2)] || 0;
+	if (Math.abs(m) > 0.25) issues.push(`the game clocks differ: the phone is ${m.toFixed(2)} s ahead of the host`);
+}
 if (!rh.length) issues.push("the host never showed results (stuck?)");
 if (!rp.length) issues.push("the phone never showed results (stuck?)");
 if (rh.length && rp.length && rh.join("|").replace(/ \(you\)/g, "") !== rp.join("|").replace(/ \(you\)/g, ""))
@@ -200,7 +213,8 @@ console.log(
 	`  test relay: worst extra delay ${stats.worst} ms${stats.late ? `, ${stats.late} messages over 150 ms late (slow test machine: a short mismatch may be the test, not the game)` : ""}`,
 );
 console.log(
-	`  frame rate: host ${avg(fpsH)} fps, phone ${avg(fpsP)} fps${slowFps ? " (low: devices send an update per frame, so drift is inflated here; a phone runs far faster)" : ""}`,
+	`  game clocks: the phone is ${(clockDiff.slice().sort((a, b) => a - b)[Math.floor(clockDiff.length / 2)] || 0).toFixed(2)} s ahead of the host (median)
+  frame rate: host ${avg(fpsH)} fps, phone ${avg(fpsP)} fps${slowFps ? " (low: devices send an update per frame, so drift is inflated here; a phone runs far faster)" : ""}`,
 );
 for (const [n, s] of Object.entries(drift))
 	console.log(
