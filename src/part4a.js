@@ -2318,6 +2318,8 @@ function hud3(dt) {
 			W.lastC = tx;
 			if (tx === "GO!") sfx("go");
 			else if (tx && +tx <= 3) sfx("beep");
+			/* long words shrink to fit a narrow screen (Bungee is ~0.9 em per letter) */
+			c.style.fontSize = tx.length > 3 ? `min(110px, ${(88 / tx.length).toFixed(1)}vw)` : "";
 		}
 		c.textContent = tx;
 	}
