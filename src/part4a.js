@@ -2704,7 +2704,7 @@ function tvRecv() {
 		let x = +r.x || 0,
 			y = +r.y || 0;
 		const l = Math.hypot(x, y);
-		if (l > 1 && !TVS.def.pad) {
+		if (l > 1) {
 			x /= l;
 			y /= l;
 		}
@@ -3239,13 +3239,17 @@ function tvsInput() {
 		const i = s.W.inp;
 		let x = +r.x || 0,
 			y = +r.y || 0;
+		/* a stick is kept inside its circle; a trackpad (def.pad) is a spot, kept as it is */
 		const l = Math.hypot(x, y);
-		if (l > 1) {
+		if (l > 1 && !TVS.def.pad) {
 			x /= l;
 			y /= l;
 		}
 		i.x = x;
 		i.y = y;
+		/* the second stick (aim games: Fire Brigade's hose) */
+		i.ax = +r.ax || 0;
+		i.ay = +r.ay || 0;
 		i.hold = !!r.h;
 		if (s.lastB === undefined) s.lastB = r.b;
 		else if (r.b !== s.lastB) {
