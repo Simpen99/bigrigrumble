@@ -813,7 +813,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-14 00:29 3b4507a";
+const BUILD = "2026-10-14 00:30 228b5de";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -32358,16 +32358,20 @@ Object.assign(MG, {
 		spent(e) {
 			return (e.trp || []).reduce((a, [t]) => a + this.TRAPS[t].c, 0);
 		},
-		/* put trap t on spot gi: the same trap there again takes it back, another one swaps it; false when it can't go
-		   there or doesn't fit the coins left (5 walls can't close a row: there's always a way through) */
+		/* put trap t on spot gi: the same trap there again takes it back (a flipper first turns round: [t, gi, direction]),
+		   another one swaps it; false when it can't go there or doesn't fit the coins left (5 walls can't close a row:
+		   there's always a way through) */
 		place(W, e, t, gi) {
 			const i = e.trp.findIndex((q) => q[1] === gi),
-				old = i >= 0 ? e.trp.splice(i, 1)[0] : null;
+				old = i >= 0 ? e.trp.splice(i, 1)[0] : null,
+				g = this.gaps(W)[gi],
+				flip = this.TRAPS[t] && this.TRAPS[t].k === "flip";
 			let ok = true;
-			if (!old || old[0] !== t) {
+			if (old && old[0] === t && flip && old[2] === this.flipDir(g)) e.trp.splice(i, 0, [t, gi, -old[2]]);
+			else if (!old || old[0] !== t) {
 				const T = this.TRAPS[t];
-				ok = this.fits(t, this.gaps(W)[gi]) && this.spent(e) + T.c <= this.BUDGET;
-				if (ok) e.trp.push([t, gi]);
+				ok = this.fits(t, g) && this.spent(e) + T.c <= this.BUDGET;
+				if (ok) e.trp.push(flip ? [t, gi, this.flipDir(g)] : [t, gi]);
 				else if (old) e.trp.splice(i, 0, old);
 			}
 			e.f.tr = { r: e.rr, l: e.trp.map((q) => q.slice()) };
@@ -32565,10 +32569,10 @@ Object.assign(MG, {
 						.split(" ")
 						.filter(Boolean)
 						.forEach((q) => {
-							const [t, gi] = q.split(".").map(Number),
+							const [t, gi, d] = q.split(".").map(Number),
 								g = this.gaps(VW)[gi];
 							if (!g || !this.TRAPS[t]) return;
-							const m = this.trapMesh(VW, t, g);
+							const m = this.trapMesh(VW, t, g, d);
 							m.visible = true;
 							traps.add(m);
 						});
@@ -32725,9 +32729,12 @@ Object.assign(MG, {
 			if (!o[k] || o[k].r !== W.lr) o[k] = { r: W.lr, a: W.L.flips.map(() => -99) };
 			return o[k].a;
 		},
-		/* a flipper trap on peg spot g: pointing in towards the middle */
-		trapFlip(g) {
-			return { x: g.x, y: g.y, dir: g.x < -0.1 ? 1 : -1 };
+		/* a flipper trap on peg spot g: pointing d (1 right, -1 left), at first in towards the middle */
+		flipDir(g) {
+			return g.x < -0.1 ? 1 : -1;
+		},
+		trapFlip(g, d) {
+			return { x: g.x, y: g.y, dir: d || this.flipDir(g) };
 		},
 		/* a board's flipper-trap fire times this round (W.tfT[key] {trap index: time}) */
 		trapFT(W, k) {
@@ -32777,12 +32784,12 @@ Object.assign(MG, {
 			}
 			/* walls along their line, flipper traps as Plinko's flippers (firing when a ball lands on them) */
 			e.tfb = [];
-			e.traps.forEach(([t, gi], idx) => {
+			e.traps.forEach(([t, gi, d], idx) => {
 				const q = G0[gi],
 					k = this.TRAPS[t].k;
 				if (k === "wall") fx(pl.Box(q.cl / 2 - 0.02, 0.16, V(q.x, q.y), q.ang), 0.35, 0.3, { trap: idx });
 				else if (k === "flip") {
-					const f = this.trapFlip(q),
+					const f = this.trapFlip(q, d),
 						b = w.createBody({ type: "kinematic", position: V(q.x, q.y), angle: this.flipA(f, 99) }),
 						o = { restitution: 0.35, friction: 0.3, userData: { trap: idx } };
 					b.createFixture(pl.Box(this.FL / 2, 0.16, V(this.FL / 2, 0), 0), o);
@@ -33609,7 +33616,7 @@ Object.assign(MG, {
 			}
 		},
 		/* trap models, hidden until set off (or the reveal after the round) */
-		trapMesh(W, t, g) {
+		trapMesh(W, t, g, d) {
 			const T = this.TRAPS[t],
 				m = new THREE.Group(),
 				body = new THREE.Group(),
@@ -33663,7 +33670,7 @@ Object.assign(MG, {
 					hub,
 					ax,
 				);
-				const f = this.trapFlip(g);
+				const f = this.trapFlip(g, d);
 				pg.rotation.z = this.flipA(f, 99);
 				body.add(pg);
 				m.userData.flip = { g: pg, f };
@@ -33857,8 +33864,8 @@ Object.assign(MG, {
 					if (tv.g && tv.g.parent) tv.g.parent.remove(tv.g);
 					tv.key = key;
 					tv.g = new THREE.Group();
-					tv.items = L.map(([ty, gi]) => {
-						const m = this.trapMesh(W, ty, this.gaps(W)[gi]);
+					tv.items = L.map(([ty, gi, d]) => {
+						const m = this.trapMesh(W, ty, this.gaps(W)[gi], d);
 						tv.g.add(m);
 						return { m, shown: 0 };
 					});
