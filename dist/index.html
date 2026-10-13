@@ -813,7 +813,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-13 22:38 fae335f";
+const BUILD = "2026-10-14 00:22 11dfdfe";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -30499,7 +30499,7 @@ Object.assign(MG, {
 			W.flipT = W.flips.map(() => -99);
 		},
 		/* the models of a board layout L (pegs, flips, gates, splits, bumps) into group s; textures cached on W. Returns
-		   {caps, flipG, gateM, splitM, bumpG} for the animation */
+		   {caps, pegI (the peg instanced meshes), flipG, gateM, splitM, bumpG} for the animation */
 		boardFx(W, s, L) {
 			const pg = L.pegs,
 				inst = (geo, col, z, n) => {
@@ -30521,9 +30521,9 @@ Object.assign(MG, {
 					return m;
 				},
 				cyz = (r, h, seg) => new THREE.CylinderGeometry(r, r, h, seg).rotateX(Math.PI / 2);
-			inst(cyz(0.26, 3, 10), "#C9CED8", -0.25, pg.length);
-			inst(cyz(0.48, 0.12, 10), "#8E96A3", -1.63, pg.length);
-			const caps = inst(cyz(0.38, 0.22, 10), "#FFC83D", 1.32, pg.length),
+			const posts = inst(cyz(0.26, 3, 10), "#C9CED8", -0.25, pg.length),
+				flanges = inst(cyz(0.48, 0.12, 10), "#8E96A3", -1.63, pg.length),
+				caps = inst(cyz(0.38, 0.22, 10), "#FFC83D", 1.32, pg.length),
 				flipG = L.flips.map((f) => {
 					const g = new THREE.Group(),
 						L = this.FL,
@@ -30665,7 +30665,7 @@ Object.assign(MG, {
 				s.add(g);
 				return { g, rm, t: -9 };
 			});
-			return { caps, flipG, gateM, splitM, bumpG };
+			return { caps, pegI: [posts, flanges, caps], flipG, gateM, splitM, bumpG };
 		},
 		/* the board is the playfield of a giant arcade cabinet, seen from inside: side walls fanning out to the edges of
 		   the view (the board's navy, red / yellow / white racing stripes, red and yellow neon strips, a yellow edge with chasing bulbs, speakers), a hood over the
@@ -31774,7 +31774,7 @@ Object.assign(MG, {
 		sun: [0, 9, 31.6],
 		lt: { amb: 0.84, sun: 0.44, warm: 0.28, haze: 70 },
 		fx: { col: 0.06 },
-		how: "Every round: hide traps on a rival's board (wall off their way to the ×2 and SPLIT gates, plant a fake ×2), then everyone drops. Traps stay hidden until hit; you score from your slots, plus points for every trap your rival hits!",
+		how: "Every round: hide traps on a rival's board (wall off their way to the ×2 and SPLIT gates, plant a fake ×2, mine their pegs), then everyone drops. Traps stay hidden until hit; you score from your slots, plus points for every trap your rival hits!",
 		tvHint:
 			"Planning: your phone shows your rival's board: pick a trap, tap a gap. Playing: LEFT / RIGHT move and steer, the middle button hops.",
 		tapHint:
@@ -31840,14 +31840,20 @@ Object.assign(MG, {
 		TNTL: 8,
 		TNTR: 5,
 		TNTV: 12,
-		/* traps: key, name, icon, cost, colour */
+		/* gravity trap: upside down and back every GFT s for GFLIP s; mine: blows away the pegs within MR, throws at MINEV */
+		GFLIP: 6,
+		GFT: 1.5,
+		MR: 4.7,
+		MINEV: 13.5,
+		/* traps: key, name, icon, cost, colour, where it goes (s: between two pegs, straight or diagonal; h: straight only;
+		   p: on a peg) */
 		TRAPS: [
-			{ k: "wall", n: "Wall", ic: "▬", c: 20, col: "#8E96A3" },
-			{ k: "fake", n: "Fake ×2", ic: "½", c: 30, col: "#3DDC84" },
-			{ k: "stun", n: "Stun", ic: "⚡", c: 25, col: "#E0A800" },
-			{ k: "rev", n: "Reverse", ic: "⇄", c: 25, col: "#8E5BE0" },
-			{ k: "jump", n: "Trampoline", ic: "⤒", c: 20, col: "#2F7DE1" },
-			{ k: "bomb", n: "Mine", ic: "✹", c: 35, col: "#FF8A1F" },
+			{ k: "wall", n: "Wall", ic: "▬", c: 20, col: "#8E96A3", on: "s" },
+			{ k: "fake", n: "Fake ×2", ic: "½", c: 30, col: "#3DDC84", on: "h" },
+			{ k: "stun", n: "Stun", ic: "⚡", c: 25, col: "#E0A800", on: "s" },
+			{ k: "grav", n: "Gravity", ic: "⇅", c: 25, col: "#8E5BE0", on: "s" },
+			{ k: "flip", n: "Flipper", ic: "↗", c: 20, col: "#2F7DE1", on: "p" },
+			{ k: "bomb", n: "Mine", ic: "✹", c: 35, col: "#FF8A1F", on: "p" },
 		],
 		kits() {
 			loadPlanck();
@@ -31888,24 +31894,87 @@ Object.assign(MG, {
 			}
 			return (this.PG = L);
 		},
-		/* the gaps traps go in this round: between two neighbouring pegs of the round's layout (W.L), below the top row,
-		   not the x2 / split gates themselves (walls go round them, to block the way there) */
+		/* the spots traps go on this round (W.L.tg): between two neighbouring pegs (bumpers and flipper hubs count), straight
+		   ({k: "s", h: true}, not the x2 / split gates themselves, so walls block the way to them) or diagonal to the next row
+		   up, and the pegs themselves ({k: "p"}); never in the bottom row (a wall over the 500 would shut it) or the top one */
 		gaps(W) {
 			const L = W.L;
 			if (L.tg) return L.tg;
-			const out = [],
-				gs = L.gates.concat(L.splits);
-			for (let n = 0; n < this.ROWS - 1; n++) {
-				const ps = L.pegs.filter((q) => q[2] === n).sort((a, b) => a[0] - b[0]);
-				for (let j = 0; j + 1 < ps.length; j++) {
-					const a = ps[j],
-						b = ps[j + 1],
-						x = (a[0] + b[0]) / 2;
-					if (b[0] - a[0] < this.SW + 0.1 && !gs.some((g) => Math.abs(g.x - x) < 0.1 && Math.abs(g.y - a[1]) < 0.1))
-						out.push({ x, y: a[1], w: b[0] - a[0], row: n });
-				}
+			const row = (y) => Math.round((y - this.Y0) / this.RY),
+				lo = 1,
+				hi = this.ROWS - 2,
+				/* everything a ball bounces off at a grid point: pegs, bumpers, flipper hubs [x, y, radius, peg index] */
+				P = L.pegs
+					.map((q, i) => [q[0], q[1], this.PR, i])
+					.concat(
+						L.bumps.map((q) => [q.x, q.y, this.BR, -1]),
+						L.flips.map((q) => [q.x, q.y, 0.32, -1]),
+					),
+				gs = L.gates.concat(L.splits),
+				out = [],
+				seg = (a, b, h) => {
+					const len = Math.hypot(b[0] - a[0], b[1] - a[1]),
+						x = (a[0] + b[0]) / 2,
+						y = (a[1] + b[1]) / 2;
+					if (h && gs.some((g) => Math.abs(g.x - x) < 0.1 && Math.abs(g.y - y) < 0.1)) return;
+					out.push({
+						k: "s",
+						h,
+						ax: a[0],
+						ay: a[1],
+						bx: b[0],
+						by: b[1],
+						u0: a[2] / len,
+						u1: 1 - b[2] / len,
+						x,
+						y,
+						len,
+						w: len,
+						cl: len - a[2] - b[2],
+						ang: Math.atan2(b[1] - a[1], b[0] - a[0]),
+						row: row(Math.min(a[1], b[1])),
+					});
+				};
+			for (let n = lo; n <= hi; n++) {
+				const ps = P.filter((q) => row(q[1]) === n).sort((a, b) => a[0] - b[0]);
+				for (let j = 0; j + 1 < ps.length; j++)
+					if (ps[j + 1][0] - ps[j][0] < this.SW + 0.1) seg(ps[j], ps[j + 1], true);
+				if (n < hi)
+					ps.forEach((a) =>
+						P.filter((b) => row(b[1]) === n + 1 && Math.abs(Math.abs(b[0] - a[0]) - this.SW / 2) < 0.1).forEach((b) =>
+							seg(a, b, false),
+						),
+					);
 			}
+			L.pegs.forEach((q, i) => {
+				if (row(q[1]) >= lo && row(q[1]) <= hi) out.push({ k: "p", x: q[0], y: q[1], pi: i, row: row(q[1]) });
+			});
 			return (L.tg = out);
+		},
+		/* can trap t go on spot g */
+		fits(t, g) {
+			const o = this.TRAPS[t] && this.TRAPS[t].on;
+			return !!g && (o === "p" ? g.k === "p" : g.k === "s" && (o !== "h" || g.h));
+		},
+		/* the pegs a mine on spot g blows away (indices into the round's pegs) */
+		minePegs(W, g) {
+			const out = [];
+			W.L.pegs.forEach((q, i) => {
+				if (Math.hypot(q[0] - g.x, q[1] - g.y) <= this.MR) out.push(i);
+			});
+			return out;
+		},
+		/* does a ball moving from (x0, y0) to (x1, y1) cross spot g's line (between its pegs) */
+		crosses(g, x0, y0, x1, y1) {
+			const dx = x1 - x0,
+				dy = y1 - y0,
+				ex = g.bx - g.ax,
+				ey = g.by - g.ay,
+				den = dx * ey - dy * ex;
+			if (Math.abs(den) < 1e-9) return false;
+			const t = ((g.ax - x0) * ey - (g.ay - y0) * ex) / den,
+				u = ((g.ax - x0) * dy - (g.ay - y0) * dx) / den;
+			return t >= 0 && t <= 1 && u >= g.u0 && u <= g.u1;
 		},
 		/* round rd's layout and its models on every board (W.bd, rebuilt every round; W.bx[board] = its parts) */
 		setBoard(W, rd) {
@@ -32171,6 +32240,7 @@ Object.assign(MG, {
 				tg: { r: 0, l: [] },
 				gt: [0, 0],
 				fp: [0, 0, 0],
+				tf: [0, 0, 0],
 				bp: [0, 0],
 				tx: [0, 0],
 				sg: [0, 0],
@@ -32288,18 +32358,15 @@ Object.assign(MG, {
 		spent(e) {
 			return (e.trp || []).reduce((a, [t]) => a + this.TRAPS[t].c, 0);
 		},
-		/* put trap t in gap gi: the same trap there again takes it back, another one swaps it; false when it doesn't fit
-		   the coins left, or it's a second wall in that row */
+		/* put trap t on spot gi: the same trap there again takes it back, another one swaps it; false when it can't go
+		   there or doesn't fit the coins left (5 walls can't close a row: there's always a way through) */
 		place(W, e, t, gi) {
 			const i = e.trp.findIndex((q) => q[1] === gi),
 				old = i >= 0 ? e.trp.splice(i, 1)[0] : null;
 			let ok = true;
 			if (!old || old[0] !== t) {
-				const T = this.TRAPS[t],
-					row = this.gaps(W)[gi].row;
-				ok =
-					this.spent(e) + T.c <= this.BUDGET &&
-					!(T.k === "wall" && e.trp.some(([q, g]) => this.TRAPS[q].k === "wall" && this.gaps(W)[g].row === row));
+				const T = this.TRAPS[t];
+				ok = this.fits(t, this.gaps(W)[gi]) && this.spent(e) + T.c <= this.BUDGET;
 				if (ok) e.trp.push([t, gi]);
 				else if (old) e.trp.splice(i, 0, old);
 			}
@@ -32309,7 +32376,7 @@ Object.assign(MG, {
 		/* a gap as a spot on the TV controller's pad (-1 .. 1, the inverse of planInput's mapping) */
 		padXY(W, gi) {
 			const g = this.gaps(W)[gi],
-				yl = this.Y0 - 0.6 * this.RY,
+				yl = this.Y0 + 0.4 * this.RY,
 				yh = this.Y0 + (this.ROWS - 1.4) * this.RY;
 			return [g.x / (this.HW - 0.8), (2 * (yh - g.y)) / (yh - yl) - 1];
 		},
@@ -32355,6 +32422,7 @@ Object.assign(MG, {
 			mark.add(fr, ic);
 			mark.visible = false;
 			let vk = null,
+				fk = null,
 				trp = null,
 				tapT = -1e9,
 				pid = null,
@@ -32386,11 +32454,15 @@ Object.assign(MG, {
 						d = ray.ray.direction;
 					if (Math.abs(d.z) < 1e-4) return;
 					const k = -o.z / d.z,
-						gi = this.nearGap(VW, o.x + d.x * k, o.y + d.y * k, true);
+						sel = Math.max(
+							0,
+							[...wrap.querySelectorAll(".sbt")].findIndex((b) => b.classList.contains("on")),
+						),
+						gi = this.nearGap(VW, o.x + d.x * k, o.y + d.y * k, true, sel);
 					if (gi < 0) return;
-					const g = this.gaps(VW)[gi],
-						sel = [...wrap.querySelectorAll(".sbt")].findIndex((b) => b.classList.contains("on"));
+					const g = this.gaps(VW)[gi];
 					mark.position.set(g.x, g.y, 1.3);
+					mark.userData.g = g;
 					fr.material.map = VW.curTex;
 					fr.material.color.set(api.col || "#FFFFFF");
 					fr.material.needsUpdate = true;
@@ -32455,36 +32527,35 @@ Object.assign(MG, {
 					this.layout(VW.L, +root.dataset.r || 0);
 					this.boardAt(VW, board, pl, 0, {});
 					this.boardFx(VW, board, VW.L);
-					const G0 = this.gaps(VW),
-						frame = (dash, lw) =>
-							canvasTex(256, 128, (x, cw, ch) => {
-								if (!dash) {
-									x.strokeStyle = "#151B24";
-									x.lineWidth = lw + 12;
-									rr(x, 14, 14, cw - 28, ch - 28, 30);
-									x.stroke();
-								}
-								x.strokeStyle = "#FFFFFF";
-								x.lineWidth = lw;
-								if (dash) x.setLineDash([22, 14]);
+					const frame = (dash, lw) =>
+						canvasTex(256, 128, (x, cw, ch) => {
+							if (!dash) {
+								x.strokeStyle = "#151B24";
+								x.lineWidth = lw + 12;
 								rr(x, 14, 14, cw - 28, ch - 28, 30);
 								x.stroke();
-							});
+							}
+							x.strokeStyle = "#FFFFFF";
+							x.lineWidth = lw;
+							if (dash) x.setLineDash([22, 14]);
+							rr(x, 14, 14, cw - 28, ch - 28, 30);
+							x.stroke();
+						});
 					VW.gapTex = VW.gapTex || frame(true, 8);
 					VW.curTex = VW.curTex || frame(false, 14);
-					const gm = new THREE.InstancedMesh(
-							new THREE.PlaneGeometry(1, 1),
-							new THREE.MeshBasicMaterial({ map: VW.gapTex, transparent: true, opacity: 0.35, depthWrite: false }),
-							G0.length,
-						),
-						o = new THREE.Object3D();
-					G0.forEach((g, i) => {
-						o.position.set(g.x, g.y, 1.1);
-						o.scale.set(g.w - 0.8, 1.4, 1);
-						o.updateMatrix();
-						gm.setMatrixAt(i, o.matrix);
-					});
-					board.add(gm);
+					fk = null;
+				}
+				/* the markers of the spots the selected trap fits */
+				const sel = Math.max(
+						0,
+						[...wrap.querySelectorAll(".sbt")].findIndex((b) => b.classList.contains("on")),
+					),
+					sk = vk + ":" + this.TRAPS[sel].on;
+				if (sk !== fk) {
+					fk = sk;
+					if (V.gm) board.remove(V.gm);
+					V.gm = this.spotFrames(VW, sel);
+					board.add(V.gm);
 				}
 				/* your traps, as the TV has them */
 				if ((root.dataset.trp || "") !== trp) {
@@ -32506,7 +32577,7 @@ Object.assign(MG, {
 				/* the tapped gap shows the trap at once, until the TV's answer comes back */
 				const ta = (performance.now() - tapT) / 1000;
 				mark.visible = ta < 1.2;
-				if (mark.visible) fr.scale.setScalar(1 + 0.15 * Math.max(0, 1 - ta * 4));
+				if (mark.visible) this.fitCursor(fr, mark.userData.g, 1 + 0.15 * Math.max(0, 1 - ta * 4));
 				const { D } = view();
 				V.cam.position.set(0, V.y + D * 0.04, D);
 				V.cam.lookAt(0, V.y, 0);
@@ -32523,18 +32594,27 @@ Object.assign(MG, {
 				hint.remove();
 			};
 		},
-		/* the gap nearest a point on the board (board-local); strict: -1 when it's not near any */
-		nearGap(W, x, y, strict) {
+		/* the spot nearest a point on the board (board-local) that trap t fits; strict: -1 when it's not near any */
+		nearGap(W, x, y, strict, t) {
 			let best = -1,
 				bd = 1e9;
 			this.gaps(W).forEach((g, i) => {
-				const d = Math.hypot((x - g.x) / this.SW, (y - g.y) / this.RY);
+				if (t !== undefined && !this.fits(t, g)) return;
+				let d;
+				if (g.k === "p") d = Math.hypot(x - g.x, y - g.y);
+				else {
+					/* to the nearest point of its line between the pegs */
+					const ex = g.bx - g.ax,
+						ey = g.by - g.ay,
+						u = Math.max(g.u0, Math.min(g.u1, ((x - g.ax) * ex + (y - g.ay) * ey) / (ex * ex + ey * ey)));
+					d = Math.hypot(x - (g.ax + ex * u), y - (g.ay + ey * u));
+				}
 				if (d < bd) {
 					bd = d;
 					best = i;
 				}
 			});
-			return strict && bd > 0.8 ? -1 : best;
+			return strict && bd > 1.6 ? -1 : best;
 		},
 		/* the planning cursor of a local human: the TV's trackpad (inp.x / inp.y over the gap rows, a lift = inp.boost) or
 		   the finger on the phone's board (W.sbIn); lifting drops the selected trap into the gap under the cursor */
@@ -32545,7 +32625,7 @@ Object.assign(MG, {
 				up = false;
 			if (W.split) {
 				const i = W.inp,
-					yl = this.Y0 - 0.6 * this.RY,
+					yl = this.Y0 + 0.4 * this.RY,
 					yh = this.Y0 + (this.ROWS - 1.4) * this.RY;
 				up = !!i.boost;
 				i.boost = false;
@@ -32562,7 +32642,7 @@ Object.assign(MG, {
 				x = (q.x - (v ? v.ox : 0)) / this.K;
 				y = this.ly(q.y);
 			}
-			const gi = this.nearGap(W, x, y, !W.split);
+			const gi = this.nearGap(W, x, y, !W.split, e.sel);
 			if (h || gi >= 0) e.cu = gi;
 			e.cuH = h && gi >= 0 ? 1 : 0;
 			if (!up || gi < 0) return;
@@ -32581,12 +32661,8 @@ Object.assign(MG, {
 					const ok = this.TRAPS.map((t, i) => i).filter((i) => this.TRAPS[i].c <= left);
 					if (!ok.length) break;
 					const t = ok[Math.floor(Math.random() * ok.length)],
-						wall = (i) => this.TRAPS[i].k === "wall",
 						g = G0.map((q, i) => i).filter(
-							(i) =>
-								G0[i].row >= 1 &&
-								G0[i].row <= 4 &&
-								!e.bq.some((q) => q[1] === i || (wall(t) && wall(q[0]) && G0[q[1]].row === G0[i].row)),
+							(i) => G0[i].row <= 5 && this.fits(t, G0[i]) && !e.bq.some((q) => q[1] === i),
 						);
 					if (!g.length) break;
 					left -= this.TRAPS[t].c;
@@ -32624,11 +32700,13 @@ Object.assign(MG, {
 			e.tgl = [];
 			e.trig = {};
 			e.tgSeen = {};
-			e.stunT = e.revT = -9;
+			e.stunT = -9;
+			e.gravT = -99;
+			e.gUp = false;
 			e.f.tr = { r, l: [] };
 			e.f.tg = { r, l: [] };
 			e.f.cu = 0;
-			e.cu = this.nearGap(W, 0, this.Y0 + 2 * this.RY);
+			e.cu = this.nearGap(W, 0, this.Y0 + 3 * this.RY, false, e.sel);
 			e.cuH = 0;
 			if (e.isMe) W.sbIn = W.sbY = null;
 			this.aim(W, e, 0);
@@ -32647,8 +32725,18 @@ Object.assign(MG, {
 			if (!o[k] || o[k].r !== W.lr) o[k] = { r: W.lr, a: W.L.flips.map(() => -99) };
 			return o[k].a;
 		},
+		/* a flipper trap on peg spot g: pointing in towards the middle */
+		trapFlip(g) {
+			return { x: g.x, y: g.y, dir: g.x < -0.1 ? 1 : -1 };
+		},
+		/* a board's flipper-trap fire times this round (W.tfT[key] {trap index: time}) */
+		trapFT(W, k) {
+			const o = (W.tfT = W.tfT || {});
+			if (!o[k] || o[k].r !== W.lr) o[k] = { r: W.lr, a: {} };
+			return o[k].a;
+		},
 		/* this truck's physics world (board-local x), made at the drop: the round's pegs, bumpers and flippers (tagged, like
-		   Plinko's), walls, dividers, and the walls its saboteur placed */
+		   Plinko's), walls, dividers, and the traps its saboteur placed that ball can hit (walls, flippers) */
 		world(W, e) {
 			if (e.pw || !window.planck) return e.pw;
 			const pl = window.planck,
@@ -32661,7 +32749,16 @@ Object.assign(MG, {
 			fx(pl.Edge(V(-HW - 1, FLOOR), V(HW + 1, FLOOR)), 0, 0.7);
 			[-1, 1].forEach((sd) => fx(pl.Edge(V(sd * HW, 0), V(sd * HW, this.CEIL + 1)), 0.23, 0.2));
 			fx(pl.Edge(V(-HW, this.CEIL), V(HW, this.CEIL)), 0.23, 0.2);
-			L.pegs.forEach(([x, y], i) => fx(pl.Circle(V(x, y), PR), this.PEGR, 0.4, { peg: i }));
+			const G0 = this.gaps(W);
+			e.traps = this.trapsOn(W, e.k, e.rr)
+				.filter(([t, gi]) => this.fits(t, G0[gi]))
+				.map((q) => q.slice());
+			/* a flipper trap takes its peg's place */
+			const under = {};
+			e.traps.forEach(([t, gi]) => {
+				if (this.TRAPS[t].k === "flip") under[G0[gi].pi] = 1;
+			});
+			e.pegFx = L.pegs.map(([x, y], i) => (under[i] ? null : fx(pl.Circle(V(x, y), PR), this.PEGR, 0.4, { peg: i })));
 			L.bumps.forEach((q, i) => fx(pl.Circle(V(q.x, q.y), this.BR), 0.69, 0.2, { bump: i }));
 			const FT = this.flipTimes(W, e.k);
 			e.flb = L.flips.map((f, i) => {
@@ -32678,14 +32775,21 @@ Object.assign(MG, {
 				fx(pl.Box(DW / 2, (SH - FLOOR) / 2, V(x, (SH + FLOOR) / 2), 0), 0.1, 0.3);
 				fx(pl.Circle(V(x, SH), DW / 2), 0.3, 0.3);
 			}
-			const G0 = this.gaps(W);
-			e.traps = this.trapsOn(W, e.k, e.rr)
-				.filter(([t, gi]) => this.TRAPS[t] && G0[gi])
-				.map((q) => q.slice());
+			/* walls along their line, flipper traps as Plinko's flippers (firing when a ball lands on them) */
+			e.tfb = [];
 			e.traps.forEach(([t, gi], idx) => {
-				if (this.TRAPS[t].k !== "wall") return;
-				const q = G0[gi];
-				fx(pl.Box((q.w - 2 * PR) / 2 - 0.02, 0.16, V(q.x, q.y), 0), 0.35, 0.3, { trap: idx });
+				const q = G0[gi],
+					k = this.TRAPS[t].k;
+				if (k === "wall") fx(pl.Box(q.cl / 2 - 0.02, 0.16, V(q.x, q.y), q.ang), 0.35, 0.3, { trap: idx });
+				else if (k === "flip") {
+					const f = this.trapFlip(q),
+						b = w.createBody({ type: "kinematic", position: V(q.x, q.y), angle: this.flipA(f, 99) }),
+						o = { restitution: 0.35, friction: 0.3, userData: { trap: idx } };
+					b.createFixture(pl.Box(this.FL / 2, 0.16, V(this.FL / 2, 0), 0), o);
+					b.createFixture(pl.Circle(V(0, 0), 0.32), o);
+					b.createFixture(pl.Circle(V(this.FL, 0), 0.16), o);
+					e.tfb.push({ f, b, idx });
+				}
 			});
 			e.pw = w;
 			e.acc = 0;
@@ -32709,15 +32813,23 @@ Object.assign(MG, {
 		   scored by the saboteur. A fake x2 halves every ball that goes through it */
 		trigger(W, e, q, idx) {
 			const T = this.TRAPS[e.traps[idx][0]],
+				g = this.gaps(W)[e.traps[idx][1]],
 				b = q.b,
 				V = window.planck.Vec2,
 				p = b.getPosition(),
-				v = b.getLinearVelocity(),
 				at = [this.wx(e, p.x), this.wy(p.y + 1.6), 0];
 			if (T.k === "fake") {
 				if (q.hx[idx]) return;
 				q.hx[idx] = 1;
 				q.hv++;
+			} else if (T.k === "flip") {
+				/* a flipper trap fires every time a ball lands on it (it only counts as hit the first time) */
+				const TF = this.trapFT(W, e.k);
+				if (W.t - (TF[idx] ?? -99) >= 0.9) {
+					TF[idx] = W.t + 0.05;
+					e.f.tf = [(e.f.tf ? e.f.tf[0] : 0) + 1, idx, Math.round(TF[idx] * 100) / 100];
+				}
+				if (e.trig[idx]) return;
 			} else if (e.trig[idx]) return;
 			if (!e.trig[idx]) {
 				e.trig[idx] = 1;
@@ -32730,14 +32842,28 @@ Object.assign(MG, {
 			else if (T.k === "stun") {
 				e.stunT = W.t + 3;
 				fb(W, e, "STUNNED!", { tone: "bad", at });
-			} else if (T.k === "rev") {
-				e.revT = W.t + 4;
-				fb(W, e, "REVERSED!", { tone: "bad", at });
-			} else if (T.k === "jump") {
-				b.setLinearVelocity(V(v.x * 0.4, 10));
-				fb(W, e, "BOING!", { tone: "bad", at });
-			} else if (T.k === "bomb") {
-				b.setLinearVelocity(V((Math.random() < 0.5 ? -1 : 1) * 8, 6));
+			} else if (T.k === "grav") {
+				e.gravT = W.t;
+				fb(W, e, "GRAVITY!", { tone: "bad", at });
+			} else if (T.k === "flip") fb(W, e, "FLIPPED!", { tone: "bad", at });
+			else if (T.k === "bomb") {
+				/* the mine: the pegs round it are gone, every ball of this truck near it is thrown away */
+				this.minePegs(W, g).forEach((i) => {
+					const f = e.pegFx[i];
+					if (f) {
+						f.getBody().destroyFixture(f);
+						e.pegFx[i] = null;
+					}
+				});
+				e.balls.forEach((o) => {
+					if (o.done) return;
+					const op = o.b.getPosition(),
+						dx = op.x - g.x,
+						dy = op.y - g.y,
+						d = Math.hypot(dx, dy) || 1;
+					if (d > this.MR + 1) return;
+					o.b.setLinearVelocity(V((dx / d) * this.MINEV, (dy / d) * this.MINEV + 2));
+				});
 				fb(W, e, "BOOM!", { tone: "bad", at });
 				if (e.isMe) W.shake = 0.6;
 			} else fb(W, e, "Blocked!", { tone: "bad", at });
@@ -32802,16 +32928,28 @@ Object.assign(MG, {
 			if (!w || !e.balls.length) return this.sync(e);
 			const V = window.planck.Vec2,
 				FT = this.flipTimes(W, e.k),
-				rev = W.t < e.revT ? -1 : 1;
-			/* fixed physics steps; ◀ ▶ push every ball still falling (not while stunned, the other way while reversed) */
+				TF = this.trapFT(W, e.k),
+				gT = W.t - e.gravT,
+				gOn = gT >= 0 && gT < this.GFLIP,
+				gUp = gOn && Math.floor(gT / this.GFT) % 2 === 0;
+			/* the gravity trap: upside down, back, upside down, back */
+			if (gUp !== e.gUp) {
+				e.gUp = gUp;
+				w.setGravity(V(0, gUp ? this.GRAV : -this.GRAV));
+				if (gOn) fb(W, e, gUp ? "⇈" : "⇊", { tone: "bad" });
+			}
+			/* fixed physics steps; ◀ ▶ push every ball still falling (not while stunned) */
 			e.acc = Math.min(0.1, e.acc + dt);
 			if (Math.abs(e.ptm - W.t) > 0.1) e.ptm = W.t;
 			while (e.acc >= 1 / 60) {
 				const h = 1 / 60,
 					live = e.st === 1 ? e.balls.filter((q) => !q.done) : [],
-					tl = (e.tl || 0) * rev;
+					tl = e.tl || 0;
 				e.ptm += h;
 				e.flb.forEach(({ f, b }, i) => b.setAngularVelocity((this.flipA(f, e.ptm - FT[i]) - b.getAngle()) / h));
+				e.tfb.forEach(({ f, b, idx }) =>
+					b.setAngularVelocity((this.flipA(f, e.ptm - (TF[idx] ?? -99)) - b.getAngle()) / h),
+				);
 				live.forEach((q) => {
 					if (tl && W.t >= e.stunT) q.b.applyForceToCenter(V(-tl * this.PUSH * q.b.getMass(), 0), true);
 				});
@@ -32840,10 +32978,14 @@ Object.assign(MG, {
 						W.t >= e.stunT &&
 						p.y >= this.SH
 					) {
-						const ux = -(e.tl || 0) * 0.55 * rev,
+						/* off the surface, whichever way gravity points */
+						const ux = -(e.tl || 0) * 0.55,
 							l = Math.hypot(ux, 1),
-							v = b.getLinearVelocity();
-						b.setLinearVelocity(V(v.x * 0.4 + (ux / l) * this.HOPV, Math.max(0, v.y) * 0.3 + (1 / l) * this.HOPV));
+							v = b.getLinearVelocity(),
+							sg = e.gUp ? -1 : 1;
+						b.setLinearVelocity(
+							V(v.x * 0.4 + (ux / l) * this.HOPV, sg * (Math.max(0, sg * v.y) * 0.3 + (1 / l) * this.HOPV)),
+						);
 						q.hopCd = W.t + this.HOPCD;
 						hopped = true;
 					}
@@ -32933,10 +33075,17 @@ Object.assign(MG, {
 				mgLog(W, mgName(e) + " splits");
 				if (e.isMe) sfx("coin");
 			});
+			/* traps on its way: lines it crosses (stun, gravity, fake x2), a mine it comes close to */
 			const G0 = this.gaps(W);
 			e.traps.forEach(([t, gi], idx) => {
-				if (this.TRAPS[t].k !== "wall" && crossed(G0[gi])) this.trigger(W, e, q, idx);
+				const k = this.TRAPS[t].k,
+					g = G0[gi];
+				if (k === "bomb") {
+					if (!e.trig[idx] && Math.hypot(p.x - g.x, p.y - g.y) < this.R + this.PR + 0.45) this.trigger(W, e, q, idx);
+				} else if (k !== "wall" && k !== "flip" && this.crosses(g, q.px0 ?? p.x, q.py0, p.x, p.y))
+					this.trigger(W, e, q, idx);
 			});
+			q.px0 = p.x;
 			q.py0 = p.y;
 		},
 		flipHit(W, e, i) {
@@ -33272,6 +33421,12 @@ Object.assign(MG, {
 				const q = L.tnt.find((t) => t.n === f.tx[1]);
 				if (q) this.boom(W, e, q);
 			}
+			if (f.tf && f.tf[0] !== (e.tfSeen || 0)) {
+				e.tfSeen = f.tf[0];
+				const TF = this.trapFT(W, e.k);
+				TF[f.tf[1]] = Math.max(TF[f.tf[1]] ?? -99, f.tf[2]);
+				if (W.split || e.isMe) sfx("click");
+			}
 			const c2 = f.c2;
 			if (c2 && !e.tr2) {
 				e.g2 = new THREE.Group();
@@ -33400,35 +33555,22 @@ Object.assign(MG, {
 				W.bg[bi].add(cur);
 				m = W.pm[k] = { gm: null, r: -1, cur, fr, ic, t: -1, p: null, pill: null };
 			}
-			/* the dashed frames in this round's trap gaps */
-			if (see && m.r !== W.lr) {
-				if (m.gm) {
-					W.sc.remove(m.gm);
-					m.gm.geometry.dispose();
-				}
-				const G0 = this.gaps(W),
-					gm = new THREE.InstancedMesh(
-						new THREE.PlaneGeometry(1, 1),
-						new THREE.MeshBasicMaterial({ map: W.gapTex, transparent: true, opacity: 0.3, depthWrite: false }),
-						G0.length,
-					),
-					o = new THREE.Object3D();
-				G0.forEach((g, i) => {
-					o.position.set(g.x, g.y, 1.1);
-					o.scale.set(g.w - 0.8, 1.4, 1);
-					o.updateMatrix();
-					gm.setMatrixAt(i, o.matrix);
-				});
-				gm.renderOrder = 5;
-				W.bg[bi].add(gm);
-				m.gm = gm;
-				m.r = W.lr;
-			}
-			if (m.gm) m.gm.visible = !!see;
 			const sk = this.sabOf(W, k, S.r),
 				sb = W.ents[sk],
 				d = sb && (sb.local ? [sb.cu, sb.sel, sb.cuH] : sb.f && sb.f.cu),
-				pd = sb && (sb.local ? sb.pd : sb.f && sb.f.pd),
+				fk = W.lr + ":" + ((d && this.TRAPS[d[1]] && this.TRAPS[d[1]].on) || "s");
+			/* the dashed markers of the spots the saboteur's selected trap fits, this round */
+			if (see && m.r !== fk) {
+				if (m.gm) {
+					m.gm.parent.remove(m.gm);
+					m.gm.geometry.dispose();
+				}
+				m.gm = this.spotFrames(W, (d && d[1]) || 0);
+				W.bg[bi].add(m.gm);
+				m.r = fk;
+			}
+			if (m.gm) m.gm.visible = !!see;
+			const pd = sb && (sb.local ? sb.pd : sb.f && sb.f.pd),
 				tvw = !!(W.split || W.tv),
 				on =
 					!!see &&
@@ -33455,7 +33597,7 @@ Object.assign(MG, {
 				m.ic.material.map = this.iconTex(W, d[1] || 0);
 				m.ic.material.needsUpdate = true;
 			}
-			m.fr.scale.setScalar(1 + 0.05 * Math.sin(W.t * 8));
+			this.fitCursor(m.fr, g, 1 + 0.05 * Math.sin(W.t * 8));
 			if (tvw) {
 				if (!m.pill) {
 					m.pill = pillSprite();
@@ -33469,10 +33611,12 @@ Object.assign(MG, {
 		/* trap models, hidden until set off (or the reveal after the round) */
 		trapMesh(W, t, g) {
 			const T = this.TRAPS[t],
-				m = new THREE.Group();
+				m = new THREE.Group(),
+				body = new THREE.Group(),
+				L = g.cl || 3.6;
 			if (T.k === "wall") {
-				m.add(B(g.w - 0.7, 0.32, 2.4, "#5E636D", 0, 0, -0.3));
-				[-1, 1].forEach((sd) => m.add(B(0.4, 0.36, 2.42, "#FFC83D", (sd * (g.w - 1.2)) / 2, 0, -0.3)));
+				body.add(B(L - 0.1, 0.32, 2.4, "#5E636D", 0, 0, -0.3));
+				[-1, 1].forEach((sd) => body.add(B(0.4, 0.36, 2.42, "#FFC83D", (sd * (L - 0.6)) / 2, 0, -0.3)));
 			} else if (T.k === "fake") {
 				/* a fake x2 gate: Plinko's gate (light strip, glow, the x2 on the board), red with x½ once it's found out */
 				const st = new THREE.MeshBasicMaterial({
@@ -33499,30 +33643,56 @@ Object.assign(MG, {
 					const h = new THREE.Mesh(new THREE.PlaneGeometry(g.w + (j ? 1.6 : 0.8), j ? 1.54 : 0.91), hm);
 					h.position.z = z;
 					h.renderOrder = 4;
-					m.add(h);
+					body.add(h);
 				});
 				lb.position.set(0, -0.95, -1.64);
-				m.add(bar, lb);
+				body.add(bar, lb);
 				m.userData.fake = { st, hm, lb, rv: false };
-			} else if (T.k === "jump") {
-				m.add(B(g.w - 0.9, 0.18, 2.2, "#2F7DE1", 0, 0, -0.3));
-				[-1, 1].forEach((sd) => m.add(Cy(0.08, 0.08, 0.5, 6, "#C9CED8", sd * 0.8, -0.3, -0.3)));
-			} else if (T.k === "bomb") {
-				m.add(mesh(new THREE.IcosahedronGeometry(0.5, 1), "#23272F"));
-				const l = new THREE.Mesh(
-					new THREE.SphereGeometry(0.14, 8, 6),
-					new THREE.MeshBasicMaterial({ color: "#FF3B30" }),
+			} else if (T.k === "flip") {
+				/* a blue flipper in the peg's place (Plinko's flipper model) */
+				const pg = new THREE.Group(),
+					F = this.FL,
+					tip = Cy(0.16, 0.16, 2.6, 8, "#2F7DE1", F, 0, -0.3),
+					hub = Cy(0.4, 0.4, 0.3, 12, "#FFC83D", 0, 0, 1.15),
+					ax = Cy(0.3, 0.3, 2.9, 10, "#C9CED8", 0, 0, -0.25);
+				[tip, hub, ax].forEach((q) => (q.rotation.x = Math.PI / 2));
+				pg.add(
+					B(F, 0.32, 2.6, "#2F7DE1", F / 2, 0, -0.3),
+					B(F * 0.75, 0.04, 2.2, "#F4F6F9", F / 2, 0.18, -0.3),
+					tip,
+					hub,
+					ax,
 				);
-				l.position.set(0, 0.45, 0.25);
-				m.add(l);
+				const f = this.trapFlip(g);
+				pg.rotation.z = this.flipA(f, 99);
+				body.add(pg);
+				m.userData.flip = { g: pg, f };
+			} else if (T.k === "bomb") {
+				/* a mine stuck on the peg */
+				const bm = new THREE.Group(),
+					l = new THREE.Mesh(new THREE.SphereGeometry(0.18, 8, 6), new THREE.MeshBasicMaterial({ color: "#FF3B30" }));
+				bm.add(mesh(new THREE.IcosahedronGeometry(0.7, 1), "#23272F"));
+				[0, 1, 2, 3, 4, 5].forEach((i) => {
+					const a = (i / 6) * Math.PI * 2,
+						sp = Cy(0.09, 0.09, 0.45, 5, "#3A3F48", Math.cos(a) * 0.72, Math.sin(a) * 0.72, 0);
+					sp.rotation.z = a - Math.PI / 2;
+					bm.add(sp);
+				});
+				l.position.set(0, 0, 0.72);
+				bm.add(l);
+				bm.position.z = 0.6;
+				body.add(bm);
+				m.userData.bomb = bm;
 			} else {
 				const st = new THREE.Mesh(
-					new THREE.BoxGeometry(g.w - 0.75, 0.21, 2.4),
+					new THREE.BoxGeometry(L - 0.05, 0.21, 2.4),
 					new THREE.MeshBasicMaterial({ color: T.col, transparent: true, opacity: 0.7, depthWrite: false }),
 				);
 				st.position.z = -0.3;
-				m.add(st);
+				body.add(st);
 			}
+			if (g.k === "s") body.rotation.z = g.ang;
+			m.add(body);
 			/* its icon in a pill over it */
 			const ic = new THREE.Sprite(
 				new THREE.SpriteMaterial({ map: this.iconTex(W, t), depthTest: false, transparent: true }),
@@ -33535,6 +33705,92 @@ Object.assign(MG, {
 			m.position.set(g.x, g.y, 0);
 			m.visible = false;
 			return m;
+		},
+		/* the dashed markers of every spot trap t fits (lines between pegs, rings round pegs), as one instanced mesh */
+		spotFrames(W, t) {
+			const G0 = this.gaps(W).filter((g) => this.fits(t, g)),
+				peg = this.TRAPS[t].on === "p",
+				tex = peg
+					? W.ringTex ||
+						(W.ringTex = canvasTex(128, 128, (x, w, h) => {
+							x.strokeStyle = "#FFFFFF";
+							x.lineWidth = 12;
+							x.setLineDash([16, 12]);
+							x.beginPath();
+							x.arc(w / 2, h / 2, w / 2 - 10, 0, Math.PI * 2);
+							x.stroke();
+						}))
+					: W.lineTex ||
+						(W.lineTex = canvasTex(256, 32, (x, w, h) => {
+							x.strokeStyle = "#FFFFFF";
+							x.lineWidth = 12;
+							x.lineCap = "round";
+							x.setLineDash([22, 16]);
+							x.beginPath();
+							x.moveTo(10, h / 2);
+							x.lineTo(w - 10, h / 2);
+							x.stroke();
+						})),
+				gm = new THREE.InstancedMesh(
+					new THREE.PlaneGeometry(1, 1),
+					new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.32, depthWrite: false }),
+					Math.max(1, G0.length),
+				),
+				o = new THREE.Object3D();
+			G0.forEach((g, i) => {
+				o.position.set(g.x, g.y, 1.1);
+				o.rotation.set(0, 0, g.k === "s" ? g.ang : 0);
+				if (g.k === "s") o.scale.set(g.cl - 0.5, 0.42, 1);
+				else o.scale.set(1.9, 1.9, 1);
+				o.updateMatrix();
+				gm.setMatrixAt(i, o.matrix);
+			});
+			gm.count = G0.length;
+			gm.renderOrder = 5;
+			return gm;
+		},
+		/* a cursor frame (a plane SW - 0.3 by 1.9) fitted round spot g, pulsing by k */
+		fitCursor(fr, g, k) {
+			const sx = g.k === "s" ? (g.cl + 0.7) / (this.SW - 0.3) : 2.6 / (this.SW - 0.3),
+				sy = g.k === "s" ? 1 : 2.6 / 1.9;
+			fr.rotation.z = g.k === "s" ? g.ang : 0;
+			fr.scale.set(sx * k, sy * k, 1);
+		},
+		/* a mine on board bi went off (once per round and board): its pegs vanish from the picture, a blast */
+		mineBlast(W, bi, idx, g) {
+			const bx = W.bx && W.bx[bi];
+			if (!bx || !g) return;
+			bx.boomed = bx.boomed || {};
+			if (bx.boomed[idx]) return;
+			bx.boomed[idx] = 1;
+			const z = new THREE.Matrix4().makeScale(0, 0, 0);
+			this.minePegs(W, g).forEach((i) =>
+				bx.pegI.forEach((im) => {
+					im.setMatrixAt(i, z);
+					im.instanceMatrix.needsUpdate = true;
+				}),
+			);
+			const x = W.laneX(bi) + this.K * g.x,
+				y = this.wy(g.y);
+			burst(W.sc, x, y, 1.4, {
+				n: 34,
+				shape: "ico",
+				cols: ["#FF8A1F", "#FFC83D", "#E5484D", "#3A3F48"],
+				spd: 7,
+				up: 4,
+				life: 0.9,
+				size: 1.3,
+			});
+			burst(W.sc, x, y, 1.4, {
+				n: 14,
+				shape: "cube",
+				cols: ["#C9CED8", "#FFC83D"],
+				spd: 5,
+				up: 3,
+				life: 0.8,
+				size: 0.7,
+			});
+			if (W.split || W.me) sfx("cannon");
 		},
 		/* a fake x2: disguised, or found out (red, x½) */
 		fakeLook(W, f, rv) {
@@ -33598,7 +33854,7 @@ Object.assign(MG, {
 					key = S.r + ":" + JSON.stringify(L),
 					tv = W.trapV[k] || (W.trapV[k] = { key: "", g: null, items: [] });
 				if (tv.key !== key) {
-					if (tv.g) W.sc.remove(tv.g);
+					if (tv.g && tv.g.parent) tv.g.parent.remove(tv.g);
 					tv.key = key;
 					tv.g = new THREE.Group();
 					tv.items = L.map(([ty, gi]) => {
@@ -33609,7 +33865,8 @@ Object.assign(MG, {
 					W.bg[bi].add(tv.g);
 				}
 				const hits = this.hitsOn(W, k, S.r),
-					wv = Math.sin(Math.max(0, W.t) * 4);
+					wv = Math.sin(Math.max(0, W.t) * 4),
+					TF = this.trapFT(W, k);
 				/* when each trap first showed in full (by "trap.gap", kept across rebuilds so only the new one pops) */
 				if (tv.r !== S.r) {
 					tv.r = S.r;
@@ -33636,6 +33893,11 @@ Object.assign(MG, {
 					if (!full && !see) delete tv.seen[id];
 					it.m.visible = !!on;
 					if (u.ic) u.ic.visible = !!full;
+					if (u.flip) u.flip.g.rotation.z = this.flipA(u.flip.f, W.t - (TF[idx] ?? -99));
+					if (u.bomb) {
+						u.bomb.visible = !hit;
+						if (hit) this.mineBlast(W, bi, idx, this.gaps(W)[L[idx][1]]);
+					}
 					if (u.fake) {
 						this.fakeLook(W, u.fake, hit || reveal);
 						u.fake.st.opacity = 0.5 + 0.12 * wv;
