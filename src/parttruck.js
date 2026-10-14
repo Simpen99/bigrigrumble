@@ -1036,15 +1036,17 @@ function armourize(g, W, wheelsL, kind, mount) {
 	[-0.32, 0.32].forEach((z) => strut(g, [rx - 0.1, 0.42, z], [rx + 0.06, 0.42, z], 0.08, DK, 2));
 	/* the strongbox, a gold badge each side: on the roof in a tube roll cage with spotlights and beacons; a pickup carries
 	   it down in its bed (no room for a cage there: the lights go on a bar over the cab), the tow truck on its deck where
-	   the crane was (vault = where it sits, so a game can put the money bags on it) */
+	   the crane was, the mixer on its cab roof (vault = where it sits, so a game can put the money bags on it) */
 	const bed = kind === "pickup",
 		deck = (bed || kind === "tow") && mount,
-		top = deck ? { x: mount.x + (bed ? 0.03 : 0), y: mount.y } : truckTop(g),
-		bw = bed ? 0.54 : 0.86,
+		/* the mixer's drum is tilted: its box goes on the cab roof in front of it, cab-sized */
+		onCab = kind === "mixer",
+		top = deck ? { x: mount.x + (bed ? 0.03 : 0), y: mount.y } : onCab ? { x: 0.72, y: hAt(0.72, 0) } : truckTop(g),
+		bw = bed ? 0.54 : onCab ? 0.5 : 0.86,
 		bd = W * 0.66,
 		bh = bed ? 0.36 : 0.32,
 		by = top.y + bh / 2 - 0.02,
-		rw = bw / 2 + 0.12,
+		rw = bw / 2 + (onCab ? 0.04 : 0.12),
 		rd = bd / 2 + 0.12,
 		ry = by + 0.3;
 	g.add(
