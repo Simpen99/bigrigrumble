@@ -7237,15 +7237,15 @@ Object.assign(MG, {
 				e.bags = this.BAGS;
 				e.lbN = 0;
 				e.mass = 3.2;
-				e.rad = 1.3;
+				e.rad = 1.45;
 				/* the armoured version of its own truck (buildTruck mode "armour"), a size up */
-				const sc = 0.8 * 1.3;
+				const sc = 0.8 * 1.45;
 				e.g.remove(e.tr);
 				e.tr = buildTruck(e.p.truck, "armour");
 				e.tr.scale.setScalar(sc);
 				e.g.add(e.tr);
 				e.g.children.forEach((o) => {
-					if (o.isSprite) o.position.y = 3.3;
+					if (o.isSprite) o.position.y = 3.8;
 				});
 				e.f = { bg: this.BAGS, lb: [], oil: [], esc: 0 };
 			} else e.f = {};
