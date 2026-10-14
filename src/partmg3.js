@@ -7500,6 +7500,8 @@ Object.assign(MG, {
 		/* cash: BAGS on the truck, IMM s safe after losing one; oil: cooldown OILCD, lasts OILT, radius OILR */
 		BAGS: 20,
 		IMM: 4,
+		/* every button (oil, slam, harpoon, tricks) wakes up ARM s after the start */
+		ARM: 4,
 		/* slam (the truck's second button): cooldown SWCD; it hops SWHOP s, slams, and a shockwave ring runs out from it at
 		   SWV m/s to SWR m, blasting every cop it reaches */
 		SWCD: 10,
@@ -8110,6 +8112,7 @@ Object.assign(MG, {
 			e.vx = e.vz = 0;
 			e.oilHit = {};
 			e.hitC = {};
+			e.oilCd = e.swCd = e.hpCd = e.abCd = this.ARM;
 			if (e.side === 0) {
 				e.bags = this.BAGS;
 				/* bags 0-9 hang in the right-hand nets, 10-19 in the left (top tier first, rear first): e.bm = the ones still on */
