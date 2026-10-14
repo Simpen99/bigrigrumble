@@ -467,6 +467,7 @@ function showNameHTML(i) {
 /* UI style trial (temporary, start page mockups): style lp (low-poly) or px (pixel) and the display font, picked on the start page, saved per device (CSS only, canvas text stays Bungee) */
 const FONT_TRY = [
 	"Bungee",
+	"Jersey 20",
 	"Luckiest Guy",
 	"Lilita One",
 	"Russo One",
@@ -492,7 +493,7 @@ function fontLoad() {
 		.join("&")}&display=swap`;
 	document.head.appendChild(l);
 }
-fontSet(LS.get("trp_font", UI_STY === "px" ? "Silkscreen" : "Bungee"));
+fontSet(LS.get("trp_font", UI_STY === "px" ? "Jersey 20" : "Bungee"));
 function fontPickHTML() {
 	fontLoad();
 	const cur = LS.get("trp_font", "Bungee");
@@ -511,7 +512,7 @@ document.addEventListener("click", (e) => {
 	if (b.dataset.sty) {
 		UI_STY = b.dataset.sty;
 		LS.set("trp_uisty", UI_STY);
-		fontSet(UI_STY === "px" ? "Silkscreen" : "Bungee");
+		fontSet(UI_STY === "px" ? "Jersey 20" : "Bungee");
 	} else fontSet(b.dataset.font);
 	render.last = null;
 	render();
