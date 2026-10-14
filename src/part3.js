@@ -436,6 +436,7 @@ function render() {
 		keep = ae && ae.id && ae.tagName === "INPUT" ? { id: ae.id, v: ae.value, s: ae.selectionStart } : null;
 	app.classList.toggle("lp", v === "home" && UI_STY === "lp");
 	app.classList.toggle("px", v === "home" && UI_STY === "px");
+	app.classList.toggle("pt", v === "home" && UI_STY === "pt");
 	if (v === "home") app.innerHTML = homeHTML();
 	else if (v === "join") app.innerHTML = joinHTML();
 	else if (v === "practice") app.innerHTML = practiceHTML();
@@ -464,10 +465,11 @@ function showNameHTML(i) {
 	const t = TRUCKS[i];
 	return `<div class="showname"><div><h2>${esc(t.name)}</h2><p>${esc(t.blurb)}</p><div style="margin-top:8px">${facesHTML(t.faces)}</div></div><div class="arrows"><button class="arr" data-step="-1" aria-label="Previous truck">‹</button><button class="arr" data-step="1" aria-label="Next truck">›</button></div></div>`;
 }
-/* UI style trial (temporary, start page mockups): style lp (low-poly) or px (pixel) and the display font, picked on the start page, saved per device (CSS only, canvas text stays Bungee) */
+/* UI style trial (temporary, start page mockups): style lp (low-poly), px (pixel) or pt (party, after Fall Guys) and the display font, picked on the start page, saved per device (CSS only, canvas text stays Bungee) */
 const FONT_TRY = [
 	"Bungee",
 	"Jersey 20",
+	"Titan One",
 	"Luckiest Guy",
 	"Lilita One",
 	"Russo One",
@@ -476,7 +478,8 @@ const FONT_TRY = [
 	"Press Start 2P",
 	"Jersey 10",
 ];
-let UI_STY = LS.get("trp_uisty", "px") === "lp" ? "lp" : "px";
+let UI_STY = ["lp", "pt"].includes(LS.get("trp_uisty", "px")) ? LS.get("trp_uisty", "px") : "px";
+const styFont = (s) => ({ px: "Jersey 20", pt: "Titan One" })[s] || "Bungee";
 function fontSet(f) {
 	if (!FONT_TRY.includes(f)) f = "Bungee";
 	if (f !== "Bungee") fontLoad();
@@ -495,13 +498,14 @@ function fontLoad() {
 		.join("&")}&display=swap`;
 	document.head.appendChild(l);
 }
-fontSet(LS.get("trp_font", UI_STY === "px" ? "Jersey 20" : "Bungee"));
+fontSet(LS.get("trp_font", styFont(UI_STY)));
 function fontPickHTML() {
 	fontLoad();
 	const cur = LS.get("trp_font", "Bungee");
 	return `<div class="fontpick"><span>Style</span>${[
 		["px", "Pixel"],
 		["lp", "Low-poly"],
+		["pt", "Party"],
 	]
 		.map(([k, n]) => `<button class="fp ${k === UI_STY ? "sel" : ""}" data-sty="${k}">${n}</button>`)
 		.join(
@@ -514,7 +518,7 @@ document.addEventListener("click", (e) => {
 	if (b.dataset.sty) {
 		UI_STY = b.dataset.sty;
 		LS.set("trp_uisty", UI_STY);
-		fontSet(UI_STY === "px" ? "Jersey 20" : "Bungee");
+		fontSet(styFont(UI_STY));
 	} else fontSet(b.dataset.font);
 	render.last = null;
 	render();
