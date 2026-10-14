@@ -99,6 +99,13 @@ details.how ul{padding-left:18px;margin:10px 0 0}details.how li{margin:6px 0;lin
 /* HUD */
 .hudtop{position:fixed;left:0;right:0;top:0;z-index:5;padding:calc(env(safe-area-inset-top,0px) + 10px) 10px 0;display:flex;gap:8px;align-items:center;max-width:560px;margin:0 auto;pointer-events:none}
 .hudtop>*{pointer-events:auto}
+.vol{display:flex;flex-direction:column;gap:8px}
+.volrow{display:flex;align-items:center;gap:10px;font-weight:800;font-size:15px}
+.volrow span{flex:none;width:92px}
+.volrow input{flex:1;min-width:0;accent-color:#FFC83D;height:28px}
+.volbox{padding:4px 2px}
+.volpop{position:fixed;right:10px;z-index:30;width:min(300px,calc(100vw - 20px));background:var(--hb,rgba(24,32,50,.94));color:#fff;border:3px solid #F4F6F9;border-radius:16px;padding:12px 14px;box-shadow:0 5px 0 var(--ledge,rgba(11,14,20,.85));font-family:var(--display);display:flex;flex-direction:column;gap:10px}
+body.tv .volpop{zoom:1.5}
 .chip{background:var(--hud);color:#fff;border-radius:999px;padding:8px 13px;font-weight:800;font-size:14px;white-space:nowrap;border:1px solid var(--hudline);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
 .chip.grow{flex:1;overflow:hidden;text-overflow:ellipsis;min-width:0}
 button.chip{border:1px solid var(--hudline)}

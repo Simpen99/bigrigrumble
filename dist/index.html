@@ -99,6 +99,13 @@ details.how ul{padding-left:18px;margin:10px 0 0}details.how li{margin:6px 0;lin
 /* HUD */
 .hudtop{position:fixed;left:0;right:0;top:0;z-index:5;padding:calc(env(safe-area-inset-top,0px) + 10px) 10px 0;display:flex;gap:8px;align-items:center;max-width:560px;margin:0 auto;pointer-events:none}
 .hudtop>*{pointer-events:auto}
+.vol{display:flex;flex-direction:column;gap:8px}
+.volrow{display:flex;align-items:center;gap:10px;font-weight:800;font-size:15px}
+.volrow span{flex:none;width:92px}
+.volrow input{flex:1;min-width:0;accent-color:#FFC83D;height:28px}
+.volbox{padding:4px 2px}
+.volpop{position:fixed;right:10px;z-index:30;width:min(300px,calc(100vw - 20px));background:var(--hb,rgba(24,32,50,.94));color:#fff;border:3px solid #F4F6F9;border-radius:16px;padding:12px 14px;box-shadow:0 5px 0 var(--ledge,rgba(11,14,20,.85));font-family:var(--display);display:flex;flex-direction:column;gap:10px}
+body.tv .volpop{zoom:1.5}
 .chip{background:var(--hud);color:#fff;border-radius:999px;padding:8px 13px;font-weight:800;font-size:14px;white-space:nowrap;border:1px solid var(--hudline);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
 .chip.grow{flex:1;overflow:hidden;text-overflow:ellipsis;min-width:0}
 button.chip{border:1px solid var(--hudline)}
@@ -814,7 +821,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-14 18:18 8082822";
+const BUILD = "2026-10-14 18:23 2dc7f8c";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -8101,6 +8108,8 @@ const DUST = ["#D8CBB0", "#C9BC9F", "#EDE3CF"];
 
 /* ---------- sound (synthesised, no files) ---------- */
 const SFX = { ctx: null, on: LS.get("trp_snd", true) };
+/* the player's levels 0..1: music m, sound effects s (localStorage trp_vol; the 🔊 chip and the start page set them) */
+const VOL = Object.assign({ m: 1, s: 1 }, LS.get("trp_vol", {}));
 function sfxInit() {
 	if (SFX.ctx) return;
 	try {
@@ -8111,7 +8120,7 @@ function sfxInit() {
 		SFX.out.connect(SFX.ctx.destination);
 		/* sound effects go through their own bus, 25% under the music */
 		SFX.fx = SFX.ctx.createGain();
-		SFX.fx.gain.value = 0.75;
+		SFX.fx.gain.value = 0.75 * VOL.s;
 		SFX.fx.connect(SFX.out);
 		SFX.to = SFX.fx;
 	} catch (e) {
@@ -8533,7 +8542,8 @@ function musBus() {
 	B.comp.ratio.value = 4;
 	B.comp.attack.value = 0.004;
 	B.comp.release.value = 0.15;
-	B.comp.connect(gain(0.4, SFX.out));
+	B.lvl = gain(0.4 * VOL.m, SFX.out);
+	B.comp.connect(B.lvl);
 	/* one shared noise buffer for the drums */
 	B.noise = c.createBuffer(1, c.sampleRate * 2, c.sampleRate);
 	const nz = B.noise.getChannelData(0);
@@ -8816,7 +8826,7 @@ function sfxFile(url, vol = 1) {
 			g.gain.value = vol;
 			s.buffer = buf;
 			s.connect(g);
-			g.connect(SFX.out);
+			g.connect(SFX.fx);
 			s.start();
 		})
 		.catch(() => {});
@@ -9213,7 +9223,7 @@ function windSnd() {
 			g.gain.value = 0;
 			n.connect(fl);
 			fl.connect(g);
-			g.connect(SFX.out);
+			g.connect(SFX.fx);
 			n.start();
 			return { n, fl, g };
 		},
@@ -9373,14 +9383,73 @@ document.addEventListener("click", (e) => {
 	const b = e.target.closest("button");
 	if (!b) return;
 	if (b.dataset.a === "snd") {
-		SFX.on = !SFX.on;
-		LS.set("trp_snd", SFX.on);
-		b.textContent = SFX.on ? "🔊" : "🔇";
-		if (SFX.on) sfx("click");
+		volPop(b);
 		return;
 	}
-	sfx("click");
+	if (b.dataset.a === "mute") {
+		SFX.on = !SFX.on;
+		LS.set("trp_snd", SFX.on);
+		document.querySelectorAll('[data-a="snd"]').forEach((c) => (c.textContent = SFX.on ? "🔊" : "🔇"));
+		b.textContent = SFX.on ? "🔇 Mute all" : "🔊 Sound on";
+		if (!SFX.on) musStop(0.2);
+		menuClick();
+		return;
+	}
+	/* menu buttons click (a minigame's own controls keep the short synth tick; its ready panel clicks) */
+	if (!b.closest("#mg") || b.closest(".m3ready")) menuClick();
+	else sfx("click");
 });
+audLoad("sfx/selectclick.mp3");
+function menuClick() {
+	sfxFile("sfx/selectclick.mp3", 0.8);
+}
+/* volume sliders: Music and Effects (the start page, and the 🔊 chip's pop-up) */
+function volHTML() {
+	const row = (k, lbl) =>
+		`<label class="volrow"><span>${lbl}</span><input type="range" min="0" max="100" step="5" data-vol="${k}" value="${Math.round(VOL[k] * 100)}" aria-label="${lbl} volume"></label>`;
+	return `<div class="vol">${row("m", "🎵 Music")}${row("s", "🔊 Effects")}</div>`;
+}
+function volApply() {
+	if (!SFX.ctx) return;
+	SFX.fx.gain.value = 0.75 * VOL.s;
+	if (SFX.mus) SFX.mus.lvl.gain.value = 0.4 * VOL.m;
+}
+document.addEventListener("input", (e) => {
+	const k = e.target.dataset && e.target.dataset.vol;
+	if (!k) return;
+	VOL[k] = +e.target.value / 100;
+	LS.set("trp_vol", VOL);
+	volApply();
+});
+/* letting go of the effects slider plays a click at the new level */
+document.addEventListener("change", (e) => {
+	if (e.target.dataset && e.target.dataset.vol === "s") menuClick();
+});
+/* the 🔊 chip opens a small panel under it: the two sliders and mute; a tap anywhere else closes it */
+function volPop(chip) {
+	let p = document.getElementById("volpop");
+	if (p) {
+		p.remove();
+		return;
+	}
+	p = document.createElement("div");
+	p.id = "volpop";
+	p.className = "volpop";
+	p.innerHTML =
+		volHTML() + `<button class="btn ghost small" data-a="mute">${SFX.on ? "🔇 Mute all" : "🔊 Sound on"}</button>`;
+	const r = chip.getBoundingClientRect();
+	p.style.top = r.bottom + 8 + "px";
+	document.body.appendChild(p);
+	menuClick();
+}
+document.addEventListener(
+	"pointerdown",
+	(e) => {
+		const p = document.getElementById("volpop");
+		if (p && !p.contains(e.target) && !e.target.closest('[data-a="snd"]')) p.remove();
+	},
+	{ capture: true },
+);
 
 /* ---------- board: coin/battery bursts, landing dust, fork path preview ---------- */
 /* battery purchase: zoom on the buyer, a glowing 3D battery pops out of the truck and flies into their card, then the camera follows the factory to its new spot */
@@ -10601,6 +10670,7 @@ function homeHTML() {
     <button class="btn sign" data-a="joinlist">Join Game</button>
     <button class="btn ghost" data-a="practice">🎮 Minigame practice</button>
     ${FINE && GFX.ok ? `<button class="btn ghost" data-a="editor">🛠 Map editor</button>` : ""}
+    <div class="volbox">${volHTML()}</div>
     <div>${statusHTML()}</div>
     <button class="btn ghost small" data-dbg="open">🐞 Report a bug</button>
   </section>
@@ -10792,7 +10862,7 @@ function tvLobbyHTML() {
 /* ---------- game view ---------- */
 function buildGame() {
 	$("#app").innerHTML =
-		`<div class="hudtop"><span class="chip" id="rnd"></span><span class="chip grow" id="turnchip"></span><button class="chip" data-a="snd" aria-label="Sound on or off">${SFX.on ? "🔊" : "🔇"}</button><button class="chip" data-a="cam" id="cambtn">Board</button><button class="chip" data-a="peek" id="peekbtn">${GFX.peek ? "🎮 Controls" : "🗺 Board"}</button><button class="chip" data-a="${role === "host" ? "endask" : "leave"}" aria-label="Leave game">✕</button></div>
+		`<div class="hudtop"><span class="chip" id="rnd"></span><span class="chip grow" id="turnchip"></span><button class="chip" data-a="snd" aria-label="Sound levels">${SFX.on ? "🔊" : "🔇"}</button><button class="chip" data-a="cam" id="cambtn">Board</button><button class="chip" data-a="peek" id="peekbtn">${GFX.peek ? "🎮 Controls" : "🗺 Board"}</button><button class="chip" data-a="${role === "host" ? "endask" : "leave"}" aria-label="Leave game">✕</button></div>
   <div class="hudbot" id="hudbot"><div id="hostgone"></div><div id="ctlme"></div><div class="hcard"><div class="msg"><i></i><span id="msg" aria-live="polite"></span></div><div id="panel"></div><div class="pstrip" id="pstrip"></div></div></div>`;
 	render.lastPanel = render.lastStrip = render.lastMe = null;
 }
@@ -17160,7 +17230,7 @@ function engineSnd() {
 	o.connect(lp);
 	o2.connect(lp);
 	lp.connect(g);
-	g.connect(SFX.out);
+	g.connect(SFX.fx);
 	o.start();
 	o2.start();
 	const len = c.sampleRate * 2,
@@ -17178,7 +17248,7 @@ function engineSnd() {
 	ng.gain.value = 0;
 	n.connect(bp);
 	bp.connect(ng);
-	ng.connect(SFX.out);
+	ng.connect(SFX.fx);
 	n.start();
 	return {
 		set(spd, crowd, on) {
@@ -42587,12 +42657,9 @@ function pickTruck(i) {
 		}
 	}
 }
-/* menu taps click (not a minigame's own controls; its ready panel does) */
-audLoad("sfx/selectclick.mp3");
 document.addEventListener("click", (e) => {
 	const b = e.target.closest("button");
 	if (!b) return;
-	if (!b.closest("#mg") || b.closest(".m3ready")) sfxFile("sfx/selectclick.mp3", 0.8);
 	if (b.dataset.t !== undefined) {
 		pickTruck(+b.dataset.t);
 		return;

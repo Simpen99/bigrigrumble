@@ -402,7 +402,7 @@ function engineSnd() {
 	o.connect(lp);
 	o2.connect(lp);
 	lp.connect(g);
-	g.connect(SFX.out);
+	g.connect(SFX.fx);
 	o.start();
 	o2.start();
 	const len = c.sampleRate * 2,
@@ -420,7 +420,7 @@ function engineSnd() {
 	ng.gain.value = 0;
 	n.connect(bp);
 	bp.connect(ng);
-	ng.connect(SFX.out);
+	ng.connect(SFX.fx);
 	n.start();
 	return {
 		set(spd, crowd, on) {

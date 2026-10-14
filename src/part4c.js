@@ -29,12 +29,9 @@ function pickTruck(i) {
 		}
 	}
 }
-/* menu taps click (not a minigame's own controls; its ready panel does) */
-audLoad("sfx/selectclick.mp3");
 document.addEventListener("click", (e) => {
 	const b = e.target.closest("button");
 	if (!b) return;
-	if (!b.closest("#mg") || b.closest(".m3ready")) sfxFile("sfx/selectclick.mp3", 0.8);
 	if (b.dataset.t !== undefined) {
 		pickTruck(+b.dataset.t);
 		return;

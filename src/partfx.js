@@ -127,6 +127,8 @@ const DUST = ["#D8CBB0", "#C9BC9F", "#EDE3CF"];
 
 /* ---------- sound (synthesised, no files) ---------- */
 const SFX = { ctx: null, on: LS.get("trp_snd", true) };
+/* the player's levels 0..1: music m, sound effects s (localStorage trp_vol; the 🔊 chip and the start page set them) */
+const VOL = Object.assign({ m: 1, s: 1 }, LS.get("trp_vol", {}));
 function sfxInit() {
 	if (SFX.ctx) return;
 	try {
@@ -137,7 +139,7 @@ function sfxInit() {
 		SFX.out.connect(SFX.ctx.destination);
 		/* sound effects go through their own bus, 25% under the music */
 		SFX.fx = SFX.ctx.createGain();
-		SFX.fx.gain.value = 0.75;
+		SFX.fx.gain.value = 0.75 * VOL.s;
 		SFX.fx.connect(SFX.out);
 		SFX.to = SFX.fx;
 	} catch (e) {
@@ -559,7 +561,8 @@ function musBus() {
 	B.comp.ratio.value = 4;
 	B.comp.attack.value = 0.004;
 	B.comp.release.value = 0.15;
-	B.comp.connect(gain(0.4, SFX.out));
+	B.lvl = gain(0.4 * VOL.m, SFX.out);
+	B.comp.connect(B.lvl);
 	/* one shared noise buffer for the drums */
 	B.noise = c.createBuffer(1, c.sampleRate * 2, c.sampleRate);
 	const nz = B.noise.getChannelData(0);
@@ -842,7 +845,7 @@ function sfxFile(url, vol = 1) {
 			g.gain.value = vol;
 			s.buffer = buf;
 			s.connect(g);
-			g.connect(SFX.out);
+			g.connect(SFX.fx);
 			s.start();
 		})
 		.catch(() => {});
@@ -1239,7 +1242,7 @@ function windSnd() {
 			g.gain.value = 0;
 			n.connect(fl);
 			fl.connect(g);
-			g.connect(SFX.out);
+			g.connect(SFX.fx);
 			n.start();
 			return { n, fl, g };
 		},
@@ -1399,14 +1402,73 @@ document.addEventListener("click", (e) => {
 	const b = e.target.closest("button");
 	if (!b) return;
 	if (b.dataset.a === "snd") {
-		SFX.on = !SFX.on;
-		LS.set("trp_snd", SFX.on);
-		b.textContent = SFX.on ? "🔊" : "🔇";
-		if (SFX.on) sfx("click");
+		volPop(b);
 		return;
 	}
-	sfx("click");
+	if (b.dataset.a === "mute") {
+		SFX.on = !SFX.on;
+		LS.set("trp_snd", SFX.on);
+		document.querySelectorAll('[data-a="snd"]').forEach((c) => (c.textContent = SFX.on ? "🔊" : "🔇"));
+		b.textContent = SFX.on ? "🔇 Mute all" : "🔊 Sound on";
+		if (!SFX.on) musStop(0.2);
+		menuClick();
+		return;
+	}
+	/* menu buttons click (a minigame's own controls keep the short synth tick; its ready panel clicks) */
+	if (!b.closest("#mg") || b.closest(".m3ready")) menuClick();
+	else sfx("click");
 });
+audLoad("sfx/selectclick.mp3");
+function menuClick() {
+	sfxFile("sfx/selectclick.mp3", 0.8);
+}
+/* volume sliders: Music and Effects (the start page, and the 🔊 chip's pop-up) */
+function volHTML() {
+	const row = (k, lbl) =>
+		`<label class="volrow"><span>${lbl}</span><input type="range" min="0" max="100" step="5" data-vol="${k}" value="${Math.round(VOL[k] * 100)}" aria-label="${lbl} volume"></label>`;
+	return `<div class="vol">${row("m", "🎵 Music")}${row("s", "🔊 Effects")}</div>`;
+}
+function volApply() {
+	if (!SFX.ctx) return;
+	SFX.fx.gain.value = 0.75 * VOL.s;
+	if (SFX.mus) SFX.mus.lvl.gain.value = 0.4 * VOL.m;
+}
+document.addEventListener("input", (e) => {
+	const k = e.target.dataset && e.target.dataset.vol;
+	if (!k) return;
+	VOL[k] = +e.target.value / 100;
+	LS.set("trp_vol", VOL);
+	volApply();
+});
+/* letting go of the effects slider plays a click at the new level */
+document.addEventListener("change", (e) => {
+	if (e.target.dataset && e.target.dataset.vol === "s") menuClick();
+});
+/* the 🔊 chip opens a small panel under it: the two sliders and mute; a tap anywhere else closes it */
+function volPop(chip) {
+	let p = document.getElementById("volpop");
+	if (p) {
+		p.remove();
+		return;
+	}
+	p = document.createElement("div");
+	p.id = "volpop";
+	p.className = "volpop";
+	p.innerHTML =
+		volHTML() + `<button class="btn ghost small" data-a="mute">${SFX.on ? "🔇 Mute all" : "🔊 Sound on"}</button>`;
+	const r = chip.getBoundingClientRect();
+	p.style.top = r.bottom + 8 + "px";
+	document.body.appendChild(p);
+	menuClick();
+}
+document.addEventListener(
+	"pointerdown",
+	(e) => {
+		const p = document.getElementById("volpop");
+		if (p && !p.contains(e.target) && !e.target.closest('[data-a="snd"]')) p.remove();
+	},
+	{ capture: true },
+);
 
 /* ---------- board: coin/battery bursts, landing dust, fork path preview ---------- */
 /* battery purchase: zoom on the buyer, a glowing 3D battery pops out of the truck and flies into their card, then the camera follows the factory to its new spot */
