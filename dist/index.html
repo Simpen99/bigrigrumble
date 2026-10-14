@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Big Rig Rumble</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Bungee&family=Titan+One&family=Rubik:wght@400;500;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Bungee&family=Rubik:wght@400;500;700;800&display=swap" rel="stylesheet">
 <style>
 :root{
   --sky:#9fd4f5; --yellow:#FFC83D; --yellow-dk:#E0A800; --sign:#0E7A55; --red:#E5484D; --blue:#2F7DE1; --purple:#8E5BE0; --green:#1FA35C;
@@ -275,7 +275,6 @@ body.trin #mg .m3top{animation:trtop .6s .35s ease-out both}body.trin #mg .m3lb,
 @keyframes logoIn{from{opacity:0;transform:rotate(-6deg) translateY(-30px) scale(.7)}to{opacity:1;transform:rotate(-6deg)}}
 @keyframes rumble{0%,86%,100%{transform:none}88%{transform:translate(-2px,1px) rotate(-1deg)}90%{transform:translate(2px,-1px) rotate(1deg)}92%{transform:translate(-2px,0) rotate(-.5deg)}94%{transform:translate(1px,1px)}96%{transform:none}}
 .ribbon{display:none}
-#app.pt{--display:"Titan One","Bungee","Arial Black",Impact,system-ui,sans-serif}
 i.bi{font-style:normal}
 /* menu style "party" (#app.pt = the menu views: home, join, practice, lobby; not the board or results), shapes after Fall Guys, colours from the board HUD's arcade ledge): navy see-through panels (--hb / --hb2) with a light rim and the dark ledge under them, yellow accent, slanted buttons and heading tag (the ::before plate is skewed, the text stays straight) */
 .pt{--rim:#F4F6F9;--hs:0 5px 0 var(--ledge);--ts:0 2px 0 var(--ledge)}
@@ -874,7 +873,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-14 22:54 0bf9ab8";
+const BUILD = "2026-10-14 22:54 ae15192";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
