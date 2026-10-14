@@ -7544,8 +7544,14 @@ Object.assign(MG, {
 		lx(l) {
 			return (l - (this.LANES - 1) / 2) * this.LW;
 		},
-		carZ(W, c) {
-			return c.z0 - this.CARV * Math.max(0, W.t);
+		carZ(W, c, t = W.t) {
+			return c.z0 - this.CARV * Math.max(0, t);
+		},
+		/* a car's x at z: its lane, squeezed in where the road narrows (it merges over along the bridge's tapers and the
+		   roadworks, never drives inside a guardrail or barrier) */
+		carX(W, c, z) {
+			const [lo, hi] = this.edges(z);
+			return Math.max(lo + 1.3, Math.min(hi - 1.3, this.lx(c.l)));
 		},
 		signTxt(z) {
 			return `TUNNEL ${Math.max(0, Math.round(this.TL + z))} m ▲`;
@@ -8185,7 +8191,8 @@ Object.assign(MG, {
 			if (e.x > hi - rr || e.x < lo + rr) {
 				e.x = e.x > hi - rr ? hi - rr : lo + rr;
 				e.vx *= -0.4;
-				e.vz *= 0.97;
+				/* a light scrub (by time, not per frame): a slanted rail guides you in rather than stopping you */
+				e.vz *= Math.exp(-0.25 * dt);
 			}
 			e.yaw = spin ? e.yaw + 11 * dt : lerpA(e.yaw, Math.atan2(-e.vz, e.vx), Math.min(1, dt * 8));
 			this.traffic(W, e);
@@ -8225,10 +8232,10 @@ Object.assign(MG, {
 					}
 					continue;
 				}
-				const cx = this.lx(c.l),
+				const cx = this.carX(W, c, cz),
 					dx = e.x - cx;
 				if (Math.abs(dx) > 1 + r || Math.abs(e.z - cz) > 2.2 + r * 0.7) continue;
-				const sd = dx >= 0 ? 1 : -1;
+				let sd = dx >= 0 ? 1 : -1;
 				/* the cash truck just shoves cars off the road (shared as e.f.tk, so every screen sees it fly) */
 				if (e.side === 0) {
 					c.kT = W.t;
@@ -8237,6 +8244,13 @@ Object.assign(MG, {
 					e.vz *= 0.97;
 					this.carFx(W, c, e);
 					continue;
+				}
+				/* thrown out beside the car, never through a guardrail or barrier: no room there, the other side */
+				{
+					const [lo, hi] = this.edges(e.z),
+						rr = r * 0.85,
+						nx = cx + sd * (1.05 + r);
+					if (nx > hi - rr || nx < lo + rr) sd = -sd;
 				}
 				e.x = cx + sd * (1.05 + r);
 				e.vx = sd * 5;
@@ -8258,18 +8272,18 @@ Object.assign(MG, {
 		/* where a car is (a knocked one flies sideways off the road: across the lanes, up, landing in the field) */
 		carPos(W, c) {
 			const z = this.carZ(W, c);
-			if (c.kT === undefined) return { x: this.lx(c.l), y: 0, z };
+			if (c.kT === undefined) return { x: this.carX(W, c, z), y: 0, z };
 			const a = Math.max(0, W.t - c.kT),
 				s = Math.min(1, a / 1.4);
-			const x = this.lx(c.l) + c.kd * (16 * s - 4 * s * s),
+			const x = this.carX(W, c, this.carZ(W, c, c.kT)) + c.kd * (16 * s - 4 * s * s),
 				zz = z + a * 4,
 				drop = this.onBridge(zz) && Math.abs(x) > (this.LANES * this.LW) / 2 + 1.5;
 			return { x, y: drop ? Math.max(-9, 5 * a - 6 * a * a) : Math.max(0, 5 * a - 6 * a * a), z: zz };
 		},
 		/* a car knocked off the road: glass and bits, a crunch */
 		carFx(W, c, by) {
-			const x = this.lx(c.l),
-				z = this.carZ(W, c);
+			const z = this.carZ(W, c),
+				x = this.carX(W, c, z);
 			burst(W.sc, x, 0.9, z, {
 				n: 14,
 				shape: "cube",
@@ -8795,7 +8809,7 @@ Object.assign(MG, {
 				if (c.kT !== undefined) continue;
 				const cz = this.carZ(W, c),
 					rel = cz > e.z ? 1 : -1;
-				if (c.rel === -1 && rel === 1 && Math.abs(this.lx(c.l) - e.x) < 5) sfx("whoosh");
+				if (c.rel === -1 && rel === 1 && Math.abs(this.carX(W, c, cz) - e.x) < 5) sfx("whoosh");
 				c.rel = Math.abs(cz - e.z) < 30 ? rel : 0;
 			}
 			if (Math.abs(e.vx || 0) > 6.5 && -e.vz > 13 && W.t - (W.scrT ?? -9) > 0.9) {
@@ -9014,7 +9028,10 @@ Object.assign(MG, {
 				}
 			});
 			W.cars.forEach((c) => {
-				if (c.kT === undefined) return (c.g.position.z = this.carZ(W, c));
+				if (c.kT === undefined) {
+					const z = this.carZ(W, c);
+					return c.g.position.set(this.carX(W, c, z), 0, z);
+				}
 				const p = this.carPos(W, c),
 					a = Math.max(0, W.t - c.kT);
 				c.g.position.set(p.x, p.y, p.z);
@@ -9123,7 +9140,7 @@ Object.assign(MG, {
 					x < this.edges(e.z - far)[0] + 1.2 ||
 					W.cars.some((c) => {
 						const cz = this.carZ(W, c);
-						return cz < e.z && cz > e.z - far && Math.abs(this.lx(c.l) - x) < 2.4;
+						return cz < e.z && cz > e.z - far && Math.abs(this.carX(W, c, cz) - x) < 2.4;
 					}) ||
 					(e.side === 1 &&
 						((T && T.f && T.f.sp) || []).some(
