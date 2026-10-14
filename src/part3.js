@@ -376,13 +376,8 @@ function render() {
 		if (v === "game") initSeen();
 	}
 	document.body.dataset.view = v;
-	/* UI style trial: pixel / low-poly only on the start page, party on all the menu views */
-	{
-		const app = $("#app");
-		app.classList.toggle("lp", v === "home" && UI_STY === "lp");
-		app.classList.toggle("px", v === "home" && UI_STY === "px");
-		app.classList.toggle("pt", MENU_VIEWS.includes(v) && UI_STY === "pt");
-	}
+	/* menu style (CSS .pt): the menu views only, the board and minigames keep the HUD look */
+	$("#app").classList.toggle("pt", MENU_VIEWS.includes(v));
 	{
 		const tvp = role === "client" && !!G && !!G.tv && !SCREEN;
 		document.body.classList.toggle("tvphone", tvp);
@@ -469,68 +464,10 @@ function showNameHTML(i) {
 	const t = TRUCKS[i];
 	return `<div class="showname"><div><h2>${esc(t.name)}</h2><p>${esc(t.blurb)}</p><div style="margin-top:8px">${facesHTML(t.faces)}</div></div><div class="arrows"><button class="arr" data-step="-1" aria-label="Previous truck">‹</button><button class="arr" data-step="1" aria-label="Next truck">›</button></div></div>`;
 }
-/* UI style trial (temporary, start page mockups; the font only reaches the styled menu views through --mfont, the game keeps Bungee): style lp (low-poly), px (pixel) or pt (party, after Fall Guys) and the display font, picked on the start page, saved per device (CSS only, canvas text stays Bungee) */
-const FONT_TRY = [
-	"Bungee",
-	"Jersey 20",
-	"Titan One",
-	"Luckiest Guy",
-	"Lilita One",
-	"Russo One",
-	"Silkscreen",
-	"Pixelify Sans",
-	"Press Start 2P",
-	"Jersey 10",
-];
-let UI_STY = ["lp", "px"].includes(LS.get("trp_uisty", "pt")) ? LS.get("trp_uisty", "pt") : "pt";
-const styFont = (s) => ({ px: "Jersey 20", pt: "Titan One" })[s] || "Bungee";
-function fontSet(f) {
-	if (!FONT_TRY.includes(f)) f = "Bungee";
-	if (f !== "Bungee") fontLoad();
-	document.documentElement.style.setProperty("--mfont", `"${f}","Arial Black",Impact,system-ui,sans-serif`);
-	/* Jersey 20 runs small: the pixel style scales its display text by --dz */
-	document.documentElement.style.setProperty("--dz", f === "Jersey 20" ? 1.35 : 1);
-	LS.set("trp_font", f);
-}
-function fontLoad() {
-	if (fontLoad.done) return;
-	fontLoad.done = true;
-	const l = document.createElement("link");
-	l.rel = "stylesheet";
-	l.href = `https://fonts.googleapis.com/css2?${FONT_TRY.slice(1)
-		.map((f) => "family=" + f.replace(/ /g, "+"))
-		.join("&")}&display=swap`;
-	document.head.appendChild(l);
-}
-fontSet(LS.get("trp_font", styFont(UI_STY)));
-function fontPickHTML() {
-	fontLoad();
-	const cur = LS.get("trp_font", "Bungee");
-	return `<div class="fontpick"><span>Style</span>${[
-		["px", "Pixel"],
-		["lp", "Low-poly"],
-		["pt", "Party"],
-	]
-		.map(([k, n]) => `<button class="fp ${k === UI_STY ? "sel" : ""}" data-sty="${k}">${n}</button>`)
-		.join(
-			"",
-		)}</div><div class="fontpick"><span>Font</span>${FONT_TRY.map((f) => `<button class="fp ${f === cur ? "sel" : ""}" data-font="${f}" style="font-family:'${f}'">${f}</button>`).join("")}</div>`;
-}
-document.addEventListener("click", (e) => {
-	const b = e.target.closest && e.target.closest("button[data-font],button[data-sty]");
-	if (!b) return;
-	if (b.dataset.sty) {
-		UI_STY = b.dataset.sty;
-		LS.set("trp_uisty", UI_STY);
-		fontSet(styFont(UI_STY));
-	} else fontSet(b.dataset.font);
-	render.last = null;
-	render();
-});
 function homeHTML() {
 	const saved = LS.get("trp_host", null);
 	const canResume = saved && saved.phase && saved.phase !== "over" && saved.players && saved.players.length;
-	return `<div class="stage"><div class="logo"><img class="lg" src="${UI_STY === "px" ? LOGO_PX_ART : LOGO_ART}" alt="Big Rig Rumble"></div><div id="shown">${showNameHTML(me.truck)}</div></div>
+	return `<div class="stage"><div class="logo"><img class="lg" src="${LOGO_ART}" alt="Big Rig Rumble"></div><div id="shown">${showNameHTML(me.truck)}</div></div>
   ${notice ? `<div class="banner">${esc(notice)}</div>` : ""}
   <section class="sheet"><div class="ribbon"><span>Choose your truck</span></div><h2 class="rbh">Choose your truck</h2>${carouselHTML(me.truck)}
   <p class="note" style="margin-top:4px">Each truck brings its own die. Small numbers under a face are coins you gain or pay when you roll it. The standard 1–6 die is always available too.</p>
@@ -543,7 +480,6 @@ function homeHTML() {
     <button class="btn ghost" data-a="practice"><i class="bi">🎮</i>Minigame practice</button>
     ${FINE && GFX.ok ? `<button class="btn ghost" data-a="editor"><i class="bi">🛠</i>Map editor</button>` : ""}
     <div class="volbox">${volHTML()}</div>
-    ${fontPickHTML()}
     <div>${statusHTML()}</div>
     <button class="btn ghost small" data-dbg="open">🐞 Report a bug</button>
   </section>
