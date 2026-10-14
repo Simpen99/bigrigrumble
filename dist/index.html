@@ -813,7 +813,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-14 12:02 3d86204";
+const BUILD = "2026-10-14 12:12 72acd3d";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -36878,6 +36878,7 @@ Object.assign(MG, {
 						e.slideT = 0.8;
 						e.crT = W.t + 1.4;
 						fb(W, e, "WHAM!", { tone: "bad" });
+						this.letGo(W, e, "flying car");
 						mgLog(W, `${mgName(e)} hit by a flying car`);
 						e.lastHit = { k: "flying car", t: W.t };
 						if (e.isMe) {
@@ -36960,13 +36961,13 @@ Object.assign(MG, {
 			mgLog(W, `${mgName(e)} drops oil`);
 			if (e.isMe) sfx("splash");
 		},
-		/* the cash truck's spike strip, thrown across the lanes a few metres behind it */
+		/* the cash truck's spike strip, dropped across the lanes right behind its rear bumper, live at once */
 		spikes(W, e) {
 			if (W.t < (e.spCd || 0) || e.d) return;
 			e.spCd = W.t + this.SPCD;
 			e.spN = (e.spN || 0) + 1;
 			const r = (v) => Math.round(v * 100) / 100,
-				z = e.z + 6,
+				z = e.z + (e.rad || 1.6) + 0.8,
 				[lo, hi] = this.edges(z),
 				x = Math.max(lo + this.SPW / 2, Math.min(hi - this.SPW / 2, e.x));
 			e.f.sp = (e.f.sp || []).concat([[e.spN, r(x), r(z), r(W.t)]]).slice(-3);
@@ -36988,7 +36989,15 @@ Object.assign(MG, {
 		hookOn(W, c, T) {
 			const h = c.f && c.f.hp;
 			if (!h || !h[2] || W.t < h[1] + 0.2 || W.t > h[1] + this.HPT) return false;
-			return !((T.f && T.f.hs) || []).some(([k, id]) => k === c.k && id === h[0]);
+			return c.f.hr !== h[0] && !((T.f && T.f.hs) || []).some(([k, id]) => k === c.k && id === h[0]);
+		},
+		/* a cop knocked about (oil, spikes, a flying car) loses its grip: its harpoon lets go (shared as e.f.hr = that
+		   harpoon's id) */
+		letGo(W, e, why) {
+			const T = this.solo(W);
+			if (!T || !e.f.hp || !this.hookOn(W, e, T)) return;
+			e.f.hr = e.f.hp[0];
+			mgLog(W, `${mgName(e)} lets go of the harpoon (${why})`);
 		},
 		hooks(W, T) {
 			return W.list.filter((c) => c.side === 1 && !c.gone && this.hookOn(W, c, T)).map((c) => ({ c, id: c.f.hp[0] }));
@@ -37035,12 +37044,21 @@ Object.assign(MG, {
 				/* spike strips: driving over one (crossing its line) bursts the tyres */
 				(tf.sp || []).forEach(([id, x, z, t]) => {
 					const a = W.t - t;
-					if (a < 0.3 || a > this.SPT || e.spHit[id] || e.pz === undefined) return;
-					if (e.pz > z && e.z <= z && Math.abs(e.x - x) < this.SPW / 2 + 0.4) {
+					if (a < 0 || a > this.SPT || e.spHit[id] || e.pz === undefined) return;
+					let hit = e.pz > z && e.z <= z;
+					/* first sight of it (a strip thrown right on top of you, or one whose news came late): over it now and
+					   behind it when it was thrown counts too */
+					e.spSeen = e.spSeen || {};
+					if (!e.spSeen[id]) {
+						e.spSeen[id] = 1;
+						hit = hit || (e.z <= z + 1.5 && e.z - (e.vz || 0) * a >= z - 1.5);
+					}
+					if (hit && Math.abs(e.x - x) < this.SPW / 2 + 0.4) {
 						e.spHit[id] = 1;
 						e.flatT = W.t + this.FLAT;
 						e.f.fl = Math.round(e.flatT * 100) / 100;
 						fb(W, e, "FLAT TYRE!", { tone: "bad" });
+						this.letGo(W, e, "spikes");
 						mgLog(W, `${mgName(e)} drives over the spikes`);
 						e.lastHit = { k: "spikes", t: W.t };
 						if (e.isMe) {
@@ -37057,6 +37075,7 @@ Object.assign(MG, {
 					e.spinT = W.t + 1.1;
 					e.vz *= 0.6;
 					fb(W, e, "SPIN OUT!", { tone: "bad" });
+					this.letGo(W, e, "oil");
 					mgLog(W, `${mgName(e)} spins out on oil`);
 					if (e.isMe) {
 						W.shake = 0.3;
@@ -37310,7 +37329,7 @@ Object.assign(MG, {
 			c.tr.updateMatrixWorld(true);
 			const a = c.bar.tip.getWorldPosition(new THREE.Vector3()),
 				fwd = new THREE.Vector3(Math.cos(c.yaw), 0, -Math.sin(c.yaw)),
-				snapped = ((T.f && T.f.hs) || []).some(([k, id]) => k === c.k && id === h[0]);
+				snapped = c.f.hr === h[0] || ((T.f && T.f.hs) || []).some(([k, id]) => k === c.k && id === h[0]);
 			let b;
 			if (v.id !== h[0]) {
 				v.id = h[0];
@@ -37829,7 +37848,7 @@ Object.assign(MG, {
 					o.boost = true;
 				/* spikes for cops lined up behind; a harpoon on it: swerve hard away to snap it (if it notices) */
 				if (
-					cops.some((q) => q.z > e.z + 7 && q.z < e.z + 24 && Math.abs(q.x - e.x) < 4.5) &&
+					cops.some((q) => q.z > e.z + 3 && q.z < e.z + 18 && Math.abs(q.x - e.x) < 4.5) &&
 					Math.random() < 0.05 * e.sk
 				)
 					o.b2 = true;
