@@ -8136,9 +8136,9 @@ Object.assign(MG, {
 		phys(W, e, inp, dt) {
 			const solo = e.side === 0,
 				T = solo ? null : this.solo(W),
-				/* catch-up: a cop more than 35 m behind the truck cruises faster and gets extra top speed, so the pack stays
+				/* catch-up: a cop more than 27 m behind the truck cruises faster and gets extra top speed, so the pack stays
 				   together (and on the TV) */
-				lag = T ? e.z - T.z - 35 : 0,
+				lag = T ? e.z - T.z - 27 : 0,
 				cu = lag > 0 ? Math.min(12, lag * 0.4) : 0,
 				hooks = solo ? this.hooks(W, e) : [],
 				/* the cash truck: slowed a moment after a hit, by a hook on it, in cement / gravel / trash; a cop: on nitro */

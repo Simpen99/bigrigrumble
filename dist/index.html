@@ -814,7 +814,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-14 14:06 8bebdf1";
+const BUILD = "2026-10-14 14:13 0073d6d";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -36792,9 +36792,9 @@ Object.assign(MG, {
 		phys(W, e, inp, dt) {
 			const solo = e.side === 0,
 				T = solo ? null : this.solo(W),
-				/* catch-up: a cop more than 35 m behind the truck cruises faster and gets extra top speed, so the pack stays
+				/* catch-up: a cop more than 27 m behind the truck cruises faster and gets extra top speed, so the pack stays
 				   together (and on the TV) */
-				lag = T ? e.z - T.z - 35 : 0,
+				lag = T ? e.z - T.z - 27 : 0,
 				cu = lag > 0 ? Math.min(12, lag * 0.4) : 0,
 				hooks = solo ? this.hooks(W, e) : [],
 				/* the cash truck: slowed a moment after a hit, by a hook on it, in cement / gravel / trash; a cop: on nitro */
