@@ -814,7 +814,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-14 17:45 9daf203";
+const BUILD = "2026-10-14 18:18 8082822";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -42587,9 +42587,12 @@ function pickTruck(i) {
 		}
 	}
 }
+/* menu taps click (not a minigame's own controls; its ready panel does) */
+audLoad("sfx/selectclick.mp3");
 document.addEventListener("click", (e) => {
 	const b = e.target.closest("button");
 	if (!b) return;
+	if (!b.closest("#mg") || b.closest(".m3ready")) sfxFile("sfx/selectclick.mp3", 0.8);
 	if (b.dataset.t !== undefined) {
 		pickTruck(+b.dataset.t);
 		return;
