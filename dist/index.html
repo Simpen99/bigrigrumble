@@ -335,9 +335,9 @@ i.bi{font-style:normal}
 .px details.how summary{font-size:calc(17px * var(--dz,1));font-family:var(--display);text-transform:uppercase}
 .px .fp{--st:2px;border:0;clip-path:var(--stp);background:#DCE8EF}
 .px .fp.sel{background:#FFA726;color:#fff}
-/* party start page mockup (#app.pt = the home view, shapes after Fall Guys, colours from the board HUD's arcade ledge): navy see-through panels (--hb / --hb2) with a light rim and the dark ledge under them, yellow accent, slanted buttons and heading tag (the ::before plate is skewed, the text stays straight), faint zig-zag stripes */
-.pt{--rim:#F4F6F9;--hs:0 5px 0 var(--ledge);--ts:0 2px 0 var(--ledge);--zz:url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='40' height='22'><path d='M-5 14L5 6L15 14L25 6L35 14L45 6' fill='none' stroke='white' stroke-opacity='0.07' stroke-width='3.5'/></svg>")}
-.pt .sheet{--ink:#fff;--muted:rgba(238,243,248,.78);--panel2:var(--hb2);position:relative;background:var(--zz),var(--hb);color:#fff;border:3px solid var(--rim);border-radius:18px;box-shadow:0 6px 0 var(--ledge);padding:18px 16px 16px;margin-bottom:8px;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+/* party start page mockup (#app.pt = the home view, shapes after Fall Guys, colours from the board HUD's arcade ledge): navy see-through panels (--hb / --hb2) with a light rim and the dark ledge under them, yellow accent, slanted buttons and heading tag (the ::before plate is skewed, the text stays straight), faint stripes on the panels rising 10° to the right */
+.pt{--rim:#F4F6F9;--hs:0 5px 0 var(--ledge);--ts:0 2px 0 var(--ledge);--stripe:repeating-linear-gradient(-10deg,rgba(255,255,255,.06) 0 7px,transparent 7px 24px)}
+.pt .sheet{--ink:#fff;--muted:rgba(238,243,248,.78);--panel2:var(--hb2);position:relative;background:var(--stripe),var(--hb);color:#fff;border:3px solid var(--rim);border-radius:18px;box-shadow:0 6px 0 var(--ledge);padding:18px 16px 16px;margin-bottom:8px;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
 .pt .sheet+.sheet{margin-top:20px}
 .pt .sheet:has(.ribbon){margin-top:38px}
 .pt .ribbon{display:flex;position:relative;margin:-40px 0 12px -6px;height:42px}
@@ -346,7 +346,7 @@ i.bi{font-style:normal}
 .pt .rbh{display:none}
 .pt .sheet h2{font-size:20px;color:#fff;text-shadow:var(--ts)}
 .pt .btn{--c:var(--hb2);--e:var(--rim);--tx:#fff;--tsh:var(--ts);position:relative;isolation:isolate;background:none;border:0;border-radius:0;box-shadow:none;padding:15px 16px 15px 54px;font-family:var(--display);font-weight:400;font-size:18px;text-transform:uppercase;letter-spacing:.4px;color:var(--tx);text-shadow:var(--tsh);margin:0 6px 6px 4px;width:calc(100% - 10px);transition:transform .08s}
-.pt .btn::before{content:"";position:absolute;inset:0;z-index:-1;background:var(--zz),var(--c);border:3px solid var(--e);border-radius:10px;box-shadow:var(--hs);transform:skewX(-9deg)}
+.pt .btn::before{content:"";position:absolute;inset:0;z-index:-1;background:var(--c);border:3px solid var(--e);border-radius:10px;box-shadow:var(--hs);transform:skewX(-9deg)}
 .pt .btn:active{transform:translateY(4px)}
 .pt .btn:active::before{box-shadow:0 1px 0 var(--ledge)}
 .pt .btn i.bi{position:absolute;left:12px;top:50%;width:32px;height:32px;margin-top:-16px;display:grid;place-items:center;border-radius:50%;background:rgba(11,14,20,.3);font-size:17px;text-shadow:none}
@@ -922,7 +922,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-14 21:21 ccd02d0";
+const BUILD = "2026-10-14 21:26 159e3bb";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
