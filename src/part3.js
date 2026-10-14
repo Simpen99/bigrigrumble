@@ -376,6 +376,8 @@ function render() {
 		if (v === "game") initSeen();
 	}
 	document.body.dataset.view = v;
+	/* menu style (CSS .pt): the menu views only, the board and minigames keep the HUD look */
+	$("#app").classList.toggle("pt", MENU_VIEWS.includes(v));
 	{
 		const tvp = role === "client" && !!G && !!G.tv && !SCREEN;
 		document.body.classList.toggle("tvphone", tvp);
@@ -465,18 +467,18 @@ function showNameHTML(i) {
 function homeHTML() {
 	const saved = LS.get("trp_host", null);
 	const canResume = saved && saved.phase && saved.phase !== "over" && saved.players && saved.players.length;
-	return `<div class="stage"><div class="logo" role="img" aria-label="Big Rig Rumble"><span class="l1">BIG RIG</span><span class="l2">RUMBLE</span><span class="l3">The truck party board game</span></div><div id="shown">${showNameHTML(me.truck)}</div></div>
+	return `<div class="stage"><div class="logo"><img class="lg" src="${LOGO_ART}" alt="Big Rig Rumble"></div><div id="shown">${showNameHTML(me.truck)}</div></div>
   ${notice ? `<div class="banner">${esc(notice)}</div>` : ""}
-  <section class="sheet"><label class="field">Driver name<input id="nm" maxlength="12" value="${esc(me.name)}" placeholder="Your name" autocomplete="off"></label>
-  <h2 style="margin-top:14px">Choose your truck</h2>${carouselHTML(me.truck)}
-  <p class="note" style="margin-top:4px">Each truck brings its own die. Small numbers under a face are coins you gain or pay when you roll it. The standard 1–6 die is always available too.</p></section>
+  <section class="sheet"><div class="ribbon"><span>Choose your truck</span></div><h2 class="rbh">Choose your truck</h2>${carouselHTML(me.truck)}
+  <p class="note" style="margin-top:4px">Each truck brings its own die. Small numbers under a face are coins you gain or pay when you roll it. The standard 1–6 die is always available too.</p>
+  <label class="field" style="margin-top:14px">Driver name<input id="nm" maxlength="12" value="${esc(me.name)}" placeholder="Your name" autocomplete="off"></label></section>
   <section class="sheet stack">
-    ${canResume ? `<button class="btn go" data-a="resume">Resume your hosted game</button>` : ""}
-    <button class="btn ${canResume ? "ghost" : "go"}" data-a="hosttv">📺 Host on a big screen</button>
-    <button class="btn ghost" data-a="host">📱 Host on this phone</button>
-    <button class="btn sign" data-a="joinlist">Join Game</button>
-    <button class="btn ghost" data-a="practice">🎮 Minigame practice</button>
-    ${FINE && GFX.ok ? `<button class="btn ghost" data-a="editor">🛠 Map editor</button>` : ""}
+    ${canResume ? `<button class="btn go" data-a="resume"><i class="bi">▶️</i>Resume your hosted game</button>` : ""}
+    <button class="btn ${canResume ? "ghost" : "go"}" data-a="hosttv"><i class="bi">📺</i>Host on a big screen</button>
+    <button class="btn ghost" data-a="host"><i class="bi">📱</i>Host on this phone</button>
+    <button class="btn sign" data-a="joinlist"><i class="bi">📲</i>Join Game</button>
+    <button class="btn ghost" data-a="practice"><i class="bi">🎮</i>Minigame practice</button>
+    ${FINE && GFX.ok ? `<button class="btn ghost" data-a="editor"><i class="bi">🛠</i>Map editor</button>` : ""}
     <div class="volbox">${volHTML()}</div>
     <div>${statusHTML()}</div>
     <button class="btn ghost small" data-dbg="open">🐞 Report a bug</button>
@@ -547,7 +549,7 @@ function joinURL() {
 function screenLobbyHTML() {
 	const n = G.players.length,
 		here = G.players.filter((p) => SCREEN && p.hub === SCREEN.key).length;
-	return `<div class="tvlobby"><div class="logo tvlogo"><span class="l1">BIG RIG</span><span class="l2">RUMBLE</span><span class="l3">Linked big screen</span></div>
+	return `<div class="tvlobby"><div class="logo tvlogo"><img class="lg" src="${LOGO_ART}" alt="Big Rig Rumble"><span class="l3">Linked big screen</span></div>
   <section class="sheet tvjoin"><h2>Scan to play on this screen</h2><div class="qr big" id="qr"></div><p>or open <b>${esc(location.host + location.pathname)}</b>, enter the code and tap the game</p><div class="code">${esc(G.code)}</div><div>${statusHTML()}</div></section>
   <section class="sheet tvdrivers"><h2>Drivers (${n}/8)</h2>${n ? `<ul class="plist">${G.players.map((p) => playerRow(p, false)).join("")}</ul>` : `<div class="empty">Waiting for drivers…</div>`}
     <p class="note">${here ? `${here} ${here === 1 ? "driver plays" : "drivers play"} on this screen.` : "Nobody plays on this screen yet: scan the code with a phone."} ${esc(G.hostName || "The host")} starts the race.</p></section>
@@ -650,7 +652,7 @@ const pracHTML = () =>
 function tvLobbyHTML() {
 	const lead = tvLead(),
 		n = G.players.length;
-	return `<div class="tvlobby"><div class="logo tvlogo"><span class="l1">BIG RIG</span><span class="l2">RUMBLE</span><span class="l3">The truck party board game</span></div>
+	return `<div class="tvlobby"><div class="logo tvlogo"><img class="lg" src="${LOGO_ART}" alt="Big Rig Rumble"></div>
   <section class="sheet tvjoin"><h2>Scan to join</h2><div class="qr big" id="qr"></div><p>or open <b>${esc(location.host + location.pathname)}</b> and enter</p><div class="code">${esc(G.code)}</div><div>${statusHTML()}</div></section>
   <section class="sheet tvdrivers"><h2>Drivers (${n}/8)</h2>${n ? `<ul class="plist">${G.players.map((p) => playerRow(p, true)).join("")}</ul>` : `<div class="empty">Waiting for phones to join…</div>`}
     <div class="row" style="margin-top:10px"><button class="btn ghost small" data-a="addcpu" ${n >= 8 ? "disabled" : ""}>+ CPU truck</button></div>

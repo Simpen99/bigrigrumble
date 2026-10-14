@@ -268,14 +268,66 @@ body.trin #mg .m3top{animation:trtop .6s .35s ease-out both}body.trin #mg .m3lb,
 .reslist .raw.neg{background:#E5484D;color:#fff}
 .stats .bump{animation:bump .6s ease-out}
 @keyframes bump{30%{transform:scale(1.45);color:#FFE27A}}
-.logo{display:inline-flex;flex-direction:column;align-items:flex-start;align-self:flex-start;transform:rotate(-5deg);transform-origin:left center;margin:4px 0 0 2px;animation:logoIn .8s cubic-bezier(.2,1.5,.4,1) both;pointer-events:none}
-.logo .l1{font-family:var(--display);font-size:clamp(22px,6.6vw,32px);line-height:1;color:#fff;background:#151B24;padding:5px 10px 3px;border-radius:8px;letter-spacing:2px;box-shadow:0 4px 0 rgba(0,0,0,.25);margin-left:4px}
-.logo .l2{font-family:var(--display);font-size:clamp(46px,15vw,76px);line-height:.95;color:#FFC83D;-webkit-text-stroke:2.5px #151B24;paint-order:stroke fill;letter-spacing:1px;margin-top:-2px;
-  text-shadow:1px 1px 0 #E08A00,2px 2px 0 #E08A00,3px 3px 0 #D67A00,4px 4px 0 #C66A00,5px 5px 0 #151B24,6px 6px 0 #151B24,7px 8px 14px rgba(0,0,0,.35);animation:rumble 4.5s ease-in-out 1.2s infinite}
-.logo .l3{margin:6px 0 0 6px;font-size:11px;font-weight:800;letter-spacing:1.6px;text-transform:uppercase;color:#fff;background:var(--sign);padding:4px 9px;border-radius:999px;box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.8);position:relative}
+.logo{display:inline-flex;flex-direction:column;align-items:center;align-self:flex-start;transform:rotate(-6deg);transform-origin:left center;margin:2vh 0 0 2px;animation:logoIn .8s cubic-bezier(.2,1.5,.4,1) both;pointer-events:none}
+.logo .lg{display:block;width:auto;height:auto;max-width:min(80vw,420px);max-height:27vh;filter:drop-shadow(0 6px 10px rgba(0,0,0,.3));animation:rumble 4.5s ease-in-out 1.2s infinite}
+.logo .l3{margin:2px 0 0;font-size:11px;font-weight:800;letter-spacing:1.6px;text-transform:uppercase;color:#fff;background:var(--sign);padding:4px 9px;border-radius:999px;box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.8);position:relative}
 .logo .l3::before{content:"";position:absolute;left:-2px;right:-2px;bottom:-7px;height:4px;border-radius:2px;background:repeating-linear-gradient(-45deg,#FFC83D 0 6px,#151B24 6px 12px)}
-@keyframes logoIn{from{opacity:0;transform:rotate(-5deg) translateY(-30px) scale(.7)}to{opacity:1;transform:rotate(-5deg)}}
+@keyframes logoIn{from{opacity:0;transform:rotate(-6deg) translateY(-30px) scale(.7)}to{opacity:1;transform:rotate(-6deg)}}
 @keyframes rumble{0%,86%,100%{transform:none}88%{transform:translate(-2px,1px) rotate(-1deg)}90%{transform:translate(2px,-1px) rotate(1deg)}92%{transform:translate(-2px,0) rotate(-.5deg)}94%{transform:translate(1px,1px)}96%{transform:none}}
+.ribbon{display:none}
+i.bi{font-style:normal}
+/* menu style "party" (#app.pt = the menu views: home, join, practice, lobby; not the board or results), shapes after Fall Guys, colours from the board HUD's arcade ledge): navy see-through panels (--hb / --hb2) with a light rim and the dark ledge under them, yellow accent, slanted buttons and heading tag (the ::before plate is skewed, the text stays straight) */
+.pt{--rim:#F4F6F9;--hs:0 5px 0 var(--ledge);--ts:0 2px 0 var(--ledge)}
+.pt .sheet{--ink:#fff;--muted:rgba(238,243,248,.78);--panel2:var(--hb2);--line:rgba(244,246,249,.14);position:relative;background:var(--hb);color:#fff;border:3px solid var(--rim);border-radius:18px;box-shadow:0 6px 0 var(--ledge);padding:18px 16px 16px;margin-bottom:8px;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+.pt .sheet+.sheet{margin-top:20px}
+.pt .sheet:has(.ribbon){margin-top:38px}
+.pt .ribbon{display:flex;position:relative;margin:-40px 0 12px -6px;height:42px}
+.pt .ribbon span{position:relative;isolation:isolate;display:flex;align-items:center;padding:0 22px;font-family:var(--display);font-size:20px;color:#151B24;text-transform:uppercase;letter-spacing:.5px}
+.pt .ribbon span::before{content:"";position:absolute;inset:0;z-index:-1;background:var(--yellow);border:3px solid #151B24;border-radius:9px;box-shadow:var(--hs);transform:skewX(-12deg)}
+.pt .rbh{display:none}
+.pt .sheet h2{font-size:20px;color:#fff;text-shadow:var(--ts)}
+.pt .btn{--c:var(--hb2);--e:var(--rim);--tx:#fff;--tsh:var(--ts);position:relative;isolation:isolate;background:none;border:0;border-radius:0;box-shadow:none;padding:15px 16px;font-family:var(--display);font-weight:400;font-size:18px;text-transform:uppercase;letter-spacing:.4px;color:var(--tx);text-shadow:var(--tsh);margin:0 6px 6px 4px;width:calc(100% - 10px);transition:transform .08s}
+.pt .btn::before{content:"";position:absolute;inset:0;z-index:-1;background:var(--c);border:3px solid var(--e);border-radius:10px;box-shadow:var(--hs);transform:skewX(-9deg)}
+.pt .btn:active{transform:translateY(4px)}
+.pt .btn:active::before{box-shadow:0 1px 0 var(--ledge)}
+.pt .btn i.bi{position:absolute;left:12px;top:50%;width:32px;height:32px;margin-top:-16px;display:grid;place-items:center;border-radius:50%;background:rgba(11,14,20,.3);font-size:17px;text-shadow:none}
+.pt .btn:has(>i.bi){padding-left:54px}
+.pt .btn.go{--c:var(--yellow);--e:#151B24;--tx:#151B24;--tsh:none;font-size:22px;padding-top:18px;padding-bottom:18px}
+.pt .btn.go i.bi{background:rgba(21,27,36,.14)}
+.pt .btn.sign{--c:var(--sign)}
+.pt .btn.red{--c:var(--red)}
+.pt .btn.small{padding:9px 14px;font-size:13px;width:auto}
+.pt .btn.small::before{border-width:2px}
+.pt .stack>*+*{margin-top:12px}
+.pt .tc{border:2.5px solid rgba(244,246,249,.28);border-radius:12px;background:var(--hb2);padding:4px 4px 6px;transition:transform .1s}
+.pt .tc span{font-family:var(--display);font-weight:400;font-size:12px;text-transform:uppercase;color:#fff}
+.pt .tc.sel{border-color:#151B24;background:var(--yellow);box-shadow:0 4px 0 var(--ledge);transform:translateY(-2px)}
+.pt .tc.sel span{color:#151B24}
+.pt .carousel{padding:6px 6px 10px}
+.pt .arr{border:3px solid #151B24;border-radius:10px;background:var(--yellow);color:#151B24;font-family:var(--display);font-weight:400;box-shadow:0 4px 0 var(--ledge);transform:skewX(-9deg);-webkit-backdrop-filter:none;backdrop-filter:none}
+.pt .arr:active{transform:skewX(-9deg) translateY(3px);box-shadow:0 1px 0 var(--ledge)}
+.pt .showname h2{text-transform:uppercase;-webkit-text-stroke:2px #151B24;paint-order:stroke fill;text-shadow:0 4px 0 #151B24}
+.pt .showname p{text-shadow:0 1px 0 #151B24,0 1px 8px rgba(0,0,0,.45)}
+.pt label.field{font-family:var(--display);font-weight:400;font-size:13px;text-transform:uppercase;color:var(--muted)}
+.pt label.field input{border:2.5px solid rgba(244,246,249,.28);border-radius:10px;background:var(--hb2);color:#fff;font-family:var(--body);font-weight:700}
+.pt details.how summary{font-size:18px;text-transform:uppercase;text-shadow:var(--ts)}
+.pt .volrow{font-family:var(--display);font-weight:400;text-transform:uppercase;font-size:13px}
+.pt .status{background:var(--hb2);color:#fff}
+.pt .brand{position:relative;isolation:isolate;align-self:flex-start;margin:4px 0 0 6px;padding:7px 22px;font-size:22px;color:#151B24;text-transform:uppercase;text-shadow:none}
+.pt .brand i{display:none}
+.pt .brand::before{content:"";position:absolute;inset:0;z-index:-1;background:var(--yellow);border:3px solid #151B24;border-radius:9px;box-shadow:var(--hs);transform:skewX(-12deg)}
+.pt .seg{background:rgba(11,14,20,.35);border-radius:12px}
+.pt .seg button{font-family:var(--display);font-weight:400;font-size:15px;color:#fff;border:2.5px solid transparent}
+.pt .seg button.on{color:#151B24;border-color:#151B24;box-shadow:0 3px 0 var(--ledge)}
+.pt .mapb,.pt .pgame,.pt .gamebtn{color:#fff;background:var(--hb2);border:2.5px solid rgba(244,246,249,.28);border-radius:12px;box-shadow:0 3px 0 var(--ledge)}
+.pt .mapb.on{border-color:var(--yellow);background:color-mix(in srgb,var(--yellow) 22%,var(--hb2))}
+.pt .pgame:active,.pt .gamebtn:active{transform:translateY(3px);box-shadow:0 1px 0 var(--ledge)}
+.pt .gamebtn b{font-family:var(--display);font-weight:400}
+.pt .code{color:var(--yellow);text-shadow:var(--ts)}
+.pt .xbtn{color:#fff;background:var(--hb2);border:2px solid rgba(244,246,249,.28)}
+.pt .empty{border-color:rgba(244,246,249,.25)}
+.pt .localform{background:rgba(11,14,20,.3)}
+.pt select.inp{border:2.5px solid rgba(244,246,249,.28);border-radius:10px;background:var(--hb2);color:#fff}
 .pgrid{display:grid;gap:8px}
 .pgame{display:flex;align-items:center;gap:10px;width:100%;text-align:left;border:0;background:var(--panel2);border-radius:14px;padding:11px 12px}
 .pgame:active{transform:translateY(1px)}
@@ -370,7 +422,7 @@ body.trin #mg .m3top{animation:trtop .6s .35s ease-out both}body.trin #mg .m3lb,
 .cxpour .pm s{position:absolute;left:0;top:0;bottom:0;width:calc(var(--f,0) / 1.3 * 100%);background:linear-gradient(90deg,rgba(255,255,255,.55),#fff);border-radius:11px}
 .cxpour .pm i{position:absolute;top:-3px;bottom:-3px;width:4px;left:calc(var(--f,0) / 1.3 * 100% - 2px);background:#FFC83D;border-radius:2px;box-shadow:0 0 8px #FFC83D}
 .cxpour.over .pm s{background:#E5484D}
-@media (prefers-reduced-motion: reduce){*{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}.logo,.logo .l2{animation:none!important}}
+@media (prefers-reduced-motion: reduce){*{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}.logo,.logo .lg{animation:none!important}}
 /* HUD style "B": arcade ledge (solid borders + dark ledge under each piece), Bungee numbers, see-through panels */
 :root{--hb:rgba(24,32,50,.9);--hb2:rgba(40,51,74,.92);--ledge:rgba(11,14,20,.85)}
 .chip{background:var(--hb)!important;border:3px solid var(--c,#F4F6F9)!important;border-radius:14px!important;box-shadow:0 4px 0 var(--ledge);font-family:var(--display);font-weight:400;font-size:15px;padding:5px 12px 4px;color:#fff}
@@ -447,8 +499,8 @@ button.tp-mush{border:0;padding:0;cursor:pointer;touch-action:manipulation}butto
 /* TV mode: the PC shows the game on the big screen */
 body.tv #app{max-width:none;padding:0 3vw}
 .tvlobby{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr) minmax(0,1.1fr);gap:2.2vw;align-items:start;padding:3vh 0 4vh}
-.tvlobby .tvlogo{grid-column:1/-1;margin:0 0 1vh}
-.tvlobby .logo .l1{font-size:clamp(24px,2.6vw,46px)}.tvlobby .logo .l2{font-size:clamp(50px,6vw,110px)}
+.tvlobby .tvlogo{grid-column:1/-1;justify-self:center;margin:0 0 1vh}
+.tvlobby .logo .lg{max-width:min(40vw,720px);max-height:24vh}
 .tvlobby .sheet{margin:0!important}
 .tvlobby h2{font-size:clamp(18px,1.5vw,28px)}
 .tvjoin{text-align:center;display:flex;flex-direction:column;align-items:center;gap:10px}
