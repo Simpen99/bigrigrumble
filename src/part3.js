@@ -434,7 +434,8 @@ function render() {
 	const app = $("#app"),
 		ae = document.activeElement,
 		keep = ae && ae.id && ae.tagName === "INPUT" ? { id: ae.id, v: ae.value, s: ae.selectionStart } : null;
-	app.classList.toggle("lp", v === "home");
+	app.classList.toggle("lp", v === "home" && UI_STY === "lp");
+	app.classList.toggle("px", v === "home" && UI_STY === "px");
 	if (v === "home") app.innerHTML = homeHTML();
 	else if (v === "join") app.innerHTML = joinHTML();
 	else if (v === "practice") app.innerHTML = practiceHTML();
@@ -463,8 +464,18 @@ function showNameHTML(i) {
 	const t = TRUCKS[i];
 	return `<div class="showname"><div><h2>${esc(t.name)}</h2><p>${esc(t.blurb)}</p><div style="margin-top:8px">${facesHTML(t.faces)}</div></div><div class="arrows"><button class="arr" data-step="-1" aria-label="Previous truck">‹</button><button class="arr" data-step="1" aria-label="Next truck">›</button></div></div>`;
 }
-/* font trial (temporary, low-poly mockup): the display font picked on the start page, saved per device (CSS only, canvas text stays Bungee) */
-const FONT_TRY = ["Bungee", "Luckiest Guy", "Lilita One", "Titan One", "Russo One", "Bowlby One"];
+/* UI style trial (temporary, start page mockups): style lp (low-poly) or px (pixel) and the display font, picked on the start page, saved per device (CSS only, canvas text stays Bungee) */
+const FONT_TRY = [
+	"Bungee",
+	"Luckiest Guy",
+	"Lilita One",
+	"Russo One",
+	"Silkscreen",
+	"Pixelify Sans",
+	"Press Start 2P",
+	"Jersey 10",
+];
+let UI_STY = LS.get("trp_uisty", "px") === "lp" ? "lp" : "px";
 function fontSet(f) {
 	if (!FONT_TRY.includes(f)) f = "Bungee";
 	if (f !== "Bungee") fontLoad();
@@ -481,16 +492,27 @@ function fontLoad() {
 		.join("&")}&display=swap`;
 	document.head.appendChild(l);
 }
-fontSet(LS.get("trp_font", "Bungee"));
+fontSet(LS.get("trp_font", UI_STY === "px" ? "Silkscreen" : "Bungee"));
 function fontPickHTML() {
 	fontLoad();
 	const cur = LS.get("trp_font", "Bungee");
-	return `<div class="fontpick"><span>Font test</span>${FONT_TRY.map((f) => `<button class="fp ${f === cur ? "sel" : ""}" data-font="${f}" style="font-family:'${f}'">${f}</button>`).join("")}</div>`;
+	return `<div class="fontpick"><span>Style</span>${[
+		["px", "Pixel"],
+		["lp", "Low-poly"],
+	]
+		.map(([k, n]) => `<button class="fp ${k === UI_STY ? "sel" : ""}" data-sty="${k}">${n}</button>`)
+		.join(
+			"",
+		)}</div><div class="fontpick"><span>Font</span>${FONT_TRY.map((f) => `<button class="fp ${f === cur ? "sel" : ""}" data-font="${f}" style="font-family:'${f}'">${f}</button>`).join("")}</div>`;
 }
 document.addEventListener("click", (e) => {
-	const b = e.target.closest && e.target.closest("button[data-font]");
+	const b = e.target.closest && e.target.closest("button[data-font],button[data-sty]");
 	if (!b) return;
-	fontSet(b.dataset.font);
+	if (b.dataset.sty) {
+		UI_STY = b.dataset.sty;
+		LS.set("trp_uisty", UI_STY);
+		fontSet(UI_STY === "px" ? "Silkscreen" : "Bungee");
+	} else fontSet(b.dataset.font);
 	render.last = null;
 	render();
 });
@@ -499,16 +521,16 @@ function homeHTML() {
 	const canResume = saved && saved.phase && saved.phase !== "over" && saved.players && saved.players.length;
 	return `<div class="stage"><div class="logo"><img class="lg" src="${LOGO_ART}" alt="Big Rig Rumble"></div><div id="shown">${showNameHTML(me.truck)}</div></div>
   ${notice ? `<div class="banner">${esc(notice)}</div>` : ""}
-  <section class="sheet"><label class="field">Driver name<input id="nm" maxlength="12" value="${esc(me.name)}" placeholder="Your name" autocomplete="off"></label>
-  <h2 style="margin-top:14px">Choose your truck</h2>${carouselHTML(me.truck)}
-  <p class="note" style="margin-top:4px">Each truck brings its own die. Small numbers under a face are coins you gain or pay when you roll it. The standard 1–6 die is always available too.</p></section>
+  <section class="sheet"><div class="ribbon"><span>Choose your truck</span></div><h2 class="rbh">Choose your truck</h2>${carouselHTML(me.truck)}
+  <p class="note" style="margin-top:4px">Each truck brings its own die. Small numbers under a face are coins you gain or pay when you roll it. The standard 1–6 die is always available too.</p>
+  <label class="field" style="margin-top:14px">Driver name<input id="nm" maxlength="12" value="${esc(me.name)}" placeholder="Your name" autocomplete="off"></label></section>
   <section class="sheet stack">
-    ${canResume ? `<button class="btn go" data-a="resume">Resume your hosted game</button>` : ""}
-    <button class="btn ${canResume ? "ghost" : "go"}" data-a="hosttv">📺 Host on a big screen</button>
-    <button class="btn ghost" data-a="host">📱 Host on this phone</button>
-    <button class="btn sign" data-a="joinlist">Join Game</button>
-    <button class="btn ghost" data-a="practice">🎮 Minigame practice</button>
-    ${FINE && GFX.ok ? `<button class="btn ghost" data-a="editor">🛠 Map editor</button>` : ""}
+    ${canResume ? `<button class="btn go" data-a="resume"><i class="bi">▶️</i>Resume your hosted game</button>` : ""}
+    <button class="btn ${canResume ? "ghost" : "go"}" data-a="hosttv"><i class="bi">📺</i>Host on a big screen</button>
+    <button class="btn ghost" data-a="host"><i class="bi">📱</i>Host on this phone</button>
+    <button class="btn sign" data-a="joinlist"><i class="bi">📲</i>Join Game</button>
+    <button class="btn ghost" data-a="practice"><i class="bi">🎮</i>Minigame practice</button>
+    ${FINE && GFX.ok ? `<button class="btn ghost" data-a="editor"><i class="bi">🛠</i>Map editor</button>` : ""}
     <div class="volbox">${volHTML()}</div>
     ${fontPickHTML()}
     <div>${statusHTML()}</div>

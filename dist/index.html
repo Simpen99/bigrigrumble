@@ -295,6 +295,42 @@ body.trin #mg .m3top{animation:trtop .6s .35s ease-out both}body.trin #mg .m3lb,
 .lp .sheet h2{color:var(--ink)}
 .lp label.field input{border-radius:0;border:2px solid color-mix(in srgb,var(--ink) 30%,transparent);clip-path:polygon(9px 0,calc(100% - 9px) 0,100% 9px,100% calc(100% - 9px),calc(100% - 9px) 100%,9px 100%,0 calc(100% - 9px),0 9px);background:var(--panel2)}
 .lp details.how summary{list-style-position:inside}
+/* pixel start page mockup (#app.px = the home view): stepped corners (--st = one step), flat colours with a light top strip and a dark bottom strip, hard pixel shadows, ribbon heading, coloured buttons with an icon tile */
+.ribbon{display:none}
+i.bi{font-style:normal}
+.px{--st:4px;--stp:polygon(0 calc(var(--st) * 2),var(--st) calc(var(--st) * 2),var(--st) var(--st),calc(var(--st) * 2) var(--st),calc(var(--st) * 2) 0,calc(100% - var(--st) * 2) 0,calc(100% - var(--st) * 2) var(--st),calc(100% - var(--st)) var(--st),calc(100% - var(--st)) calc(var(--st) * 2),100% calc(var(--st) * 2),100% calc(100% - var(--st) * 2),calc(100% - var(--st)) calc(100% - var(--st) * 2),calc(100% - var(--st)) calc(100% - var(--st)),calc(100% - var(--st) * 2) calc(100% - var(--st)),calc(100% - var(--st) * 2) 100%,calc(var(--st) * 2) 100%,calc(var(--st) * 2) calc(100% - var(--st)),var(--st) calc(100% - var(--st)),var(--st) calc(100% - var(--st) * 2),0 calc(100% - var(--st) * 2))}
+.px .sheet{--ink:#1D2B38;--muted:#5A6B7A;--panel2:#DCE8EF;position:relative;isolation:isolate;background:none;border-radius:0;box-shadow:none;padding:18px;margin-bottom:6px}
+.px .sheet::before{content:"";position:absolute;inset:0 0 -6px 0;z-index:-2;background:linear-gradient(#BCD0DC 0 calc(100% - 6px),rgba(10,30,45,.4) 0);clip-path:var(--stp)}
+.px .sheet::after{content:"";position:absolute;inset:6px;z-index:-1;background:linear-gradient(#FFFFFF 0 4px,#F1F7FA 4px);clip-path:var(--stp)}
+.px .sheet+.sheet{margin-top:18px}
+.px .sheet:has(.ribbon){margin-top:34px}
+.px .ribbon{display:flex;justify-content:center;position:relative;margin:-42px -18px 14px;height:48px}
+.px .ribbon::before,.px .ribbon::after{content:"";position:absolute;top:12px;width:34px;height:40px;background:linear-gradient(#2D86C4 0 calc(100% - 6px),#1E5F8E 0);clip-path:polygon(0 0,100% 0,100% 100%,0 100%,12px 50%)}
+.px .ribbon::before{left:-10px}.px .ribbon::after{right:-10px;transform:scaleX(-1)}
+.px .ribbon span{position:relative;z-index:1;flex:1;display:flex;align-items:center;justify-content:center;font-family:var(--display);font-size:20px;color:#fff;text-transform:uppercase;letter-spacing:1px;text-shadow:2px 2px 0 #1E5F8E;background:linear-gradient(#7CCBF5 0 5px,#43A8EA 5px calc(100% - 7px),#2D86C4 0);clip-path:var(--stp)}
+.px .rbh{display:none}
+.px .btn{--c:#5E7A8C;--hi:#8CA6B6;--lo:#3F5868;--st:3px;position:relative;border:0;border-radius:0;padding:14px 16px 17px 58px;justify-content:flex-start;font-family:var(--display);font-size:17px;font-weight:400;text-transform:uppercase;letter-spacing:.5px;color:#fff;text-shadow:2px 2px 0 var(--lo);background:linear-gradient(var(--hi) 0 4px,var(--c) 4px calc(100% - 6px),var(--lo) 0);box-shadow:none;clip-path:var(--stp);margin-bottom:0}
+.px .btn:active{transform:translateY(3px);background:linear-gradient(var(--c) 0 calc(100% - 3px),var(--lo) 0)}
+.px .btn i.bi{position:absolute;left:8px;top:7px;bottom:10px;width:40px;display:grid;place-items:center;font-size:19px;text-shadow:none;background:var(--lo);clip-path:var(--stp)}
+.px .btn.small{padding:10px 14px 12px;font-size:13px;--c:#9AAEBB;--hi:#BBCBD5;--lo:#6F8594}
+.px .btn[data-a=hosttv],.px .btn[data-a=resume]{--c:#FFA726;--hi:#FFC66A;--lo:#C9700C}
+.px .btn[data-a=host]{--c:#3D9BE9;--hi:#7CC1F5;--lo:#2468A8}
+.px .btn[data-a=joinlist]{--c:#2BC37A;--hi:#6CE0A6;--lo:#178A52}
+.px .btn[data-a=practice]{--c:#A169E0;--hi:#C49BF0;--lo:#6E3FAA}
+.px .btn[data-a=editor]{--c:#26B5B0;--hi:#69D8D3;--lo:#167C78}
+.px .resume~.btn[data-a=hosttv]{--c:#3D9BE9}
+.px .stack>*+*{margin-top:10px}
+.px .tc{--st:3px;border:0;border-radius:0;background:linear-gradient(#EEF4F8 0 3px,#DCE8EF 3px calc(100% - 4px),#B5C8D4 0);clip-path:var(--stp);padding:6px 4px 9px}
+.px .tc.sel{background:linear-gradient(#FFD27A 0 3px,#FFB547 3px calc(100% - 4px),#C9700C 0)}
+.px .tc.sel span{color:#fff;text-shadow:1px 1px 0 #C9700C}
+.px .tc span{font-family:var(--display);font-size:11px;text-transform:uppercase}
+.px .arr{--st:3px;border-radius:0;background:linear-gradient(#7CC1F5 0 4px,#3D9BE9 4px calc(100% - 5px),#2468A8 0);clip-path:var(--stp);-webkit-backdrop-filter:none;backdrop-filter:none;font-family:var(--display)}
+.px .showname h2{text-transform:uppercase;text-shadow:3px 3px 0 #1D2B38}
+.px label.field{font-family:var(--display);font-weight:400;font-size:12px;text-transform:uppercase}
+.px label.field input{--st:3px;border:0;border-radius:0;clip-path:var(--stp);background:linear-gradient(#B5C8D4 0 4px,#DCE8EF 4px);font-family:var(--body);font-weight:700}
+.px details.how summary{font-family:var(--display);text-transform:uppercase}
+.px .fp{--st:2px;border:0;clip-path:var(--stp);background:#DCE8EF}
+.px .fp.sel{background:#FFA726;color:#fff}
 .fontpick{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:2px}
 .fontpick span{font-size:12px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-right:2px}
 .fp{border:2px solid color-mix(in srgb,var(--ink) 25%,transparent);background:var(--panel2);color:var(--ink);padding:6px 9px;font-size:15px;clip-path:polygon(6px 0,calc(100% - 6px) 0,100% 6px,100% calc(100% - 6px),calc(100% - 6px) 100%,6px 100%,0 calc(100% - 6px),0 6px)}
@@ -844,7 +880,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-14 19:27 f376c27";
+const BUILD = "2026-10-14 19:40 8196121";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -10652,7 +10688,8 @@ function render() {
 	const app = $("#app"),
 		ae = document.activeElement,
 		keep = ae && ae.id && ae.tagName === "INPUT" ? { id: ae.id, v: ae.value, s: ae.selectionStart } : null;
-	app.classList.toggle("lp", v === "home");
+	app.classList.toggle("lp", v === "home" && UI_STY === "lp");
+	app.classList.toggle("px", v === "home" && UI_STY === "px");
 	if (v === "home") app.innerHTML = homeHTML();
 	else if (v === "join") app.innerHTML = joinHTML();
 	else if (v === "practice") app.innerHTML = practiceHTML();
@@ -10681,8 +10718,18 @@ function showNameHTML(i) {
 	const t = TRUCKS[i];
 	return `<div class="showname"><div><h2>${esc(t.name)}</h2><p>${esc(t.blurb)}</p><div style="margin-top:8px">${facesHTML(t.faces)}</div></div><div class="arrows"><button class="arr" data-step="-1" aria-label="Previous truck">‹</button><button class="arr" data-step="1" aria-label="Next truck">›</button></div></div>`;
 }
-/* font trial (temporary, low-poly mockup): the display font picked on the start page, saved per device (CSS only, canvas text stays Bungee) */
-const FONT_TRY = ["Bungee", "Luckiest Guy", "Lilita One", "Titan One", "Russo One", "Bowlby One"];
+/* UI style trial (temporary, start page mockups): style lp (low-poly) or px (pixel) and the display font, picked on the start page, saved per device (CSS only, canvas text stays Bungee) */
+const FONT_TRY = [
+	"Bungee",
+	"Luckiest Guy",
+	"Lilita One",
+	"Russo One",
+	"Silkscreen",
+	"Pixelify Sans",
+	"Press Start 2P",
+	"Jersey 10",
+];
+let UI_STY = LS.get("trp_uisty", "px") === "lp" ? "lp" : "px";
 function fontSet(f) {
 	if (!FONT_TRY.includes(f)) f = "Bungee";
 	if (f !== "Bungee") fontLoad();
@@ -10699,16 +10746,27 @@ function fontLoad() {
 		.join("&")}&display=swap`;
 	document.head.appendChild(l);
 }
-fontSet(LS.get("trp_font", "Bungee"));
+fontSet(LS.get("trp_font", UI_STY === "px" ? "Silkscreen" : "Bungee"));
 function fontPickHTML() {
 	fontLoad();
 	const cur = LS.get("trp_font", "Bungee");
-	return `<div class="fontpick"><span>Font test</span>${FONT_TRY.map((f) => `<button class="fp ${f === cur ? "sel" : ""}" data-font="${f}" style="font-family:'${f}'">${f}</button>`).join("")}</div>`;
+	return `<div class="fontpick"><span>Style</span>${[
+		["px", "Pixel"],
+		["lp", "Low-poly"],
+	]
+		.map(([k, n]) => `<button class="fp ${k === UI_STY ? "sel" : ""}" data-sty="${k}">${n}</button>`)
+		.join(
+			"",
+		)}</div><div class="fontpick"><span>Font</span>${FONT_TRY.map((f) => `<button class="fp ${f === cur ? "sel" : ""}" data-font="${f}" style="font-family:'${f}'">${f}</button>`).join("")}</div>`;
 }
 document.addEventListener("click", (e) => {
-	const b = e.target.closest && e.target.closest("button[data-font]");
+	const b = e.target.closest && e.target.closest("button[data-font],button[data-sty]");
 	if (!b) return;
-	fontSet(b.dataset.font);
+	if (b.dataset.sty) {
+		UI_STY = b.dataset.sty;
+		LS.set("trp_uisty", UI_STY);
+		fontSet(UI_STY === "px" ? "Silkscreen" : "Bungee");
+	} else fontSet(b.dataset.font);
 	render.last = null;
 	render();
 });
@@ -10717,16 +10775,16 @@ function homeHTML() {
 	const canResume = saved && saved.phase && saved.phase !== "over" && saved.players && saved.players.length;
 	return `<div class="stage"><div class="logo"><img class="lg" src="${LOGO_ART}" alt="Big Rig Rumble"></div><div id="shown">${showNameHTML(me.truck)}</div></div>
   ${notice ? `<div class="banner">${esc(notice)}</div>` : ""}
-  <section class="sheet"><label class="field">Driver name<input id="nm" maxlength="12" value="${esc(me.name)}" placeholder="Your name" autocomplete="off"></label>
-  <h2 style="margin-top:14px">Choose your truck</h2>${carouselHTML(me.truck)}
-  <p class="note" style="margin-top:4px">Each truck brings its own die. Small numbers under a face are coins you gain or pay when you roll it. The standard 1–6 die is always available too.</p></section>
+  <section class="sheet"><div class="ribbon"><span>Choose your truck</span></div><h2 class="rbh">Choose your truck</h2>${carouselHTML(me.truck)}
+  <p class="note" style="margin-top:4px">Each truck brings its own die. Small numbers under a face are coins you gain or pay when you roll it. The standard 1–6 die is always available too.</p>
+  <label class="field" style="margin-top:14px">Driver name<input id="nm" maxlength="12" value="${esc(me.name)}" placeholder="Your name" autocomplete="off"></label></section>
   <section class="sheet stack">
-    ${canResume ? `<button class="btn go" data-a="resume">Resume your hosted game</button>` : ""}
-    <button class="btn ${canResume ? "ghost" : "go"}" data-a="hosttv">📺 Host on a big screen</button>
-    <button class="btn ghost" data-a="host">📱 Host on this phone</button>
-    <button class="btn sign" data-a="joinlist">Join Game</button>
-    <button class="btn ghost" data-a="practice">🎮 Minigame practice</button>
-    ${FINE && GFX.ok ? `<button class="btn ghost" data-a="editor">🛠 Map editor</button>` : ""}
+    ${canResume ? `<button class="btn go" data-a="resume"><i class="bi">▶️</i>Resume your hosted game</button>` : ""}
+    <button class="btn ${canResume ? "ghost" : "go"}" data-a="hosttv"><i class="bi">📺</i>Host on a big screen</button>
+    <button class="btn ghost" data-a="host"><i class="bi">📱</i>Host on this phone</button>
+    <button class="btn sign" data-a="joinlist"><i class="bi">📲</i>Join Game</button>
+    <button class="btn ghost" data-a="practice"><i class="bi">🎮</i>Minigame practice</button>
+    ${FINE && GFX.ok ? `<button class="btn ghost" data-a="editor"><i class="bi">🛠</i>Map editor</button>` : ""}
     <div class="volbox">${volHTML()}</div>
     ${fontPickHTML()}
     <div>${statusHTML()}</div>
