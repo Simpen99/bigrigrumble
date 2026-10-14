@@ -149,6 +149,8 @@ addEventListener(
 	() => {
 		sfxInit();
 		if (SFX.ctx && SFX.ctx.state === "suspended") SFX.ctx.resume();
+		/* browsers only allow sound after a tap: the first one on the start page starts the song */
+		if (typeof view === "string" && MENU_VIEWS.includes(view)) musScene(view);
 	},
 	{ capture: true },
 );
@@ -157,6 +159,7 @@ addEventListener(
 	() => {
 		sfxInit();
 		if (SFX.ctx && SFX.ctx.state === "suspended") SFX.ctx.resume();
+		if (typeof view === "string" && MENU_VIEWS.includes(view)) musScene(view);
 	},
 	{ capture: true },
 );
@@ -1171,11 +1174,14 @@ function musTick() {
    rounds (Volcano Quarry: 2 in the 2 rounds before an eruption, 3 while it erupts); the podium fanfare when the game is
    over; silence elsewhere. Minigames play their own (Monster Mash), TV controller phones stay quiet */
 let musOverSeen = false;
-const LOBBY_MUS = "music/lobby.mp3";
+const LOBBY_MUS = "music/lobby.mp3",
+	MENU_VIEWS = ["home", "join", "waiting", "practice", "lobby"];
+/* fetched at load, so the first tap starts it quickly */
+audLoad(LOBBY_MUS);
 function musScene(v) {
 	if (!SFX.ctx) return;
-	/* the lobby song (TV mode: on the big screen only, not the phones) */
-	if (v === "lobby" && !(G && G.tv && role === "client" && !SCREEN)) {
+	/* the lobby song, from the start page to the lobby (TV mode: on the big screen only, not the phones) */
+	if (MENU_VIEWS.includes(v) && !(G && G.tv && role === "client" && !SCREEN)) {
 		if (MUS.name !== LOBBY_MUS) musTrack(LOBBY_MUS, 0.7, 0.8);
 		return;
 	}
