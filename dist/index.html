@@ -821,7 +821,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-14 18:23 2dc7f8c";
+const BUILD = "2026-10-14 18:35 75b2298";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -9401,7 +9401,7 @@ document.addEventListener("click", (e) => {
 });
 audLoad("sfx/selectclick.mp3");
 function menuClick() {
-	sfxFile("sfx/selectclick.mp3", 0.8);
+	sfxFile("sfx/selectclick.mp3", 1);
 }
 /* volume sliders: Music and Effects (the start page, and the 🔊 chip's pop-up) */
 function volHTML() {

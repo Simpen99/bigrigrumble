@@ -1420,7 +1420,7 @@ document.addEventListener("click", (e) => {
 });
 audLoad("sfx/selectclick.mp3");
 function menuClick() {
-	sfxFile("sfx/selectclick.mp3", 0.8);
+	sfxFile("sfx/selectclick.mp3", 1);
 }
 /* volume sliders: Music and Effects (the start page, and the 🔊 chip's pop-up) */
 function volHTML() {
