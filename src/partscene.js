@@ -539,12 +539,15 @@ function vergeScatter(s, xs, z0, z1, n = 400, spots = [], gy = 0) {
 				y: 0.05,
 			},
 		];
+	/* a long strip (a highway) goes in 60 m cells, each its own culled InstancedMesh, so only the stretch on screen draws */
 	parts.forEach((P, pi) => {
 		const m = P.at.length;
 		if (!m) return;
-		const im = new THREE.InstancedMesh(P.geo, new THREE.MeshStandardMaterial({ roughness: 0.9, flatShading: true }), m),
+		const mat = new THREE.MeshStandardMaterial({ roughness: 0.9, flatShading: true }),
 			o = new THREE.Object3D(),
-			c = new THREE.Color();
+			cells = {},
+			zz = P.at.map((q) => q[1]),
+			long = Math.max(...zz) - Math.min(...zz) > 150;
 		for (let i = 0; i < m; i++) {
 			/* clumps: mostly small, a few big ones; the rest as before */
 			const sc = pi ? 0.7 + scnR() * 0.8 : 0.5 + scnR() ** 1.5 * 1.2;
@@ -552,12 +555,29 @@ function vergeScatter(s, xs, z0, z1, n = 400, spots = [], gy = 0) {
 			o.rotation.set((scnR() - 0.5) * 0.4, scnR() * 6, (scnR() - 0.5) * 0.4);
 			o.scale.set(sc, sc * (0.8 + scnR() * 0.6), sc);
 			o.updateMatrix();
-			im.setMatrixAt(i, o.matrix);
-			im.setColorAt(i, c.set(P.cols[i % P.cols.length]));
+			const k = long ? Math.floor(P.at[i][1] / 120) : 0;
+			(cells[k] = cells[k] || []).push({
+				x: P.at[i][0],
+				y: gy,
+				z: P.at[i][1],
+				sc: 2,
+				m: o.matrix.clone(),
+				col: P.cols[i % P.cols.length],
+			});
 		}
-		/* r128 culls an InstancedMesh by the base geometry at the origin, not by where the copies are */
-		im.frustumCulled = false;
-		s.add(im);
+		const one = !long,
+			c = new THREE.Color();
+		Object.values(cells).forEach((Q) => {
+			const im = new THREE.InstancedMesh(one ? P.geo : instCullGeo(P.geo, Q), mat, Q.length);
+			Q.forEach((q, i) => {
+				im.setMatrixAt(i, q.m);
+				im.setColorAt(i, c.set(q.col));
+			});
+			/* r128 would cull an InstancedMesh by the base geometry at the origin, not by where the copies are, so it
+			   starts with culling off; a cell's geometry carries a sphere round its own copies, so cells cull */
+			im.frustumCulled = !one;
+			s.add(im);
+		});
 	});
 }
 /* automatic tyre tracks for games that move trucks themselves (lane games): speed from position change, call from stepMG */

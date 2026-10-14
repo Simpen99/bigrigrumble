@@ -127,6 +127,8 @@ const DUST = ["#D8CBB0", "#C9BC9F", "#EDE3CF"];
 
 /* ---------- sound (synthesised, no files) ---------- */
 const SFX = { ctx: null, on: LS.get("trp_snd", true) };
+/* the player's levels 0..1: music m, sound effects s (localStorage trp_vol; the 🔊 chip and the start page set them) */
+const VOL = Object.assign({ m: 1, s: 1 }, LS.get("trp_vol", {}));
 function sfxInit() {
 	if (SFX.ctx) return;
 	try {
@@ -137,7 +139,7 @@ function sfxInit() {
 		SFX.out.connect(SFX.ctx.destination);
 		/* sound effects go through their own bus, 25% under the music */
 		SFX.fx = SFX.ctx.createGain();
-		SFX.fx.gain.value = 0.75;
+		SFX.fx.gain.value = 0.75 * VOL.s;
 		SFX.fx.connect(SFX.out);
 		SFX.to = SFX.fx;
 	} catch (e) {
@@ -149,6 +151,8 @@ addEventListener(
 	() => {
 		sfxInit();
 		if (SFX.ctx && SFX.ctx.state === "suspended") SFX.ctx.resume();
+		/* browsers only allow sound after a tap: the first one on the start page starts the song */
+		if (typeof view === "string" && MENU_VIEWS.includes(view)) musScene(view);
 	},
 	{ capture: true },
 );
@@ -157,6 +161,7 @@ addEventListener(
 	() => {
 		sfxInit();
 		if (SFX.ctx && SFX.ctx.state === "suspended") SFX.ctx.resume();
+		if (typeof view === "string" && MENU_VIEWS.includes(view)) musScene(view);
 	},
 	{ capture: true },
 );
@@ -556,7 +561,8 @@ function musBus() {
 	B.comp.ratio.value = 4;
 	B.comp.attack.value = 0.004;
 	B.comp.release.value = 0.15;
-	B.comp.connect(gain(0.4, SFX.out));
+	B.lvl = gain(0.4 * VOL.m, SFX.out);
+	B.comp.connect(B.lvl);
 	/* one shared noise buffer for the drums */
 	B.noise = c.createBuffer(1, c.sampleRate * 2, c.sampleRate);
 	const nz = B.noise.getChannelData(0);
@@ -614,7 +620,16 @@ function musFade(o, fade) {
 	o.g.gain.cancelScheduledValues(t);
 	o.g.gain.setValueAtTime(o.g.gain.value, t);
 	o.g.gain.setTargetAtTime(0, t, Math.max(0.01, fade / 3));
-	setTimeout(() => o.g.disconnect(), fade * 1000 + 500);
+	setTimeout(
+		() => {
+			o.g.disconnect();
+			if (o.src)
+				try {
+					o.src.stop();
+				} catch (e) {}
+		},
+		fade * 1000 + 500,
+	);
 }
 let MO = null;
 /* one music note: n detuned oscillators (waves w, spread det cents) through a lowpass; attack a, decay to sus over dec,
@@ -790,11 +805,76 @@ function musHit() {
 	MUS.hit = true;
 }
 function musStop(fade = 0.25) {
+	MUS.track = false;
 	clearInterval(MUS.iv);
 	MUS.iv = 0;
 	MUS.song = MUS.name = null;
 	if (MUS.o && SFX.ctx) musFade(MUS.o, fade);
 	MUS.o = null;
+}
+/* sounds and songs from audio files next to the page (dist/music, dist/sfx; not in the single-file artifact build):
+   fetched once (audLoad, a game can call it early so the file is in by the start), decoded once (audBuf) */
+const AUD = {};
+function audLoad(url) {
+	if (!AUD[url]) {
+		const raw = fetch(url).then((r) => {
+			if (!r.ok) throw new Error(url);
+			return r.arrayBuffer();
+		});
+		/* a preload nobody waits on yet must not count as an unhandled error (e.g. opened as a local file) */
+		raw.catch(() => {});
+		AUD[url] = { raw, buf: null };
+	}
+	return AUD[url];
+}
+function audBuf(url) {
+	const a = audLoad(url);
+	if (!SFX.ctx) return Promise.reject(new Error("no audio"));
+	return (
+		a.buf || (a.buf = a.raw.then((ab) => new Promise((res, rej) => SFX.ctx.decodeAudioData(ab.slice(0), res, rej))))
+	);
+}
+/* a one-shot sound from a file, vol 0..1 */
+function sfxFile(url, vol = 1) {
+	if (!SFX.on || !SFX.ctx || SFX.ctx.state !== "running") return;
+	audBuf(url)
+		.then((buf) => {
+			const c = SFX.ctx,
+				s = c.createBufferSource(),
+				g = c.createGain();
+			g.gain.value = vol;
+			s.buffer = buf;
+			s.connect(g);
+			g.connect(SFX.fx);
+			s.start();
+		})
+		.catch(() => {});
+}
+/* a song from a file (Getaway's chase song, the lobby song), looped through the music bus like the synth songs (fading in
+   over fadeIn s): musStop fades it, and musScene leaves it playing during the minigame (MUS.track) */
+function musTrack(url, vol = 0.7, fadeIn = 0) {
+	musStop();
+	if (!SFX.ctx || !SFX.on) return;
+	const o = musOut(vol);
+	MUS.o = o;
+	MUS.name = url;
+	MUS.track = true;
+	audBuf(url)
+		.then((buf) => {
+			if (MUS.o !== o) return;
+			const s = SFX.ctx.createBufferSource();
+			s.buffer = buf;
+			s.loop = true;
+			s.connect(o.g);
+			if (fadeIn) {
+				const t = SFX.ctx.currentTime;
+				o.g.gain.setValueAtTime(0.0001, t);
+				o.g.gain.linearRampToValueAtTime(vol, t + fadeIn);
+			}
+			s.start();
+			o.src = s;
+		})
+		.catch(() => {});
 }
 /* duck the song under a jingle for dur seconds */
 function musDuck(dur, to = 0.2) {
@@ -1097,8 +1177,18 @@ function musTick() {
    rounds (Volcano Quarry: 2 in the 2 rounds before an eruption, 3 while it erupts); the podium fanfare when the game is
    over; silence elsewhere. Minigames play their own (Monster Mash), TV controller phones stay quiet */
 let musOverSeen = false;
+const LOBBY_MUS = "music/lobby.mp3",
+	MENU_VIEWS = ["home", "join", "waiting", "practice", "lobby"];
+/* fetched at load, so the first tap starts it quickly */
+audLoad(LOBBY_MUS);
 function musScene(v) {
 	if (!SFX.ctx) return;
+	/* the lobby song, from the start page to the lobby (TV mode: on the big screen only, not the phones) */
+	if (MENU_VIEWS.includes(v) && !(G && G.tv && role === "client" && !SCREEN)) {
+		if (MUS.name !== LOBBY_MUS) musTrack(LOBBY_MUS, 0.7, 0.8);
+		return;
+	}
+	if (MUS.name === LOBBY_MUS) musStop(0.6);
 	if (v === "over" && !musOverSeen) {
 		musOverSeen = true;
 		musStop(0.3);
@@ -1115,7 +1205,7 @@ function musScene(v) {
 		!mgBusy &&
 		!["minigame", "mgres", "teams"].includes(G.phase);
 	if (!board) {
-		if (MUS.name && MUS.name !== "boss") musStop(0.6);
+		if (MUS.name && MUS.name !== "boss" && !MUS.track) musStop(0.6);
 		return;
 	}
 	const name = SONGS[G.map] ? G.map : "classic";
@@ -1129,6 +1219,50 @@ function buzz(ms) {
 	try {
 		if (navigator.vibrate) navigator.vibrate(ms);
 	} catch (e) {}
+}
+/* a wind loop for fast chases (Getaway): a low rumble and a breathy whistle of filtered noise, swelling in slow gusts;
+   set(speed 0..1, on). Faint on purpose: it sits under the music */
+function windSnd() {
+	if (!SFX.on || !SFX.ctx || SFX.ctx.state !== "running") return null;
+	const c = SFX.ctx,
+		len = c.sampleRate * 2,
+		buf = c.createBuffer(1, len, c.sampleRate),
+		ch = buf.getChannelData(0);
+	for (let i = 0; i < len; i++) ch[i] = Math.random() * 2 - 1;
+	const mk = (type, f, q, rate) => {
+			const n = c.createBufferSource(),
+				fl = c.createBiquadFilter(),
+				g = c.createGain();
+			n.buffer = buf;
+			n.loop = true;
+			n.playbackRate.value = rate;
+			fl.type = type;
+			fl.frequency.value = f;
+			fl.Q.value = q;
+			g.gain.value = 0;
+			n.connect(fl);
+			fl.connect(g);
+			g.connect(SFX.fx);
+			n.start();
+			return { n, fl, g };
+		},
+		lo = mk("lowpass", 260, 0.7, 0.8),
+		hi = mk("bandpass", 1300, 1.4, 1.1);
+	return {
+		set(spd, on) {
+			const t = c.currentTime,
+				gs = 0.72 + 0.28 * Math.sin(t * 0.9) * Math.sin(t * 0.37 + 1);
+			lo.g.gain.setTargetAtTime(on ? spd * 0.12 * gs : 0, t, 0.3);
+			hi.g.gain.setTargetAtTime(on ? spd * spd * 0.045 * gs : 0, t, 0.3);
+			hi.fl.frequency.setTargetAtTime(900 + spd * 900 + gs * 300, t, 0.4);
+		},
+		stop() {
+			try {
+				lo.n.stop();
+				hi.n.stop();
+			} catch (e) {}
+		},
+	};
 }
 function sfx(n) {
 	if (!SFX.on || !SFX.ctx || SFX.ctx.state !== "running") return;
@@ -1195,6 +1329,37 @@ function sfx(n) {
 				tone(196, 0.6, "square", 0.12, 0, 0.6);
 				tone(247, 0.6, "square", 0.1, 0, 0.6);
 				break;
+			/* Getaway: passing a car close by, a hard swerve, metal grinding (all faint) */
+			case "whoosh":
+				noiseHit(0.32, 0.06, 1600, 260, 0, 0.9);
+				break;
+			case "screech":
+				noiseHit(0.42, 0.045, 3400, 2600, 0, 7);
+				noiseHit(0.3, 0.03, 2100, 1700, 0.05, 6);
+				break;
+			case "grind":
+				noiseHit(0.14, 0.05, 4200, 2800, 0, 3);
+				break;
+			/* Monster Mash: the stage's edge cracking (a long low rumble with cracks), a slice sinking (a heavy slump), a mud
+			   geyser (bubbling, then the blast) */
+			case "rumble":
+				noiseHit(1.4, 0.32, 260, 60, 0, 0.6);
+				noiseHit(0.08, 0.14, 3000, 1200, 0.2, 1.6);
+				noiseHit(0.08, 0.12, 2600, 1000, 0.65, 1.6);
+				noiseHit(0.08, 0.12, 3200, 1300, 1.1, 1.6);
+				break;
+			case "slump":
+				tone(70, 0.6, "sine", 0.3, 35);
+				noiseHit(0.7, 0.3, 700, 90, 0, 0.8);
+				break;
+			case "bubble":
+				tone(220, 0.08, "sine", 0.12, 420);
+				tone(180, 0.08, "sine", 0.1, 380, 0.13);
+				break;
+			case "geyser":
+				noiseHit(0.9, 0.4, 900, 120, 0, 0.7);
+				tone(80, 0.4, "sine", 0.28, 40);
+				break;
 			case "skid":
 				noiseHit(0.55, 0.2, 2400, 900, 0, 4);
 				noiseHit(0.45, 0.12, 1300, 700, 0.08, 3);
@@ -1237,14 +1402,73 @@ document.addEventListener("click", (e) => {
 	const b = e.target.closest("button");
 	if (!b) return;
 	if (b.dataset.a === "snd") {
-		SFX.on = !SFX.on;
-		LS.set("trp_snd", SFX.on);
-		b.textContent = SFX.on ? "🔊" : "🔇";
-		if (SFX.on) sfx("click");
+		volPop(b);
 		return;
 	}
-	sfx("click");
+	if (b.dataset.a === "mute") {
+		SFX.on = !SFX.on;
+		LS.set("trp_snd", SFX.on);
+		document.querySelectorAll('[data-a="snd"]').forEach((c) => (c.textContent = SFX.on ? "🔊" : "🔇"));
+		b.textContent = SFX.on ? "🔇 Mute all" : "🔊 Sound on";
+		if (!SFX.on) musStop(0.2);
+		menuClick();
+		return;
+	}
+	/* menu buttons click (a minigame's own controls keep the short synth tick; its ready panel clicks) */
+	if (!b.closest("#mg") || b.closest(".m3ready")) menuClick();
+	else sfx("click");
 });
+audLoad("sfx/selectclick.mp3");
+function menuClick() {
+	sfxFile("sfx/selectclick.mp3", 1);
+}
+/* volume sliders: Music and Effects (the start page, and the 🔊 chip's pop-up) */
+function volHTML() {
+	const row = (k, lbl) =>
+		`<label class="volrow"><span>${lbl}</span><input type="range" min="0" max="100" step="5" data-vol="${k}" value="${Math.round(VOL[k] * 100)}" aria-label="${lbl} volume"></label>`;
+	return `<div class="vol">${row("m", "🎵 Music")}${row("s", "🔊 Effects")}</div>`;
+}
+function volApply() {
+	if (!SFX.ctx) return;
+	SFX.fx.gain.value = 0.75 * VOL.s;
+	if (SFX.mus) SFX.mus.lvl.gain.value = 0.4 * VOL.m;
+}
+document.addEventListener("input", (e) => {
+	const k = e.target.dataset && e.target.dataset.vol;
+	if (!k) return;
+	VOL[k] = +e.target.value / 100;
+	LS.set("trp_vol", VOL);
+	volApply();
+});
+/* letting go of the effects slider plays a click at the new level */
+document.addEventListener("change", (e) => {
+	if (e.target.dataset && e.target.dataset.vol === "s") menuClick();
+});
+/* the 🔊 chip opens a small panel under it: the two sliders and mute; a tap anywhere else closes it */
+function volPop(chip) {
+	let p = document.getElementById("volpop");
+	if (p) {
+		p.remove();
+		return;
+	}
+	p = document.createElement("div");
+	p.id = "volpop";
+	p.className = "volpop";
+	p.innerHTML =
+		volHTML() + `<button class="btn ghost small" data-a="mute">${SFX.on ? "🔇 Mute all" : "🔊 Sound on"}</button>`;
+	const r = chip.getBoundingClientRect();
+	p.style.top = r.bottom + 8 + "px";
+	document.body.appendChild(p);
+	menuClick();
+}
+document.addEventListener(
+	"pointerdown",
+	(e) => {
+		const p = document.getElementById("volpop");
+		if (p && !p.contains(e.target) && !e.target.closest('[data-a="snd"]')) p.remove();
+	},
+	{ capture: true },
+);
 
 /* ---------- board: coin/battery bursts, landing dust, fork path preview ---------- */
 /* battery purchase: zoom on the buyer, a glowing 3D battery pops out of the truck and flies into their card, then the camera follows the factory to its new spot */

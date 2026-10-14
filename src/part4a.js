@@ -1135,7 +1135,7 @@ function openMg(mg, p) {
       <div class="m3lb${def.lbTop ? " top" : ""}" id="m3lb"></div><div class="m3intro" id="m3in"><h3>${esc(def.name)}</h3><p>${esc(def.how)}</p>${teamLine(mg, p, def)}<p class="m3ctl">${def.ctrl === "stick" ? (def.stickHint ? def.stickHint(FINE) : FINE ? "WASD or arrow keys to drive, Space to ram." : "Drag anywhere to drive. Tap RAM to charge.") : esc(def.tapHint || "Tap the big button.") + (FINE ? " On a keyboard, press Space." : "")}</p>${!first ? `<p class="m3ctl">Practice run against CPU trucks. Your score still counts.</p>` : ""}</div>
       <div class="m3center${def.msgTop ? " hi" : ""}"><div class="m3big" id="m3c"></div><div class="m3msg" id="m3m" hidden></div></div>
       ${first ? `<div class="m3ready" id="m3r"><h3>Get ready</h3><div id="m3rl"></div><button class="btn go" id="m3rb">I'm ready${FINE ? " (Enter)" : ""}</button><button class="btn ghost" id="m3rs" hidden style="margin-top:8px">Start without the others</button></div>` : ""}
-      ${def.ctrl === "custom" ? def.ctlHTML() : def.ctrl === "stick" ? stickHTML(def, def.aim ? "Drive" : "", mg.tm ? mg.tm[p.key] : undefined) : `${tapCtlHTML(mg.g, def)}`}`;
+      ${def.ctrl === "custom" ? def.ctlHTML() : def.ctrl === "stick" ? stickHTML(def, def.aim ? "Drive" : "", mg.tm ? mg.tm[p.key] : undefined, p) : `${tapCtlHTML(mg.g, def)}`}`;
 		wireControls(def);
 		const rb = $("#m3rb");
 		if (rb)
@@ -1784,14 +1784,14 @@ function wireLightPanel() {
 	});
 }
 /* stick controls: drive pad plus the RAM button, or (def.aim) a drive pad on the left and an aim pad on the right */
-/* the main button's label and the optional second button (def.btn2(side) -> label or null), per side in team games */
+/* the main button's label and the optional second button (def.btn2(side, player) -> label or null), per side in team games */
 const ramLbl = (def, side) => (typeof def.ramLabel === "function" ? def.ramLabel(side) : def.ramLabel) || "RAM";
-const btn2Lbl = (def, side) => (def.btn2 ? def.btn2(side) : null);
-function stickHTML(def, hint, side) {
+const btn2Lbl = (def, side, p) => (def.btn2 ? def.btn2(side, p) : null);
+function stickHTML(def, hint, side, p) {
 	const h = hint ? `<span class="tvchint">${hint}</span>` : "";
 	return def.aim
 		? `<div class="m3pad twin" id="m3pad">${h}<div class="knob" id="knob" hidden><i></i></div></div><div class="m3pad aim" id="m3aim">${hint ? `<span class="tvchint">${esc(def.aimHint || "Aim")}</span>` : ""}<div class="knob aim" id="knob2" hidden><i></i></div></div>`
-		: `<div class="m3pad" id="m3pad">${h}<div class="knob" id="knob" hidden><i></i></div></div><button class="ram" id="ram"><i class="ramcd"></i><span>${esc(ramLbl(def, side))}</span></button>${btn2Lbl(def, side) ? `<button class="ram ram2" id="ram2"><i class="ramcd"></i><span>${esc(btn2Lbl(def, side))}</span></button>` : ""}`;
+		: `<div class="m3pad" id="m3pad">${h}<div class="knob" id="knob" hidden><i></i></div></div><button class="ram${ramLbl(def, side).length > 5 ? " lng" : ""}" id="ram"><i class="ramcd"></i><span>${esc(ramLbl(def, side))}</span></button>${btn2Lbl(def, side, p) ? `<button class="ram ram2" id="ram2"><i class="ramcd"></i><span>${esc(btn2Lbl(def, side, p))}</span></button>` : ""}`;
 }
 function wireControls(def) {
 	wireLightPanel();
@@ -2801,7 +2801,7 @@ function openTvCtl(mg, p) {
 	box.innerHTML = `<div class="tvc${def.ctrl === "stick" ? " bare" : ""}" style="--c:${pcol(p)}"><div class="tvrot">🔄 Turn your phone sideways</div><div class="m3top"><span class="chip name">${esc(def.name)}</span><span class="chip" id="tvct">Waiting</span></div>
     <div class="tvcme"><img alt="" src="${thumb(p.truck)}"><div><b id="tvcs">0</b><small id="tvcr">${esc(p.name)}</small></div></div>
     <div class="tvcmsg" id="tvcm">📺 Watch the TV</div>
-    ${def.ctrl === "stick" ? stickHTML(def, def.aim ? "Drive" : "Drag anywhere here to drive", mg.tm ? mg.tm[p.key] : undefined) : `<div class="tvcctl${def.swipe || def.slide ? " swc" : ""}" id="tvcctl">${def.slide ? `<div class="swpad slpad" id="slpad"><span class="tvchint">${esc(def.slideHint || "Slide")}</span><i class="slmark" id="slmark"></i></div><button class="ram tvserve" id="tvserve"><span>${esc(def.slideBtn || "SERVE")}</span></button>${def.slideBtn2 ? `<button class="ram ram2 tvserve2" id="tvserve2"><span>${esc(def.slideBtn2)}</span></button>` : ""}` : def.swipe ? swipeHTML(def) : def.ctrl === "custom" ? def.ctlHTML() : tapCtlHTML(mg.g, def)}</div>`}
+    ${def.ctrl === "stick" ? stickHTML(def, def.aim ? "Drive" : "Drag anywhere here to drive", mg.tm ? mg.tm[p.key] : undefined, p) : `<div class="tvcctl${def.swipe || def.slide ? " swc" : ""}" id="tvcctl">${def.slide ? `<div class="swpad slpad" id="slpad"><span class="tvchint">${esc(def.slideHint || "Slide")}</span><i class="slmark" id="slmark"></i></div><button class="ram tvserve" id="tvserve"><span>${esc(def.slideBtn || "SERVE")}</span></button>${def.slideBtn2 ? `<button class="ram ram2 tvserve2" id="tvserve2"><span>${esc(def.slideBtn2)}</span></button>` : ""}` : def.swipe ? swipeHTML(def) : def.ctrl === "custom" ? def.ctlHTML() : tapCtlHTML(mg.g, def)}</div>`}
     <div class="m3ready" id="m3r"><h3>${esc(def.name)}</h3><p style="font-size:14px;line-height:1.45;margin-bottom:10px">${esc(def.how)}</p><div id="m3rl"></div><button class="btn go" id="m3rb">I'm ready</button></div></div>`;
 	if (def.ctrl === "stick") {
 		wireStick(() => TVC && TVC.inp);

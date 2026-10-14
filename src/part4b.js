@@ -402,7 +402,7 @@ function engineSnd() {
 	o.connect(lp);
 	o2.connect(lp);
 	lp.connect(g);
-	g.connect(SFX.out);
+	g.connect(SFX.fx);
 	o.start();
 	o2.start();
 	const len = c.sampleRate * 2,
@@ -420,7 +420,7 @@ function engineSnd() {
 	ng.gain.value = 0;
 	n.connect(bp);
 	bp.connect(ng);
-	ng.connect(SFX.out);
+	ng.connect(SFX.fx);
 	n.start();
 	return {
 		set(spd, crowd, on) {
@@ -5664,7 +5664,7 @@ const MG = {
 					spots.push([tx, z - 9], [hx - 3.1, z + 2.6], [hx + 3.1, z + 2.6], [hx - 4.65, z + 7.9], [hx + 4.65, z + 7.9]);
 				}
 			});
-			placeKits(s, houseKits(), homes);
+			placeKits(s, houseKits(), homes, 0.3, 120);
 			vergeScatter(s, [], 0, 0, 0, spots, -0.05);
 		},
 		spawn: (W, i) => ({ x: MG.hop.lx(i % 4), z: 0, yaw: Math.PI / 2 }),

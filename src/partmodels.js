@@ -716,31 +716,64 @@ function kitGroup(kit, shadow = 0.3) {
 	}
 	return g;
 }
-/* list: [{k: kit index, x, y, z, ry, sc}]; shadow = contact shadow opacity (0 = none) */
-function placeKits(s, kits, list, shadow = 0.3) {
+/* list: [{k: kit index, x, y, z, ry, sc}]; shadow = contact shadow opacity (0 = none); cell (metres, optional) = split
+   the copies into cells of that size, each its own culled InstancedMesh (long scenes like Getaway's highway, where most
+   copies are off screen) */
+function placeKits(s, kits, list, shadow = 0.3, cell = 0) {
 	kits.forEach((kit, ki) => {
-		const L = list.filter((q) => q.k === ki);
-		if (!L.length) return;
+		const all = list.filter((q) => q.k === ki);
+		if (!all.length) return;
 		const parts = kit.map(({ geo, mat }) => ({ geo, mat }));
 		if (shadow && kit.foot)
 			parts.push({ geo: kit.shGeo || (kit.shGeo = kitShadowGeo(kit)), mat: shadowMat(shadow), sh: 1 });
-		parts.forEach(({ geo, mat, sh }) => {
-			const im = new THREE.InstancedMesh(geo, mat, L.length),
-				o = new THREE.Object3D();
-			L.forEach((q, i) => {
-				o.position.set(q.x, q.y || 0, q.z);
-				o.rotation.set(0, q.ry || 0, 0);
-				o.scale.setScalar(q.sc || 1);
-				o.updateMatrix();
-				im.setMatrixAt(i, o.matrix);
-			});
-			im.castShadow = im.receiveShadow = !sh;
-			if (sh) im.renderOrder = 1;
-			/* r128 culls an InstancedMesh by the base geometry at the origin, not by where the copies are */
-			im.frustumCulled = false;
-			s.add(im);
+		const cells = {};
+		all.forEach((q) => {
+			const key = cell ? Math.floor(q.x / cell) + "," + Math.floor(q.z / cell) : "";
+			(cells[key] = cells[key] || []).push(q);
 		});
+		Object.values(cells).forEach((L) =>
+			parts.forEach(({ geo, mat, sh }) => {
+				const im = new THREE.InstancedMesh(cell ? instCullGeo(geo, L) : geo, mat, L.length),
+					o = new THREE.Object3D();
+				L.forEach((q, i) => {
+					o.position.set(q.x, q.y || 0, q.z);
+					o.rotation.set(0, q.ry || 0, 0);
+					o.scale.setScalar(q.sc || 1);
+					o.updateMatrix();
+					im.setMatrixAt(i, o.matrix);
+				});
+				im.castShadow = im.receiveShadow = !sh;
+				if (sh) im.renderOrder = 1;
+				/* r128 would cull an InstancedMesh by the base geometry at the origin, not by where the copies are, so it
+				   starts with culling off; a cell's geometry carries a sphere round its own copies, so cells cull */
+				im.frustumCulled = !!cell;
+				s.add(im);
+			}),
+		);
 	});
+}
+/* a geometry sharing geo's buffers whose bounding sphere wraps every copy in list ([{x, y, z, sc}]): r128 culls an
+   InstancedMesh by its geometry's sphere, so this makes copies off screen (and out of the shadow camera) skip drawing */
+function instCullGeo(geo, list) {
+	if (!geo.boundingSphere) geo.computeBoundingSphere();
+	const bs = geo.boundingSphere,
+		box = new THREE.Box3(),
+		v = new THREE.Vector3(),
+		g2 = new THREE.BufferGeometry();
+	let sc = 1;
+	list.forEach((q) => {
+		box.expandByPoint(v.set(q.x, q.y || 0, q.z));
+		sc = Math.max(sc, q.sc || 1);
+	});
+	g2.index = geo.index;
+	g2.attributes = geo.attributes;
+	g2.groups = geo.groups;
+	g2.userData = geo.userData;
+	g2.boundingSphere = new THREE.Sphere(
+		box.getCenter(new THREE.Vector3()),
+		box.getSize(v).length() / 2 + (bs.radius + bs.center.length()) * sc,
+	);
+	return g2;
 }
 /* a gable roof's end wall (triangle prism) and the roof itself, ridge along x */
 function gableRoof(g, W, D, y0, RH, wall, roof, trim) {

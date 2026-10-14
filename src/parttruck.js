@@ -973,6 +973,8 @@ function armourize(g, W, wheelsL, kind, mount, R) {
 		strut(g, [p.x, fy - 0.02, sd * (W / 2 - 0.08)], [p.x, fy - 0.02, fz - sd * (fd / 2 - 0.05)], 0.1, DK, 1);
 		[-0.3, 0, 0.3].forEach((u) => spike(0.2, 0.055, p.x + u, fy, fz + sd * (fd / 2), [0, 0.25, sd]));
 	});
+	/* where the fenders' plates are (top surface, in truck units): Getaway hangs its money bags on them */
+	g.userData.fend = tyres.map((p) => ({ x: p.x, z: p.z, y: 2 * R + 0.08 + 0.035, l: 2 * R + 0.2 }));
 	/* bars over the windows: a rail and uprights just off every outward face of the glass (front or back; the sides of a
 	   pane that spans the cab, or a side window) */
 	const barsX = (b, x) => {
