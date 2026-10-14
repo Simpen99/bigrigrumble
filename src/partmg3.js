@@ -8106,10 +8106,10 @@ Object.assign(MG, {
 		phys(W, e, inp, dt) {
 			const solo = e.side === 0,
 				T = solo ? null : this.solo(W),
-				/* catch-up: a cop more than 17.5 m behind the truck cruises faster and gets extra top speed, so the pack stays
+				/* catch-up: a cop more than 15 m behind the truck cruises faster and gets extra top speed, so the pack stays
 				   together (and on the TV) */
-				lag = T ? e.z - T.z - 17.5 : 0,
-				cu = lag > 0 ? Math.min(16, lag * 0.45) : 0,
+				lag = T ? e.z - T.z - 15 : 0,
+				cu = lag > 0 ? Math.min(20, lag * 0.6) : 0,
 				flat = W.t < (e.flatT || 0),
 				hooks = solo ? this.hooks(W, e) : [],
 				top = this.V0 + (solo ? this.UP : this.UPC) + cu - (flat ? 7 : 0) - Math.min(2, hooks.length) * 4,
