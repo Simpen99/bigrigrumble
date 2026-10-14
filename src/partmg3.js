@@ -7518,6 +7518,9 @@ Object.assign(MG, {
 		   cash truck (radius r, gone after ZT s; "obj" ones smash when hit), the rest act on the cop itself or at the truck */
 		ZL: 1,
 		ZT: 8,
+		/* Crusher's JUMP: JMPT s in the air at JMPV m/s over its top speed */
+		JMPT: 1.2,
+		JMPV: 15,
 		AB: {
 			monster: { lbl: "JUMP", cd: 9 },
 			icecream: { lbl: "SCOOPS", cd: 10, lob: "ice", r: 2.4 },
@@ -8214,9 +8217,9 @@ Object.assign(MG, {
 					e.slideT = 0.6;
 				}
 			} else e.reelHitT = 0;
-			/* JUMP (Crusher): up and over the traffic for a second */
-			const air = !solo && W.t < (e.jumpT ?? -9) + 1;
-			if (air) fv = Math.max(fv, top + 6);
+			/* JUMP (Crusher): a long leap up the road, over the traffic */
+			const air = !solo && W.t < (e.jumpT ?? -9) + this.JMPT;
+			if (air) fv = Math.max(fv, top + this.JMPV);
 			/* spun out on oil: speed bleeds off, the truck slews */
 			const spin = W.t < (e.spinT || 0);
 			if (spin) {
@@ -8226,7 +8229,7 @@ Object.assign(MG, {
 			e.vx *= Math.exp(-(ice ? 0.35 : e.slideT > 0 || spin ? 1.2 : 3.4) * dt);
 			const mx = e.reelOn ? 32 : e.boostT > 0 || W.t < (e.blastT || 0) ? 20 : ice ? 12 : 9;
 			e.vx = Math.max(-mx, Math.min(mx, e.vx));
-			fv = Math.max(0, Math.min(e.reelOn ? 60 : top + (e.boostT > 0 || air ? 12 : 0), fv));
+			fv = Math.max(0, Math.min(e.reelOn ? 60 : top + (air ? this.JMPV : e.boostT > 0 ? 12 : 0), fv));
 			e.vz = -fv;
 			e.x += e.vx * dt;
 			e.z += e.vz * dt;
@@ -8865,7 +8868,7 @@ Object.assign(MG, {
 			const f = c.f || {},
 				T = this.solo(W);
 			if (f.jp !== undefined) {
-				const k = (W.t - f.jp) / 1;
+				const k = (W.t - f.jp) / this.JMPT;
 				if (k >= 0 && k < 1) {
 					c.g.position.y += Math.sin(k * Math.PI) * 3.4;
 					c.tr.rotation.z += Math.sin(k * Math.PI) * 0.35;
@@ -9740,7 +9743,7 @@ Object.assign(MG, {
 					if (
 						(A.lob && dT < 36) ||
 						((k === "pickup" || k === "food") && dz > 16) ||
-						(k === "monster" && dz > 8 && dz < 30) ||
+						(k === "monster" && dz > 14 && dz < 42) ||
 						(k === "fire" && dT < 12) ||
 						(k === "tow" && dT < 24 && W.t < (e.hpCd || 0) - 1)
 					)
