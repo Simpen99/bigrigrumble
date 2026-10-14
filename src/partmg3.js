@@ -7499,7 +7499,7 @@ Object.assign(MG, {
 		LATA: 34,
 		/* cash: BAGS on the truck, IMM s safe after losing one; oil: cooldown OILCD, lasts OILT, radius OILR */
 		BAGS: 20,
-		IMM: 6,
+		IMM: 4,
 		/* spike strip (the truck's second button): cooldown SPCD, lies SPT s, SPW m wide, a flat tyre lasts FLAT s */
 		SPCD: 11,
 		SPT: 9,
