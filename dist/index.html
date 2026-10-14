@@ -813,7 +813,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-14 01:39 e52736e";
+const BUILD = "2026-10-14 05:25 f55b391";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -2563,7 +2563,7 @@ function buildTruck(i, mode) {
 	/* armour: roof ornaments off, the strongbox goes on the roof itself */
 	if (armour) {
 		roof.forEach((o) => o.parent && o.parent.remove(o));
-		armourize(g, W);
+		armourize(g, W, wheelsL);
 	}
 	{
 		/* paint (body and accent colour) gets its own materials per truck, tagged for the new look's slight shine (lookEnv) */
@@ -2770,50 +2770,128 @@ function monsterize(g, xs, anims, wheelsL, own) {
 		});
 	});
 }
-/* armour mode (Getaway's cash truck): the truck's own body and paint, bolted up for a cash run: riveted steel skirts
-   over the wheels, a slanted ram plate with ribs on the front, a steel strongbox with gold badges on the roof (the
-   money bags sit on it) and amber security beacons */
-function armourize(g, W) {
+/* armour mode (Getaway's cash truck): the truck's own body and paint as a war rig (inspired by Mad Max style builds,
+   kept chunky and toy-like): a spiked tube cowcatcher on the front, bars over every window, a blower with three chrome
+   stacks on the hood, riveted steel skirts with spikes along the bottom, spiked wheel hubs, a heavy rear push bar, and
+   on the roof a steel strongbox with gold badges (the money bags sit on it) in a tube roll cage with spotlights and
+   amber beacons */
+function armourize(g, W, wheelsL) {
 	g.updateMatrixWorld(true);
 	const bb = new THREE.Box3().setFromObject(g),
 		fx = bb.max.x,
 		rx = bb.min.x,
 		ST = "#5A6272",
 		DK = "#3D424C",
+		CH = "#C9CED8",
 		GO = "#FFC83D",
-		L = (fx - rx) * 0.84,
-		cx = (fx + rx) / 2 - 0.05;
-	/* side skirts: just outside whatever the truck has at their height (steps, wheels), a plate, a lip along its
-	   bottom, two rows of rivets */
+		up = new THREE.Vector3(0, 1, 0),
+		/* a cone spike at (x, y, z) pointing along dir */
+		spike = (len, r, x, y, z, dir) => {
+			const m = Cy(0, r, len, 5, CH, x, y, z);
+			m.quaternion.setFromUnitVectors(up, new THREE.Vector3(...dir).normalize());
+			m.position.add(new THREE.Vector3(...dir).normalize().multiplyScalar(len / 2));
+			g.add(m);
+		},
+		ray = new THREE.Raycaster(),
+		hAt = (x, z) => {
+			ray.set(new THREE.Vector3(x, bb.max.y + 1, z), new THREE.Vector3(0, -1, 0));
+			const h = ray.intersectObject(g, true)[0];
+			return h ? h.point.y : 0.6;
+		};
+	/* measured before anything is added: the glass (bars go over it), the hood, how wide the truck is at skirt height */
+	const glass = [];
+	g.traverse((o) => {
+		if (o.isMesh && o.material && o.material.color && o.material.color.getHex() === 0x2f3b52)
+			glass.push(new THREE.Box3().setFromObject(o));
+	});
+	const hoodY = hAt(fx - 0.3, 0);
 	let mz = W / 2;
 	g.traverse((o) => {
 		if (!o.isMesh) return;
 		const b = new THREE.Box3().setFromObject(o);
-		if (b.max.y > 0.44 && b.min.y < 0.76) mz = Math.max(mz, b.max.z, -b.min.z);
+		if (b.max.y > 0.44 && b.min.y < 0.8) mz = Math.max(mz, b.max.z, -b.min.z);
 	});
-	const z0 = mz + 0.06;
-
+	const z0 = mz + 0.07,
+		L = (fx - rx) * 0.86,
+		cx = (fx + rx) / 2 - 0.05;
+	/* side skirts: a thick plate, a lip, rivets, and spikes along the bottom */
 	[-1, 1].forEach((sd) => {
-		g.add(B_(L, 0.28, 0.07, ST, cx, 0.6, sd * z0), B_(L, 0.06, 0.1, DK, cx, 0.45, sd * (z0 + 0.01)));
-		for (let x = cx - L / 2 + 0.15; x < cx + L / 2 - 0.1; x += 0.3)
-			[0.52, 0.68].forEach((y) => {
-				const rv = Cy(0.035, 0.035, 0.05, 6, "#C9CED8", x, y, sd * (z0 + 0.05));
-				rv.rotation.x = Math.PI / 2;
-				g.add(rv);
-			});
+		g.add(B_(L, 0.34, 0.09, ST, cx, 0.62, sd * z0), B_(L + 0.06, 0.07, 0.13, DK, cx, 0.43, sd * (z0 + 0.01)));
+		g.add(B_(L + 0.04, 0.05, 0.12, DK, cx, 0.8, sd * (z0 + 0.005)));
+		for (let x = cx - L / 2 + 0.16; x < cx + L / 2 - 0.1; x += 0.28) {
+			const rv = Cy(0.04, 0.04, 0.05, 6, CH, x, 0.62, sd * (z0 + 0.06));
+			rv.rotation.x = Math.PI / 2;
+			g.add(rv);
+		}
+		for (let x = cx - L / 2 + 0.2; x < cx + L / 2 - 0.1; x += 0.36)
+			spike(0.22, 0.06, x, 0.43, sd * (z0 + 0.07), [0, -0.3, sd]);
 	});
-	/* the ram plate: leaning back over the bumper, three ribs, a yellow top edge */
-	const ram = new THREE.Group();
-	ram.add(B_(0.08, 0.56, W + 0.16, ST, 0, 0, 0), B_(0.1, 0.07, W + 0.18, GO, 0.01, 0.3, 0));
-	[-0.38, 0, 0.38].forEach((z) => ram.add(B_(0.12, 0.5, 0.07, DK, 0.06, -0.02, z)));
-	ram.position.set(fx + 0.1, 0.48, 0);
-	ram.rotation.z = 0.32;
-	g.add(ram);
-	/* roof strongbox with a gold badge each side, beacons on its front corners */
+	/* bars over the windows: a frame and uprights just off the glass */
+	glass.forEach((b) => {
+		const sx = b.max.x - b.min.x,
+			sy = b.max.y - b.min.y,
+			sz = b.max.z - b.min.z;
+		if (sy < 0.12) return;
+		const cy = (b.min.y + b.max.y) / 2;
+		if (sx <= sz) {
+			/* windscreen / rear window: uprights across */
+			const fr = (b.min.x + b.max.x) / 2 > (fx + rx) / 2,
+				x = fr ? b.max.x + 0.04 : b.min.x - 0.04,
+				n = Math.max(2, Math.round(sz / 0.2));
+			for (let i = 1; i < n; i++) g.add(B_(0.05, sy + 0.06, 0.05, DK, x, cy, b.min.z + (i * sz) / n));
+			g.add(B_(0.05, 0.05, sz + 0.04, DK, x, cy, (b.min.z + b.max.z) / 2));
+		} else {
+			/* side window: uprights along */
+			const s = (b.min.z + b.max.z) / 2 > 0,
+				z = s ? b.max.z + 0.04 : b.min.z - 0.04,
+				n = Math.max(2, Math.round(sx / 0.2));
+			for (let i = 1; i < n; i++) g.add(B_(0.05, sy + 0.06, 0.05, DK, b.min.x + (i * sx) / n, cy, z));
+			g.add(B_(sx + 0.04, 0.05, 0.05, DK, (b.min.x + b.max.x) / 2, cy, z));
+		}
+	});
+	/* the cowcatcher: tubes in a wedge out front, side frames, a row of spikes along the bottom */
+	const cw = W / 2 + 0.22,
+		bx = fx + 0.06;
+	[0.32, 0.5, 0.68, 0.86].forEach((y, i) =>
+		strut(g, [bx + 0.42 - i * 0.12, y, -cw], [bx + 0.42 - i * 0.12, y, cw], 0.09, ST, 1),
+	);
+	[-1, 1].forEach((sd) => {
+		strut(g, [bx + 0.48, 0.24, sd * cw], [bx + 0.02, 0.92, sd * cw], 0.11, DK, 2);
+		strut(g, [bx - 0.02, 0.3, sd * (cw - 0.15)], [bx + 0.42, 0.3, sd * (cw - 0.05)], 0.08, DK, 2);
+	});
+	[-0.3, 0, 0.3].forEach((z) => strut(g, [bx + 0.46, 0.26, z], [bx + 0.03, 0.9, z], 0.07, DK, 1));
+	for (let z = -cw + 0.12; z <= cw - 0.1; z += 0.2) spike(0.26, 0.055, bx + 0.48, 0.28, z, [1, -0.15, 0]);
+	/* the blower on the hood (trucks with one: cab-overs have the cab up front), a block, three chrome stacks */
+	if (hoodY < 1.05) {
+		const hx = fx - 0.32;
+		g.add(B_(0.34, 0.14, 0.44, DK, hx, hoodY + 0.07, 0), B_(0.38, 0.05, 0.48, ST, hx, hoodY + 0.02, 0));
+		[-0.14, 0, 0.14].forEach((z) => {
+			g.add(
+				Cy(0.065, 0.075, 0.2, 8, CH, hx, hoodY + 0.24, z),
+				Cy(0.045, 0.045, 0.21, 8, "#23272F", hx, hoodY + 0.25, z),
+			);
+		});
+	}
+	/* spiked hubs */
+	(wheelsL || []).forEach(({ g: wg }) => {
+		const sd = Math.sign(wg.position.z) || 1,
+			s = Cy(0, 0.07, 0.2, 6, CH, 0, 0, sd * 0.28),
+			c = Cy(0.1, 0.1, 0.04, 8, DK, 0, 0, sd * 0.19);
+		s.rotation.x = (sd * Math.PI) / 2;
+		c.rotation.x = Math.PI / 2;
+		wg.add(s, c);
+	});
+	/* rear push bar */
+	strut(g, [rx - 0.1, 0.42, -W / 2 - 0.05], [rx - 0.1, 0.42, W / 2 + 0.05], 0.12, DK, 1);
+	[-0.32, 0.32].forEach((z) => strut(g, [rx - 0.1, 0.42, z], [rx + 0.06, 0.42, z], 0.08, DK, 2));
+	/* the roof strongbox, a gold badge each side, in a tube roll cage with spotlights and beacons */
 	const top = truckTop(g),
 		bw = 0.86,
 		bd = W * 0.66,
-		by = top.y + 0.17;
+		by = top.y + 0.14,
+		rw = bw / 2 + 0.12,
+		rd = bd / 2 + 0.12,
+		ry = by + 0.3;
 	g.add(
 		B_(bw, 0.32, bd, ST, top.x, by, 0),
 		B_(bw + 0.06, 0.05, bd + 0.06, DK, top.x, by + 0.18, 0),
@@ -2824,8 +2902,21 @@ function armourize(g, W) {
 			B_(0.24, 0.2, 0.03, GO, top.x, by, sd * (bd / 2 + 0.02)),
 			B_(0.14, 0.11, 0.03, "#C8961E", top.x, by, sd * (bd / 2 + 0.035)),
 		);
+		[-1, 1].forEach((fs) => strut(g, [top.x + fs * rw, top.y, sd * rd], [top.x + fs * rw, ry, sd * rd], 0.07, DK, 1));
+		strut(g, [top.x - rw, ry, sd * rd], [top.x + rw, ry, sd * rd], 0.07, DK, 2);
+		strut(g, [top.x + sd * rw, ry, -rd], [top.x + sd * rw, ry, rd], 0.07, DK, 2);
+		/* a spotlight on the front rail, a beacon at the back */
+		const sp = Cy(0.09, 0.11, 0.14, 8, DK, top.x + rw + 0.02, ry + 0.06, sd * (rd - 0.14));
+		sp.rotation.z = Math.PI / 2;
+		const ln = Cy(0.075, 0.075, 0.03, 8, "#FFF1C2", top.x + rw + 0.1, ry + 0.06, sd * (rd - 0.14), {
+			emissive: "#FFF1C2",
+			emissiveIntensity: 1.2,
+		});
+		ln.rotation.z = Math.PI / 2;
 		g.add(
-			Cy(0.07, 0.08, 0.12, 8, "#FFB547", top.x + bw / 2 - 0.08, by + 0.27, sd * (bd / 2 - 0.08), {
+			sp,
+			ln,
+			Cy(0.07, 0.08, 0.12, 8, "#FFB547", top.x - rw, ry + 0.09, sd * rd, {
 				emissive: "#FF9A1F",
 				emissiveIntensity: 1.2,
 			}),
