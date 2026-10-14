@@ -300,6 +300,7 @@ body.trin #mg .m3top{animation:trtop .6s .35s ease-out both}body.trin #mg .m3lb,
 .lp details.how summary{list-style-position:inside}
 /* pixel start page mockup (#app.px = the home view): stepped corners (--st = one step), flat colours with a light top strip and a dark bottom strip, hard pixel shadows, ribbon heading, coloured buttons with an icon tile */
 .ribbon{display:none}
+#app.px,#app.lp,#app.pt{--display:var(--mfont,"Bungee","Arial Black",Impact,system-ui,sans-serif)}
 i.bi{font-style:normal}
 .px{--st:4px;--stp:polygon(0 calc(var(--st) * 2),var(--st) calc(var(--st) * 2),var(--st) var(--st),calc(var(--st) * 2) var(--st),calc(var(--st) * 2) 0,calc(100% - var(--st) * 2) 0,calc(100% - var(--st) * 2) var(--st),calc(100% - var(--st)) var(--st),calc(100% - var(--st)) calc(var(--st) * 2),100% calc(var(--st) * 2),100% calc(100% - var(--st) * 2),calc(100% - var(--st)) calc(100% - var(--st) * 2),calc(100% - var(--st)) calc(100% - var(--st)),calc(100% - var(--st) * 2) calc(100% - var(--st)),calc(100% - var(--st) * 2) 100%,calc(var(--st) * 2) 100%,calc(var(--st) * 2) calc(100% - var(--st)),var(--st) calc(100% - var(--st)),var(--st) calc(100% - var(--st) * 2),0 calc(100% - var(--st) * 2))}
 .px .sheet{--ink:#1D2B38;--muted:#5A6B7A;--panel2:#DCE8EF;position:relative;isolation:isolate;background:none;border-radius:0;box-shadow:none;padding:18px;margin-bottom:6px}
@@ -335,9 +336,9 @@ i.bi{font-style:normal}
 .px details.how summary{font-size:calc(17px * var(--dz,1));font-family:var(--display);text-transform:uppercase}
 .px .fp{--st:2px;border:0;clip-path:var(--stp);background:#DCE8EF}
 .px .fp.sel{background:#FFA726;color:#fff}
-/* party start page mockup (#app.pt = the home view, shapes after Fall Guys, colours from the board HUD's arcade ledge): navy see-through panels (--hb / --hb2) with a light rim and the dark ledge under them, yellow accent, slanted buttons and heading tag (the ::before plate is skewed, the text stays straight), faint level stripes on the panels */
-.pt{--rim:#F4F6F9;--hs:0 5px 0 var(--ledge);--ts:0 2px 0 var(--ledge);--stripe:repeating-linear-gradient(rgba(0,0,0,.06) 0 28px,transparent 28px 62px)}
-.pt .sheet{--ink:#fff;--muted:rgba(238,243,248,.78);--panel2:var(--hb2);position:relative;background:var(--stripe),var(--hb);color:#fff;border:3px solid var(--rim);border-radius:18px;box-shadow:0 6px 0 var(--ledge);padding:18px 16px 16px;margin-bottom:8px;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+/* party style (#app.pt = the menu views: home, join, practice, lobby; not the board or results), shapes after Fall Guys, colours from the board HUD's arcade ledge): navy see-through panels (--hb / --hb2) with a light rim and the dark ledge under them, yellow accent, slanted buttons and heading tag (the ::before plate is skewed, the text stays straight) */
+.pt{--rim:#F4F6F9;--hs:0 5px 0 var(--ledge);--ts:0 2px 0 var(--ledge)}
+.pt .sheet{--ink:#fff;--muted:rgba(238,243,248,.78);--panel2:var(--hb2);--line:rgba(244,246,249,.14);position:relative;background:var(--hb);color:#fff;border:3px solid var(--rim);border-radius:18px;box-shadow:0 6px 0 var(--ledge);padding:18px 16px 16px;margin-bottom:8px;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
 .pt .sheet+.sheet{margin-top:20px}
 .pt .sheet:has(.ribbon){margin-top:38px}
 .pt .ribbon{display:flex;position:relative;margin:-40px 0 12px -6px;height:42px}
@@ -345,16 +346,17 @@ i.bi{font-style:normal}
 .pt .ribbon span::before{content:"";position:absolute;inset:0;z-index:-1;background:var(--yellow);border:3px solid #151B24;border-radius:9px;box-shadow:var(--hs);transform:skewX(-12deg)}
 .pt .rbh{display:none}
 .pt .sheet h2{font-size:20px;color:#fff;text-shadow:var(--ts)}
-.pt .btn{--c:var(--hb2);--e:var(--rim);--tx:#fff;--tsh:var(--ts);position:relative;isolation:isolate;background:none;border:0;border-radius:0;box-shadow:none;padding:15px 16px 15px 54px;font-family:var(--display);font-weight:400;font-size:18px;text-transform:uppercase;letter-spacing:.4px;color:var(--tx);text-shadow:var(--tsh);margin:0 6px 6px 4px;width:calc(100% - 10px);transition:transform .08s}
+.pt .btn{--c:var(--hb2);--e:var(--rim);--tx:#fff;--tsh:var(--ts);position:relative;isolation:isolate;background:none;border:0;border-radius:0;box-shadow:none;padding:15px 16px;font-family:var(--display);font-weight:400;font-size:18px;text-transform:uppercase;letter-spacing:.4px;color:var(--tx);text-shadow:var(--tsh);margin:0 6px 6px 4px;width:calc(100% - 10px);transition:transform .08s}
 .pt .btn::before{content:"";position:absolute;inset:0;z-index:-1;background:var(--c);border:3px solid var(--e);border-radius:10px;box-shadow:var(--hs);transform:skewX(-9deg)}
 .pt .btn:active{transform:translateY(4px)}
 .pt .btn:active::before{box-shadow:0 1px 0 var(--ledge)}
 .pt .btn i.bi{position:absolute;left:12px;top:50%;width:32px;height:32px;margin-top:-16px;display:grid;place-items:center;border-radius:50%;background:rgba(11,14,20,.3);font-size:17px;text-shadow:none}
-.pt .btn[data-a=hosttv],.pt .btn[data-a=resume]{--c:var(--yellow);--e:#151B24;--tx:#151B24;--tsh:none;font-size:24px;padding:19px 16px 19px 58px}
-.pt .btn[data-a=hosttv] i.bi,.pt .btn[data-a=resume] i.bi{background:rgba(21,27,36,.14)}
-.pt .btn[data-a=resume]~.btn[data-a=hosttv]{--c:var(--hb2);--e:var(--rim);--tx:#fff;--tsh:var(--ts);font-size:18px;padding:15px 16px 15px 54px}
-.pt .btn[data-a=joinlist]{--c:var(--sign)}
-.pt .btn.small{padding:9px 16px;font-size:13px;width:auto;margin-top:4px}
+.pt .btn:has(>i.bi){padding-left:54px}
+.pt .btn.go{--c:var(--yellow);--e:#151B24;--tx:#151B24;--tsh:none;font-size:22px;padding-top:18px;padding-bottom:18px}
+.pt .btn.go i.bi{background:rgba(21,27,36,.14)}
+.pt .btn.sign{--c:var(--sign)}
+.pt .btn.red{--c:var(--red)}
+.pt .btn.small{padding:9px 14px;font-size:13px;width:auto}
 .pt .btn.small::before{border-width:2px}
 .pt .stack>*+*{margin-top:12px}
 .pt .tc{border:2.5px solid rgba(244,246,249,.28);border-radius:12px;background:var(--hb2);padding:4px 4px 6px;transition:transform .1s}
@@ -371,6 +373,21 @@ i.bi{font-style:normal}
 .pt details.how summary{font-size:18px;text-transform:uppercase;text-shadow:var(--ts)}
 .pt .volrow{font-family:var(--display);font-weight:400;text-transform:uppercase;font-size:13px}
 .pt .status{background:var(--hb2);color:#fff}
+.pt .brand{position:relative;isolation:isolate;align-self:flex-start;margin:4px 0 0 6px;padding:7px 22px;font-size:22px;color:#151B24;text-transform:uppercase;text-shadow:none}
+.pt .brand i{display:none}
+.pt .brand::before{content:"";position:absolute;inset:0;z-index:-1;background:var(--yellow);border:3px solid #151B24;border-radius:9px;box-shadow:var(--hs);transform:skewX(-12deg)}
+.pt .seg{background:rgba(11,14,20,.35);border-radius:12px}
+.pt .seg button{font-family:var(--display);font-weight:400;font-size:15px;color:#fff;border:2.5px solid transparent}
+.pt .seg button.on{color:#151B24;border-color:#151B24;box-shadow:0 3px 0 var(--ledge)}
+.pt .mapb,.pt .pgame,.pt .gamebtn{color:#fff;background:var(--hb2);border:2.5px solid rgba(244,246,249,.28);border-radius:12px;box-shadow:0 3px 0 var(--ledge)}
+.pt .mapb.on{border-color:var(--yellow);background:color-mix(in srgb,var(--yellow) 22%,var(--hb2))}
+.pt .pgame:active,.pt .gamebtn:active{transform:translateY(3px);box-shadow:0 1px 0 var(--ledge)}
+.pt .gamebtn b{font-family:var(--display);font-weight:400}
+.pt .code{color:var(--yellow);text-shadow:var(--ts)}
+.pt .xbtn{color:#fff;background:var(--hb2);border:2px solid rgba(244,246,249,.28)}
+.pt .empty{border-color:rgba(244,246,249,.25)}
+.pt .localform{background:rgba(11,14,20,.3)}
+.pt select.inp{border:2.5px solid rgba(244,246,249,.28);border-radius:10px;background:var(--hb2);color:#fff}
 .pt .fp{clip-path:none;border:2px solid rgba(244,246,249,.28);border-radius:8px;background:var(--hb2);color:#fff}
 .pt .fp.sel{background:var(--yellow);color:#151B24;border-color:#151B24}
 .fontpick{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:2px}
@@ -922,7 +939,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-14 21:30 6e58cd0";
+const BUILD = "2026-10-14 22:49 9bddf59";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -10674,6 +10691,13 @@ function render() {
 		if (v === "game") initSeen();
 	}
 	document.body.dataset.view = v;
+	/* UI style trial: pixel / low-poly only on the start page, party on all the menu views */
+	{
+		const app = $("#app");
+		app.classList.toggle("lp", v === "home" && UI_STY === "lp");
+		app.classList.toggle("px", v === "home" && UI_STY === "px");
+		app.classList.toggle("pt", MENU_VIEWS.includes(v) && UI_STY === "pt");
+	}
 	{
 		const tvp = role === "client" && !!G && !!G.tv && !SCREEN;
 		document.body.classList.toggle("tvphone", tvp);
@@ -10732,9 +10756,6 @@ function render() {
 	const app = $("#app"),
 		ae = document.activeElement,
 		keep = ae && ae.id && ae.tagName === "INPUT" ? { id: ae.id, v: ae.value, s: ae.selectionStart } : null;
-	app.classList.toggle("lp", v === "home" && UI_STY === "lp");
-	app.classList.toggle("px", v === "home" && UI_STY === "px");
-	app.classList.toggle("pt", v === "home" && UI_STY === "pt");
 	if (v === "home") app.innerHTML = homeHTML();
 	else if (v === "join") app.innerHTML = joinHTML();
 	else if (v === "practice") app.innerHTML = practiceHTML();
@@ -10763,7 +10784,7 @@ function showNameHTML(i) {
 	const t = TRUCKS[i];
 	return `<div class="showname"><div><h2>${esc(t.name)}</h2><p>${esc(t.blurb)}</p><div style="margin-top:8px">${facesHTML(t.faces)}</div></div><div class="arrows"><button class="arr" data-step="-1" aria-label="Previous truck">‹</button><button class="arr" data-step="1" aria-label="Next truck">›</button></div></div>`;
 }
-/* UI style trial (temporary, start page mockups): style lp (low-poly), px (pixel) or pt (party, after Fall Guys) and the display font, picked on the start page, saved per device (CSS only, canvas text stays Bungee) */
+/* UI style trial (temporary, start page mockups; the font only reaches the styled menu views through --mfont, the game keeps Bungee): style lp (low-poly), px (pixel) or pt (party, after Fall Guys) and the display font, picked on the start page, saved per device (CSS only, canvas text stays Bungee) */
 const FONT_TRY = [
 	"Bungee",
 	"Jersey 20",
@@ -10776,12 +10797,12 @@ const FONT_TRY = [
 	"Press Start 2P",
 	"Jersey 10",
 ];
-let UI_STY = ["lp", "pt"].includes(LS.get("trp_uisty", "px")) ? LS.get("trp_uisty", "px") : "px";
+let UI_STY = ["lp", "px"].includes(LS.get("trp_uisty", "pt")) ? LS.get("trp_uisty", "pt") : "pt";
 const styFont = (s) => ({ px: "Jersey 20", pt: "Titan One" })[s] || "Bungee";
 function fontSet(f) {
 	if (!FONT_TRY.includes(f)) f = "Bungee";
 	if (f !== "Bungee") fontLoad();
-	document.documentElement.style.setProperty("--display", `"${f}","Arial Black",Impact,system-ui,sans-serif`);
+	document.documentElement.style.setProperty("--mfont", `"${f}","Arial Black",Impact,system-ui,sans-serif`);
 	/* Jersey 20 runs small: the pixel style scales its display text by --dz */
 	document.documentElement.style.setProperty("--dz", f === "Jersey 20" ? 1.35 : 1);
 	LS.set("trp_font", f);
