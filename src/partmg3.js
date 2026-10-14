@@ -8634,7 +8634,7 @@ Object.assign(MG, {
 				W.sc.add(v.line, v.head);
 			}
 			const age = h ? W.t - h[1] : 99,
-				show = !!(h && T && age >= 0 && age < this.HPT + 0.6);
+				show = !!(h && T && age >= 0 && age < this.HPT + 1.2 && v.done !== h[0]);
 			v.line.visible = v.head.visible = show;
 			c.bar.tip.visible = !show;
 			if (!show) return;
@@ -8643,26 +8643,43 @@ Object.assign(MG, {
 				fwd = new THREE.Vector3(Math.cos(c.yaw), 0, -Math.sin(c.yaw)),
 				snapped = ((T.f && T.f.hs) || []).some(([k, id]) => k === c.k && id === h[0]);
 			let b;
+			if (v.id !== h[0]) {
+				v.id = h[0];
+				v.relT = undefined;
+			}
+			const done = () => {
+				v.done = h[0];
+				v.line.visible = v.head.visible = false;
+				c.bar.tip.visible = true;
+			};
 			if (h[2] && !snapped && age < this.HPT) {
 				const tb = new THREE.Vector3(T.x, 1.3, T.z).addScaledVector(
 					new THREE.Vector3(Math.cos(T.yaw), 0, -Math.sin(T.yaw)),
 					-2.1,
 				);
 				b = age < 0.2 ? a.clone().lerp(tb, age / 0.2) : tb;
+				/* where it holds, relative to the gun: a snapped line whips back from there */
+				v.off = b.clone().sub(a);
+			} else if (h[2]) {
+				/* snapped (or let go): the line whips sideways and droops as it reels back into the gun */
+				if (v.relT === undefined) {
+					v.relT = W.t;
+					if (snapped && (W.tv || c.isMe || T.isMe)) sfx("crack");
+				}
+				const k = (W.t - v.relT) / 0.45;
+				if (k >= 1 || !v.off) return done();
+				const side = new THREE.Vector3(-v.off.z, 0, v.off.x).normalize();
+				b = a
+					.clone()
+					.addScaledVector(v.off, (1 - k) * (1 - k))
+					.addScaledVector(side, Math.sin(k * Math.PI * 2) * 1.6 * (1 - k));
+				b.y -= Math.sin(k * Math.PI) * 0.9;
 			} else {
-				/* a miss (or the line let go): out up to 12 m ahead, then reeled back */
-				const out = h[2]
-					? Math.max(0, 1 - (age - (snapped ? age : this.HPT)) * 2)
-					: age < 0.25
-						? age / 0.25
-						: Math.max(0, 1 - (age - 0.25) / 0.35);
+				/* a miss: out up to 12 m ahead, then reeled back */
+				const out = age < 0.25 ? age / 0.25 : Math.max(0, 1 - (age - 0.25) / 0.35);
+				if (out <= 0) return done();
 				b = a.clone().addScaledVector(fwd, 12 * out);
 				b.y -= (1 - out) * 0.2;
-				if (out <= 0) {
-					v.line.visible = v.head.visible = false;
-					c.bar.tip.visible = true;
-					return;
-				}
 			}
 			const d = b.clone().sub(a),
 				len = Math.max(0.01, d.length());
