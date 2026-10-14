@@ -844,9 +844,9 @@ function sfxFile(url, vol = 1) {
 		})
 		.catch(() => {});
 }
-/* a song from a file (Getaway's chase song), looped through the music bus like the synth songs: musStop fades it, and
-   musScene leaves it playing during the minigame (MUS.track) */
-function musTrack(url, vol = 0.7) {
+/* a song from a file (Getaway's chase song, the lobby song), looped through the music bus like the synth songs (fading in
+   over fadeIn s): musStop fades it, and musScene leaves it playing during the minigame (MUS.track) */
+function musTrack(url, vol = 0.7, fadeIn = 0) {
 	musStop();
 	if (!SFX.ctx || !SFX.on) return;
 	const o = musOut(vol);
@@ -860,6 +860,11 @@ function musTrack(url, vol = 0.7) {
 			s.buffer = buf;
 			s.loop = true;
 			s.connect(o.g);
+			if (fadeIn) {
+				const t = SFX.ctx.currentTime;
+				o.g.gain.setValueAtTime(0.0001, t);
+				o.g.gain.linearRampToValueAtTime(vol, t + fadeIn);
+			}
 			s.start();
 			o.src = s;
 		})
@@ -1166,8 +1171,15 @@ function musTick() {
    rounds (Volcano Quarry: 2 in the 2 rounds before an eruption, 3 while it erupts); the podium fanfare when the game is
    over; silence elsewhere. Minigames play their own (Monster Mash), TV controller phones stay quiet */
 let musOverSeen = false;
+const LOBBY_MUS = "music/lobby.mp3";
 function musScene(v) {
 	if (!SFX.ctx) return;
+	/* the lobby song (TV mode: on the big screen only, not the phones) */
+	if (v === "lobby" && !(G && G.tv && role === "client" && !SCREEN)) {
+		if (MUS.name !== LOBBY_MUS) musTrack(LOBBY_MUS, 0.7, 0.8);
+		return;
+	}
+	if (MUS.name === LOBBY_MUS) musStop(0.6);
 	if (v === "over" && !musOverSeen) {
 		musOverSeen = true;
 		musStop(0.3);
