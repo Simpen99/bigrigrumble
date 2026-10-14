@@ -336,7 +336,7 @@ i.bi{font-style:normal}
 .px .fp{--st:2px;border:0;clip-path:var(--stp);background:#DCE8EF}
 .px .fp.sel{background:#FFA726;color:#fff}
 /* party start page mockup (#app.pt = the home view, shapes after Fall Guys, colours from the board HUD's arcade ledge): navy see-through panels (--hb / --hb2) with a light rim and the dark ledge under them, yellow accent, slanted buttons and heading tag (the ::before plate is skewed, the text stays straight), faint stripes on the panels rising 10° to the right */
-.pt{--rim:#F4F6F9;--hs:0 5px 0 var(--ledge);--ts:0 2px 0 var(--ledge);--stripe:repeating-linear-gradient(-10deg,rgba(0,0,0,.06) 0 7px,transparent 7px 24px)}
+.pt{--rim:#F4F6F9;--hs:0 5px 0 var(--ledge);--ts:0 2px 0 var(--ledge);--stripe:repeating-linear-gradient(-10deg,rgba(0,0,0,.06) 0 14px,transparent 14px 48px)}
 .pt .sheet{--ink:#fff;--muted:rgba(238,243,248,.78);--panel2:var(--hb2);position:relative;background:var(--stripe),var(--hb);color:#fff;border:3px solid var(--rim);border-radius:18px;box-shadow:0 6px 0 var(--ledge);padding:18px 16px 16px;margin-bottom:8px;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
 .pt .sheet+.sheet{margin-top:20px}
 .pt .sheet:has(.ribbon){margin-top:38px}
@@ -922,7 +922,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-14 21:28 839fcd6";
+const BUILD = "2026-10-14 21:29 d28f0e0";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
