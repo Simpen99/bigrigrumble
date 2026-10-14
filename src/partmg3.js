@@ -7755,10 +7755,14 @@ Object.assign(MG, {
 						return m;
 					},
 					big = e.side === 0;
-				e.hl = { head: pool("#FFE7B0", big ? 4.6 : 3.4, big ? 10 : 8, big ? 6.2 : 4.8) };
+				e.hl = { head: pool("#FFE7B0", big ? 4.6 : 3.4, big ? 10 : 8, 0), d: big ? 6.2 : 4.8 };
 				if (e.side === 1) e.hl.bar = pool("#FF3B3B", 5, 5, 0);
 			}
-			e.hl.head.visible = !e.gone;
+			/* e.g only moves, the truck model inside it turns: the beam follows the heading */
+			const hd = e.hl.head;
+			hd.position.set(Math.cos(e.yaw) * e.hl.d, 0.14, -Math.sin(e.yaw) * e.hl.d);
+			hd.rotation.set(-Math.PI / 2, 0, e.yaw);
+			hd.visible = !e.gone;
 			if (e.hl.bar) {
 				const ph = Math.floor(W.t * 6 + e.i) % 2;
 				e.hl.bar.material.color.set(ph ? "#FF2E2E" : "#2E6BFF");
