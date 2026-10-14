@@ -273,6 +273,9 @@ body.trin #mg .m3top{animation:trtop .6s .35s ease-out both}body.trin #mg .m3lb,
 .logo .l3{margin:2px 0 0;font-size:11px;font-weight:800;letter-spacing:1.6px;text-transform:uppercase;color:#fff;background:var(--sign);padding:4px 9px;border-radius:999px;box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.8);position:relative}
 .logo .l3::before{content:"";position:absolute;left:-2px;right:-2px;bottom:-7px;height:4px;border-radius:2px;background:repeating-linear-gradient(-45deg,#FFC83D 0 6px,#151B24 6px 12px)}
 @keyframes logoIn{from{opacity:0;transform:rotate(-6deg) translateY(-30px) scale(.7)}to{opacity:1;transform:rotate(-6deg)}}
+/* pixel logo stays level: rotating pixel art smears its edges */
+.px .logo{transform:none;animation-name:logoInPx}
+@keyframes logoInPx{from{opacity:0;transform:translateY(-30px) scale(.7)}to{opacity:1;transform:none}}
 @keyframes rumble{0%,86%,100%{transform:none}88%{transform:translate(-2px,1px) rotate(-1deg)}90%{transform:translate(2px,-1px) rotate(1deg)}92%{transform:translate(-2px,0) rotate(-.5deg)}94%{transform:translate(1px,1px)}96%{transform:none}}
 /* low-poly start page mockup (#app.lp = the home view): chamfered plates with an ink outline and an extruded side. ::before = outline + side (--sidec band), ::after = the face; panels also get sloped edges (9-slice border-image --bev-l: cut 16, band 9, slice 18, shade only, deeper towards the bottom right; --bi must match the cut) */
 :root{--bev-l:url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='54' height='54'><path d='M16 0L38 0L45 9L9 9Z' fill-opacity='0.03'/><path d='M0 16L9 9L9 45L0 38Z' fill-opacity='0.07'/><path d='M54 16L54 38L45 45L45 9Z' fill-opacity='0.13'/><path d='M9 45L45 45L38 54L16 54Z' fill-opacity='0.2'/><path d='M0 16L16 0L9 9Z' fill-opacity='0.05'/><path d='M38 0L54 16L45 9Z' fill-opacity='0.08'/><path d='M54 38L38 54L45 45Z' fill-opacity='0.17'/><path d='M16 54L0 38L9 45Z' fill-opacity='0.13'/></svg>");}
