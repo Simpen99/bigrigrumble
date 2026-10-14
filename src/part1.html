@@ -268,13 +268,11 @@ body.trin #mg .m3top{animation:trtop .6s .35s ease-out both}body.trin #mg .m3lb,
 .reslist .raw.neg{background:#E5484D;color:#fff}
 .stats .bump{animation:bump .6s ease-out}
 @keyframes bump{30%{transform:scale(1.45);color:#FFE27A}}
-.logo{display:inline-flex;flex-direction:column;align-items:flex-start;align-self:flex-start;transform:rotate(-5deg);transform-origin:left center;margin:4px 0 0 2px;animation:logoIn .8s cubic-bezier(.2,1.5,.4,1) both;pointer-events:none}
-.logo .l1{font-family:var(--display);font-size:clamp(22px,6.6vw,32px);line-height:1;color:#fff;background:#151B24;padding:5px 10px 3px;border-radius:8px;letter-spacing:2px;box-shadow:0 4px 0 rgba(0,0,0,.25);margin-left:4px}
-.logo .l2{font-family:var(--display);font-size:clamp(46px,15vw,76px);line-height:.95;color:#FFC83D;-webkit-text-stroke:2.5px #151B24;paint-order:stroke fill;letter-spacing:1px;margin-top:-2px;
-  text-shadow:1px 1px 0 #E08A00,2px 2px 0 #E08A00,3px 3px 0 #D67A00,4px 4px 0 #C66A00,5px 5px 0 #151B24,6px 6px 0 #151B24,7px 8px 14px rgba(0,0,0,.35);animation:rumble 4.5s ease-in-out 1.2s infinite}
-.logo .l3{margin:6px 0 0 6px;font-size:11px;font-weight:800;letter-spacing:1.6px;text-transform:uppercase;color:#fff;background:var(--sign);padding:4px 9px;border-radius:999px;box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.8);position:relative}
+.logo{display:inline-flex;flex-direction:column;align-items:center;align-self:center;margin:2px 0 0;animation:logoIn .8s cubic-bezier(.2,1.5,.4,1) both;pointer-events:none}
+.logo .lg{display:block;width:auto;height:auto;max-width:min(80vw,420px);max-height:27vh;filter:drop-shadow(0 6px 10px rgba(0,0,0,.3));animation:rumble 4.5s ease-in-out 1.2s infinite}
+.logo .l3{margin:2px 0 0;font-size:11px;font-weight:800;letter-spacing:1.6px;text-transform:uppercase;color:#fff;background:var(--sign);padding:4px 9px;border-radius:999px;box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.8);position:relative}
 .logo .l3::before{content:"";position:absolute;left:-2px;right:-2px;bottom:-7px;height:4px;border-radius:2px;background:repeating-linear-gradient(-45deg,#FFC83D 0 6px,#151B24 6px 12px)}
-@keyframes logoIn{from{opacity:0;transform:rotate(-5deg) translateY(-30px) scale(.7)}to{opacity:1;transform:rotate(-5deg)}}
+@keyframes logoIn{from{opacity:0;transform:translateY(-30px) scale(.7)}to{opacity:1;transform:none}}
 @keyframes rumble{0%,86%,100%{transform:none}88%{transform:translate(-2px,1px) rotate(-1deg)}90%{transform:translate(2px,-1px) rotate(1deg)}92%{transform:translate(-2px,0) rotate(-.5deg)}94%{transform:translate(1px,1px)}96%{transform:none}}
 .pgrid{display:grid;gap:8px}
 .pgame{display:flex;align-items:center;gap:10px;width:100%;text-align:left;border:0;background:var(--panel2);border-radius:14px;padding:11px 12px}
@@ -370,7 +368,7 @@ body.trin #mg .m3top{animation:trtop .6s .35s ease-out both}body.trin #mg .m3lb,
 .cxpour .pm s{position:absolute;left:0;top:0;bottom:0;width:calc(var(--f,0) / 1.3 * 100%);background:linear-gradient(90deg,rgba(255,255,255,.55),#fff);border-radius:11px}
 .cxpour .pm i{position:absolute;top:-3px;bottom:-3px;width:4px;left:calc(var(--f,0) / 1.3 * 100% - 2px);background:#FFC83D;border-radius:2px;box-shadow:0 0 8px #FFC83D}
 .cxpour.over .pm s{background:#E5484D}
-@media (prefers-reduced-motion: reduce){*{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}.logo,.logo .l2{animation:none!important}}
+@media (prefers-reduced-motion: reduce){*{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}.logo,.logo .lg{animation:none!important}}
 /* HUD style "B": arcade ledge (solid borders + dark ledge under each piece), Bungee numbers, see-through panels */
 :root{--hb:rgba(24,32,50,.9);--hb2:rgba(40,51,74,.92);--ledge:rgba(11,14,20,.85)}
 .chip{background:var(--hb)!important;border:3px solid var(--c,#F4F6F9)!important;border-radius:14px!important;box-shadow:0 4px 0 var(--ledge);font-family:var(--display);font-weight:400;font-size:15px;padding:5px 12px 4px;color:#fff}
@@ -447,8 +445,8 @@ button.tp-mush{border:0;padding:0;cursor:pointer;touch-action:manipulation}butto
 /* TV mode: the PC shows the game on the big screen */
 body.tv #app{max-width:none;padding:0 3vw}
 .tvlobby{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr) minmax(0,1.1fr);gap:2.2vw;align-items:start;padding:3vh 0 4vh}
-.tvlobby .tvlogo{grid-column:1/-1;margin:0 0 1vh}
-.tvlobby .logo .l1{font-size:clamp(24px,2.6vw,46px)}.tvlobby .logo .l2{font-size:clamp(50px,6vw,110px)}
+.tvlobby .tvlogo{grid-column:1/-1;justify-self:center;margin:0 0 1vh}
+.tvlobby .logo .lg{max-width:min(40vw,720px);max-height:24vh}
 .tvlobby .sheet{margin:0!important}
 .tvlobby h2{font-size:clamp(18px,1.5vw,28px)}
 .tvjoin{text-align:center;display:flex;flex-direction:column;align-items:center;gap:10px}
