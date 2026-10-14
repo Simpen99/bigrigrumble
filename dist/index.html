@@ -813,7 +813,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-14 00:43 f2a0095";
+const BUILD = "2026-10-14 06:23 f78a38c";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -1989,6 +1989,7 @@ function chamferPrism(P, d, r, cs) {
 function buildTruck(i, mode) {
 	const hose = mode === "hose",
 		mon = mode === "monster",
+		armour = mode === "armour",
 		springs = mode === "springs";
 	const B = (w, h, d, c, x, y, z, o) => {
 		let sq = null;
@@ -2046,7 +2047,7 @@ function buildTruck(i, mode) {
 	};
 	const monAx = [];
 	const wheels = (xs, r = 0.3, z = W / 2) =>
-		mon
+		mon || armour
 			? monAx.push(...xs)
 			: xs.forEach((x) =>
 					[-1, 1].forEach((s) => {
@@ -2180,7 +2181,7 @@ function buildTruck(i, mode) {
 			chassis(2.2, -0.05);
 			add(B(1.45, 0.85, W, c, -0.38, 0.95, 0, NY), B(1.47, 0.12, W + 0.06, a, -0.38, 0.8, 0));
 			const lad = new THREE.Group();
-			if (!hose) {
+			if (!hose && !armour) {
 				lad.position.set(-0.8, 1.5, 0);
 				lad.add(B(1.6, 0.06, 0.06, "#CFD4DC", 0.72, 0, 0.26), B(1.6, 0.06, 0.06, "#CFD4DC", 0.72, 0, -0.26));
 				for (let k = 0; k < 7; k++) lad.add(B(0.05, 0.05, 0.52, "#CFD4DC", k * 0.24, 0, 0));
@@ -2238,10 +2239,11 @@ function buildTruck(i, mode) {
 			const bed = new THREE.Group();
 			bed.position.set(-1.0, 0.6, 0);
 			const bb = B(1.35, 0.75, W, c, 0.66, 0.38, 0);
-			bb.rotation.z = hose ? 0 : -0.06;
+			bb.rotation.z = hose || armour ? 0 : -0.06;
 			bed.add(bb);
 			[-0.8, -0.34, 0.12].forEach((x) => bed.add(B(0.06, 0.78, W + 0.04, a, x + 1.0, 0.38, 0)));
-			if (!hose) bed.add(B(0.3, 0.25, 0.9, "#8C5A3C", 0.5, 0.85, 0), B(0.25, 0.2, 0.5, "#6F7682", 0.95, 0.82, 0.15));
+			if (!hose && !armour)
+				bed.add(B(0.3, 0.25, 0.9, "#8C5A3C", 0.5, 0.85, 0), B(0.25, 0.2, 0.5, "#6F7682", 0.95, 0.82, 0.15));
 			mount = { x: -0.34, y: 1.37, s: 0.95 };
 			g.add(bed);
 			const ram = B(0.1, 0.5, 0.1, "#8E96A3", -0.1, 0.6, 0);
@@ -2249,7 +2251,7 @@ function buildTruck(i, mode) {
 			add(ram);
 			cab(0.72);
 			anims.push((tm) => {
-				if (hose) return;
+				if (hose || armour) return;
 				const u = Math.max(0, Math.sin(tm * 0.7));
 				const e = u * u;
 				bed.rotation.z = e * 0.6;
@@ -2308,7 +2310,8 @@ function buildTruck(i, mode) {
 			chassis();
 			add(B(1.3, 0.12, W, c, -0.36, 0.6, 0));
 			const hook = new THREE.Group();
-			if (!hose) {
+			/* the crane (not on Fire Brigade's hose truck or the armoured cash truck: their rig / strongbox takes the deck) */
+			if (!hose && !armour) {
 				add(
 					Cy(0.26, 0.3, 0.1, 10, "#5A6272", -0.05, 0.72, 0),
 					B(0.36, 0.22, 0.48, D, -0.05, 0.9, 0),
@@ -2422,7 +2425,7 @@ function buildTruck(i, mode) {
 			if (hose) {
 				add(B(1.1, 0.26, 0.7, D, -0.35, 1.43, 0));
 				mount = { x: -0.35, y: 1.56, s: 0.95 };
-			} else {
+			} else if (!armour) {
 				add(Cy(0.12, 0.12, 0.14, 8, "#AAB3C0", -0.35, 1.55, 0), B(1.3, 0.04, 0.04, "#8E96A3", -0.35, 1.56, 0.3));
 				[-0.94, -0.55, -0.15, 0.24].forEach((x) => add(B(0.03, 0.17, 0.03, "#8E96A3", x, 1.475, 0.3)));
 				lid.position.set(-0.47, 1.63, 0);
@@ -2559,6 +2562,22 @@ function buildTruck(i, mode) {
 		host.add(bp, l1, l2);
 	}
 	if (mon) monsterize(g, monAx, anims, wheelsL, t.kind === "monster");
+	/* armour: roof ornaments off, the strongbox goes on the roof itself */
+	if (armour) {
+		roof.forEach((o) => o.parent && o.parent.remove(o));
+		/* beefed up: the whole body longer, taller and wider, then lifted on big tyres */
+		const BX = 1.06,
+			BY = 1.1,
+			BZ = 1.12,
+			DY = 0.55,
+			R = 0.52,
+			beef = new THREE.Group();
+		beef.scale.set(BX, BY, BZ);
+		[...g.children].forEach((o) => beef.add(o));
+		g.add(beef);
+		liftWheels(g, monAx, wheelsL, R, DY, (W * BZ) / 2 + 0.36);
+		armourize(g, W * BZ, wheelsL, t.kind, mount && { x: mount.x * BX, y: mount.y * BY + DY }, R);
+	}
 	{
 		/* paint (body and accent colour) gets its own materials per truck, tagged for the new look's slight shine (lookEnv) */
 		const pc = [c, a].map((x) => new THREE.Color(x).getHex()),
@@ -2615,26 +2634,18 @@ function springSet(tr, ext) {
 /* monster mode (Monster Mash's boss): the truck's own body, paint a shade darker, lifted on long shocks over huge
    treaded tyres with spiked hubs, a toothed bull bar, red glowing eyes under angry brows, and exhaust stacks with flames */
 const MON = { R: 0.62, DY: 0.7, EYE: { emissive: "#FF2A1A", emissiveIntensity: 0.9 } };
-function monsterize(g, xs, anims, wheelsL, own) {
-	const DY = own ? 0.2 : MON.DY,
-		R = MON.R,
-		D = "#353A46",
-		ST = "#4A525C",
+/* the body lifted DY on long shocks over big treaded tyres (radius R, ZW out from the middle) with spiked hubs: Monster
+   Mash's monster and the armoured cash truck. Returns the lift group (the body is in it) */
+function liftWheels(g, xs, wheelsL, R, DY, ZW) {
+	const D = "#353A46",
 		CH = "#C9CED8",
-		BONE = "#E8E2D0",
-		W2 = 0.55,
-		ZW = W2 + 0.27,
-		lift = new THREE.Group();
+		lift = new THREE.Group(),
+		add = (p, ...m) => m.forEach((x) => p.add(x)),
+		cyl = (rt, rb, h, n, col, x, y, z, o) => Cy(rt, rb, h, n, col, x, y, z, o);
 	lift.position.y = DY;
 	[...g.children].forEach((o) => lift.add(o));
 	g.add(lift);
 	g.userData.lift = lift;
-	g.updateMatrixWorld(true);
-	const bb = new THREE.Box3().setFromObject(lift),
-		fx = bb.max.x,
-		top = bb.max.y - DY,
-		add = (p, ...m) => m.forEach((x) => p.add(x)),
-		cyl = (rt, rb, h, n, col, x, y, z, o) => Cy(rt, rb, h, n, col, x, y, z, o);
 	/* axles: close tandem axles share one big tyre, and the two ends stay a tyre apart */
 	const ax = [];
 	xs.slice()
@@ -2694,6 +2705,24 @@ function monsterize(g, xs, anims, wheelsL, own) {
 			wheelsL.push({ g: wg, r: R });
 		});
 	});
+	return lift;
+}
+function monsterize(g, xs, anims, wheelsL, own) {
+	const DY = own ? 0.2 : MON.DY,
+		R = MON.R,
+		D = "#353A46",
+		ST = "#4A525C",
+		CH = "#C9CED8",
+		BONE = "#E8E2D0",
+		W2 = 0.55,
+		ZW = W2 + 0.27,
+		lift = liftWheels(g, xs, wheelsL, R, DY, ZW);
+	g.updateMatrixWorld(true);
+	const bb = new THREE.Box3().setFromObject(lift),
+		fx = bb.max.x,
+		top = bb.max.y - DY,
+		add = (p, ...m) => m.forEach((x) => p.add(x)),
+		cyl = (rt, rb, h, n, col, x, y, z, o) => Cy(rt, rb, h, n, col, x, y, z, o);
 	/* toothed bull bar = the mouth: the upper bar with fangs is fixed, the lower bar with teeth is a jaw hinged at the
 	   back (userData.jaw, rotation.z < 0 opens it), a dark throat between them. userData.mouth = where things come out */
 	const bx = fx + 0.12,
@@ -2762,6 +2791,212 @@ function monsterize(g, xs, anims, wheelsL, own) {
 			fl.scale.set(1, k, 1);
 			fl.position.y = ht + 0.08 + 0.12 * k;
 		});
+	});
+}
+/* armour mode (Getaway's cash truck): the truck's own body made chunkier (beefUp: longer, taller, wider) and lifted on big
+   treaded tyres (liftWheels), then built up as a war rig (inspired by Mad Max style builds, kept chunky and toy-like):
+   steel fenders over the tyres, a spiked tube cowcatcher across the front, bars over every window, a blower with three
+   chrome stacks on the hood, a heavy rear push bar, and a steel strongbox with gold badges (the money bags sit on it) in
+   a tube roll cage with spotlights and amber beacons: on the roof, in the pickup's bed, on the tow truck's deck, on a
+   braced platform over the mixer's drum and the tanker's tank. W = the beefed-up width, R = the tyres' radius */
+function armourize(g, W, wheelsL, kind, mount, R) {
+	g.updateMatrixWorld(true);
+	const body = g.userData.lift || g,
+		bb = new THREE.Box3().setFromObject(body),
+		fx = bb.max.x,
+		rx = bb.min.x,
+		ST = "#5A6272",
+		DK = "#3D424C",
+		CH = "#C9CED8",
+		GO = "#FFC83D",
+		up = new THREE.Vector3(0, 1, 0),
+		/* a cone spike at (x, y, z) pointing along dir */
+		spike = (len, r, x, y, z, dir) => {
+			const m = Cy(0, r, len, 5, CH, x, y, z);
+			m.quaternion.setFromUnitVectors(up, new THREE.Vector3(...dir).normalize());
+			m.position.add(new THREE.Vector3(...dir).normalize().multiplyScalar(len / 2));
+			g.add(m);
+		},
+		ray = new THREE.Raycaster(),
+		hAt = (x, z, o = g) => {
+			ray.set(new THREE.Vector3(x, bb.max.y + 1, z), new THREE.Vector3(0, -1, 0));
+			const h = ray.intersectObject(o, true)[0];
+			return h ? h.point.y : 0.6;
+		};
+	/* measured on the body alone, before anything is added: the glass (bars go over it), the lowest edge along its sides
+	   and at its front (things hang from the body itself), the hood */
+	const glass = [];
+	let sb = 9,
+		fb = 9;
+	body.traverse((o) => {
+		if (!o.isMesh) return;
+		const b = new THREE.Box3().setFromObject(o);
+		if (o.material && o.material.color && o.material.color.getHex() === 0x2f3b52) glass.push(b);
+		if (b.max.z > W / 2 - 0.12 || b.min.z < -(W / 2 - 0.12)) sb = Math.min(sb, b.min.y);
+		if (b.max.x > fx - 0.45 && b.max.y - b.min.y > 0.08) fb = Math.min(fb, b.min.y);
+	});
+	if (sb > 5) sb = 0.45;
+	if (fb > 5) fb = 0.4;
+	const hoodY = hAt(fx - 0.3, 0, body),
+		tyres = (wheelsL || []).map(({ g: wg }) => wg.position);
+	/* fenders over the tyres: a plate, angled ends, a bracket to the body, spikes along the outer edge */
+	tyres.forEach((p) => {
+		const sd = Math.sign(p.z) || 1,
+			fy = 2 * R + 0.08,
+			fl = 2 * R + 0.2,
+			fd = 0.62,
+			fz = p.z;
+		g.add(B_(fl, 0.07, fd, ST, p.x, fy, fz));
+		[-1, 1].forEach((e) => {
+			const end = B_(0.34, 0.07, fd, ST, p.x + e * (fl / 2 + 0.13), fy - 0.12, fz);
+			end.rotation.z = -e * 0.7;
+			g.add(end);
+		});
+		g.add(B_(fl + 0.04, 0.05, 0.08, DK, p.x, fy + 0.04, fz + sd * (fd / 2 - 0.02)));
+		strut(g, [p.x, fy - 0.02, sd * (W / 2 - 0.08)], [p.x, fy - 0.02, fz - sd * (fd / 2 - 0.05)], 0.1, DK, 1);
+		[-0.3, 0, 0.3].forEach((u) => spike(0.2, 0.055, p.x + u, fy, fz + sd * (fd / 2), [0, 0.25, sd]));
+	});
+	/* bars over the windows: a rail and uprights just off every outward face of the glass (front or back; the sides of a
+	   pane that spans the cab, or a side window) */
+	const barsX = (b, x) => {
+			const sz = b.max.z - b.min.z,
+				sy = b.max.y - b.min.y,
+				cy = (b.min.y + b.max.y) / 2,
+				n = Math.max(3, Math.round(sz / 0.2));
+			for (let i = 1; i < n; i++) g.add(B_(0.05, sy + 0.06, 0.05, DK, x, cy, b.min.z + (i * sz) / n));
+			g.add(B_(0.05, 0.05, sz + 0.04, DK, x, cy, (b.min.z + b.max.z) / 2));
+		},
+		barsZ = (b, z) => {
+			const sx = b.max.x - b.min.x,
+				sy = b.max.y - b.min.y,
+				cy = (b.min.y + b.max.y) / 2,
+				n = Math.max(3, Math.round(sx / 0.2));
+			for (let i = 1; i < n; i++) g.add(B_(0.05, sy + 0.06, 0.05, DK, b.min.x + (i * sx) / n, cy, z));
+			g.add(B_(sx + 0.04, 0.05, 0.05, DK, (b.min.x + b.max.x) / 2, cy, z));
+		};
+	glass.forEach((b) => {
+		const sx = b.max.x - b.min.x,
+			sz = b.max.z - b.min.z;
+		if (b.max.y - b.min.y < 0.12) return;
+		if (sx <= sz) barsX(b, (b.min.x + b.max.x) / 2 > (fx + rx) / 2 ? b.max.x + 0.04 : b.min.x - 0.04);
+		if (sx > sz) barsZ(b, (b.min.z + b.max.z) / 2 > 0 ? b.max.z + 0.04 : b.min.z - 0.04);
+		else if (sz > W * 0.8 && sx >= 0.18) [b.max.z + 0.04, b.min.z - 0.04].forEach((z) => barsZ(b, z));
+	});
+	/* the cowcatcher: ahead of the front tyres and as wide as them, from just off the ground up past the body's front
+	   edge; tubes in a wedge, side frames, uprights, spikes along the bottom, arms back into the chassis */
+	const tf = Math.max(fx, ...tyres.map((p) => p.x + R)),
+		cw = Math.max(W / 2 + 0.22, ...tyres.map((p) => Math.abs(p.z) + 0.26)),
+		bx = tf + 0.08,
+		c0 = 0.26,
+		c1 = Math.max(0.92, fb + 0.3),
+		ch = c1 - c0,
+		at = (u) => [bx + 0.46 * (1 - u), c0 + u * ch];
+	[0.1, 0.37, 0.64, 0.9].forEach((u) => {
+		const [x, y] = at(u);
+		strut(g, [x, y, -cw], [x, y, cw], 0.09, ST, 1);
+	});
+	[-1, 1].forEach((sd) => {
+		const [x0, y0] = at(-0.03),
+			[x1, y1] = at(1);
+		strut(g, [x0, y0, sd * cw], [x1, y1, sd * cw], 0.11, DK, 2);
+		strut(g, [bx + 0.02, c1 - 0.06, sd * 0.36], [fx - 0.32, c1 - 0.06, sd * 0.36], 0.1, DK, 1);
+		strut(g, [x0, y0 + 0.04, sd * 0.42], [fx - 0.2, Math.max(y0 + 0.04, fb + 0.06), sd * 0.36], 0.08, DK, 2);
+	});
+	[-0.3, 0, 0.3].forEach((z) => strut(g, [...at(-0.02), z], [...at(0.98), z], 0.07, DK, 1));
+	for (let z = -cw + 0.12; z <= cw - 0.1; z += 0.2) spike(0.26, 0.055, bx + 0.48, 0.28, z, [1, -0.15, 0]);
+	/* the blower on the hood (trucks with one: cab-overs have the cab up front), a block, three chrome stacks */
+	if (hoodY < 1.05 + (g.userData.lift ? g.userData.lift.position.y + 0.1 : 0)) {
+		const hx = fx - 0.32;
+		g.add(B_(0.34, 0.14, 0.44, DK, hx, hoodY + 0.07, 0), B_(0.38, 0.05, 0.48, ST, hx, hoodY + 0.02, 0));
+		[-0.14, 0, 0.14].forEach((z) => {
+			g.add(
+				Cy(0.065, 0.075, 0.2, 8, CH, hx, hoodY + 0.24, z),
+				Cy(0.045, 0.045, 0.21, 8, "#23272F", hx, hoodY + 0.25, z),
+			);
+		});
+	}
+	/* rear push bar, at the body's lower edge */
+	const py = Math.max(0.42, sb + 0.06);
+	strut(g, [rx - 0.1, py, -W / 2 - 0.05], [rx - 0.1, py, W / 2 + 0.05], 0.12, DK, 1);
+	[-0.32, 0.32].forEach((z) => strut(g, [rx - 0.1, py, z], [rx + 0.06, py, z], 0.08, DK, 2));
+	/* where the strongbox goes */
+	const bed = kind === "pickup",
+		deck = (bed || kind === "tow") && mount,
+		drum = kind === "mixer" || kind === "tanker";
+	let top;
+	if (drum) {
+		/* a braced platform just over the drum / tank: its posts stand in front of and behind it (measured), on the
+		   chassis, clear of the tyres beside it */
+		const xs = [],
+			cab0 = fx - 0.72;
+		let hy = 0;
+		for (let x = rx + 0.05; x < cab0; x += 0.04) {
+			const h = Math.max(...[-0.3, 0, 0.3].map((z) => hAt(x, z, body)));
+			if (h > sb + 0.75) {
+				xs.push(x);
+				hy = Math.max(hy, h);
+			}
+		}
+		const x0 = Math.max(rx + 0.04, (xs[0] ?? rx + 0.3) - 0.12),
+			x1 = Math.min(cab0 - 0.06, (xs[xs.length - 1] ?? cab0 - 0.3) + 0.12),
+			pY = hy + 0.1,
+			pz = 0.4;
+		[x0, x1].forEach((x) => {
+			[-1, 1].forEach((sd) => strut(g, [x, sb + 0.04, sd * pz], [x, pY, sd * pz], 0.1, DK, 2));
+			strut(g, [x, sb + 0.12, -pz], [x, pY - 0.08, pz], 0.07, ST, 1);
+			strut(g, [x, sb + 0.12, pz], [x, pY - 0.08, -pz], 0.07, ST, 1);
+			strut(g, [x, pY - 0.04, -pz], [x, pY - 0.04, pz], 0.09, DK, 2);
+		});
+		[-1, 1].forEach((sd) => strut(g, [x0, pY - 0.04, sd * pz], [x1, pY - 0.04, sd * pz], 0.09, DK, 2));
+		g.add(B_(x1 - x0 + 0.2, 0.06, W * 0.92, ST, (x0 + x1) / 2, pY + 0.03, 0));
+		top = { x: (x0 + x1) / 2, y: pY + 0.06 };
+	} else top = deck ? { x: mount.x + (bed ? 0.03 : 0), y: mount.y } : truckTop(body);
+	/* the strongbox, a gold badge each side, and round it a roll cage with spotlights and beacons (in a pickup's bed
+	   there's no room: the lights go on a bar over the cab); vault = where it sits, so a game can put the money bags on it */
+	const bw = bed ? 0.54 : 0.86,
+		bd = W * 0.6,
+		bh = bed ? 0.36 : 0.32,
+		by = top.y + bh / 2 - 0.02,
+		rw = bw / 2 + 0.12,
+		rd = bd / 2 + 0.12,
+		ry = by + 0.3;
+	g.add(
+		B_(bw, bh, bd, ST, top.x, by, 0),
+		B_(bw + 0.06, 0.05, bd + 0.06, DK, top.x, by + bh / 2 + 0.02, 0),
+		B_(bw + 0.06, 0.05, bd + 0.06, DK, top.x, by - bh / 2 + 0.02, 0),
+	);
+	g.userData.vault = { x: top.x, y: by + bh / 2 + 0.045 };
+	[-1, 1].forEach((sd) => {
+		g.add(
+			B_(0.24, 0.2, 0.03, GO, top.x, by, sd * (bd / 2 + 0.02)),
+			B_(0.14, 0.11, 0.03, "#C8961E", top.x, by, sd * (bd / 2 + 0.035)),
+		);
+	});
+	const lamp = (x, y, z) => {
+			const sp = Cy(0.09, 0.11, 0.14, 8, DK, x, y, z),
+				ln = Cy(0.075, 0.075, 0.03, 8, "#FFF1C2", x + 0.08, y, z, { emissive: "#FFF1C2", emissiveIntensity: 1.2 });
+			sp.rotation.z = ln.rotation.z = Math.PI / 2;
+			g.add(sp, ln);
+		},
+		beaconA = (x, y, z) =>
+			g.add(Cy(0.07, 0.08, 0.12, 8, "#FFB547", x, y, z, { emissive: "#FF9A1F", emissiveIntensity: 1.2 }));
+	if (bed) {
+		const cx = mount.x + 0.8,
+			cy = hAt(cx, 0, body);
+		g.add(B_(0.14, 0.08, W * 0.86, DK, cx, cy + 0.04, 0));
+		[-1, 1].forEach((sd) => {
+			g.add(B_(0.08, 0.1, 0.08, DK, cx, cy + 0.02, sd * W * 0.36));
+			lamp(cx + 0.09, cy + 0.14, sd * 0.2);
+			beaconA(cx, cy + 0.14, sd * W * 0.4);
+		});
+		return;
+	}
+	[-1, 1].forEach((sd) => {
+		[-1, 1].forEach((fs) => strut(g, [top.x + fs * rw, top.y, sd * rd], [top.x + fs * rw, ry, sd * rd], 0.07, DK, 1));
+		strut(g, [top.x - rw, ry, sd * rd], [top.x + rw, ry, sd * rd], 0.07, DK, 2);
+		strut(g, [top.x + sd * rw, ry, -rd], [top.x + sd * rw, ry, rd], 0.07, DK, 2);
+		lamp(top.x + rw + 0.02, ry + 0.06, sd * (rd - 0.14));
+		beaconA(top.x - rw, ry + 0.09, sd * rd);
 	});
 }
 /* plain box for the monster kit (no chamfer: small parts stay crisp) */
@@ -21940,10 +22175,11 @@ const MG = {
 				p.g = g;
 			});
 		},
+		/* the highway (also Getaway's: this.LANES lanes, this.ROADL long, this.signTxt(z) on the gantries): dashed lane
+		   lines, guardrails, sign gantries, fields and houses */
 		road(W, wid) {
-			// four-lane highway: dashed lane lines, guardrails, sign gantries, fields and houses
 			const s = W.sc,
-				L = 1100,
+				L = this.ROADL || 1100,
 				zc = -L / 2 + 30;
 			s.add(texBox(220, 0.4, L, grassTex(), 10, 0, -0.25, zc));
 			s.add(texBox(wid + 1.4, 0.1, L, asphaltTex(), 8, 0, 0.05, zc));
@@ -21971,7 +22207,7 @@ const MG = {
 			roadLines(s, [-(wid / 2 + 0.35), wid / 2 + 0.35], 30, -L + 30, 0.104);
 			roadLines(
 				s,
-				[1, 2, 3].map((l) => (l - this.LANES / 2) * this.LW),
+				Array.from({ length: this.LANES - 1 }, (_, i) => (i + 1 - this.LANES / 2) * this.LW),
 				21.3,
 				-L + 30,
 				0.104,
@@ -21992,7 +22228,7 @@ const MG = {
 							x.textAlign = "center";
 							x.textBaseline = "middle";
 							x.fillStyle = "#fff";
-							x.fillText("POST OFFICE ▲", w / 2, h / 2 + 2);
+							x.fillText(this.signTxt ? this.signTxt(z) : "POST OFFICE ▲", w / 2, h / 2 + 2);
 						}),
 					}),
 				);
@@ -35349,6 +35585,582 @@ Object.assign(MG, {
 		botScore: (s) =>
 			s === 0 ? rnd(4) * 100 + rnd(6) : rnd(2) ? 1000 + rnd(3) * 100 + 45 : rnd(3) * 100 + 10 + rnd(30),
 	}),
+});
+
+/* Getaway (1 vs 3): a highway chase. The solo truck is an armoured cash truck (bigger, heavier) with BAGS cash bags on
+   its roof; the other three are cops. Everyone cruises up the road (-z) on their own: the stick steers across the lanes,
+   up / down speed up and brake within a band round V0. A cop's ram knocks one bag off (gone for good, +1 for that cop),
+   then the truck can't lose another for IMM s. The truck's button drops an oil slick behind it: cops that drive into it
+   spin out. Slower traffic (Rush Hour's cars, from the seed) fills the lanes for both sides; hitting a car costs speed.
+   The truck escapes if it reaches the tunnel TL m up the road with any cash; the cops win by stripping every bag, or if
+   time runs out first.
+   Sync: the truck's device owns its bags (e.f.bg), shares lost bags as e.f.lb [[n, cop key]] (the cop's device credits
+   it), oil slicks as e.f.oil [[id, x, z, t]] and the escape as e.f.esc; every device checks its own trucks against the
+   traffic (a function of time) and the slicks. Rams come through the engine (collide / rth → onRammed on the truck's
+   device). */
+Object.assign(MG, {
+	getaway: {
+		name: "Getaway",
+		kind: "arena",
+		ctrl: "stick",
+		team: "1v3",
+		hi: true,
+		unit: "bags",
+		dur: 75,
+		bare: true,
+		lt: { amb: 0.6, sun: 0.88, warm: 0.4, haze: 60 },
+		bound: { t: "none" },
+		/* the road: LANES lanes LW wide, ROADL long, the tunnel TL up it; traffic at CARV */
+		LANES: 6,
+		LW: 3.6,
+		ROADL: 1300,
+		TL: 1050,
+		CARV: 9,
+		CARCOL: MG.hop.CARCOL,
+		/* driving: cruise V0, the stick adds up to UP (truck) / UPC (cops) or takes off DN; lateral push LATA */
+		V0: 16,
+		UP: 4,
+		UPC: 7.5,
+		DN: 6,
+		LATA: 34,
+		/* cash: BAGS on the truck, IMM s safe after losing one; oil: cooldown OILCD, lasts OILT, radius OILR */
+		BAGS: 10,
+		IMM: 2.5,
+		OILCD: 7,
+		OILT: 8,
+		OILR: 1.9,
+		how: "1 vs 3 highway chase! The cash truck has to reach the tunnel with any cash left; the cops ram it to knock the money bags off. Mind the traffic!",
+		teamHow: (s) =>
+			s === 0
+				? "You're the CASH TRUCK: reach the tunnel with cash left. OIL behind you spins the cops out."
+				: "You're a COP: ram the cash truck to knock its money bags off before it reaches the tunnel!",
+		stickHint: (fine) =>
+			fine
+				? "WASD or arrows: steer, up = faster, down = brake. Space: ram (cops) / oil (cash truck)."
+				: "Drag to steer: up = faster, down = brake. The button: RAM for cops, OIL for the cash truck.",
+		ramLabel: (side) => (side === 0 ? "OIL" : "RAM"),
+		canRam: (e) => e.side === 1,
+		ramCd(W) {
+			const e = W.me;
+			return e.side === 0 ? Math.min(1, Math.max(0, ((e.oilCd || 0) - W.t) / this.OILCD)) : Math.min(1, e.bcd / 2);
+		},
+		ramReady(W) {
+			const e = W.me;
+			return e.side === 0 ? W.t >= (e.oilCd || 0) : e.bcd <= 0;
+		},
+		kits() {
+			MG.hop.kits.call(MG.hop);
+		},
+		lx(l) {
+			return (l - (this.LANES - 1) / 2) * this.LW;
+		},
+		carZ(W, c) {
+			return c.z0 - this.CARV * Math.max(0, W.t);
+		},
+		signTxt(z) {
+			return `TUNNEL ${Math.max(0, Math.round(this.TL + z))} m ▲`;
+		},
+		/* the cash truck (side 0) */
+		solo(W) {
+			return W.list.find((e) => e.side === 0 && !e.gone) || null;
+		},
+		build(W) {
+			const s = W.sc,
+				wid = this.LANES * this.LW;
+			MG.hop.road.call(this, W, wid);
+			/* traffic from the seed: rows of 1-3 cars, always at least three lanes free */
+			W.cars = [];
+			const kits = {};
+			for (let z = -55; z > -this.TL + 25; z -= 15 + W.rng() * 12) {
+				const lanes = [0, 1, 2, 3, 4, 5].sort(() => W.rng() - 0.5),
+					nc = 1 + Math.floor(W.rng() * 2.4);
+				for (let k = 0; k < nc; k++) {
+					const c = {
+							id: W.cars.length,
+							l: lanes[k],
+							z0: z - W.rng() * 4,
+							c: this.CARCOL[Math.floor(W.rng() * this.CARCOL.length)],
+						},
+						ty = CAR_TYPES[c.id % 4],
+						kit = kits[ty + c.c] || (kits[ty + c.c] = bakeKit(carModel(ty, c.c))),
+						g = kitGroup(kit);
+					g.position.set(this.lx(c.l), 0, c.z0);
+					s.add(g);
+					c.g = g;
+					W.cars.push(c);
+				}
+			}
+			W.cars.sort((a, b) => b.z0 - a.z0);
+			this.tunnel(W, wid);
+			W.oilM = {};
+		},
+		/* the tunnel: a concrete portal into a grassy hill, its name on the beam, amber lamps */
+		tunnel(W, wid) {
+			const s = W.sc,
+				z = -this.TL,
+				hw = wid / 2 + 1.6;
+			s.add(texBox(wid + 120, 18, 140, grassTex(), 10, 0, 8.6, z - 72));
+			s.add(B(wid + 40, 6, 40, "#5E9E4F", 0, 19, z - 50));
+			[-1, 1].forEach((sd) => {
+				s.add(B(3.2, 10, 3.4, "#9AA1AC", sd * (hw + 1.6), 5, z));
+				s.add(B(0.5, 10.2, 3.5, "#C9CED8", sd * (hw + 0.05), 5, z));
+			});
+			s.add(B(wid + 9.6, 2.6, 3.4, "#9AA1AC", 0, 8.7, z));
+			s.add(B(wid + 3.2, 7.4, 0.3, "#07090D", 0, 3.7, z - 1.55));
+			for (let i = 0; i < 6; i++) {
+				const m = B(0.9, 0.25, 0.3, "#FFB547", -wid / 2 + 2 + (i * (wid - 4)) / 5, 7.2, z + 1.8, {
+					emissive: "#FF9A1F",
+					emissiveIntensity: 1.4,
+				});
+				s.add(m);
+			}
+			const sg = new THREE.Mesh(
+				new THREE.PlaneGeometry(wid * 0.6, 1.6),
+				new THREE.MeshBasicMaterial({
+					map: canvasTex(512, 72, (x, w, h) => {
+						x.font = "52px Bungee, 'Arial Black', Impact, sans-serif";
+						x.textAlign = "center";
+						x.textBaseline = "middle";
+						x.fillStyle = "#151B24";
+						x.fillText("BORDER TUNNEL", w / 2, h / 2 + 3);
+					}),
+					transparent: true,
+				}),
+			);
+			sg.position.set(0, 8.7, z + 1.75);
+			s.add(sg);
+		},
+		/* the cash truck leads in the middle; the cops line up behind */
+		spawn(W, i) {
+			const e = W.list[i];
+			if (e && e.side === 0) return { x: 0, z: -14, yaw: Math.PI / 2 };
+			const solo = W.list[0] && W.list[0].side === 0,
+				j = solo ? i - 1 : i;
+			return { x: [-5.4, 5.4, 0, -9, 9][j % 5], z: 0, yaw: Math.PI / 2 };
+		},
+		initEnt(W, e) {
+			e.vx = e.vz = 0;
+			e.oilHit = {};
+			e.hitC = {};
+			if (e.side === 0) {
+				e.bags = this.BAGS;
+				e.lbN = 0;
+				e.mass = 3.2;
+				e.rad = 1.45;
+				/* the armoured version of its own truck (buildTruck mode "armour"), a size up */
+				const sc = 0.8 * 1.45;
+				e.g.remove(e.tr);
+				e.tr = buildTruck(e.p.truck, "armour");
+				e.tr.scale.setScalar(sc);
+				e.g.add(e.tr);
+				e.g.children.forEach((o) => {
+					if (o.isSprite) o.position.y = 3.8;
+				});
+				e.f = { bg: this.BAGS, lb: [], oil: [], esc: 0 };
+			} else e.f = {};
+		},
+		/* driving: cruise up the road; the stick steers and sets the speed; the button rams (cops) or drops oil (truck) */
+		phys(W, e, inp, dt) {
+			const solo = e.side === 0,
+				T = solo ? null : this.solo(W),
+				/* catch-up: a cop more than 20 m behind the truck gets extra top speed, so the pack stays together (and on
+				   the TV) */
+				lag = T ? e.z - T.z - 20 : 0,
+				top = this.V0 + (solo ? this.UP : this.UPC) + (lag > 0 ? Math.min(12, lag * 0.3) : 0),
+				low = this.V0 - this.DN,
+				on = inp && !e.d;
+			let fv = -e.vz;
+			const thr = on ? -(inp.y || 0) : 0,
+				want = thr >= 0 ? this.V0 + thr * (top - this.V0) : this.V0 + thr * (this.V0 - low),
+				acc = (W.t < (e.crT || 0) ? 5 : 11) * dt;
+			fv += Math.max(-acc, Math.min(acc, want - fv));
+			if (on) e.vx += (inp.x || 0) * this.LATA * dt;
+			e.slideT = Math.max(0, (e.slideT || 0) - dt);
+			e.bcd = Math.max(0, (e.bcd || 0) - dt);
+			e.boostT = Math.max(0, (e.boostT || 0) - dt);
+			if (on && inp.boost) {
+				if (solo) this.oil(W, e);
+				else if (e.bcd <= 0) {
+					/* the ram: a lunge forward and towards the stick (aim assist onto a truck in front, for you) */
+					let dx = inp.x || 0,
+						dz = -1;
+					const l = Math.hypot(dx, dz);
+					dx /= l;
+					dz /= l;
+					if (e.isMe) {
+						const at = ramAssist(W, e, dx, dz);
+						if (at) [dx, dz] = at;
+					}
+					e.vx += dx * 11;
+					fv += Math.max(4, -dz * 9);
+					e.boostT = 0.45;
+					e.bcd = 2;
+				}
+			}
+			if (inp) inp.boost = false;
+			/* spun out on oil: speed bleeds off, the truck slews */
+			const spin = W.t < (e.spinT || 0);
+			if (spin) {
+				fv *= Math.exp(-1.6 * dt);
+				e.vx += Math.sin(W.t * 9 + e.i) * 20 * dt;
+			}
+			e.vx *= Math.exp(-(e.slideT > 0 || spin ? 1.2 : 3.4) * dt);
+			const mx = e.boostT > 0 ? 16 : 9;
+			e.vx = Math.max(-mx, Math.min(mx, e.vx));
+			fv = Math.max(0, Math.min(top + (e.boostT > 0 ? 8 : 0), fv));
+			e.vz = -fv;
+			e.x += e.vx * dt;
+			e.z += e.vz * dt;
+			/* guardrails */
+			const hw = (this.LANES * this.LW) / 2 - (e.rad || 0.95) * 0.85;
+			if (Math.abs(e.x) > hw) {
+				e.x = Math.sign(e.x) * hw;
+				e.vx *= -0.4;
+				e.vz *= 0.97;
+			}
+			e.yaw = spin ? e.yaw + 11 * dt : lerpA(e.yaw, Math.atan2(-e.vz, e.vx), Math.min(1, dt * 8));
+			this.traffic(W, e);
+			e.f.t = Math.round(W.t * 100) / 100;
+		},
+		/* bumping into a car: thrown out beside it, down to below the traffic's speed for a moment */
+		traffic(W, e) {
+			const r = e.rad || 0.95;
+			for (const c of W.cars) {
+				const cz = this.carZ(W, c);
+				if (cz > e.z + 5) continue;
+				if (cz < e.z - 5) break;
+				if (c.kT !== undefined) continue;
+				const cx = this.lx(c.l),
+					dx = e.x - cx;
+				if (Math.abs(dx) > 1 + r || Math.abs(e.z - cz) > 2.2 + r * 0.7) continue;
+				const sd = dx >= 0 ? 1 : -1;
+				/* the cash truck just shoves cars off the road (shared as e.f.tk, so every screen sees it fly) */
+				if (e.side === 0) {
+					c.kT = W.t;
+					c.kd = -sd;
+					e.f.tk = (e.f.tk || []).concat([[c.id, Math.round(W.t * 100) / 100, -sd]]).slice(-8);
+					e.vz *= 0.97;
+					this.carFx(W, c, e);
+					continue;
+				}
+				e.x = cx + sd * (1.05 + r);
+				e.vx = sd * 5;
+				e.vz = -(this.CARV - 3);
+				e.slideT = 0.5;
+				e.crT = W.t + 1.2;
+				if (W.t - (e.hitC[c.id] ?? -9) > 1.5) {
+					e.hitC[c.id] = W.t;
+					fb(W, e, "CRASH!", { tone: "bad" });
+					mgLog(W, `${mgName(e)} hits traffic`);
+					e.lastHit = { k: "traffic", t: W.t };
+					if (e.isMe) {
+						W.shake = 0.45;
+						sfx("honk");
+					}
+				}
+			}
+		},
+		/* a car knocked off the road: glass and bits, a crunch */
+		carFx(W, c, by) {
+			const x = this.lx(c.l),
+				z = this.carZ(W, c);
+			burst(W.sc, x, 0.9, z, {
+				n: 14,
+				shape: "cube",
+				cols: [c.c, "#C9CED8", "#9FD8F0"],
+				spd: 5,
+				up: 5,
+				life: 0.8,
+				size: 0.7,
+			});
+			if (by && (by.isMe || W.split || W.tv)) sfx("crush");
+		},
+		/* the cash truck's oil slick, a few metres behind it */
+		oil(W, e) {
+			if (W.t < (e.oilCd || 0) || e.d) return;
+			e.oilCd = W.t + this.OILCD;
+			e.oilN = (e.oilN || 0) + 1;
+			const r = (v) => Math.round(v * 100) / 100;
+			e.f.oil = e.f.oil.concat([[e.oilN, r(e.x), r(e.z + 3.2), r(W.t)]]).slice(-4);
+			mgLog(W, `${mgName(e)} drops oil`);
+			if (e.isMe) sfx("splash");
+		},
+		/* a cop rams the cash truck (on the truck's device): one bag off, unless it lost one just now */
+		onRammed(W, e, by) {
+			if (e.side !== 0 || !by || by.side !== 1 || e.esc || e.bags <= 0 || W.t < (e.immT || 0)) return;
+			e.bags--;
+			e.immT = W.t + this.IMM;
+			e.lbN++;
+			e.f.bg = e.bags;
+			e.f.lb = e.f.lb.concat([[e.lbN, by.k]]).slice(-6);
+			fb(W, e, "−1 💰", { tone: "bad" });
+			mgLog(W, `${mgName(by)} knocks a bag off ${mgName(e)} (${e.bags} left)`);
+			if (!e.bags) fb(W, e, "STRIPPED!", { stamp: true });
+		},
+		rules(W, e, dt) {
+			if (e.d) return;
+			const T = this.solo(W),
+				tf = (T && T.f) || {};
+			/* the cash truck reaches the tunnel */
+			if (e === T && e.z < -this.TL && e.bags > 0 && !e.esc) {
+				e.esc = W.t;
+				e.f.esc = 1;
+				fb(W, e, "ESCAPED!", { stamp: true });
+				mgLog(W, `${mgName(e)} escapes with ${e.bags} bags`);
+				if (e.isMe) sfx("fanfare");
+			}
+			if (e.side === 1 && T) {
+				/* a bag this cop knocked off (the truck's device decides) */
+				(tf.lb || []).forEach(([n, k]) => {
+					if (k !== e.k || n <= (e.lbSeen || 0)) return;
+					e.lbSeen = n;
+					e.sc++;
+					fb(W, e, "+1 💰", { tone: "good" });
+					if (e.isMe) sfx("coin");
+				});
+				/* oil slicks */
+				(tf.oil || []).forEach(([id, x, z, t]) => {
+					if (W.t - t > this.OILT || e.oilHit[id] || Math.hypot(e.x - x, e.z - z) > this.OILR) return;
+					e.oilHit[id] = 1;
+					e.spinT = W.t + 1.1;
+					e.vz *= 0.6;
+					fb(W, e, "SPIN OUT!", { tone: "bad" });
+					mgLog(W, `${mgName(e)} spins out on oil`);
+					if (e.isMe) {
+						W.shake = 0.3;
+						sfx("skid");
+					}
+				});
+			}
+			/* it's over once the truck is through the tunnel or has nothing left (a moment later, so it shows) */
+			const over = tf.esc || (tf.bg !== undefined && tf.bg <= 0);
+			if (over && e.dT === undefined) e.dT = W.t + 1.5;
+			if (e.dT !== undefined && W.t >= e.dT) e.d = true;
+		},
+		timeUp() {},
+		/* truck: 1000 if it escaped + bags left; cops: bags knocked off */
+		final(W, e) {
+			return e.side === 0 ? (e.esc ? 1000 : 0) + e.bags : e.sc;
+		},
+		fmtE(W, e) {
+			if (e.side === 0) return `💰 ${e.local ? e.bags : e.f && e.f.bg !== undefined ? e.f.bg : this.BAGS}`;
+			return `+${Math.round(e.sc)} 💰`;
+		},
+		fmtTeam(v, s) {
+			if (s === 0) return v >= 1000 ? `Escaped with ${v - 1000} 💰` : v > 0 ? `Caught with ${v} 💰` : "Stripped clean";
+			return `${v} 💰 knocked off`;
+		},
+		teamWin(res, tm) {
+			const k = Object.keys(tm).find((q) => tm[q] === 0);
+			return k in res && res[k] >= 1000 ? 0 : 1;
+		},
+		botScore: (s) => (s === 0 ? (rnd(2) ? 1000 + 1 + rnd(7) : 0) : rnd(4)),
+		/* the top chip: how far the tunnel is */
+		clock(W) {
+			const T = this.solo(W);
+			return T ? `Tunnel ${Math.max(0, Math.round(this.TL + T.z))} m` : "";
+		},
+		/* cameras: yours from behind and above, looking up the road; the TV follows the whole pack */
+		cam(W, tgt, pos, far) {
+			if (W.tv) {
+				/* the whole pack, led a little up the road since the camera eases after a moving target */
+				const L = W.list.filter((e) => !e.gone),
+					zs = L.map((e) => e.z),
+					z0 = Math.min(...zs),
+					z1 = Math.max(...zs),
+					zc = (z0 + z1) / 2 - 5,
+					sp = z1 - z0;
+				const t = new THREE.Vector3(0, 0, zc - 6),
+					p = new THREE.Vector3(0, 19 + sp * 0.8, zc + 22 + sp * 0.62);
+				return [t, p];
+			}
+			const e = W.me,
+				x = e.x * 0.85,
+				t = new THREE.Vector3(x, 0, e.z - 13 * far),
+				p = new THREE.Vector3(x, 11.5 * far, e.z + 13.5 * far);
+			return [t, p];
+		},
+		/* visuals: traffic moving, the bags on the truck's roof, light bars on the cops, oil slicks, lost bags */
+		render(W, e, dt) {
+			this.scene(W);
+			const f = e.f || {};
+			/* another device's truck: projected on by the update's real age (its game time e.f.t, clocks are synced), the
+			   engine's guess doesn't know how old an update is and at highway speed every 0.1 s is 2 m */
+			if (!e.local && e.net && f.t !== undefined) {
+				const n = e.net,
+					age = Math.max(0, Math.min(0.6, W.t - f.t)),
+					k = Math.min(1, dt * 18);
+				e.x += (n.x + (n.vx || 0) * age - e.x) * k;
+				e.z += (n.z + (n.vz || 0) * age - e.z) * k;
+			}
+			if (e.side === 0) {
+				if (!e.bagG) {
+					/* on the strongbox (the armoured truck's vault, in truck units) */
+					const v = e.tr.userData.vault,
+						top = v ? { x: v.x * e.tr.scale.x, y: v.y * e.tr.scale.y } : truckTop(e.tr),
+						g = new THREE.Group(),
+						kit = this.bagKit();
+					for (let i = 0; i < this.BAGS; i++) {
+						const b = kitGroup(kit, 0),
+							row = Math.floor(i / 5),
+							col = i % 5;
+						b.position.set(
+							top.x - 0.9 + (i % 5) * 0.45,
+							top.y + 0.18 + (row ? 0.3 : 0),
+							(row ? 0.15 : -0.2) + (col % 2) * 0.05,
+						);
+						b.rotation.y = i * 1.3;
+						g.add(b);
+					}
+					e.g.add(g);
+					e.bagG = g;
+				}
+				const n = e.local ? e.bags : (f.bg ?? this.BAGS);
+				e.bagG.children.forEach((b, i) => (b.visible = i < n));
+				/* a bag knocked off: notes everywhere */
+				const lb = f.lb || [],
+					last = lb.length ? lb[lb.length - 1][0] : 0;
+				if (last !== (e.lbFx || 0)) {
+					e.lbFx = last;
+					burst(W.sc, e.x, 2.2, e.z, {
+						n: 22,
+						shape: "cube",
+						cols: ["#3DBA6E", "#9BE3B0", "#F4F6F9", "#C9A86A"],
+						spd: 6,
+						up: 6,
+						life: 1.1,
+						size: 0.8,
+					});
+					if (W.split || e.isMe || W.tv) sfx("coin");
+				}
+				/* a gold glint while it can't lose a bag */
+				if (e.local && W.t < (e.immT || 0)) e.bagG.position.y = Math.sin(W.t * 30) * 0.03;
+			} else {
+				if (!e.bar) {
+					const top = truckTop(e.tr),
+						g = new THREE.Group(),
+						red = B(0.32, 0.2, 0.7, "#E5484D", 0, 0, -0.38, { emissive: "#FF2A2A", emissiveIntensity: 1 }),
+						blue = B(0.32, 0.2, 0.7, "#2F7DE1", 0, 0, 0.38, { emissive: "#2A6BFF", emissiveIntensity: 1 });
+					g.add(B(0.4, 0.12, 1.6, "#23272F", 0, -0.12, 0), red, blue);
+					g.position.set(top.x, top.y + 0.18, 0);
+					e.g.add(g);
+					e.bar = { g, red, blue };
+				}
+				const ph = Math.floor(W.t * 6 + e.i) % 2;
+				e.bar.red.material.emissiveIntensity = ph ? 1.6 : 0.1;
+				e.bar.blue.material.emissiveIntensity = ph ? 0.1 : 1.6;
+			}
+		},
+		/* a money bag: a squat sack with a tied neck */
+		bagKit() {
+			if (this.BK) return this.BK;
+			const g = new THREE.Group(),
+				sack = mesh(new THREE.IcosahedronGeometry(0.22, 1), "#C9A86A");
+			sack.scale.set(1, 0.85, 1);
+			g.add(sack, Cy(0.08, 0.11, 0.1, 6, "#A88A52", 0, 0.2, 0), B(0.2, 0.04, 0.2, "#3DBA6E", 0, 0.05, 0.2));
+			return (this.BK = bakeKit(g, { ao: false, ground: false }));
+		},
+		/* once a frame: the traffic, the oil slicks */
+		scene(W) {
+			if (W.scF === W.t) return;
+			W.scF = W.t;
+			const T = this.solo(W);
+			/* cars the cash truck hit (here or on its device) fly off the road: sideways, up, spinning, into the field */
+			((T && T.f && T.f.tk) || []).forEach(([id, t, d]) => {
+				const c = W.cars.find((q) => q.id === id);
+				if (c && c.kT === undefined) {
+					c.kT = t;
+					c.kd = d;
+					this.carFx(W, c, T);
+				}
+			});
+			W.cars.forEach((c) => {
+				const z = this.carZ(W, c);
+				if (c.kT === undefined) return (c.g.position.z = z);
+				const a = Math.max(0, W.t - c.kT),
+					s = Math.min(1, a / 1.4);
+				c.g.position.set(this.lx(c.l) + c.kd * (16 * s - 4 * s * s), Math.max(0, 5 * a - 6 * a * a), z + a * 4);
+				c.g.rotation.set(0, c.kd * a * 3.2, c.kd * Math.min(1.4, a * 2.4));
+			});
+			const oil = (T && T.f && T.f.oil) || [];
+			oil.forEach(([id, x, z, t]) => {
+				let m = W.oilM[id];
+				if (!m) {
+					m = W.oilM[id] = decal(W.sc, new THREE.CircleGeometry(this.OILR, 18), "#101317", x, 0.13, z, 0.85);
+					m.scale.set(1, 0.75, 1);
+					m.userData.t = t;
+				}
+			});
+			for (const id in W.oilM) {
+				const m = W.oilM[id],
+					a = W.t - m.userData.t;
+				m.visible = a < this.OILT;
+				if (m.visible) m.material.opacity = 0.85 * Math.min(1, (this.OILT - a) / 1.5) * Math.min(1, a * 4 + 0.3);
+			}
+		},
+		/* CPUs: the truck keeps to a clear lane at full speed and oils a cop close behind; cops steer at it, catch up and
+		   ram when close; both swerve round traffic ahead */
+		bot(W, e) {
+			const o = { x: 0, y: -1, boost: false };
+			if (W.t < 0 || e.d) return o;
+			e.sk = e.sk ?? 0.4 + Math.random() * 0.6;
+			const T = this.solo(W),
+				oil = (T && T.f && T.f.oil) || [],
+				blocked = (x, far) =>
+					W.cars.some((c) => {
+						const cz = this.carZ(W, c);
+						return cz < e.z && cz > e.z - far && Math.abs(this.lx(c.l) - x) < 2.4;
+					}) ||
+					(e.side === 1 &&
+						oil.some(
+							([, ox, oz, t]) => W.t - t < this.OILT && oz < e.z && oz > e.z - far * 0.6 && Math.abs(ox - x) < 2.6,
+						)),
+				clear = (want) => {
+					let best = want,
+						bd = 1e9;
+					for (let l = 0; l < this.LANES; l++) {
+						const x = this.lx(l);
+						if (blocked(x, 26)) continue;
+						const d = Math.abs(x - want) + Math.abs(x - e.x) * 0.5;
+						if (d < bd) {
+							bd = d;
+							best = x;
+						}
+					}
+					return best;
+				};
+			let tx = e.x;
+			if (e.side === 0 || !T) {
+				const cops = W.list.filter((q) => q.side === 1 && !q.gone),
+					near = cops.find((q) => Math.abs(q.x - e.x) < 4.5 && Math.abs(q.z - e.z) < 5);
+				tx = blocked(e.x, 24) ? clear(e.x) : near ? e.x + (e.x > near.x ? 6 : -6) : e.x;
+				if (cops.some((q) => q.z > e.z + 2 && q.z < e.z + 9 && Math.abs(q.x - e.x) < 3) && Math.random() < 0.12 * e.sk)
+					o.boost = true;
+			} else {
+				/* a beat late and a little off: re-aim every 0.3-0.8 s with a miss of up to a lane, and ease off to about the
+				   truck's speed once close instead of riding its bumper */
+				if (W.t >= (e.reT || 0)) {
+					e.reT = W.t + 0.3 + Math.random() * 0.5 * (1.4 - e.sk);
+					e.aimX = T.x + (Math.random() - 0.5) * 2.4 * (1.3 - e.sk);
+				}
+				const dz = e.z - T.z;
+				tx = blocked(e.aimX, 22) ? clear(e.aimX) : e.aimX;
+				o.y = dz > 6 ? -1 : dz > 1.5 ? -0.65 : dz < -3 ? 0.7 : 0;
+				if (Math.hypot(T.x - e.x, T.z - e.z) < 4 && e.bcd <= 0 && Math.random() < 0.1 * e.sk) o.boost = true;
+			}
+			o.x = Math.max(-1, Math.min(1, (tx - e.x) * 0.45));
+			return o;
+		},
+		watchSum(W) {
+			const T = this.solo(W);
+			return T ? `cash truck: ${T.f.bg} bags${T.f.esc ? ", escaped" : ""}, at ${Math.round(-T.z)} m` : "";
+		},
+		/* tools/nettest.mjs: the bags and the escape must agree */
+		syncSnap(W) {
+			const T = this.solo(W);
+			return T ? { bags: T.local ? T.bags : T.f.bg, esc: !!(T.f && T.f.esc) } : 0;
+		},
+	},
 });
 /* ---------- shared minigame scenery: ground textures, road wear, kerbs, verges, automatic tyre tracks ---------- */
 /* Textures are drawn once per kind and cached (cosmetic, so Math.random is fine); texRep() gives a mesh its own repeat. */

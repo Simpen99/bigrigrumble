@@ -126,6 +126,8 @@ export const PRESETS = {
 	),
 	/* the playable trucks face +x; faceZ() turns them so the rig's "front" view (from -z) shows their front */
 	trucks: Array.from({ length: 12 }, (_, i) => `faceZ(buildTruck(${i}))`),
+	/* Getaway: the cash truck, each truck armoured up */
+	armour: Array.from({ length: 12 }, (_, i) => `faceZ(buildTruck(${i}, "armour"))`),
 	/* Fire Brigade: each truck with its roof hose rig, mounted the way the game does it */
 	hosetrucks: Array.from(
 		{ length: 12 },
