@@ -7493,8 +7493,8 @@ Object.assign(MG, {
 		CARCOL: MG.hop.CARCOL,
 		/* driving: cruise V0, the stick adds up to UP (truck) / UPC (cops) or takes off DN; lateral push LATA */
 		V0: 16,
-		UP: 4,
-		UPC: 7.5,
+		UP: 5.5,
+		UPC: 4,
 		DN: 6,
 		LATA: 34,
 		/* cash: BAGS on the truck, IMM s safe after losing one; oil: cooldown OILCD, lasts OILT, radius OILR */
@@ -8136,10 +8136,10 @@ Object.assign(MG, {
 		phys(W, e, inp, dt) {
 			const solo = e.side === 0,
 				T = solo ? null : this.solo(W),
-				/* catch-up: a cop more than 15 m behind the truck cruises faster and gets extra top speed, so the pack stays
+				/* catch-up: a cop more than 35 m behind the truck cruises faster and gets extra top speed, so the pack stays
 				   together (and on the TV) */
-				lag = T ? e.z - T.z - 15 : 0,
-				cu = lag > 0 ? Math.min(20, lag * 0.6) : 0,
+				lag = T ? e.z - T.z - 35 : 0,
+				cu = lag > 0 ? Math.min(12, lag * 0.4) : 0,
 				hooks = solo ? this.hooks(W, e) : [],
 				/* the cash truck: slowed a moment after a hit, by a hook on it, in cement / gravel / trash; a cop: on nitro */
 				nitro = !solo && W.t < (e.nitroT || 0),
@@ -9492,7 +9492,7 @@ Object.assign(MG, {
 				if (W.wind) {
 					const L = W.tv ? W.list.filter((e) => !e.gone) : [W.me],
 						sp = L.reduce((a, e) => a + Math.hypot(e.vx || 0, e.vz || 0), 0) / Math.max(1, L.length);
-					W.wind.set(Math.min(1, sp / (this.V0 + this.UPC)), W.t >= 0 && !W.over);
+					W.wind.set(Math.min(1, sp / (this.V0 + this.UP)), W.t >= 0 && !W.over);
 				}
 			}
 			const T = this.solo(W);
