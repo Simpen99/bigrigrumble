@@ -522,7 +522,7 @@ document.addEventListener("click", (e) => {
 function homeHTML() {
 	const saved = LS.get("trp_host", null);
 	const canResume = saved && saved.phase && saved.phase !== "over" && saved.players && saved.players.length;
-	return `<div class="stage"><div class="logo"><img class="lg" src="${LOGO_ART}" alt="Big Rig Rumble"></div><div id="shown">${showNameHTML(me.truck)}</div></div>
+	return `<div class="stage"><div class="logo"><img class="lg" src="${UI_STY === "px" ? LOGO_PX_ART : LOGO_ART}" alt="Big Rig Rumble"></div><div id="shown">${showNameHTML(me.truck)}</div></div>
   ${notice ? `<div class="banner">${esc(notice)}</div>` : ""}
   <section class="sheet"><div class="ribbon"><span>Choose your truck</span></div><h2 class="rbh">Choose your truck</h2>${carouselHTML(me.truck)}
   <p class="note" style="margin-top:4px">Each truck brings its own die. Small numbers under a face are coins you gain or pay when you roll it. The standard 1–6 die is always available too.</p>
