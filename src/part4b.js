@@ -5664,7 +5664,7 @@ const MG = {
 					spots.push([tx, z - 9], [hx - 3.1, z + 2.6], [hx + 3.1, z + 2.6], [hx - 4.65, z + 7.9], [hx + 4.65, z + 7.9]);
 				}
 			});
-			placeKits(s, houseKits(), homes);
+			placeKits(s, houseKits(), homes, 0.3, 120);
 			vergeScatter(s, [], 0, 0, 0, spots, -0.05);
 		},
 		spawn: (W, i) => ({ x: MG.hop.lx(i % 4), z: 0, yaw: Math.PI / 2 }),

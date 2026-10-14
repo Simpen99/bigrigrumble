@@ -5787,8 +5787,11 @@ Object.assign(MG, {
    e.f.dy (crate carried), e.f.dh (TNT hits; the boss HP is the sum), e.f.nr (magnet timer), e.f.gr (grabbed).
    Crates come from the seed (pickups through W.claim). */
 const MM = {
-	R: 15,
-	LIVES: 2 /* falls into the mud before a survivor is out */,
+	R: 19.5 /* the stage, 30% bigger than it was: its outer band (past RC) crumbles away during the fight */,
+	RC: 14.4 /* the solid core; the band from RC to R is SECS slices that sink one batch at a time */,
+	SECS: 16,
+	WARN: 3 /* a slice cracks and glows this long before it sinks */,
+	LIVES: 3 /* falls into the mud before a survivor is out */,
 	TV: 12 /* tyre speed */,
 	CLAW: 1.1 /* seconds close before the magnet grabs */,
 	WIND: 0.6 /* ground pound: wind-up after the button */,
@@ -5796,7 +5799,7 @@ const MM = {
 	STUN: 1 /* shockwave stun */,
 	RING: 10 /* shockwave speed */,
 	CUT: 1.6 /* phase change: everyone freezes while the camera visits the monster */,
-	hpMax: (n) => Math.min(16, Math.max(8, n * 4)),
+	hpMax: (n) => Math.max(8, n * 8),
 };
 /* the highest roof along a truck's centre line (raycast down): {x, y} in the truck's parent space */
 function truckTop(tr) {
@@ -5946,11 +5949,11 @@ Object.assign(MG, {
 	mash: Object.assign({}, MG.bumper, {
 		name: "Monster Mash",
 		team: "1v3",
-		dur: 60,
+		dur: 120,
 		lastStanding: false,
 		noAssist: true,
 		camZoom: 1.15,
-		BOWL: 20.4 /* Mud Brawl's bowl, 20% bigger */,
+		BOWL: 26.5 /* Mud Brawl's bowl, 55% bigger */,
 		deathY: -99 /* falling into the mud costs a life (fallen), it doesn't knock you out by itself */,
 		/* new look: a stadium at dusk, floodlights on the stage (starting values, tune in the light panel) */
 		sun: [14, 15, 11],
@@ -6090,13 +6093,13 @@ Object.assign(MG, {
 			W.HP = W.hp = MM.hpMax(n);
 			W.ph = 1;
 			/* TNT crates on a schedule from the seed, more often with fewer survivors */
-			const every = Math.min(6, Math.max(2, 10.5 / n)),
+			const every = Math.min(6, Math.max(2, 9 / n)),
 				rr = mulberry((W.mg.seed || 1) + 907),
 				cm = new THREE.MeshStandardMaterial({ map: hlCrateTex(), roughness: 0.9 });
 			W.mm.crates = [];
 			for (let k = 0; 2.5 + k * every < this.dur; k++) {
 				const a = rr() * Math.PI * 2,
-					r = 6.5 + rr() * (MM.R - 7.7),
+					r = 6.5 + rr() * (MM.RC - 7.7),
 					g = new THREE.Group(),
 					box = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.95, 0.95), cm);
 				box.castShadow = true;
@@ -6114,7 +6117,155 @@ Object.assign(MG, {
 				W.mm.crates.push({ id: k + 1, ts, te: ts + 14, x: g.position.x, z: g.position.z, g, box, sh, mark });
 			}
 			this.lights(W);
+			this.stage(W);
+			this.geysers(W);
 		},
+		/* the stage, rebuilt: a solid core (RC) and a band of SECS slices round it, each its own piece that can crack and
+		   sink; faint seams show where it will break */
+		stage(W) {
+			const P = W.plat;
+			while (P.children.length) P.remove(P.children[0]);
+			P.scale.set(1, 1, 1);
+			const RC = MM.RC,
+				R = MM.R,
+				top = "#8A6A48",
+				side = "#6B4F35";
+			P.add(Cy(RC, RC, 1.4, 48, top, 0, -0.7, 0), Cy(RC - 0.6, RC, 2.2, 48, side, 0, -1.3, 0));
+			P.add(Cy(3, 3, 0.06, 24, "#E5484D", 0, 0.03, 0), Cy(2.6, 2.6, 0.06, 24, "#FFC83D", 0, 0.06, 0));
+			const stripes = canvasTex(64, 32, (x, w, h) => {
+					for (let i = 0; i < 4; i++) {
+						x.fillStyle = i % 2 ? "#E5484D" : "#FFC83D";
+						x.fillRect(i * 16, 0, 16, h);
+					}
+				}),
+				crackTex = canvasTex(256, 256, (x, w, h) => {
+					/* jagged dark cracks */
+					x.strokeStyle = "rgba(35,22,12,0.95)";
+					x.lineCap = "round";
+					const rr = mulberry(77);
+					for (let k = 0; k < 9; k++) {
+						let px = rr() * w,
+							py = rr() * h,
+							a = rr() * 6.28;
+						x.lineWidth = 2 + rr() * 3;
+						x.beginPath();
+						x.moveTo(px, py);
+						for (let j = 0; j < 7; j++) {
+							a += (rr() - 0.5) * 1.4;
+							px += Math.cos(a) * 22;
+							py += Math.sin(a) * 22;
+							x.lineTo(px, py);
+						}
+						x.stroke();
+					}
+				}),
+				sideM = M(side),
+				da = (Math.PI * 2) / MM.SECS;
+			crackTex.wrapS = crackTex.wrapT = THREE.RepeatWrapping;
+			crackTex.repeat.set(1 / 7, 1 / 7);
+			W.mm.sec = [];
+			for (let i = 0; i < MM.SECS; i++) {
+				const a0 = i * da + 0.012,
+					a1 = (i + 1) * da - 0.012,
+					sh = new THREE.Shape(),
+					N = 6;
+				for (let j = 0; j <= N; j++) {
+					const a = a0 + ((a1 - a0) * j) / N;
+					if (j) sh.lineTo(Math.cos(a) * R, Math.sin(a) * R);
+					else sh.moveTo(Math.cos(a) * R, Math.sin(a) * R);
+				}
+				for (let j = N; j >= 0; j--) {
+					const a = a0 + ((a1 - a0) * j) / N;
+					sh.lineTo(Math.cos(a) * (RC + 0.04), Math.sin(a) * (RC + 0.04));
+				}
+				const geo = new THREE.ExtrudeGeometry(sh, { depth: 2.4, bevelEnabled: false, curveSegments: 1 });
+				geo.rotateX(-Math.PI / 2);
+				geo.translate(0, -2.4, 0);
+				const topM = M(top).clone(),
+					m = new THREE.Mesh(geo, [topM, sideM]),
+					g = new THREE.Group(),
+					rim = new THREE.Mesh(
+						new THREE.CylinderGeometry(R + 0.05, R + 0.05, 0.5, 6, 1, true, a0 + Math.PI / 2, a1 - a0),
+						new THREE.MeshStandardMaterial({ map: stripes, side: THREE.DoubleSide }),
+					),
+					ck = new THREE.Mesh(
+						new THREE.ShapeGeometry(sh, 1),
+						new THREE.MeshBasicMaterial({
+							map: crackTex,
+							transparent: true,
+							opacity: 0,
+							depthWrite: false,
+							polygonOffset: true,
+							polygonOffsetFactor: -3,
+						}),
+					);
+				rim.material.map.repeat.set(((a1 - a0) * R) / 4, 1);
+				rim.material.map.wrapS = THREE.RepeatWrapping;
+				rim.position.y = -0.2;
+				ck.rotation.x = -Math.PI / 2;
+				ck.position.y = 0.03;
+				ck.visible = false;
+				m.castShadow = m.receiveShadow = true;
+				g.add(m, rim, ck);
+				P.add(g);
+				W.mm.sec.push({ i, g, topM, ck, am: (i + 0.5) * da, warnT: undefined });
+			}
+			/* faint seams: the core's edge and the cuts between slices */
+			const seam = new THREE.Mesh(
+				new THREE.RingGeometry(RC - 0.03, RC + 0.05, 64),
+				new THREE.MeshBasicMaterial({ color: "#4A3524", transparent: true, opacity: 0.55, depthWrite: false }),
+			);
+			seam.rotation.x = -Math.PI / 2;
+			seam.position.y = 0.02;
+			P.add(seam);
+			/* which slices go, batch by batch: the same order on every device (from the seed) */
+			const rr = mulberry((W.mg.seed || 1) + 313),
+				ord = Array.from({ length: MM.SECS }, (_, i) => i);
+			for (let i = ord.length - 1; i > 0; i--) {
+				const j = Math.floor(rr() * (i + 1));
+				[ord[i], ord[j]] = [ord[j], ord[i]];
+			}
+			W.mm.ord = ord;
+			W.mm.crN = 0;
+			W.mm.crDone = {};
+		},
+		/* slice index at a point, and whether that slice is gone (or about to go: soon = counting its warning too) */
+		secAt(x, z) {
+			const a = Math.atan2(-z, x);
+			return Math.floor((((a % 6.2832) + 6.2832) % 6.2832) / ((Math.PI * 2) / MM.SECS)) % MM.SECS;
+		},
+		gone(W, i, soon) {
+			const q = W.mm.sec && W.mm.sec[i];
+			return !!(q && q.warnT !== undefined && W.t >= q.warnT + (soon ? 0 : MM.WARN));
+		},
+		/* how far out the stage reaches in this direction */
+		edgeR(W, x, z, soon) {
+			return this.gone(W, this.secAt(x, z), soon) ? MM.RC : MM.R;
+		},
+		/* a batch of slices starts cracking: 3 more from the seeded order */
+		crumble(W, why) {
+			const mm = W.mm;
+			if (!mm.sec) return;
+			const ids = mm.ord.slice(mm.crN * 3, mm.crN * 3 + 3);
+			if (!ids.length) return;
+			mm.crN++;
+			ids.forEach((i) => (mm.sec[i].warnT = W.t));
+			mgLog(W, `CRUMBLE ${why}: slices ${ids.join(",")}`);
+			sfx("rumble");
+		},
+		/* mud geysers on a schedule from the seed: more often as the fight goes on; each bubbles for 2 s, then blasts */
+		geysers(W) {
+			const rr = mulberry((W.mg.seed || 1) + 571),
+				g = [];
+			for (let t = 10 + rr() * 4; t < this.dur; t += Math.max(3.2, 9 - t * 0.05) * (0.8 + rr() * 0.4)) {
+				const a = rr() * Math.PI * 2,
+					d = 4.6 + rr() * (MM.RC - 6.2);
+				g.push({ id: g.length + 1, t, x: Math.cos(a) * d, z: Math.sin(a) * d });
+			}
+			W.mm.gy = g;
+			W.mm.gyFx = {};
+		},
+
 		/* dusk stadium: a lamp bank on top of each of the bowl's 8 floodlight poles (glowing lenses), and two real
 		   spotlights with fading beams from opposite poles onto the stage (more would cost phones too much) */
 		lights(W) {
@@ -6181,7 +6332,7 @@ Object.assign(MG, {
 				j = solo ? i - 1 : i,
 				m = solo ? n - 1 : n,
 				a = (j / Math.max(1, m)) * Math.PI * 2 + Math.PI / 2;
-			return { x: Math.cos(a) * 9.5, z: Math.sin(a) * 9.5, yaw: Math.atan2(Math.sin(a), -Math.cos(a)) };
+			return { x: Math.cos(a) * 12, z: Math.sin(a) * 12, yaw: Math.atan2(Math.sin(a), -Math.cos(a)) };
 		},
 		initEnt(W, e) {
 			e.f = { dh: 0, dy: 0 };
@@ -6229,7 +6380,16 @@ Object.assign(MG, {
 			e.chg = 0;
 		},
 		inside(W, x, z, e) {
-			return (e && e.side === 0) || Math.hypot(x, z) < MM.R + 0.15;
+			if (e && e.side === 0) return true;
+			const d = Math.hypot(x, z);
+			return d < MM.RC + 0.15 || (d < MM.R + 0.15 && !this.gone(W, this.secAt(x, z)));
+		},
+		/* in the mud: a truck under a slice that sank can float in there (the stage's side is the core's) */
+		fallPhys(W, e, dt) {
+			const o = Object.create(this),
+				out = this.gone(W, this.secAt(e.x, e.z));
+			o.R = () => (out ? (MM.RC - 0.4) / 1.04 : MM.R);
+			return MG.bumper.fallPhys.call(o, W, e, dt);
 		},
 		/* shared per-frame state: boss HP and phase, live tyres and shockwave from the monster's shared fields */
 		tick(W) {
@@ -6255,6 +6415,7 @@ Object.assign(MG, {
 							size: 1.6,
 						});
 				mgLog(W, `PHASE ${ph} (${W.hp} HP)`);
+				W.mm.crQ = (W.mm.crQ || []).concat([["phase " + ph, W.t + MM.CUT]]);
 				if (m)
 					burst(W.sc, m.x, 2, m.z, {
 						n: 26,
@@ -6268,6 +6429,28 @@ Object.assign(MG, {
 				sfx("thunder");
 			}
 			W.ph = W.mm.ph;
+			{
+				const mm = W.mm;
+				[40, 80].forEach((T) => {
+					if (W.t >= T && !mm.crDone[T]) {
+						mm.crDone[T] = 1;
+						mm.crQ = (mm.crQ || []).concat([[T + " s", W.t]]);
+					}
+				});
+				if (mm.crQ && W.ko === undefined)
+					mm.crQ = mm.crQ.filter(([why, t]) => {
+						if (W.t < t) return true;
+						this.crumble(W, why);
+						return false;
+					});
+				/* a slice going down under a truck: that's what knocked it in */
+				W.list.forEach((o) => {
+					if (o.local && o.al && !o.falling && o.side !== 0 && !this.inside(W, o.x, o.z, o))
+						o.lastHit = { k: "crumble", t: W.t };
+				});
+				/* geysers: the eruption window; local survivors on top get thrown */
+				W.gyLive = (mm.gy || []).filter((q) => W.t > q.t - 2 && W.t < q.t + 1.2);
+			}
 			if (m) {
 				m.rad = W.ph < 3 ? 2.8 : 1.71;
 				m.mass = W.ph < 3 ? 50 : 4;
@@ -6347,7 +6530,7 @@ Object.assign(MG, {
 				/* loose: drives (no ram), can't leave the stage */
 				arenaPhys(W, e, inp && !jumping ? { x: inp.x, y: inp.y, boost: false } : null, dt);
 				if (jumping) e.vx = e.vz = 0;
-				const lim = MM.R - 1.2,
+				const lim = this.edgeR(W, e.x, e.z) - 1.2,
 					d = Math.hypot(e.x, e.z);
 				if (d > lim) {
 					const nx = e.x / d,
@@ -6382,7 +6565,7 @@ Object.assign(MG, {
 					const r = (v) => Math.round(v * 100) / 100;
 					e.chg = 0;
 					e.chgT = undefined;
-					e.pcd = ph === 3 ? 5 : 6;
+					e.pcd = ph === 3 ? 6 : 7;
 					e.f.gpn = (e.f.gpn | 0) + 1;
 					e.f.gp = [e.f.gpn, r(W.t), r(e.x), r(e.z)];
 					mgLog(W, "boss: ground pound");
@@ -6534,7 +6717,7 @@ Object.assign(MG, {
 					e.tyHit[t.id] = 1;
 					if (W.t - (e.tyT || -9) > 0.3) {
 						e.tyT = W.t;
-						this.knock(W, e, t.dx, t.dz, 16, 0.7, "tyre");
+						this.knock(W, e, t.dx, t.dz, 13, 0.7, "tyre");
 						e.reelT = 0.35;
 					}
 				}
@@ -6555,6 +6738,7 @@ Object.assign(MG, {
 							life: 0.4,
 						});
 						fb(W, e, "Dodged!", { tone: "good" });
+						mgLog(W, `${mgName(e)} dodges the shockwave`);
 					} else {
 						this.knock(W, e, dx / d, dz / d, 6, 0.5, "shockwave");
 						e.stunT = MM.STUN;
@@ -6563,6 +6747,22 @@ Object.assign(MG, {
 					}
 				}
 			}
+			for (const q of W.gyLive || [])
+				if (W.t >= q.t && W.t < q.t + 0.5 && !safe && !(e.gyHit || (e.gyHit = {}))[q.id]) {
+					const dx = e.x - q.x,
+						dz = e.z - q.z,
+						d = Math.hypot(dx, dz);
+					if (d < 2.1) {
+						e.gyHit[q.id] = 1;
+						const nx = d > 0.1 ? dx / d : Math.cos(q.id),
+							nz = d > 0.1 ? dz / d : Math.sin(q.id);
+						this.knock(W, e, nx, nz, 7, 0.6, "geyser");
+						e.vy = 13;
+						e.y = Math.max(e.y, 0.05);
+						e.stunT = Math.max(e.stunT || 0, 0.5);
+						e.f.gyl = Math.round(W.t * 100) / 100;
+					}
+				}
 			if (!e.f.dy)
 				for (const c of W.mm.crates)
 					if (W.t >= c.ts + 0.5 && W.t < c.te && Math.hypot(e.x - c.x, e.z - c.z) < 1.6 && W.claim(c.id)) {
@@ -6951,13 +7151,17 @@ Object.assign(MG, {
 				c.sh.scale.setScalar(0.4 + 0.6 * k);
 				c.mark.material.opacity = k * (0.45 + 0.3 * Math.sin(W.t * 6));
 			});
+			this.stageFx(W, dt);
 			/* boss bar: the monster's name and one segment per HP */
 			let bar = document.getElementById("mmbar");
 			const box = document.getElementById("mg");
 			if (!bar && box && m) {
 				bar = document.createElement("div");
 				bar.id = "mmbar";
-				bar.innerHTML = `<b>${esc(TRUCKS[m.p.truck].name)}</b><div class="mmhp"></div>`;
+				bar.innerHTML = `<b>${esc(TRUCKS[m.p.truck].name)}</b><div class="mmhp" style="width:${Math.min(
+					210,
+					W.HP * 18,
+				)}px"></div>`;
 				box.appendChild(bar);
 				mm.barHp = null;
 			}
@@ -6973,6 +7177,158 @@ Object.assign(MG, {
 				bar.classList.add("hit");
 			}
 		},
+		/* a cracking slice glows and shakes (cracks spreading over it), then tips outwards and sinks into the mud; a geyser
+		   bubbles in a ring that says how far it reaches, then blasts a column of mud */
+		stageFx(W, dt) {
+			const mm = W.mm,
+				near = (x, z, d) => W.tv || Math.hypot(W.me.x - x, W.me.z - z) < d;
+			(mm.sec || []).forEach((q) => {
+				if (q.warnT === undefined || q.sunk) return;
+				const k = W.t - q.warnT,
+					cx = Math.cos(q.am) * (MM.R + MM.RC) * 0.5,
+					cz = -Math.sin(q.am) * (MM.R + MM.RC) * 0.5;
+				if (k < MM.WARN) {
+					q.ck.visible = true;
+					q.ck.material.opacity = Math.min(1, k / 1.5);
+					q.topM.emissive.set("#FF5A1F");
+					q.topM.emissiveIntensity = (0.12 + 0.3 * (k / MM.WARN)) * (0.6 + 0.4 * Math.sin(W.t * (8 + k * 5)));
+					q.g.position.y = (Math.random() - 0.5) * 0.05 * (k / MM.WARN);
+					if (Math.random() < dt * (3 + k * 3)) {
+						const a = q.am + (Math.random() - 0.5) * 0.35,
+							d = MM.RC + Math.random() * (MM.R - MM.RC);
+						burst(W.sc, Math.cos(a) * d, 0.2, -Math.sin(a) * d, {
+							n: 3,
+							shape: "cube",
+							cols: ["#8A6A48", "#6B4F35"],
+							spd: 1.2,
+							up: 2.5,
+							grav: 14,
+							life: 0.7,
+							size: 0.9,
+						});
+					}
+					return;
+				}
+				const sk = k - MM.WARN;
+				if (!q.down) {
+					q.down = 1;
+					q.topM.emissiveIntensity = 0;
+					if (near(cx, cz, 30)) sfx("slump");
+					if (near(cx, cz, 12)) W.shake = Math.max(W.shake, 0.35);
+					for (let j = 0; j < 6; j++) {
+						const a = q.am + (j / 5 - 0.5) * 0.36;
+						burst(W.sc, Math.cos(a) * MM.R, this.MUD + 0.4, -Math.sin(a) * MM.R, {
+							n: 5,
+							shape: "ico",
+							cols: ["#4A3524", "#6B4F35", "#8A6A48"],
+							spd: 2.5,
+							up: 5,
+							grav: 12,
+							life: 0.9,
+							size: 1.2,
+						});
+					}
+				}
+				q.g.position.y = -sk * 1.4 - sk * sk * 2.4;
+				q.g.quaternion.setFromAxisAngle(
+					new THREE.Vector3(Math.sin(q.am), 0, Math.cos(q.am)),
+					-0.3 * Math.min(1, sk / 1.2),
+				);
+				if (sk > 1.8) {
+					q.sunk = true;
+					q.g.visible = false;
+				}
+			});
+			/* geysers */
+			mm.gyFx = mm.gyFx || {};
+			const live = new Set();
+			(W.gyLive || []).forEach((q) => {
+				live.add(q.id);
+				let fx = mm.gyFx[q.id];
+				if (!fx) {
+					const ring = new THREE.Mesh(new THREE.RingGeometry(1.75, 2.1, 32), mm.ringMat("#FF8A1F")),
+						dome = mesh(new THREE.SphereGeometry(1, 12, 6, 0, 6.29, 0, 1.57), "#6B4F35", { roughness: 0.25 }),
+						col = new THREE.Group(),
+						body = mesh(new THREE.CylinderGeometry(0.75, 1.15, 1, 10, 1, true), "#5A4030", { roughness: 0.3 }),
+						cap = mesh(new THREE.IcosahedronGeometry(1.1, 1), "#6B4F35", { roughness: 0.3 });
+					ring.rotation.x = -Math.PI / 2;
+					body.position.y = 0.5;
+					col.add(body, cap);
+					dome.castShadow = false;
+					W.sc.add(ring, dome, col);
+					fx = mm.gyFx[q.id] = { ring, dome, col, body, cap };
+				}
+				const k = W.t - q.t,
+					y = 0.06 + ((W.plat && W.plat.position.y) || 0);
+				fx.ring.position.set(q.x, y, q.z);
+				fx.dome.position.set(q.x, y - 0.1, q.z);
+				fx.col.position.set(q.x, y, q.z);
+				if (k < 0) {
+					/* bubbling */
+					const w = 1 + k / 2;
+					fx.ring.visible = true;
+					fx.ring.material.opacity = (0.35 + 0.5 * w) * (0.6 + 0.4 * Math.sin(W.t * (10 + w * 10)));
+					fx.dome.visible = true;
+					fx.dome.scale.set(0.5 + w * 0.9, (0.15 + w * 0.5) * (1 + 0.15 * Math.sin(W.t * 18)), 0.5 + w * 0.9);
+					fx.col.visible = false;
+					if (Math.random() < dt * (4 + w * 8))
+						burst(W.sc, q.x + (Math.random() - 0.5) * 2, y + 0.3, q.z + (Math.random() - 0.5) * 2, {
+							n: 2,
+							shape: "ico",
+							cols: ["#6B4F35", "#8A6A48"],
+							spd: 0.6,
+							up: 2.5 + w * 2,
+							grav: 12,
+							life: 0.5,
+							size: 0.7,
+						});
+					if (!fx.bub && near(q.x, q.z, 14)) {
+						fx.bub = 1;
+						sfx("bubble");
+					}
+					return;
+				}
+				/* the blast: a column shoots up and falls back */
+				fx.ring.visible = fx.dome.visible = false;
+				const h = k < 0.25 ? (k / 0.25) * 7 : Math.max(0, 7 * (1 - (k - 0.25) / 0.95));
+				fx.col.visible = h > 0.1;
+				fx.body.scale.set(1 + Math.sin(W.t * 30) * 0.06, h, 1 + Math.cos(W.t * 27) * 0.06);
+				fx.cap.position.y = h;
+				fx.cap.scale.setScalar(0.6 + Math.min(1, h / 5) * 0.6);
+				if (!fx.blast) {
+					fx.blast = 1;
+					if (near(q.x, q.z, 30)) sfx("geyser");
+					if (near(q.x, q.z, 9)) W.shake = Math.max(W.shake, 0.3);
+					burst(W.sc, q.x, y + 1, q.z, {
+						n: 26,
+						shape: "ico",
+						cols: ["#4A3524", "#6B4F35", "#8A6A48"],
+						spd: 4,
+						up: 12,
+						grav: 16,
+						life: 1.3,
+						size: 1.2,
+					});
+				}
+				if (h > 1 && Math.random() < dt * 20)
+					burst(W.sc, q.x, y + h, q.z, {
+						n: 2,
+						shape: "ico",
+						cols: ["#4A3524", "#6B4F35"],
+						spd: 3,
+						up: 3,
+						grav: 16,
+						life: 0.8,
+						size: 1,
+					});
+			});
+			for (const id in mm.gyFx)
+				if (!live.has(+id)) {
+					const fx = mm.gyFx[id];
+					W.sc.remove(fx.ring, fx.dome, fx.col);
+					delete mm.gyFx[id];
+				}
+		},
 		bot(W, e, dt) {
 			const m = W.ms,
 				sv = W.list.filter((o) => o.side !== 0 && !o.gone && o.al && !o.d && !o.falling && !o.gr);
@@ -6984,15 +7340,19 @@ Object.assign(MG, {
 						sv.sort((a, b) => near(a) - near(b))[0],
 					out = { x: 0, y: 0, fire: false, pound: false };
 				if (tg) {
-					const T = (near(tg) / MM.TV) * 0.6 + 0.1,
+					if (e.aimErr === undefined) {
+						e.aimErr = (Math.random() - 0.5) * 0.6;
+						e.lead = 0.2 + Math.random() * 1.2;
+					}
+					const T = ((near(tg) / MM.TV) * 0.6 + 0.1) * e.lead,
 						dx = tg.x + tg.vx * T - e.x,
 						dz = tg.z + tg.vz * T - e.z,
 						l = Math.hypot(dx, dz) || 1;
-					if (e.aimErr === undefined || Math.random() < dt * 1.5) e.aimErr = (Math.random() - 0.5) * 0.36;
 					const a = Math.atan2(-dz, dx) + e.aimErr;
 					out.x = W.ph === 3 ? dx / l : Math.cos(a);
 					out.y = W.ph === 3 ? dz / l : -Math.sin(a);
-					out.fire = Math.abs(wrapA(a - e.yaw)) < 0.14 && Math.random() < dt * 12;
+					out.fire = Math.abs(wrapA(a - e.yaw)) < 0.14 && Math.random() < dt * 5;
+					if (out.fire) e.aimErr = undefined;
 				}
 				const crowd = sv.filter((o) => near(o) < 7.5).length,
 					carrier = sv.some((o) => o.f && o.f.dy && near(o) < 6.5);
@@ -7002,7 +7362,8 @@ Object.assign(MG, {
 				return out;
 			}
 			/* survivors: fetch TNT and deliver it, keep clear of the monster otherwise, sidestep tyres, dash through rings */
-			if (e.gr) return { x: 0, y: 0, boost: Math.random() < dt * 2.2 };
+			/* a CPU mashes to break free at 3-5 taps a second (7 within 1.6 s gets it out) */
+			if (e.gr) return { x: 0, y: 0, boost: Math.random() < dt * (e.mashR || (e.mashR = 3 + Math.random() * 2)) };
 			let x = 0,
 				z = 0;
 			const go = (tx, tz, w) => {
@@ -7013,7 +7374,7 @@ Object.assign(MG, {
 				z += (dz / l) * w;
 			};
 			const md = m ? Math.hypot(e.x - m.x, e.z - m.z) : 99;
-			let edge = MM.R * 0.72;
+			let edge = Math.min(MM.R * 0.72, this.edgeR(W, e.x, e.z, true) - 2.6);
 			if (e.f.dy && m) go(m.x, m.z, 1.4);
 			else {
 				/* stick with the chosen crate while it's there, so two equally near crates don't flip the CPU back and forth */
@@ -7027,7 +7388,7 @@ Object.assign(MG, {
 				if (c) {
 					go(c.x, c.z, 1);
 					/* a crate out near the edge: the edge pull mustn't fight the trip there */
-					edge = Math.max(edge, Math.min(MM.R - 1.6, Math.hypot(c.x, c.z) + 0.6));
+					edge = Math.max(edge, Math.min(this.edgeR(W, c.x, c.z, true) - 1.6, Math.hypot(c.x, c.z) + 0.6));
 				} else go(Math.cos(W.t * 0.4 + e.i * 2) * 8, Math.sin(W.t * 0.4 + e.i * 2) * 8, 0.6);
 				if (m && md < (m.rad || 1.7) + 3) go(m.x, m.z, -1.8);
 			}
@@ -7047,18 +7408,29 @@ Object.assign(MG, {
 					z += t.dx * sg * 1.6;
 				}
 			}
-			const r = Math.hypot(e.x, e.z);
-			if (r > edge) go(0, 0, ((r - edge) / Math.max(1, MM.R - edge)) * 2);
+			e.gyNote = e.gyNote || {};
+			for (const q of W.gyLive || []) {
+				if (W.t > q.t + 0.4 || Math.hypot(e.x - q.x, e.z - q.z) > 3.6) continue;
+				if (e.gyNote[q.id] === undefined) e.gyNote[q.id] = Math.random() < 0.7;
+				if (e.gyNote[q.id]) go(q.x, q.z, -2.2);
+			}
+			const r = Math.hypot(e.x, e.z),
+				er = this.edgeR(W, e.x, e.z, true);
+			if (r > edge) go(0, 0, ((r - edge) / Math.max(1, er - edge)) * 2);
 			let boost = false;
 			const g = W.gpLive;
 			if (g && e.bcd <= 0) {
 				const d = Math.hypot(e.x - g.x, e.z - g.z),
 					eta = g.r > 0 ? (d - g.r) / MM.RING : g.slam - W.t + (d - 2.6) / MM.RING;
-				if (eta > 0 && eta < 0.12) {
-					if (e.dodgeRoll === undefined) e.dodgeRoll = Math.random() < 0.7;
-					boost = e.dodgeRoll;
+				if (e.dodgeId !== g.id) {
+					e.dodgeId = g.id;
+					e.dodgeRoll = Math.random() < 0.6;
+					e.dodgeAt = -0.05 + Math.random() * 0.7;
 				}
-				if (g.r > d + 1) e.dodgeRoll = undefined;
+				if (e.dodgeRoll && eta < e.dodgeAt) {
+					e.dodgeRoll = false;
+					boost = true;
+				}
 			}
 			/* smooth the steering (~0.25 s) so CPUs drive in arcs instead of flicking back and forth */
 			const l = Math.hypot(x, z),
@@ -7066,7 +7438,7 @@ Object.assign(MG, {
 			e.bsx = (e.bsx || 0) + ((l < 0.05 ? 0 : x / l) - (e.bsx || 0)) * k;
 			e.bsz = (e.bsz || 0) + ((l < 0.05 ? 0 : z / l) - (e.bsz || 0)) * k;
 			/* knocked about, or right at the rim: steer straight back towards the middle, like a player would */
-			if ((e.slideT > 0 && r > MM.R * 0.5) || r > MM.R - 1.3) {
+			if ((e.slideT > 0 && r > er * 0.5) || r > er - 1.3) {
 				e.bsx = -e.x / r;
 				e.bsz = -e.z / r;
 			}
@@ -7103,7 +7475,7 @@ Object.assign(MG, {
 		team: "1v3",
 		hi: true,
 		unit: "bags",
-		dur: 75,
+		dur: 150,
 		bare: true,
 		/* dusk: the headlights, the cops' light bars and the helicopter's spotlight light up the road (glowing pools) */
 		dusk: true,
@@ -7112,8 +7484,11 @@ Object.assign(MG, {
 		/* the road: LANES lanes LW wide, ROADL long, the tunnel TL up it; traffic at CARV */
 		LANES: 6,
 		LW: 3.6,
-		ROADL: 1300,
-		TL: 1050,
+		ROADL: 2500,
+		TL: 2200,
+		/* sections (metres up the road): a river bridge, roadworks with the two left lanes shut */
+		BRIDGE: [800, 1160],
+		WORKS: [1450, 1750],
 		CARV: 9,
 		CARCOL: MG.hop.CARCOL,
 		/* driving: cruise V0, the stick adds up to UP (truck) / UPC (cops) or takes off DN; lateral push LATA */
@@ -7124,21 +7499,36 @@ Object.assign(MG, {
 		LATA: 34,
 		/* cash: BAGS on the truck, IMM s safe after losing one; oil: cooldown OILCD, lasts OILT, radius OILR */
 		BAGS: 10,
-		IMM: 2.5,
+		IMM: 8.5,
+		/* spike strip (the truck's second button): cooldown SPCD, lies SPT s, SPW m wide, a flat tyre lasts FLAT s */
+		SPCD: 11,
+		SPT: 9,
+		SPW: 9,
+		FLAT: 3.5,
+		/* harpoon (the cops' second button): cooldown HPCD, reach HPR m, holds HPT s unless the truck swerves it off */
+		HPCD: 10,
+		HPR: 15,
+		HPT: 3,
 		OILCD: 7,
 		OILT: 8,
 		OILR: 1.9,
 		how: "1 vs 3 highway chase! The cash truck has to reach the tunnel with any cash left; the cops ram it to knock the money bags off. Mind the traffic!",
 		teamHow: (s) =>
 			s === 0
-				? "You're the CASH TRUCK: reach the tunnel with cash left. OIL behind you spins the cops out."
-				: "You're a COP: ram the cash truck to knock its money bags off before it reaches the tunnel!",
+				? "You're the CASH TRUCK: reach the tunnel with cash left. OIL spins cops out, SPIKES burst their tyres; swerve hard to snap a harpoon."
+				: "You're a COP: RAM the cash truck to knock its money bags off before the tunnel. The HARPOON hooks it and slows it down!",
 		stickHint: (fine) =>
 			fine
-				? "WASD or arrows: steer, up = faster, down = brake. Space: ram (cops) / oil (cash truck)."
-				: "Drag to steer: up = faster, down = brake. The button: RAM for cops, OIL for the cash truck.",
+				? "WASD or arrows: steer, up = faster, down = brake. Space: ram (cops) / oil (cash truck). E: harpoon / spikes."
+				: "Drag to steer: up = faster, down = brake. Buttons: RAM + HARPOON for cops, OIL + SPIKES for the cash truck.",
 		ramLabel: (side) => (side === 0 ? "OIL" : "RAM"),
 		canRam: (e) => e.side === 1,
+		btn2: (side) => (side === 0 ? "SPIKES" : "HARPOON"),
+		btn2Cd(W) {
+			const e = W.me,
+				[t, cd] = e.side === 0 ? [e.spCd, this.SPCD] : [e.hpCd, this.HPCD];
+			return Math.min(1, Math.max(0, ((t || 0) - W.t) / cd));
+		},
 		ramCd(W) {
 			const e = W.me;
 			return e.side === 0 ? Math.min(1, Math.max(0, ((e.oilCd || 0) - W.t) / this.OILCD)) : Math.min(1, e.bcd / 2);
@@ -7167,13 +7557,18 @@ Object.assign(MG, {
 		build(W) {
 			const s = W.sc,
 				wid = this.LANES * this.LW;
-			MG.hop.road.call(this, W, wid);
-			/* traffic from the seed: rows of 1-3 cars, always at least three lanes free */
+			this.road(W, wid);
+			/* traffic from the seed: rows of 1-3 cars, always at least three lanes free; a row the pack meets in the
+			   roadworks (it overtakes a car that started at z0 somewhere round 1.35-2.45 z0) stays out of the shut lanes */
 			W.cars = [];
-			const kits = {};
+			const kits = {},
+				[w0, w1] = this.WORKS;
 			for (let z = -55; z > -this.TL + 25; z -= 15 + W.rng() * 12) {
-				const lanes = [0, 1, 2, 3, 4, 5].sort(() => W.rng() - 0.5),
-					nc = 1 + Math.floor(W.rng() * 2.4);
+				const meets = ([a, b], m0, m1) => -z * 2.45 > a - m0 && -z * 1.35 < b + m1,
+					shut = meets(this.WORKS, 50, 10),
+					narrow = meets(this.BRIDGE, this.TB + 10, this.TA + 5),
+					lanes = (shut ? [2, 3, 4, 5] : narrow ? [1, 2, 3, 4] : [0, 1, 2, 3, 4, 5]).sort(() => W.rng() - 0.5),
+					nc = Math.min(shut || narrow ? 2 : 3, 1 + Math.floor(W.rng() * 2.4));
 				for (let k = 0; k < nc; k++) {
 					const c = {
 							id: W.cars.length,
@@ -7193,9 +7588,441 @@ Object.assign(MG, {
 			W.cars.sort((a, b) => b.z0 - a.z0);
 			this.tunnel(W, wid);
 			W.oilM = {};
+			W.spM = {};
+			W.hpV = {};
 			W.loose = [];
 			this.streaks(W);
 			W.heli = this.heliModel(W);
+		},
+		/* is z on the bridge (with its ends) */
+		onBridge(z, m = 0) {
+			return -z > this.BRIDGE[0] - m && -z < this.BRIDGE[1] + m;
+		},
+		/* the drivable width at z: the bridge carries the middle 4 lanes (guardrails taper in TB m before it and out TA m
+		   after), the roadworks shut the two left lanes (a taper of cones in and out) */
+		TB: 40,
+		TA: 25,
+		edges(z) {
+			const hw = (this.LANES * this.LW) / 2,
+				d = -z,
+				[a, b] = this.WORKS,
+				[c0, c1] = this.BRIDGE,
+				lo2 = -hw + 2 * this.LW + 0.35,
+				nb = this.LW * 2;
+			let lo = -hw,
+				hi = hw;
+			if (d > a - 45 && d < a) lo = -hw + (lo2 + hw) * ((d - (a - 45)) / 45);
+			else if (d >= a && d <= b) lo = lo2;
+			else if (d > b && d < b + 20) lo = lo2 - (lo2 + hw) * ((d - b) / 20);
+			let k = 0;
+			if (d > c0 - this.TB && d < c0) k = (d - (c0 - this.TB)) / this.TB;
+			else if (d >= c0 && d <= c1) k = 1;
+			else if (d > c1 && d < c1 + this.TA) k = 1 - (d - c1) / this.TA;
+			if (k) {
+				hi = hw - (hw - nb) * k;
+				lo = Math.max(lo, -hi);
+			}
+			return [lo, hi];
+		},
+		/* the highway: suburbs (houses, trees, guardrails) as in Rush Hour, then a bridge over a river (parapets, lamps,
+		   piers, banks), more suburbs, roadworks (barriers, cones, light towers, a flashing arrow board) and the tunnel */
+		road(W, wid) {
+			const s = W.sc,
+				L = this.ROADL,
+				zc = -L / 2 + 30,
+				hw = wid / 2,
+				[b0, b1] = this.BRIDGE,
+				[w0, w1] = this.WORKS,
+				off = (z, m) => !this.onBridge(z, m),
+				land = [
+					[30, -b0],
+					[-b1, -L + 30],
+				];
+			land.forEach(([za, zb]) => s.add(texBox(220, 0.4, za - zb, grassTex(), 10, 0, -0.25, (za + zb) / 2)));
+			const nb = this.LW * 2,
+				road = [
+					[30, -b0, hw],
+					[-b0, -b1, nb],
+					[-b1, -L + 30, hw],
+				];
+			road.forEach(([za, zb, h]) => {
+				s.add(texBox(2 * h + 1.4, 0.1, za - zb, asphaltTex(), 8, 0, 0.05, (za + zb) / 2));
+				roadWear(s, -h - 0.7, h + 0.7, za, zb, 0.101, 0.8);
+			});
+			autoTracks(W, "#9DA0A6", 0.112);
+			land.forEach(([za, zb]) =>
+				vergeScatter(
+					s,
+					[
+						[-hw - 13, -hw - 1.5],
+						[hw + 1.5, hw + 13],
+					],
+					za,
+					zb,
+					Math.round((3600 * (za - zb)) / 1070),
+					[-1, 1].flatMap((sd) =>
+						Array.from({ length: Math.floor((za - zb - 10) / 8) }, (_, i) => [sd * (hw + 1.35), za - 10 - i * 8]),
+					),
+					-0.05,
+				),
+			);
+			/* guardrails on land, and along the tapers to and from the bridge (each post on the slanted line) */
+			const rails = [
+				[30, -(b0 - this.TB)],
+				[-(b1 + this.TA), -L + 30],
+			];
+			[-1, 1].forEach((sd) => {
+				rails.forEach(([za, zb]) => s.add(B(0.2, 0.5, za - zb, "#C9CED8", sd * (hw + 1.1), 0.75, (za + zb) / 2)));
+				for (let z = 20; z > -L + 30; z -= 4)
+					if (z > rails[0][1] || z < rails[1][0]) s.add(B(0.16, 0.7, 0.16, "#8E96A3", sd * (hw + 1.1), 0.35, z));
+				[
+					[-(b0 - this.TB), -b0],
+					[-b1, -(b1 + this.TA)],
+				].forEach(([za, zb]) => {
+					const xa = this.edges(za + 0.01)[1] + 1.1,
+						xb = this.edges(zb - 0.01)[1] + 1.1,
+						len = Math.hypot(xa - xb, za - zb),
+						rail = B(0.2, 0.5, len, "#C9CED8", (sd * (xa + xb)) / 2, 0.75, (za + zb) / 2);
+					rail.rotation.y = Math.atan2(sd * (xa - xb), za - zb);
+					s.add(rail);
+					for (let u = 0; u <= 1.001; u += 4 / (za - zb))
+						s.add(B(0.16, 0.7, 0.16, "#8E96A3", sd * (xa + (xb - xa) * u), 0.35, za + (zb - za) * u));
+				});
+			});
+			/* hatched paint where the outer lanes close up before the bridge and open again after it */
+			const hatch = canvasTex(64, 64, (x, w, h) => {
+				x.strokeStyle = "#F4F6F9";
+				x.lineWidth = 12;
+				for (let i = -2; i < 4; i++) {
+					x.beginPath();
+					x.moveTo(i * 32, h);
+					x.lineTo(i * 32 + h, 0);
+					x.stroke();
+				}
+			});
+			hatch.wrapS = hatch.wrapT = THREE.RepeatWrapping;
+			hatch.repeat.set(1 / 3, 1 / 3);
+			[
+				[-(b0 - this.TB), -b0],
+				[-(b1 + this.TA), -b1],
+			].forEach(([za, zb]) =>
+				[-1, 1].forEach((sd) => {
+					const sh = new THREE.Shape();
+					sh.moveTo(sd * hw, -za);
+					sh.lineTo(sd * hw, -zb);
+					sh.lineTo(sd * nb, -zb);
+					sh.closePath();
+					const m = new THREE.Mesh(
+						new THREE.ShapeGeometry(sh),
+						new THREE.MeshBasicMaterial({
+							map: hatch,
+							transparent: true,
+							opacity: 0.8,
+							depthWrite: false,
+							polygonOffset: true,
+							polygonOffsetFactor: -2,
+						}),
+					);
+					m.rotation.x = -Math.PI / 2;
+					m.position.y = 0.106;
+					s.add(m);
+				}),
+			);
+			road.forEach(([za, zb, h], j) => {
+				roadLines(s, [-(h + 0.35), h + 0.35], za, zb, 0.104);
+				roadLines(
+					s,
+					Array.from({ length: (h * 2) / this.LW - 1 }, (_, i) => (i + 1) * this.LW - h),
+					j ? za : 21.3,
+					zb,
+					0.104,
+					{ dash: 2.6, gap: 3.4 },
+				);
+			});
+			for (let z = -60; z > -L + 30; z -= 140) {
+				if (!off(z, 6)) continue;
+				s.add(B(0.4, 7, 0.4, "#5A6272", -hw - 2, 3.5, z), B(0.4, 7, 0.4, "#5A6272", hw + 2, 3.5, z));
+				const sg = new THREE.Mesh(
+					new THREE.PlaneGeometry(wid + 2, 1.8),
+					new THREE.MeshBasicMaterial({
+						map: canvasTex(320, 56, (x, w, h) => {
+							x.fillStyle = "#157A44";
+							x.fillRect(0, 0, w, h);
+							x.strokeStyle = "#fff";
+							x.lineWidth = 3;
+							x.strokeRect(4, 4, w - 8, h - 8);
+							x.font = "26px Bungee, 'Arial Black', Impact, sans-serif";
+							x.textAlign = "center";
+							x.textBaseline = "middle";
+							x.fillStyle = "#fff";
+							x.fillText(this.signTxt(z), w / 2, h / 2 + 2);
+						}),
+					}),
+				);
+				sg.position.set(0, 6.6, z + 0.25);
+				s.add(sg, B(wid + 4, 0.4, 0.3, "#5A6272", 0, 6.6, z - 0.1));
+			}
+			const homes = [],
+				spots = [];
+			[-1, 1].forEach((sd) => {
+				for (let z = 10, k = 0; z > -L + 30; z -= 22, k++) {
+					if (!off(z, 34)) continue;
+					/* the roadworks' compound sits on the left verge there */
+					if (sd < 0 && -z > w0 - 10 && -z < w1 + 10) continue;
+					homes.push({
+						k: (k + (sd > 0 ? 1 : 0) * 2) % 4,
+						x: sd > 0 ? hw + 9.5 + (k % 3) * 1.5 : -(hw + 7.7 + (k % 3) * 1.5),
+						y: -0.05,
+						z,
+						ry: 0,
+					});
+					const tx = sd * (hw + 6 + (k % 2) * 2.5),
+						hx = homes[homes.length - 1].x,
+						tr = tree(tx, z - 9, 1, k % 3);
+					tr.position.y = -0.05;
+					s.add(tr);
+					spots.push([tx, z - 9], [hx - 3.1, z + 2.6], [hx + 3.1, z + 2.6], [hx - 4.65, z + 7.9], [hx + 4.65, z + 7.9]);
+				}
+			});
+			placeKits(s, houseKits(), homes, 0.3, 120);
+			vergeScatter(s, [], 0, 0, 0, spots, -0.05);
+			this.bridge(W, wid);
+			this.works(W, wid);
+		},
+		/* the bridge: a concrete deck over a river, parapets with a steel rail, lamp posts (warm pools on the road),
+		   piers into the water, grassy banks down to it */
+		bridge(W, wid) {
+			const s = W.sc,
+				hw = this.LW * 2,
+				[b0, b1] = this.BRIDGE,
+				bl = b1 - b0,
+				zc = -(b0 + b1) / 2,
+				CON = "#A3ACBB";
+			wid = hw * 2;
+			/* pylons at both ends, one each side, cables fanning down to the parapets */
+			[-(b0 + 28), -(b1 - 28)].forEach((zt, j) =>
+				[-1, 1].forEach((sd) => {
+					const px = sd * (hw + 2.7);
+					s.add(B(1.3, 26, 1.7, "#C9CED8", px, 5.5, zt), B(1.6, 0.5, 2, "#A3ACBB", px, 18.7, zt));
+					s.add(B(1.5, 0.35, 1.9, "#E5484D", px, 17.2, zt));
+					for (let k = 1; k <= 5; k++)
+						[-1, 1].forEach((dir) => {
+							const zz = zt + dir * k * 13;
+							if (-zz < b0 + 4 || -zz > b1 - 4) return;
+							strut(s, [px, 16.6 - k * 0.9, zt], [sd * (hw + 1.15), 1.35, zz], 0.07, "#E8ECF2", 1);
+						});
+				}),
+			);
+			s.add(B(wid + 3.4, 1.3, bl + 4, CON, 0, -0.62, zc));
+			[-1, 1].forEach((sd) => {
+				s.add(B(0.15, 1.5, bl + 4, "#8E96A3", sd * (hw + 1.75), -0.65, zc));
+				s.add(B(0.45, 0.95, bl + 4, "#B8BEC8", sd * (hw + 1.15), 0.5, zc));
+				s.add(B(0.14, 0.12, bl + 4, "#7C8593", sd * (hw + 1.15), 1.32, zc));
+				for (let z = -b0; z > -b1; z -= 3) s.add(B(0.08, 0.3, 0.08, "#7C8593", sd * (hw + 1.15), 1.12, z));
+			});
+			/* lamp posts, staggered, each with a pool of light on the road */
+			const lampM = M("#FFE6B8", { emissive: "#FFD58A", emissiveIntensity: 1.6 }),
+				glow = this.glowTex(W);
+			for (let i = 0, z = -b0 - 18; z > -b1 + 10; z -= 36, i++) {
+				const sd = i % 2 ? 1 : -1,
+					px = sd * (hw + 1.15);
+				s.add(Cy(0.08, 0.11, 6, 8, "#5A6272", px, 3.97, z));
+				s.add(B(1.6, 0.1, 0.12, "#5A6272", px - sd * 0.75, 6.95, z));
+				const head = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.16, 0.32), lampM);
+				head.position.set(px - sd * 1.45, 6.87, z);
+				s.add(head);
+				const pool = new THREE.Mesh(
+					new THREE.PlaneGeometry(7, 7),
+					new THREE.MeshBasicMaterial({
+						map: glow,
+						color: "#FFD9A0",
+						transparent: true,
+						opacity: 0.32,
+						depthWrite: false,
+						blending: THREE.AdditiveBlending,
+					}),
+				);
+				pool.rotation.x = -Math.PI / 2;
+				pool.position.set(px - sd * 2.6, 0.125, z);
+				pool.renderOrder = 2;
+				pool.userData.fx = 1;
+				s.add(pool);
+			}
+			/* piers: two columns on a footing, a cap beam under the deck */
+			for (let z = -b0 - 45; z > -b1 + 30; z -= 60) {
+				[-1, 1].forEach((sd) => {
+					s.add(Cy(0.85, 0.95, 7.6, 12, "#9AA1AC", sd * (hw - 2.6), -5.05, z));
+					s.add(B(2.4, 0.6, 2.4, "#8E96A3", sd * (hw - 2.6), -7.3, z));
+				});
+				s.add(B(wid - 1, 0.9, 2.2, "#9AA1AC", 0, -1.72, z));
+			}
+			/* abutments where the deck meets the banks */
+			[-b0, -b1].forEach((z) => s.add(B(wid + 4.4, 3.2, 3, "#9AA1AC", 0, -1.85, z)));
+			/* the river and its grassy banks */
+			const water = new THREE.Mesh(
+				new THREE.PlaneGeometry(400, bl + 10),
+				new THREE.MeshStandardMaterial({ color: "#2E6C8A", roughness: 0.22, metalness: 0.12 }),
+			);
+			water.rotation.x = -Math.PI / 2;
+			water.position.set(0, -7, zc);
+			s.add(water);
+			[
+				[-b0 - 15, -0.23],
+				[-b1 + 15, 0.23],
+			].forEach(([z, a]) => {
+				const bank = texBox(220, 1, 31.5, grassTex(), 10, 0, -4.1, z);
+				bank.rotation.x = a;
+				s.add(bank);
+			});
+			/* foam round the piers */
+			for (let z = -b0 - 45; z > -b1 + 30; z -= 60)
+				[-1, 1].forEach((sd) => {
+					const f = new THREE.Mesh(
+						new THREE.RingGeometry(0.95, 1.6, 16),
+						new THREE.MeshBasicMaterial({ color: "#D9EEF5", transparent: true, opacity: 0.45, depthWrite: false }),
+					);
+					f.rotation.x = -Math.PI / 2;
+					f.position.set(sd * (hw - 2.6), -6.97, z);
+					s.add(f);
+				});
+		},
+		/* the roadworks: red and white barriers along the shut lanes, tapers of cones in and out, a flashing arrow board,
+		   fresh dark asphalt, light towers, dirt piles and cones in the compound on the verge */
+		works(W, wid) {
+			const s = W.sc,
+				hw = wid / 2,
+				[w0, w1] = this.WORKS,
+				bx = -hw + 2 * this.LW + 0.1,
+				barrier = (col) => {
+					const g = new THREE.Group();
+					g.add(B(0.55, 0.22, 1.9, col, 0, 0.11, 0), B(0.36, 0.56, 1.8, col, 0, 0.5, 0));
+					g.add(B(0.38, 0.1, 1.82, "#F4F6F9", 0, 0.62, 0));
+					return bakeKit(g, { ao: false });
+				},
+				cone = () => {
+					const g = new THREE.Group();
+					g.add(B(0.44, 0.05, 0.44, "#23272F", 0, 0.025, 0), Cy(0.03, 0.2, 0.62, 10, "#FF8A1F", 0, 0.36, 0));
+					g.add(Cy(0.115, 0.14, 0.09, 10, "#F4F6F9", 0, 0.4, 0));
+					return bakeKit(g, { ao: false });
+				},
+				kits = [barrier("#E5484D"), barrier("#F4F6F9"), cone()],
+				list = [];
+			for (let i = 0, z = -w0; z > -w1; z -= 1.95, i++) list.push({ k: i % 2, x: bx, y: 0.1, z, ry: 0 });
+			/* tapers: cones on the diagonal from the left edge to the barrier line */
+			for (let d = 0; d <= 45; d += 3)
+				list.push({ k: 2, x: -hw + 0.5 + ((bx + hw - 0.5) * d) / 45, y: 0.1, z: -(w0 - 45 + d), ry: 0 });
+			for (let d = 0; d <= 20; d += 2.5)
+				list.push({ k: 2, x: bx - ((bx + hw - 0.5) * d) / 20, y: 0.1, z: -(w1 + d), ry: 0 });
+			/* in the shut lanes: cones scattered, dirt piles */
+			const rr = mulberry((W.mg.seed || 1) + 77);
+			for (let z = -w0 - 12; z > -w1 + 10; z -= 9 + rr() * 8) {
+				list.push({ k: 2, x: -hw + 1 + rr() * (2 * this.LW - 2.5), y: 0.1, z, ry: 0 });
+				if (rr() < 0.4) {
+					const pile = Cy(0.2, 1.3, 0.9, 9, "#8A6A48", -hw + 1.8 + rr() * 3, 0.55, z - 3);
+					s.add(pile);
+				}
+			}
+			placeKits(s, kits, list, 0.3, 120);
+			/* fresh asphalt over the shut lanes */
+			s.add(B(2 * this.LW - 0.2, 0.012, w1 - w0, "#2A2E35", -hw + this.LW - 0.05, 0.106, -(w0 + w1) / 2));
+			/* flashing lamps on every fourth barrier, and the arrow board in the taper */
+			W.wLamp = M("#FFB547", { emissive: "#FF9A1F", emissiveIntensity: 1.4 }).clone();
+			for (let z = -w0; z > -w1; z -= 7.8) {
+				const l = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.18, 0.18), W.wLamp);
+				l.position.set(bx, 0.85, z);
+				s.add(l);
+			}
+			const arrow = new THREE.Mesh(
+				new THREE.PlaneGeometry(2.2, 1.5),
+				new THREE.MeshStandardMaterial({
+					map: canvasTex(128, 88, (x, w, h) => {
+						x.fillStyle = "#151B24";
+						x.fillRect(0, 0, w, h);
+						x.fillStyle = "#FFB547";
+						for (let i = 0; i < 9; i++) {
+							x.beginPath();
+							x.arc(14 + i * 11, h / 2, 4, 0, 6.3);
+							x.fill();
+						}
+						[
+							[96, 22],
+							[106, 33],
+							[96, 66],
+							[106, 55],
+						].forEach(([cx, cy]) => {
+							x.beginPath();
+							x.arc(cx, cy, 4, 0, 6.3);
+							x.fill();
+						});
+					}),
+					emissive: "#FFFFFF",
+					emissiveIntensity: 0.9,
+				}),
+			);
+			arrow.material.emissiveMap = arrow.material.map;
+			arrow.position.set(-hw + 1.8, 2.2, -(w0 - 6));
+			W.wArrow = arrow;
+			s.add(
+				arrow,
+				B(2.4, 1.7, 0.18, "#3A3F48", -hw + 1.8, 2.2, -(w0 - 6) - 0.12),
+				B(0.14, 1.4, 0.14, "#3A3F48", -hw + 1.8, 0.7, -(w0 - 6) - 0.12),
+			);
+			s.add(B(2, 0.5, 1.6, "#FFC83D", -hw + 1.8, 0.3, -(w0 - 6) - 0.5));
+			/* the compound on the left verge: light towers (with pools), a site cabin */
+			const glow = this.glowTex(W);
+			[0.25, 0.7].forEach((u, i) => {
+				const z = -(w0 + (w1 - w0) * u),
+					t = lightTowerModel();
+				t.position.set(-hw - 5.5, -0.05, z);
+				t.rotation.y = Math.PI / 2;
+				s.add(t);
+				const pool = new THREE.Mesh(
+					new THREE.PlaneGeometry(12, 12),
+					new THREE.MeshBasicMaterial({
+						map: glow,
+						color: "#FFF1D0",
+						transparent: true,
+						opacity: 0.3,
+						depthWrite: false,
+						blending: THREE.AdditiveBlending,
+					}),
+				);
+				pool.rotation.x = -Math.PI / 2;
+				pool.position.set(-hw + 1.5, 0.125, z);
+				pool.renderOrder = 2;
+				pool.userData.fx = 1;
+				s.add(pool);
+				if (i === 0) {
+					const c = siteCabinModel("#FFC83D", "#3D424C", "SITE");
+					c.position.set(-hw - 9, -0.05, z - 14);
+					c.rotation.y = Math.PI / 2;
+					s.add(c);
+				}
+			});
+			/* a warning sign ahead of it on the left verge */
+			const sign = new THREE.Mesh(
+				new THREE.PlaneGeometry(1.7, 1.7),
+				new THREE.MeshBasicMaterial({
+					map: canvasTex(128, 128, (x, w, h) => {
+						x.translate(w / 2, h / 2);
+						x.rotate(Math.PI / 4);
+						x.fillStyle = "#151B24";
+						x.fillRect(-44, -44, 88, 88);
+						x.fillStyle = "#FFC83D";
+						x.fillRect(-39, -39, 78, 78);
+						x.rotate(-Math.PI / 4);
+						x.fillStyle = "#151B24";
+						x.font = "17px Bungee, 'Arial Black', Impact, sans-serif";
+						x.textAlign = "center";
+						x.textBaseline = "middle";
+						x.fillText("ROAD", 0, -9);
+						x.fillText("WORKS", 0, 11);
+					}),
+					transparent: true,
+				}),
+			);
+			sign.position.set(-hw - 2.4, 2.4, -(w0 - 160));
+			s.add(sign, B(0.12, 2.4, 0.12, "#5A6272", -hw - 2.4, 1.2, -(w0 - 160) - 0.1));
 		},
 		/* the tunnel: a concrete portal into a grassy hill, its name on the beam, amber lamps */
 		tunnel(W, wid) {
@@ -7247,7 +8074,11 @@ Object.assign(MG, {
 			e.hitC = {};
 			if (e.side === 0) {
 				e.bags = this.BAGS;
+				/* bags 0-4 hang in the right-hand nets, 5-9 in the left (rear first): e.bm = the ones still on */
+				e.bm = (1 << this.BAGS) - 1;
 				e.lbN = 0;
+				e.spN = 0;
+				e.snapA = {};
 				e.mass = 3.2;
 				e.rad = 1.6;
 				/* the armoured version of its own truck (buildTruck mode "armour"), a size up */
@@ -7259,23 +8090,31 @@ Object.assign(MG, {
 				e.g.children.forEach((o) => {
 					if (o.isSprite) o.position.y = 3.8;
 				});
-				e.f = { bg: this.BAGS, lb: [], oil: [], esc: 0 };
-			} else e.f = {};
+				e.f = { bg: this.BAGS, bm: e.bm, lb: [], oil: [], sp: [], hs: [], esc: 0 };
+			} else {
+				e.f = {};
+				e.spHit = {};
+			}
 		},
 		/* driving: cruise up the road; the stick steers and sets the speed; the button rams (cops) or drops oil (truck) */
 		phys(W, e, inp, dt) {
 			const solo = e.side === 0,
 				T = solo ? null : this.solo(W),
-				/* catch-up: a cop more than 20 m behind the truck cruises faster and gets extra top speed, so the pack stays
+				/* catch-up: a cop more than 15 m behind the truck cruises faster and gets extra top speed, so the pack stays
 				   together (and on the TV) */
-				lag = T ? e.z - T.z - 20 : 0,
-				cu = lag > 0 ? Math.min(12, lag * 0.3) : 0,
-				top = this.V0 + (solo ? this.UP : this.UPC) + cu,
+				lag = T ? e.z - T.z - 15 : 0,
+				cu = lag > 0 ? Math.min(20, lag * 0.6) : 0,
+				flat = W.t < (e.flatT || 0),
+				hooks = solo ? this.hooks(W, e) : [],
+				top = this.V0 + (solo ? this.UP : this.UPC) + cu - (flat ? 7 : 0) - Math.min(2, hooks.length) * 4,
 				low = this.V0 - this.DN,
 				on = inp && !e.d;
 			let fv = -e.vz;
 			const thr = on ? -(inp.y || 0) : 0,
-				want = cu + (thr >= 0 ? this.V0 + thr * (top - cu - this.V0) : this.V0 + thr * (this.V0 - low)),
+				want = Math.min(
+					top,
+					cu + (thr >= 0 ? this.V0 + thr * Math.max(0, top - cu - this.V0) : this.V0 + thr * (this.V0 - low)),
+				),
 				acc = (W.t < (e.crT || 0) ? 5 : 11) * dt;
 			fv += Math.max(-acc, Math.min(acc, want - fv));
 			if (on) e.vx += (inp.x || 0) * this.LATA * dt;
@@ -7301,7 +8140,32 @@ Object.assign(MG, {
 					e.bcd = 2;
 				}
 			}
-			if (inp) inp.boost = false;
+			if (on && inp.b2) {
+				if (solo) this.spikes(W, e);
+				else this.harpoon(W, e);
+			}
+			if (inp) inp.boost = inp.b2 = false;
+			/* a flat tyre wobbles; the harpoon drags the truck towards each cop holding it, and a hard swerve away (moving
+			   away fast for 0.3 s) snaps the line */
+			if (flat) e.vx += Math.sin(W.t * 13 + e.i) * 7 * dt;
+			hooks.forEach(({ c, id }) => {
+				const sd = c.x > e.x ? 1 : -1,
+					away = -e.vx * sd;
+				e.vx += sd * 9 * dt;
+				const key = c.k + ":" + id;
+				e.snapA[key] = away > 5.5 ? (e.snapA[key] || 0) + dt : Math.max(0, (e.snapA[key] || 0) - dt * 0.5);
+				if (e.snapA[key] > 0.3) {
+					e.f.hs = (e.f.hs || []).concat([[c.k, id]]).slice(-6);
+					fb(W, e, "SNAP!", { tone: "good" });
+					mgLog(W, `${mgName(e)} snaps ${mgName(c)}'s harpoon`);
+					if (e.isMe) sfx("crack");
+				}
+			});
+			/* a cop whose harpoon holds is towed along: it keeps up with the truck and is pulled in behind it */
+			if (!solo && T && this.hookOn(W, e, T)) {
+				fv = Math.max(fv, -T.vz * 0.98);
+				e.vx += Math.sign(T.x - e.x) * 5 * dt;
+			}
 			/* spun out on oil: speed bleeds off, the truck slews */
 			const spin = W.t < (e.spinT || 0);
 			if (spin) {
@@ -7315,10 +8179,11 @@ Object.assign(MG, {
 			e.vz = -fv;
 			e.x += e.vx * dt;
 			e.z += e.vz * dt;
-			/* guardrails */
-			const hw = (this.LANES * this.LW) / 2 - (e.rad || 0.95) * 0.85;
-			if (Math.abs(e.x) > hw) {
-				e.x = Math.sign(e.x) * hw;
+			/* guardrails (and the roadworks' barriers) */
+			const [lo, hi] = this.edges(e.z),
+				rr = (e.rad || 0.95) * 0.85;
+			if (e.x > hi - rr || e.x < lo + rr) {
+				e.x = e.x > hi - rr ? hi - rr : lo + rr;
 				e.vx *= -0.4;
 				e.vz *= 0.97;
 			}
@@ -7396,7 +8261,10 @@ Object.assign(MG, {
 			if (c.kT === undefined) return { x: this.lx(c.l), y: 0, z };
 			const a = Math.max(0, W.t - c.kT),
 				s = Math.min(1, a / 1.4);
-			return { x: this.lx(c.l) + c.kd * (16 * s - 4 * s * s), y: Math.max(0, 5 * a - 6 * a * a), z: z + a * 4 };
+			const x = this.lx(c.l) + c.kd * (16 * s - 4 * s * s),
+				zz = z + a * 4,
+				drop = this.onBridge(zz) && Math.abs(x) > (this.LANES * this.LW) / 2 + 1.5;
+			return { x, y: drop ? Math.max(-9, 5 * a - 6 * a * a) : Math.max(0, 5 * a - 6 * a * a), z: zz };
 		},
 		/* a car knocked off the road: glass and bits, a crunch */
 		carFx(W, c, by) {
@@ -7423,14 +8291,53 @@ Object.assign(MG, {
 			mgLog(W, `${mgName(e)} drops oil`);
 			if (e.isMe) sfx("splash");
 		},
-		/* a cop rams the cash truck (on the truck's device): one bag off, unless it lost one just now */
+		/* the cash truck's spike strip, thrown across the lanes a few metres behind it */
+		spikes(W, e) {
+			if (W.t < (e.spCd || 0) || e.d) return;
+			e.spCd = W.t + this.SPCD;
+			e.spN = (e.spN || 0) + 1;
+			const r = (v) => Math.round(v * 100) / 100,
+				z = e.z + 6,
+				[lo, hi] = this.edges(z),
+				x = Math.max(lo + this.SPW / 2, Math.min(hi - this.SPW / 2, e.x));
+			e.f.sp = (e.f.sp || []).concat([[e.spN, r(x), r(z), r(W.t)]]).slice(-3);
+			mgLog(W, `${mgName(e)} throws a spike strip`);
+			if (e.isMe) sfx("crack");
+		},
+		/* a cop's harpoon: hooks the cash truck if it's within reach (shared as e.f.hp = [id, t, hooked]) */
+		harpoon(W, e) {
+			if (W.t < (e.hpCd || 0) || e.d) return;
+			e.hpCd = W.t + this.HPCD;
+			e.hpN = (e.hpN || 0) + 1;
+			const T = this.solo(W),
+				hit = T && !(T.f && T.f.esc) && T.z < e.z + 3 && Math.hypot(T.x - e.x, T.z - e.z) < this.HPR ? 1 : 0;
+			e.f.hp = [e.hpN, Math.round(W.t * 100) / 100, hit];
+			mgLog(W, `${mgName(e)} fires the harpoon (${hit ? "hooked" : "missed"})`);
+			if (e.isMe) sfx("cannon");
+		},
+		/* is cop c's harpoon holding truck T right now (flying out takes 0.2 s; HPT s unless T snapped it) */
+		hookOn(W, c, T) {
+			const h = c.f && c.f.hp;
+			if (!h || !h[2] || W.t < h[1] + 0.2 || W.t > h[1] + this.HPT) return false;
+			return !((T.f && T.f.hs) || []).some(([k, id]) => k === c.k && id === h[0]);
+		},
+		hooks(W, T) {
+			return W.list.filter((c) => c.side === 1 && !c.gone && this.hookOn(W, c, T)).map((c) => ({ c, id: c.f.hp[0] }));
+		},
+		/* a cop rams the cash truck (on the truck's device): one bag off (from the side it was hit on), unless it lost one
+		   just now */
 		onRammed(W, e, by) {
 			if (e.side !== 0 || !by || by.side !== 1 || e.esc || e.bags <= 0 || W.t < (e.immT || 0)) return;
+			const lz = (by.x - e.x) * Math.sin(e.yaw) + (by.z - e.z) * Math.cos(e.yaw),
+				order = lz >= 0 ? [0, 1, 2, 3, 4, 5, 6, 7, 8, 9] : [5, 6, 7, 8, 9, 0, 1, 2, 3, 4],
+				slot = order.find((i) => e.bm & (1 << i));
+			e.bm &= ~(1 << slot);
 			e.bags--;
 			e.immT = W.t + this.IMM;
 			e.lbN++;
 			e.f.bg = e.bags;
-			e.f.lb = e.f.lb.concat([[e.lbN, by.k]]).slice(-6);
+			e.f.bm = e.bm;
+			e.f.lb = e.f.lb.concat([[e.lbN, by.k, slot]]).slice(-6);
 			fb(W, e, "−1 💰", { tone: "bad" });
 			mgLog(W, `${mgName(by)} knocks a bag off ${mgName(e)} (${e.bags} left)`);
 			if (!e.bags) fb(W, e, "STRIPPED!", { stamp: true });
@@ -7456,6 +8363,24 @@ Object.assign(MG, {
 					fb(W, e, "+1 💰", { tone: "good" });
 					if (e.isMe) sfx("coin");
 				});
+				/* spike strips: driving over one (crossing its line) bursts the tyres */
+				(tf.sp || []).forEach(([id, x, z, t]) => {
+					const a = W.t - t;
+					if (a < 0.3 || a > this.SPT || e.spHit[id] || e.pz === undefined) return;
+					if (e.pz > z && e.z <= z && Math.abs(e.x - x) < this.SPW / 2 + 0.4) {
+						e.spHit[id] = 1;
+						e.flatT = W.t + this.FLAT;
+						e.f.fl = Math.round(e.flatT * 100) / 100;
+						fb(W, e, "FLAT TYRE!", { tone: "bad" });
+						mgLog(W, `${mgName(e)} drives over the spikes`);
+						e.lastHit = { k: "spikes", t: W.t };
+						if (e.isMe) {
+							W.shake = 0.35;
+							sfx("crack");
+						}
+					}
+				});
+				e.pz = e.z;
 				/* oil slicks */
 				(tf.oil || []).forEach(([id, x, z, t]) => {
 					if (W.t - t > this.OILT || e.oilHit[id] || Math.hypot(e.x - x, e.z - z) > this.OILR) return;
@@ -7505,16 +8430,18 @@ Object.assign(MG, {
 		/* cameras: yours from behind and above, looking up the road; the TV follows the whole pack */
 		cam(W, tgt, pos, far) {
 			if (W.tv) {
-				const L = W.list.filter((e) => !e.gone),
-					zs = L.map((e) => e.z),
+				/* the chase is about the cash truck: the trucks within 25 m ahead of it to 45 m behind it (a cop racing far
+				   ahead or a straggler far back drops out of the shot, the truck never does) */
+				const T = this.solo(W),
+					L = W.list.filter((e) => !e.gone && (!T || (e.z > T.z - 25 && e.z < T.z + 45))),
+					zs = (L.length ? L : W.list).map((e) => e.z),
 					z0 = Math.min(...zs),
 					z1 = Math.max(...zs),
 					sp = z1 - z0;
 				/* a fixed tilt (35 degrees down) at the middle of the pack, pulled back as its length grows (hl = half the
 				   pack) so both ends stay in view */
-				/* at most ~60 m of road: a straggler further back than that drops out, the front of the chase stays */
-				const hl = Math.min(sp / 2 + 6, 36),
-					zc = Math.min((z0 + z1) / 2, z0 + hl - 6),
+				const hl = Math.min(sp / 2 + 6, 41),
+					zc = (z0 + z1) / 2,
 					a = 0.62,
 					D = Math.max(26, hl * 2 + 6),
 					t = new THREE.Vector3(0, 0, zc),
@@ -7533,9 +8460,18 @@ Object.assign(MG, {
 			const f = e.f || {};
 			this.truckLights(W, e);
 			/* grinding along the guardrail: sparks (and a grind for your own truck) */
-			const hw = (this.LANES * this.LW) / 2 - (e.rad || 0.95) * 0.85;
-			if (W.t > 0 && !e.gone && Math.abs(e.x) > hw - 0.03 && Math.hypot(e.vx || 0, e.vz || 0) > 5)
-				this.sparks(W, e, Math.sign(e.x) * (hw + (e.rad || 0.95) * 0.8), e.z, e.isMe && !W.tv);
+			const [lo, hi] = this.edges(e.z),
+				rr = (e.rad || 0.95) * 0.85;
+			if (W.t > 0 && !e.gone && Math.hypot(e.vx || 0, e.vz || 0) > 5) {
+				if (e.x > hi - rr - 0.03) this.sparks(W, e, hi + 0.1, e.z, e.isMe && !W.tv);
+				else if (e.x < lo + rr + 0.03) this.sparks(W, e, lo - 0.1, e.z, e.isMe && !W.tv);
+			}
+			/* a flat tyre: sparks off the rim and a wobble */
+			if (W.t < ((e.local ? e.flatT : f.fl) || 0) && !e.gone) {
+				const a = e.yaw + Math.PI;
+				this.sparks(W, e, e.x + Math.cos(a) * 1.1, e.z - Math.sin(a) * 1.1, false);
+				e.tr.rotation.z += Math.sin(W.t * 24) * 0.05;
+			}
 			/* another device's truck: projected on by the update's real age (its game time e.f.t, clocks are synced), the
 			   engine's guess doesn't know how old an update is and at highway speed every 0.1 s is 2 m */
 			if (!e.local && e.net && f.t !== undefined) {
@@ -7546,35 +8482,28 @@ Object.assign(MG, {
 				e.z += (n.z + (n.vz || 0) * age - e.z) * k;
 			}
 			if (e.side === 0) {
-				if (!e.bagG) {
-					/* on the strongbox (the armoured truck's vault, in truck units) */
-					const v = e.tr.userData.vault,
-						top = v ? { x: v.x * e.tr.scale.x, y: v.y * e.tr.scale.y } : truckTop(e.tr),
-						g = new THREE.Group(),
-						kit = this.bagKit();
-					/* a pile that stays on the strongbox's lid: 3 x 2 at the bottom, 2 x 2 on top (the top ones go first) */
-					const spots = [
-						...[-0.3, 0, 0.3].flatMap((x) => [-0.19, 0.19].map((z) => [x, 0, z])),
-						...[-0.15, 0.15].flatMap((x) => [-0.1, 0.1].map((z) => [x, 0.27, z])),
-					];
-					spots.slice(0, this.BAGS).forEach(([x, y, z], i) => {
-						const b = kitGroup(kit, 0);
-						b.position.set(top.x + x, top.y + 0.16 + y, z);
-						b.rotation.y = i * 1.3;
-						g.add(b);
-					});
-					e.g.add(g);
-					e.bagG = g;
-				}
-				const n = e.local ? e.bags : (f.bg ?? this.BAGS);
-				e.bagG.children.forEach((b, i) => (b.visible = i < n));
+				if (!e.slots) this.bagNets(W, e);
+				const n = e.local ? e.bags : (f.bg ?? this.BAGS),
+					bm = e.local ? e.bm : (f.bm ?? (1 << this.BAGS) - 1);
+				e.slots.forEach((q, i) => {
+					const on = !!(bm & (1 << i));
+					q.bag.visible = on;
+					if (on !== q.on) {
+						q.on = on;
+						/* full: the net hugs the bag; empty: it hangs slack, flat on the fender and over its edge */
+						q.net.scale.set(on ? 1 : 1.2, on ? 0.86 : 0.2, on ? 1 : 1.25);
+						q.net.position.set(q.x, on ? q.y : q.y - 0.14, on ? q.z : q.z + q.sd * 0.06);
+						q.net.rotation.x = on ? 0 : q.sd * 0.35;
+					}
+				});
 				/* a bag knocked off: notes everywhere */
 				const lb = f.lb || [],
 					last = lb.length ? lb[lb.length - 1][0] : 0;
 				if (last !== (e.lbFx || 0)) {
-					/* every bag that came off (just hidden from the pile) tumbles down onto the road */
-					const nw = lb.filter(([k]) => k > (e.lbFx || 0)).length;
-					for (let k = 0; k < nw; k++) this.dropBag(W, e, e.bagG.children[Math.min(n + k, e.bagG.children.length - 1)]);
+					/* every bag that came off tumbles down onto the road from its net */
+					lb.filter(([k]) => k > (e.lbFx || 0)).forEach(([, , sl]) =>
+						this.dropBag(W, e, (e.slots[sl] || e.slots[0]).bag),
+					);
 					e.lbFx = last;
 					burst(W.sc, e.x, 2.2, e.z, {
 						n: 22,
@@ -7605,23 +8534,148 @@ Object.assign(MG, {
 						});
 					}
 				}
-				/* a gold glint while it can't lose a bag */
-				if (e.local && W.t < (e.immT || 0)) e.bagG.position.y = Math.sin(W.t * 30) * 0.03;
+				/* the bags jiggle while it can't lose one */
+				if (e.local) {
+					const j = W.t < (e.immT || 0) ? Math.sin(W.t * 30) * 0.03 : 0;
+					e.slots.forEach((q) => (q.bag.position.y = q.y + j));
+				}
 			} else {
 				if (!e.bar) {
 					const top = truckTop(e.tr),
+						sc = e.tr.scale.x,
 						g = new THREE.Group(),
 						red = B(0.32, 0.2, 0.7, "#E5484D", 0, 0, -0.38, { emissive: "#FF2A2A", emissiveIntensity: 1 }),
-						blue = B(0.32, 0.2, 0.7, "#2F7DE1", 0, 0, 0.38, { emissive: "#2A6BFF", emissiveIntensity: 1 });
+						blue = B(0.32, 0.2, 0.7, "#2F7DE1", 0, 0, 0.38, { emissive: "#2A6BFF", emissiveIntensity: 1 }),
+						gun = new THREE.Group(),
+						tip = Cy(0, 0.1, 0.26, 6, "#FFC83D", 0.5, 0, 0);
 					g.add(B(0.4, 0.12, 1.6, "#23272F", 0, -0.12, 0), red, blue);
-					g.position.set(top.x, top.y + 0.18, 0);
-					e.g.add(g);
-					e.bar = { g, red, blue };
+					/* the harpoon gun beside the light bar: a mount, a barrel, the yellow harpoon head in its muzzle */
+					const bar = Cy(0.07, 0.08, 0.62, 8, "#3D424C", 0.12, 0, 0);
+					bar.rotation.z = -Math.PI / 2;
+					tip.rotation.z = -Math.PI / 2;
+					gun.add(B(0.2, 0.14, 0.2, "#5A6272", 0, -0.1, 0), bar, tip);
+					gun.position.set(0.28, 0.02, 0);
+					g.add(gun);
+					g.position.set(top.x / sc, (top.y + 0.18) / sc, 0);
+					g.scale.setScalar(1 / sc);
+					e.tr.add(g);
+					e.bar = { g, red, blue, gun, tip };
 				}
+				this.harpoonFx(W, e);
 				const ph = Math.floor(W.t * 6 + e.i) % 2;
 				e.bar.red.material.emissiveIntensity = ph ? 1.6 : 0.1;
 				e.bar.blue.material.emissiveIntensity = ph ? 0.1 : 1.6;
 			}
+		},
+		/* the cash in cargo nets on the steel fenders over its tyres: 5 bags a side (3 on the rear fender, 2 on the front),
+		   each sack under a dark net that goes slack once its bag is knocked off */
+		bagNets(W, e) {
+			const fend = (e.tr.userData.fend || []).slice().sort((a, b) => a.x - b.x),
+				kit = this.bagKit(),
+				mat =
+					W.netM ||
+					(W.netM = new THREE.MeshStandardMaterial({
+						map: (() => {
+							const t = canvasTex(64, 64, (x, w, h) => {
+								x.strokeStyle = "#1E2228";
+								x.lineWidth = 5;
+								for (let i = -4; i <= 8; i++) {
+									x.beginPath();
+									x.moveTo(i * 16, 0);
+									x.lineTo(i * 16 + h, h);
+									x.moveTo(i * 16 + h, 0);
+									x.lineTo(i * 16, h);
+									x.stroke();
+								}
+							});
+							t.wrapS = t.wrapT = THREE.RepeatWrapping;
+							t.repeat.set(4, 3);
+							return t;
+						})(),
+						transparent: true,
+						alphaTest: 0.35,
+						side: THREE.DoubleSide,
+						roughness: 0.9,
+					})),
+				geo = W.netG || (W.netG = new THREE.SphereGeometry(0.215, 12, 8));
+			e.slots = [];
+			[1, -1].forEach((sd) => {
+				const fs = fend.filter((f) => Math.sign(f.z) === sd),
+					spots = [];
+				fs.forEach((f, j) => {
+					const k = j === 0 ? 3 : 2,
+						step = 0.42;
+					for (let i = 0; i < k && spots.length < 5; i++) spots.push([f.x + (i - (k - 1) / 2) * step, f.y, f.z]);
+				});
+				while (spots.length < 5) spots.push([-0.6 + spots.length * 0.4, 1.2, sd * 1.1]);
+				spots.forEach(([x, y, z], i) => {
+					const bag = kitGroup(kit, 0),
+						net = new THREE.Mesh(geo, mat),
+						q = { bag, net, x, y: y + 0.19, z: z - sd * 0.03, sd, on: null };
+					bag.position.set(q.x, q.y, q.z);
+					bag.rotation.y = i * 1.3 + (sd > 0 ? 0 : 0.7);
+					net.position.set(q.x, q.y, q.z);
+					e.tr.add(bag, net);
+					e.slots.push(q);
+				});
+			});
+		},
+		/* a cop's harpoon: the head flies out (0.2 s), the line holds onto the truck's rear while it's hooked, a miss shoots
+		   forward and reels back in, a snapped line whips away */
+		harpoonFx(W, c) {
+			const h = c.f && c.f.hp,
+				T = this.solo(W);
+			let v = W.hpV[c.k];
+			if (!v) {
+				v = W.hpV[c.k] = {
+					line: mesh(new THREE.CylinderGeometry(0.035, 0.035, 1, 5), "#2E323A"),
+					head: Cy(0, 0.12, 0.34, 6, "#FFC83D", 0, 0, 0),
+				};
+				W.sc.add(v.line, v.head);
+			}
+			const age = h ? W.t - h[1] : 99,
+				show = !!(h && T && age >= 0 && age < this.HPT + 0.6);
+			v.line.visible = v.head.visible = show;
+			c.bar.tip.visible = !show;
+			if (!show) return;
+			c.tr.updateMatrixWorld(true);
+			const a = c.bar.tip.getWorldPosition(new THREE.Vector3()),
+				fwd = new THREE.Vector3(Math.cos(c.yaw), 0, -Math.sin(c.yaw)),
+				snapped = ((T.f && T.f.hs) || []).some(([k, id]) => k === c.k && id === h[0]);
+			let b;
+			if (h[2] && !snapped && age < this.HPT) {
+				const tb = new THREE.Vector3(T.x, 1.3, T.z).addScaledVector(
+					new THREE.Vector3(Math.cos(T.yaw), 0, -Math.sin(T.yaw)),
+					-2.1,
+				);
+				b = age < 0.2 ? a.clone().lerp(tb, age / 0.2) : tb;
+			} else {
+				/* a miss (or the line let go): out up to 12 m ahead, then reeled back */
+				const out = h[2]
+					? Math.max(0, 1 - (age - (snapped ? age : this.HPT)) * 2)
+					: age < 0.25
+						? age / 0.25
+						: Math.max(0, 1 - (age - 0.25) / 0.35);
+				b = a.clone().addScaledVector(fwd, 12 * out);
+				b.y -= (1 - out) * 0.2;
+				if (out <= 0) {
+					v.line.visible = v.head.visible = false;
+					c.bar.tip.visible = true;
+					return;
+				}
+			}
+			const d = b.clone().sub(a),
+				len = Math.max(0.01, d.length());
+			v.line.position.copy(a).addScaledVector(d, 0.5);
+			v.line.scale.set(1, len, 1);
+			v.line.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.clone().normalize());
+			v.head.position.copy(b);
+			v.head.quaternion.copy(v.line.quaternion);
+			if (h[2] && age >= 0.2 && age < 0.25 && !v.clank) {
+				v.clank = h[0];
+				if (W.tv || c.isMe || T.isMe) sfx("crush");
+			}
+			if (v.clank && v.clank !== h[0]) v.clank = 0;
 		},
 		/* a bag knocked off the truck: thrown from where it sat, it tumbles, bounces and lies on the road a while (only for
 		   show: nobody picks it up) */
@@ -7888,6 +8942,18 @@ Object.assign(MG, {
 			const on = W.t > -1;
 			H.beam.visible = H.pool.visible = on;
 		},
+		/* a spike strip: hinged black and yellow segments with rows of steel spikes, SPW m across (x) */
+		spikeKit() {
+			if (this.SK) return this.SK;
+			const g = new THREE.Group(),
+				n = Math.round(this.SPW / 0.5);
+			for (let i = 0; i < n; i++) {
+				const x = -this.SPW / 2 + 0.25 + i * 0.5;
+				g.add(B(0.46, 0.08, 0.34, i % 2 ? "#FFC83D" : "#23272F", x, 0.04, 0));
+				[-0.1, 0.1].forEach((dz) => g.add(Cy(0, 0.035, 0.14, 4, "#C9CED8", x + (dz > 0 ? 0.1 : -0.1), 0.15, dz)));
+			}
+			return (this.SK = bakeKit(g, { ao: false }));
+		},
 		/* a money bag: a squat sack with a tied neck */
 		bagKit() {
 			if (this.BK) return this.BK;
@@ -7974,6 +9040,43 @@ Object.assign(MG, {
 				}
 				return true;
 			});
+			/* spike strips: unroll across the lanes, lie there, then fade */
+			((T && T.f && T.f.sp) || []).forEach(([id, x, z, t]) => {
+				let m = W.spM[id];
+				if (!m) {
+					m = W.spM[id] = kitGroup(this.spikeKit(), 0);
+					m.position.set(x, 0.12, z);
+					m.userData.t = t;
+					W.sc.add(m);
+					if (W.tv || T.isMe || Math.abs(W.me.z - z) < 25) sfx("crack");
+				}
+			});
+			for (const id in W.spM) {
+				const m = W.spM[id],
+					a = W.t - m.userData.t;
+				m.visible = a >= 0 && a < this.SPT;
+				m.scale.set(Math.min(1, Math.max(0.05, a / 0.35)), 1, 1);
+				if (a > this.SPT - 1) m.position.y = 0.12 - (a - this.SPT + 1) * 0.3;
+			}
+			/* cars falling off the bridge: a splash in the river */
+			W.cars.forEach((c) => {
+				if (c.kT === undefined || c.spl || c.g.position.y > -6.6) return;
+				c.spl = 1;
+				burst(W.sc, c.g.position.x, -6.8, c.g.position.z, {
+					n: 22,
+					shape: "ico",
+					cols: ["#D9EEF5", "#9FD8F0", "#F4F6F9"],
+					spd: 4,
+					up: 8,
+					grav: 14,
+					life: 1,
+					size: 1.2,
+				});
+				c.g.visible = false;
+				if (W.tv || Math.abs(W.me.z - c.g.position.z) < 30) sfx("splash");
+			});
+			if (W.wLamp) W.wLamp.emissiveIntensity = Math.floor(W.t * 2.5) % 2 ? 1.8 : 0.15;
+			if (W.wArrow) W.wArrow.material.emissiveIntensity = Math.floor(W.t * 2) % 2 ? 1.1 : 0.25;
 			const oil = (T && T.f && T.f.oil) || [];
 			oil.forEach(([id, x, z, t]) => {
 				let m = W.oilM[id];
@@ -7999,10 +9102,17 @@ Object.assign(MG, {
 			const T = this.solo(W),
 				oil = (T && T.f && T.f.oil) || [],
 				blocked = (x, far) =>
+					x < this.edges(e.z - Math.min(far, 18))[0] + 1.2 ||
+					x < this.edges(e.z - far)[0] + 1.2 ||
 					W.cars.some((c) => {
 						const cz = this.carZ(W, c);
 						return cz < e.z && cz > e.z - far && Math.abs(this.lx(c.l) - x) < 2.4;
 					}) ||
+					(e.side === 1 &&
+						((T && T.f && T.f.sp) || []).some(
+							([, sx, sz, t]) =>
+								W.t - t < this.SPT && sz < e.z && sz > e.z - far * 0.7 && Math.abs(sx - x) < this.SPW / 2 + 1.2,
+						)) ||
 					(e.side === 1 &&
 						oil.some(
 							([, ox, oz, t]) => W.t - t < this.OILT && oz < e.z && oz > e.z - far * 0.6 && Math.abs(ox - x) < 2.6,
@@ -8028,6 +9138,19 @@ Object.assign(MG, {
 				tx = blocked(e.x, 24) ? clear(e.x) : near ? e.x + (e.x > near.x ? 6 : -6) : e.x;
 				if (cops.some((q) => q.z > e.z + 2 && q.z < e.z + 9 && Math.abs(q.x - e.x) < 3) && Math.random() < 0.12 * e.sk)
 					o.boost = true;
+				/* spikes for cops lined up behind; a harpoon on it: swerve hard away to snap it (if it notices) */
+				if (
+					cops.some((q) => q.z > e.z + 7 && q.z < e.z + 24 && Math.abs(q.x - e.x) < 4.5) &&
+					Math.random() < 0.05 * e.sk
+				)
+					o.b2 = true;
+				const hk = this.hooks(W, e)[0];
+				if (hk) {
+					const key = hk.c.k + ":" + hk.id;
+					e.snapTry = e.snapTry || {};
+					if (e.snapTry[key] === undefined) e.snapTry[key] = Math.random() < 0.35 + 0.5 * e.sk;
+					if (e.snapTry[key]) tx = e.x + (e.x > hk.c.x ? 9 : -9);
+				}
 			} else {
 				/* a beat late and a little off: re-aim every 0.3-0.8 s with a miss of up to a lane, and ease off to about the
 				   truck's speed once close instead of riding its bumper */
@@ -8039,8 +9162,11 @@ Object.assign(MG, {
 				tx = blocked(e.aimX, 22) ? clear(e.aimX) : e.aimX;
 				o.y = dz > 6 ? -1 : dz > 1.5 ? -0.65 : dz < -3 ? 0.7 : 0;
 				if (Math.hypot(T.x - e.x, T.z - e.z) < 4 && e.bcd <= 0 && Math.random() < 0.1 * e.sk) o.boost = true;
+				if (dz > 2 && Math.hypot(T.x - e.x, dz) < this.HPR - 2 && W.t >= (e.hpCd || 0) && Math.random() < 0.03 * e.sk)
+					o.b2 = true;
 			}
 			o.x = Math.max(-1, Math.min(1, (tx - e.x) * 0.45));
+			if (o.b2 && e.side === 0 && W.t < (e.spCd || 0)) o.b2 = false;
 			return o;
 		},
 		watchSum(W) {
@@ -8050,7 +9176,7 @@ Object.assign(MG, {
 		/* tools/nettest.mjs: the bags and the escape must agree */
 		syncSnap(W) {
 			const T = this.solo(W);
-			return T ? { bags: T.local ? T.bags : T.f.bg, esc: !!(T.f && T.f.esc) } : 0;
+			return T ? { bags: T.local ? T.bags : T.f.bg, mask: T.local ? T.bm : T.f.bm, esc: !!(T.f && T.f.esc) } : 0;
 		},
 	},
 });

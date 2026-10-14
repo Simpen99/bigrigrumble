@@ -1319,6 +1319,26 @@ function sfx(n) {
 			case "grind":
 				noiseHit(0.14, 0.05, 4200, 2800, 0, 3);
 				break;
+			/* Monster Mash: the stage's edge cracking (a long low rumble with cracks), a slice sinking (a heavy slump), a mud
+			   geyser (bubbling, then the blast) */
+			case "rumble":
+				noiseHit(1.4, 0.32, 260, 60, 0, 0.6);
+				noiseHit(0.08, 0.14, 3000, 1200, 0.2, 1.6);
+				noiseHit(0.08, 0.12, 2600, 1000, 0.65, 1.6);
+				noiseHit(0.08, 0.12, 3200, 1300, 1.1, 1.6);
+				break;
+			case "slump":
+				tone(70, 0.6, "sine", 0.3, 35);
+				noiseHit(0.7, 0.3, 700, 90, 0, 0.8);
+				break;
+			case "bubble":
+				tone(220, 0.08, "sine", 0.12, 420);
+				tone(180, 0.08, "sine", 0.1, 380, 0.13);
+				break;
+			case "geyser":
+				noiseHit(0.9, 0.4, 900, 120, 0, 0.7);
+				tone(80, 0.4, "sine", 0.28, 40);
+				break;
 			case "skid":
 				noiseHit(0.55, 0.2, 2400, 900, 0, 4);
 				noiseHit(0.45, 0.12, 1300, 700, 0.08, 3);
