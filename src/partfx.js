@@ -614,7 +614,16 @@ function musFade(o, fade) {
 	o.g.gain.cancelScheduledValues(t);
 	o.g.gain.setValueAtTime(o.g.gain.value, t);
 	o.g.gain.setTargetAtTime(0, t, Math.max(0.01, fade / 3));
-	setTimeout(() => o.g.disconnect(), fade * 1000 + 500);
+	setTimeout(
+		() => {
+			o.g.disconnect();
+			if (o.src)
+				try {
+					o.src.stop();
+				} catch (e) {}
+		},
+		fade * 1000 + 500,
+	);
 }
 let MO = null;
 /* one music note: n detuned oscillators (waves w, spread det cents) through a lowpass; attack a, decay to sus over dec,
@@ -790,11 +799,71 @@ function musHit() {
 	MUS.hit = true;
 }
 function musStop(fade = 0.25) {
+	MUS.track = false;
 	clearInterval(MUS.iv);
 	MUS.iv = 0;
 	MUS.song = MUS.name = null;
 	if (MUS.o && SFX.ctx) musFade(MUS.o, fade);
 	MUS.o = null;
+}
+/* sounds and songs from audio files next to the page (dist/music, dist/sfx; not in the single-file artifact build):
+   fetched once (audLoad, a game can call it early so the file is in by the start), decoded once (audBuf) */
+const AUD = {};
+function audLoad(url) {
+	if (!AUD[url]) {
+		const raw = fetch(url).then((r) => {
+			if (!r.ok) throw new Error(url);
+			return r.arrayBuffer();
+		});
+		/* a preload nobody waits on yet must not count as an unhandled error (e.g. opened as a local file) */
+		raw.catch(() => {});
+		AUD[url] = { raw, buf: null };
+	}
+	return AUD[url];
+}
+function audBuf(url) {
+	const a = audLoad(url);
+	if (!SFX.ctx) return Promise.reject(new Error("no audio"));
+	return (
+		a.buf || (a.buf = a.raw.then((ab) => new Promise((res, rej) => SFX.ctx.decodeAudioData(ab.slice(0), res, rej))))
+	);
+}
+/* a one-shot sound from a file, vol 0..1 */
+function sfxFile(url, vol = 1) {
+	if (!SFX.on || !SFX.ctx || SFX.ctx.state !== "running") return;
+	audBuf(url)
+		.then((buf) => {
+			const c = SFX.ctx,
+				s = c.createBufferSource(),
+				g = c.createGain();
+			g.gain.value = vol;
+			s.buffer = buf;
+			s.connect(g);
+			g.connect(SFX.out);
+			s.start();
+		})
+		.catch(() => {});
+}
+/* a song from a file (Getaway's chase song), looped through the music bus like the synth songs: musStop fades it, and
+   musScene leaves it playing during the minigame (MUS.track) */
+function musTrack(url, vol = 0.7) {
+	musStop();
+	if (!SFX.ctx || !SFX.on) return;
+	const o = musOut(vol);
+	MUS.o = o;
+	MUS.name = url;
+	MUS.track = true;
+	audBuf(url)
+		.then((buf) => {
+			if (MUS.o !== o) return;
+			const s = SFX.ctx.createBufferSource();
+			s.buffer = buf;
+			s.loop = true;
+			s.connect(o.g);
+			s.start();
+			o.src = s;
+		})
+		.catch(() => {});
 }
 /* duck the song under a jingle for dur seconds */
 function musDuck(dur, to = 0.2) {
@@ -1115,7 +1184,7 @@ function musScene(v) {
 		!mgBusy &&
 		!["minigame", "mgres", "teams"].includes(G.phase);
 	if (!board) {
-		if (MUS.name && MUS.name !== "boss") musStop(0.6);
+		if (MUS.name && MUS.name !== "boss" && !MUS.track) musStop(0.6);
 		return;
 	}
 	const name = SONGS[G.map] ? G.map : "classic";
@@ -1129,6 +1198,50 @@ function buzz(ms) {
 	try {
 		if (navigator.vibrate) navigator.vibrate(ms);
 	} catch (e) {}
+}
+/* a wind loop for fast chases (Getaway): a low rumble and a breathy whistle of filtered noise, swelling in slow gusts;
+   set(speed 0..1, on). Faint on purpose: it sits under the music */
+function windSnd() {
+	if (!SFX.on || !SFX.ctx || SFX.ctx.state !== "running") return null;
+	const c = SFX.ctx,
+		len = c.sampleRate * 2,
+		buf = c.createBuffer(1, len, c.sampleRate),
+		ch = buf.getChannelData(0);
+	for (let i = 0; i < len; i++) ch[i] = Math.random() * 2 - 1;
+	const mk = (type, f, q, rate) => {
+			const n = c.createBufferSource(),
+				fl = c.createBiquadFilter(),
+				g = c.createGain();
+			n.buffer = buf;
+			n.loop = true;
+			n.playbackRate.value = rate;
+			fl.type = type;
+			fl.frequency.value = f;
+			fl.Q.value = q;
+			g.gain.value = 0;
+			n.connect(fl);
+			fl.connect(g);
+			g.connect(SFX.out);
+			n.start();
+			return { n, fl, g };
+		},
+		lo = mk("lowpass", 260, 0.7, 0.8),
+		hi = mk("bandpass", 1300, 1.4, 1.1);
+	return {
+		set(spd, on) {
+			const t = c.currentTime,
+				gs = 0.72 + 0.28 * Math.sin(t * 0.9) * Math.sin(t * 0.37 + 1);
+			lo.g.gain.setTargetAtTime(on ? spd * 0.12 * gs : 0, t, 0.3);
+			hi.g.gain.setTargetAtTime(on ? spd * spd * 0.045 * gs : 0, t, 0.3);
+			hi.fl.frequency.setTargetAtTime(900 + spd * 900 + gs * 300, t, 0.4);
+		},
+		stop() {
+			try {
+				lo.n.stop();
+				hi.n.stop();
+			} catch (e) {}
+		},
+	};
 }
 function sfx(n) {
 	if (!SFX.on || !SFX.ctx || SFX.ctx.state !== "running") return;

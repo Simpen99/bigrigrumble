@@ -6013,6 +6013,7 @@ Object.assign(MG, {
 		},
 		build(W) {
 			MG.bumper.build.call(this, W);
+			audLoad("sfx/roar.mp3");
 			W.plat.scale.set(MM.R / 11, 1, MM.R / 11);
 			const s = W.sc;
 			/* turntable: steel drum with a hazard band, a turning top plate with ribs and bolts, a skirt on the stage */
@@ -6748,6 +6749,11 @@ Object.assign(MG, {
 					musEnd(W.ko !== undefined);
 				}
 			}
+			/* the last phase: the monster roars as its turntable drops */
+			if (W.ph === 3 && !mm.roared) {
+				mm.roared = 1;
+				sfxFile("sfx/roar.mp3", 0.9);
+			}
 			/* the phase change freeze is over: GO! */
 			if (mm.phT !== undefined && mm.goT !== mm.phT && W.t - mm.phT >= MM.CUT) {
 				mm.goT = mm.phT;
@@ -7141,6 +7147,7 @@ Object.assign(MG, {
 		},
 		kits() {
 			MG.hop.kits.call(MG.hop);
+			audLoad("music/pursuit.mp3");
 		},
 		lx(l) {
 			return (l - (this.LANES - 1) / 2) * this.LW;
@@ -7464,6 +7471,10 @@ Object.assign(MG, {
 			if (e.dT !== undefined && W.t >= e.dT) e.d = true;
 		},
 		timeUp() {},
+		stop(W) {
+			if (W.wind) W.wind.stop();
+			if (W.musOn === 1 && MUS.track) musStop(0.6);
+		},
 		/* truck: 1000 if it escaped + bags left; cops: bags knocked off */
 		final(W, e) {
 			return e.side === 0 ? (e.esc ? 1000 : 0) + e.bags : e.sc;
@@ -7629,6 +7640,25 @@ Object.assign(MG, {
 		scene(W, dt) {
 			if (W.scF === W.t) return;
 			W.scF = W.t;
+			/* the chase song (Pursuit Mode, from a file) from the countdown until it's over; wind by your speed (the TV: the
+			   pack's); once even with several worlds on one screen */
+			if (!W.split || (typeof TVS !== "undefined" && TVS && TVS.worlds[0].W === W)) {
+				if (!W.musOn && W.t > -2.5) {
+					W.musOn = 1;
+					musTrack("music/pursuit.mp3", 0.75);
+				}
+				const done = W.over || W.list.some((e) => e.side === 0 && e.f && (e.f.esc || e.f.bg === 0));
+				if (W.musOn === 1 && done) {
+					W.musOn = 2;
+					musStop(2.5);
+				}
+				if (!W.wind && W.t > -1) W.wind = windSnd() || { set() {}, stop() {} };
+				if (W.wind) {
+					const L = W.tv ? W.list.filter((e) => !e.gone) : [W.me],
+						sp = L.reduce((a, e) => a + Math.hypot(e.vx || 0, e.vz || 0), 0) / Math.max(1, L.length);
+					W.wind.set(Math.min(1, sp / (this.V0 + this.UPC)), W.t >= 0 && !W.over);
+				}
+			}
 			const T = this.solo(W);
 			/* cars the cash truck hit (here or on its device) fly off the road: sideways, up, spinning, into the field */
 			((T && T.f && T.f.tk) || []).forEach(([id, t, d]) => {
