@@ -813,7 +813,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-14 11:42 7b25deb";
+const BUILD = "2026-10-14 11:47 9433ce3";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -36755,10 +36755,10 @@ Object.assign(MG, {
 		phys(W, e, inp, dt) {
 			const solo = e.side === 0,
 				T = solo ? null : this.solo(W),
-				/* catch-up: a cop more than 15 m behind the truck cruises faster and gets extra top speed, so the pack stays
+				/* catch-up: a cop more than 17.5 m behind the truck cruises faster and gets extra top speed, so the pack stays
 				   together (and on the TV) */
-				lag = T ? e.z - T.z - 15 : 0,
-				cu = lag > 0 ? Math.min(20, lag * 0.6) : 0,
+				lag = T ? e.z - T.z - 17.5 : 0,
+				cu = lag > 0 ? Math.min(16, lag * 0.45) : 0,
 				flat = W.t < (e.flatT || 0),
 				hooks = solo ? this.hooks(W, e) : [],
 				top = this.V0 + (solo ? this.UP : this.UPC) + cu - (flat ? 7 : 0) - Math.min(2, hooks.length) * 4,
@@ -37085,17 +37085,17 @@ Object.assign(MG, {
 		/* cameras: yours from behind and above, looking up the road; the TV follows the whole pack */
 		cam(W, tgt, pos, far) {
 			if (W.tv) {
-				/* the chase is about the cash truck: the trucks within 25 m ahead of it to 45 m behind it (a cop racing far
+				/* the chase is about the cash truck: the trucks within 25 m ahead of it to 60 m behind it (a cop racing far
 				   ahead or a straggler far back drops out of the shot, the truck never does) */
 				const T = this.solo(W),
-					L = W.list.filter((e) => !e.gone && (!T || (e.z > T.z - 25 && e.z < T.z + 45))),
+					L = W.list.filter((e) => !e.gone && (!T || (e.z > T.z - 25 && e.z < T.z + 60))),
 					zs = (L.length ? L : W.list).map((e) => e.z),
 					z0 = Math.min(...zs),
 					z1 = Math.max(...zs),
 					sp = z1 - z0;
 				/* a fixed tilt (35 degrees down) at the middle of the pack, pulled back as its length grows (hl = half the
 				   pack) so both ends stay in view */
-				const hl = Math.min(sp / 2 + 6, 41),
+				const hl = Math.min(sp / 2 + 6, 48),
 					zc = (z0 + z1) / 2,
 					a = 0.62,
 					D = Math.max(26, hl * 2 + 6),
