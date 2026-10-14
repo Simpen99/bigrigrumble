@@ -465,7 +465,7 @@ function showNameHTML(i) {
 function homeHTML() {
 	const saved = LS.get("trp_host", null);
 	const canResume = saved && saved.phase && saved.phase !== "over" && saved.players && saved.players.length;
-	return `<div class="stage"><div class="logo"><img class="lg" src="${LOGO_ART}" alt="Big Rig Rumble"><span class="l3">The truck party board game</span></div><div id="shown">${showNameHTML(me.truck)}</div></div>
+	return `<div class="stage"><div class="logo"><img class="lg" src="${LOGO_ART}" alt="Big Rig Rumble"></div><div id="shown">${showNameHTML(me.truck)}</div></div>
   ${notice ? `<div class="banner">${esc(notice)}</div>` : ""}
   <section class="sheet"><label class="field">Driver name<input id="nm" maxlength="12" value="${esc(me.name)}" placeholder="Your name" autocomplete="off"></label>
   <h2 style="margin-top:14px">Choose your truck</h2>${carouselHTML(me.truck)}
@@ -650,7 +650,7 @@ const pracHTML = () =>
 function tvLobbyHTML() {
 	const lead = tvLead(),
 		n = G.players.length;
-	return `<div class="tvlobby"><div class="logo tvlogo"><img class="lg" src="${LOGO_ART}" alt="Big Rig Rumble"><span class="l3">The truck party board game</span></div>
+	return `<div class="tvlobby"><div class="logo tvlogo"><img class="lg" src="${LOGO_ART}" alt="Big Rig Rumble"></div>
   <section class="sheet tvjoin"><h2>Scan to join</h2><div class="qr big" id="qr"></div><p>or open <b>${esc(location.host + location.pathname)}</b> and enter</p><div class="code">${esc(G.code)}</div><div>${statusHTML()}</div></section>
   <section class="sheet tvdrivers"><h2>Drivers (${n}/8)</h2>${n ? `<ul class="plist">${G.players.map((p) => playerRow(p, true)).join("")}</ul>` : `<div class="empty">Waiting for phones to join…</div>`}
     <div class="row" style="margin-top:10px"><button class="btn ghost small" data-a="addcpu" ${n >= 8 ? "disabled" : ""}>+ CPU truck</button></div>
