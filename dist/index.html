@@ -813,7 +813,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-14 12:12 72acd3d";
+const BUILD = "2026-10-14 12:30 0691a66";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -36153,15 +36153,15 @@ Object.assign(MG, {
 		DN: 6,
 		LATA: 34,
 		/* cash: BAGS on the truck, IMM s safe after losing one; oil: cooldown OILCD, lasts OILT, radius OILR */
-		BAGS: 10,
-		IMM: 8.5,
+		BAGS: 20,
+		IMM: 6,
 		/* spike strip (the truck's second button): cooldown SPCD, lies SPT s, SPW m wide, a flat tyre lasts FLAT s */
 		SPCD: 11,
 		SPT: 9,
 		SPW: 9,
 		FLAT: 3.5,
 		/* harpoon (the cops' second button): cooldown HPCD, reach HPR m, holds HPT s unless the truck swerves it off */
-		HPCD: 10,
+		HPCD: 11,
 		HPR: 15,
 		HPT: 3,
 		OILCD: 7,
@@ -36735,7 +36735,7 @@ Object.assign(MG, {
 			e.hitC = {};
 			if (e.side === 0) {
 				e.bags = this.BAGS;
-				/* bags 0-4 hang in the right-hand nets, 5-9 in the left (rear first): e.bm = the ones still on */
+				/* bags 0-9 hang in the right-hand nets, 10-19 in the left (top tier first, rear first): e.bm = the ones still on */
 				e.bm = (1 << this.BAGS) - 1;
 				e.lbN = 0;
 				e.spN = 0;
@@ -37007,7 +37007,9 @@ Object.assign(MG, {
 		onRammed(W, e, by) {
 			if (e.side !== 0 || !by || by.side !== 1 || e.esc || e.bags <= 0 || W.t < (e.immT || 0)) return;
 			const lz = (by.x - e.x) * Math.sin(e.yaw) + (by.z - e.z) * Math.cos(e.yaw),
-				order = lz >= 0 ? [0, 1, 2, 3, 4, 5, 6, 7, 8, 9] : [5, 6, 7, 8, 9, 0, 1, 2, 3, 4],
+				half = this.BAGS / 2,
+				all = Array.from({ length: this.BAGS }, (_, i) => i),
+				order = lz >= 0 ? all : all.slice(half).concat(all.slice(0, half)),
 				slot = order.find((i) => e.bm & (1 << i));
 			e.bm &= ~(1 << slot);
 			e.bags--;
@@ -37016,6 +37018,7 @@ Object.assign(MG, {
 			e.f.bg = e.bags;
 			e.f.bm = e.bm;
 			e.f.lb = e.f.lb.concat([[e.lbN, by.k, slot]]).slice(-6);
+			e.f.im = Math.round(e.immT * 100) / 100;
 			fb(W, e, "−1 💰", { tone: "bad" });
 			mgLog(W, `${mgName(by)} knocks a bag off ${mgName(e)} (${e.bags} left)`);
 			if (!e.bags) fb(W, e, "STRIPPED!", { stamp: true });
@@ -37176,6 +37179,7 @@ Object.assign(MG, {
 				e.slots.forEach((q, i) => {
 					const on = !!(bm & (1 << i));
 					q.bag.visible = on;
+					q.net.visible = on || !q.top;
 					if (on !== q.on) {
 						q.on = on;
 						/* full: the net hugs the bag; empty: it hangs slack, flat on the fender and over its edge */
@@ -37222,10 +37226,19 @@ Object.assign(MG, {
 						});
 					}
 				}
-				/* the bags jiggle while it can't lose one */
-				if (e.local) {
-					const j = W.t < (e.immT || 0) ? Math.sin(W.t * 30) * 0.03 : 0;
-					e.slots.forEach((q) => (q.bag.position.y = q.y + j));
+				/* the shield while it can't lose a bag: pops up, shimmers, blinks fast in its last 1.5 s */
+				{
+					const im = (e.local ? e.immT : f.im) || 0,
+						left = im - W.t,
+						on = left > 0 && !e.gone && (left > 1.5 || Math.sin(W.t * (left > 0.7 ? 28 : 45)) > 0);
+					e.shield.forEach((g) => {
+						g.visible = !!on;
+						if (!on) return;
+						const pop = Math.min(1, (this.IMM - left) / 0.15);
+						g.scale.copy(g.userData.s0).multiplyScalar(0.7 + 0.3 * pop);
+						g.children[0].material.opacity = 0.18 + 0.06 * Math.sin(W.t * 9);
+						g.rotation.x = Math.sin(W.t * 2) * 0.05;
+					});
 				}
 			} else {
 				if (!e.bar) {
@@ -37296,16 +37309,58 @@ Object.assign(MG, {
 					for (let i = 0; i < k && spots.length < 5; i++) spots.push([f.x + (i - (k - 1) / 2) * step, f.y, f.z]);
 				});
 				while (spots.length < 5) spots.push([-0.6 + spots.length * 0.4, 1.2, sd * 1.1]);
-				spots.forEach(([x, y, z], i) => {
+				/* a second tier on top of the first (it goes first) */
+				const tiers = spots
+					.map(([x, y, z]) => [x + 0.05, y + 0.33, z - sd * 0.04, 1])
+					.concat(spots.map((p) => [...p, 0]));
+				tiers.slice(0, this.BAGS / 2).forEach(([x, y, z, top], i) => {
 					const bag = kitGroup(kit, 0),
 						net = new THREE.Mesh(geo, mat),
-						q = { bag, net, x, y: y + 0.19, z: z - sd * 0.03, sd, on: null };
+						q = { bag, net, x, y: y + 0.19, z: z - sd * 0.03, sd, top, on: null };
 					bag.position.set(q.x, q.y, q.z);
 					bag.rotation.y = i * 1.3 + (sd > 0 ? 0 : 0.7);
 					net.position.set(q.x, q.y, q.z);
 					e.tr.add(bag, net);
 					e.slots.push(q);
 				});
+			});
+			/* the shield: a faceted energy shell round each side's nets while the truck can't lose a bag */
+			e.shield = [1, -1].map((sd) => {
+				const qs = e.slots.filter((q) => q.sd === sd),
+					box = new THREE.Box3();
+				qs.forEach((q) => box.expandByPoint(new THREE.Vector3(q.x, q.y, q.z)));
+				const c = box.getCenter(new THREE.Vector3()),
+					sz = box.getSize(new THREE.Vector3()),
+					g = new THREE.Group(),
+					geo = new THREE.IcosahedronGeometry(1, 1),
+					shell = new THREE.Mesh(
+						geo,
+						new THREE.MeshBasicMaterial({
+							color: "#6FD6FF",
+							transparent: true,
+							opacity: 0.22,
+							depthWrite: false,
+							blending: THREE.AdditiveBlending,
+							side: THREE.DoubleSide,
+						}),
+					),
+					edges = new THREE.LineSegments(
+						new THREE.EdgesGeometry(geo),
+						new THREE.LineBasicMaterial({
+							color: "#B8ECFF",
+							transparent: true,
+							opacity: 0.7,
+							depthWrite: false,
+							blending: THREE.AdditiveBlending,
+						}),
+					);
+				g.add(shell, edges);
+				g.position.copy(c);
+				g.scale.set(sz.x / 2 + 0.45, sz.y / 2 + 0.38, sz.z / 2 + 0.4);
+				g.userData.s0 = g.scale.clone();
+				g.visible = false;
+				e.tr.add(g);
+				return g;
 			});
 		},
 		/* a cop's harpoon: the head flies out (0.2 s), the line holds onto the truck's rear while it's hooked, a miss shoots
