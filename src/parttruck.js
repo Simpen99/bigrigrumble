@@ -426,7 +426,8 @@ function buildTruck(i, mode) {
 			chassis();
 			add(B(1.3, 0.12, W, c, -0.36, 0.6, 0));
 			const hook = new THREE.Group();
-			if (!hose) {
+			/* the crane (not on Fire Brigade's hose truck or the armoured cash truck: their rig / strongbox takes the deck) */
+			if (!hose && !armour) {
 				add(
 					Cy(0.26, 0.3, 0.1, 10, "#5A6272", -0.05, 0.72, 0),
 					B(0.36, 0.22, 0.48, D, -0.05, 0.9, 0),
@@ -680,7 +681,7 @@ function buildTruck(i, mode) {
 	/* armour: roof ornaments off, the strongbox goes on the roof itself */
 	if (armour) {
 		roof.forEach((o) => o.parent && o.parent.remove(o));
-		armourize(g, W, wheelsL);
+		armourize(g, W, wheelsL, t.kind, mount);
 	}
 	{
 		/* paint (body and accent colour) gets its own materials per truck, tagged for the new look's slight shine (lookEnv) */
@@ -892,7 +893,7 @@ function monsterize(g, xs, anims, wheelsL, own) {
    stacks on the hood, riveted steel skirts with spikes along the bottom, spiked wheel hubs, a heavy rear push bar, and
    on the roof a steel strongbox with gold badges (the money bags sit on it) in a tube roll cage with spotlights and
    amber beacons */
-function armourize(g, W, wheelsL) {
+function armourize(g, W, wheelsL, kind, mount) {
 	g.updateMatrixWorld(true);
 	const bb = new THREE.Box3().setFromObject(g),
 		fx = bb.max.x,
@@ -1033,43 +1034,58 @@ function armourize(g, W, wheelsL) {
 	/* rear push bar */
 	strut(g, [rx - 0.1, 0.42, -W / 2 - 0.05], [rx - 0.1, 0.42, W / 2 + 0.05], 0.12, DK, 1);
 	[-0.32, 0.32].forEach((z) => strut(g, [rx - 0.1, 0.42, z], [rx + 0.06, 0.42, z], 0.08, DK, 2));
-	/* the roof strongbox, a gold badge each side, in a tube roll cage with spotlights and beacons */
-	const top = truckTop(g),
-		bw = 0.86,
+	/* the strongbox, a gold badge each side: on the roof in a tube roll cage with spotlights and beacons; a pickup carries
+	   it down in its bed (no room for a cage there: the lights go on a bar over the cab), the tow truck on its deck where
+	   the crane was (vault = where it sits, so a game can put the money bags on it) */
+	const bed = kind === "pickup",
+		deck = (bed || kind === "tow") && mount,
+		top = deck ? { x: mount.x + (bed ? 0.03 : 0), y: mount.y } : truckTop(g),
+		bw = bed ? 0.54 : 0.86,
 		bd = W * 0.66,
-		by = top.y + 0.14,
+		bh = bed ? 0.36 : 0.32,
+		by = top.y + bh / 2 - 0.02,
 		rw = bw / 2 + 0.12,
 		rd = bd / 2 + 0.12,
 		ry = by + 0.3;
 	g.add(
-		B_(bw, 0.32, bd, ST, top.x, by, 0),
-		B_(bw + 0.06, 0.05, bd + 0.06, DK, top.x, by + 0.18, 0),
-		B_(bw + 0.06, 0.05, bd + 0.06, DK, top.x, by - 0.14, 0),
+		B_(bw, bh, bd, ST, top.x, by, 0),
+		B_(bw + 0.06, 0.05, bd + 0.06, DK, top.x, by + bh / 2 + 0.02, 0),
+		B_(bw + 0.06, 0.05, bd + 0.06, DK, top.x, by - bh / 2 + 0.02, 0),
 	);
+	g.userData.vault = { x: top.x, y: by + bh / 2 + 0.045 };
 	[-1, 1].forEach((sd) => {
 		g.add(
 			B_(0.24, 0.2, 0.03, GO, top.x, by, sd * (bd / 2 + 0.02)),
 			B_(0.14, 0.11, 0.03, "#C8961E", top.x, by, sd * (bd / 2 + 0.035)),
 		);
+	});
+	const lamp = (x, y, z) => {
+			const sp = Cy(0.09, 0.11, 0.14, 8, DK, x, y, z),
+				ln = Cy(0.075, 0.075, 0.03, 8, "#FFF1C2", x + 0.08, y, z, { emissive: "#FFF1C2", emissiveIntensity: 1.2 });
+			sp.rotation.z = ln.rotation.z = Math.PI / 2;
+			g.add(sp, ln);
+		},
+		beaconA = (x, y, z) =>
+			g.add(Cy(0.07, 0.08, 0.12, 8, "#FFB547", x, y, z, { emissive: "#FF9A1F", emissiveIntensity: 1.2 }));
+	if (bed) {
+		/* a light bar over the cab: two spotlights forward, a beacon each end */
+		const cx = mount.x + 0.77,
+			cy = hAt(cx, 0);
+		g.add(B_(0.14, 0.08, W * 0.86, DK, cx, cy + 0.04, 0));
+		[-1, 1].forEach((sd) => {
+			g.add(B_(0.08, 0.1, 0.08, DK, cx, cy + 0.02, sd * W * 0.36));
+			lamp(cx + 0.09, cy + 0.14, sd * 0.2);
+			beaconA(cx, cy + 0.14, sd * W * 0.4);
+		});
+		return;
+	}
+	[-1, 1].forEach((sd) => {
 		[-1, 1].forEach((fs) => strut(g, [top.x + fs * rw, top.y, sd * rd], [top.x + fs * rw, ry, sd * rd], 0.07, DK, 1));
 		strut(g, [top.x - rw, ry, sd * rd], [top.x + rw, ry, sd * rd], 0.07, DK, 2);
 		strut(g, [top.x + sd * rw, ry, -rd], [top.x + sd * rw, ry, rd], 0.07, DK, 2);
 		/* a spotlight on the front rail, a beacon at the back */
-		const sp = Cy(0.09, 0.11, 0.14, 8, DK, top.x + rw + 0.02, ry + 0.06, sd * (rd - 0.14));
-		sp.rotation.z = Math.PI / 2;
-		const ln = Cy(0.075, 0.075, 0.03, 8, "#FFF1C2", top.x + rw + 0.1, ry + 0.06, sd * (rd - 0.14), {
-			emissive: "#FFF1C2",
-			emissiveIntensity: 1.2,
-		});
-		ln.rotation.z = Math.PI / 2;
-		g.add(
-			sp,
-			ln,
-			Cy(0.07, 0.08, 0.12, 8, "#FFB547", top.x - rw, ry + 0.09, sd * rd, {
-				emissive: "#FF9A1F",
-				emissiveIntensity: 1.2,
-			}),
-		);
+		lamp(top.x + rw + 0.02, ry + 0.06, sd * (rd - 0.14));
+		beaconA(top.x - rw, ry + 0.09, sd * rd);
 	});
 }
 /* plain box for the monster kit (no chamfer: small parts stay crisp) */

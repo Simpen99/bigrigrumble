@@ -7486,7 +7486,9 @@ Object.assign(MG, {
 			}
 			if (e.side === 0) {
 				if (!e.bagG) {
-					const top = truckTop(e.tr),
+					/* on the strongbox (the armoured truck's vault, in truck units) */
+					const v = e.tr.userData.vault,
+						top = v ? { x: v.x * e.tr.scale.x, y: v.y * e.tr.scale.y } : truckTop(e.tr),
 						g = new THREE.Group(),
 						kit = this.bagKit();
 					for (let i = 0; i < this.BAGS; i++) {
