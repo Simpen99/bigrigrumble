@@ -434,6 +434,7 @@ function render() {
 	const app = $("#app"),
 		ae = document.activeElement,
 		keep = ae && ae.id && ae.tagName === "INPUT" ? { id: ae.id, v: ae.value, s: ae.selectionStart } : null;
+	app.classList.toggle("lp", v === "home");
 	if (v === "home") app.innerHTML = homeHTML();
 	else if (v === "join") app.innerHTML = joinHTML();
 	else if (v === "practice") app.innerHTML = practiceHTML();
@@ -462,6 +463,37 @@ function showNameHTML(i) {
 	const t = TRUCKS[i];
 	return `<div class="showname"><div><h2>${esc(t.name)}</h2><p>${esc(t.blurb)}</p><div style="margin-top:8px">${facesHTML(t.faces)}</div></div><div class="arrows"><button class="arr" data-step="-1" aria-label="Previous truck">‹</button><button class="arr" data-step="1" aria-label="Next truck">›</button></div></div>`;
 }
+/* font trial (temporary, low-poly mockup): the display font picked on the start page, saved per device (CSS only, canvas text stays Bungee) */
+const FONT_TRY = ["Bungee", "Luckiest Guy", "Lilita One", "Titan One", "Russo One", "Bowlby One"];
+function fontSet(f) {
+	if (!FONT_TRY.includes(f)) f = "Bungee";
+	if (f !== "Bungee") fontLoad();
+	document.documentElement.style.setProperty("--display", `"${f}","Arial Black",Impact,system-ui,sans-serif`);
+	LS.set("trp_font", f);
+}
+function fontLoad() {
+	if (fontLoad.done) return;
+	fontLoad.done = true;
+	const l = document.createElement("link");
+	l.rel = "stylesheet";
+	l.href = `https://fonts.googleapis.com/css2?${FONT_TRY.slice(1)
+		.map((f) => "family=" + f.replace(/ /g, "+"))
+		.join("&")}&display=swap`;
+	document.head.appendChild(l);
+}
+fontSet(LS.get("trp_font", "Bungee"));
+function fontPickHTML() {
+	fontLoad();
+	const cur = LS.get("trp_font", "Bungee");
+	return `<div class="fontpick"><span>Font test</span>${FONT_TRY.map((f) => `<button class="fp ${f === cur ? "sel" : ""}" data-font="${f}" style="font-family:'${f}'">${f}</button>`).join("")}</div>`;
+}
+document.addEventListener("click", (e) => {
+	const b = e.target.closest && e.target.closest("button[data-font]");
+	if (!b) return;
+	fontSet(b.dataset.font);
+	render.last = null;
+	render();
+});
 function homeHTML() {
 	const saved = LS.get("trp_host", null);
 	const canResume = saved && saved.phase && saved.phase !== "over" && saved.players && saved.players.length;
@@ -478,6 +510,7 @@ function homeHTML() {
     <button class="btn ghost" data-a="practice">🎮 Minigame practice</button>
     ${FINE && GFX.ok ? `<button class="btn ghost" data-a="editor">🛠 Map editor</button>` : ""}
     <div class="volbox">${volHTML()}</div>
+    ${fontPickHTML()}
     <div>${statusHTML()}</div>
     <button class="btn ghost small" data-dbg="open">🐞 Report a bug</button>
   </section>
