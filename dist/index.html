@@ -268,11 +268,11 @@ body.trin #mg .m3top{animation:trtop .6s .35s ease-out both}body.trin #mg .m3lb,
 .reslist .raw.neg{background:#E5484D;color:#fff}
 .stats .bump{animation:bump .6s ease-out}
 @keyframes bump{30%{transform:scale(1.45);color:#FFE27A}}
-.logo{display:inline-flex;flex-direction:column;align-items:center;align-self:center;margin:2px 0 0;animation:logoIn .8s cubic-bezier(.2,1.5,.4,1) both;pointer-events:none}
+.logo{display:inline-flex;flex-direction:column;align-items:center;align-self:flex-start;transform:rotate(-6deg);transform-origin:left center;margin:2vh 0 0 2px;animation:logoIn .8s cubic-bezier(.2,1.5,.4,1) both;pointer-events:none}
 .logo .lg{display:block;width:auto;height:auto;max-width:min(80vw,420px);max-height:27vh;filter:drop-shadow(0 6px 10px rgba(0,0,0,.3));animation:rumble 4.5s ease-in-out 1.2s infinite}
 .logo .l3{margin:2px 0 0;font-size:11px;font-weight:800;letter-spacing:1.6px;text-transform:uppercase;color:#fff;background:var(--sign);padding:4px 9px;border-radius:999px;box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.8);position:relative}
 .logo .l3::before{content:"";position:absolute;left:-2px;right:-2px;bottom:-7px;height:4px;border-radius:2px;background:repeating-linear-gradient(-45deg,#FFC83D 0 6px,#151B24 6px 12px)}
-@keyframes logoIn{from{opacity:0;transform:translateY(-30px) scale(.7)}to{opacity:1;transform:none}}
+@keyframes logoIn{from{opacity:0;transform:rotate(-6deg) translateY(-30px) scale(.7)}to{opacity:1;transform:rotate(-6deg)}}
 @keyframes rumble{0%,86%,100%{transform:none}88%{transform:translate(-2px,1px) rotate(-1deg)}90%{transform:translate(2px,-1px) rotate(1deg)}92%{transform:translate(-2px,0) rotate(-.5deg)}94%{transform:translate(1px,1px)}96%{transform:none}}
 .pgrid{display:grid;gap:8px}
 .pgame{display:flex;align-items:center;gap:10px;width:100%;text-align:left;border:0;background:var(--panel2);border-radius:14px;padding:11px 12px}
@@ -819,7 +819,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-14 19:12 3ef8c5f";
+const BUILD = "2026-10-14 19:14 5bdf001";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
