@@ -915,68 +915,100 @@ function armourize(g, W, wheelsL) {
 			const h = ray.intersectObject(g, true)[0];
 			return h ? h.point.y : 0.6;
 		};
-	/* measured before anything is added: the glass (bars go over it), the hood, how wide the truck is at skirt height */
-	const glass = [];
+	/* measured before anything is added: the glass (bars go over it), the hood, and from the body alone (not the wheels)
+	   the lowest edge along its sides and at its front, so the skirts and the cowcatcher hang from the body itself */
+	const glass = [],
+		wheelM = new Set();
+	(wheelsL || []).forEach(({ g: wg }) => wg.traverse((o) => wheelM.add(o)));
+	let sb = 9,
+		fb = 9;
 	g.traverse((o) => {
-		if (o.isMesh && o.material && o.material.color && o.material.color.getHex() === 0x2f3b52)
+		if (!o.isMesh) return;
+		if (o.material && o.material.color && o.material.color.getHex() === 0x2f3b52)
 			glass.push(new THREE.Box3().setFromObject(o));
+		if (wheelM.has(o)) return;
+		const b = new THREE.Box3().setFromObject(o);
+		if (b.max.z > W / 2 - 0.12 || b.min.z < -(W / 2 - 0.12)) sb = Math.min(sb, b.min.y);
+		if (b.max.x > fx - 0.45 && b.max.y - b.min.y > 0.08) fb = Math.min(fb, b.min.y);
 	});
-	const hoodY = hAt(fx - 0.3, 0);
+	if (sb > 5) sb = 0.45;
+	if (fb > 5) fb = 0.4;
+	const hoodY = hAt(fx - 0.3, 0),
+		/* skirt: its top tucked 0.08 up under the body's side edge */
+		yc = Math.max(0.62, sb + 0.1),
+		yt = yc + 0.17,
+		yb = yc - 0.17;
 	let mz = W / 2;
 	g.traverse((o) => {
 		if (!o.isMesh) return;
 		const b = new THREE.Box3().setFromObject(o);
-		if (b.max.y > 0.44 && b.min.y < 0.8) mz = Math.max(mz, b.max.z, -b.min.z);
+		if (b.max.y > yb && b.min.y < yt) mz = Math.max(mz, b.max.z, -b.min.z);
 	});
 	const z0 = mz + 0.07,
 		L = (fx - rx) * 0.86,
 		cx = (fx + rx) / 2 - 0.05;
-	/* side skirts: a thick plate, a lip, rivets, and spikes along the bottom */
+	/* side skirts: a thick plate, lips top and bottom, rivets, spikes along the bottom, and brackets from the body out to
+	   the plate along its top */
 	[-1, 1].forEach((sd) => {
-		g.add(B_(L, 0.34, 0.09, ST, cx, 0.62, sd * z0), B_(L + 0.06, 0.07, 0.13, DK, cx, 0.43, sd * (z0 + 0.01)));
-		g.add(B_(L + 0.04, 0.05, 0.12, DK, cx, 0.8, sd * (z0 + 0.005)));
+		g.add(B_(L, 0.34, 0.09, ST, cx, yc, sd * z0), B_(L + 0.06, 0.07, 0.13, DK, cx, yb, sd * (z0 + 0.01)));
+		g.add(B_(L + 0.04, 0.05, 0.12, DK, cx, yt, sd * (z0 + 0.005)));
 		for (let x = cx - L / 2 + 0.16; x < cx + L / 2 - 0.1; x += 0.28) {
-			const rv = Cy(0.04, 0.04, 0.05, 6, CH, x, 0.62, sd * (z0 + 0.06));
+			const rv = Cy(0.04, 0.04, 0.05, 6, CH, x, yc, sd * (z0 + 0.06));
 			rv.rotation.x = Math.PI / 2;
 			g.add(rv);
 		}
 		for (let x = cx - L / 2 + 0.2; x < cx + L / 2 - 0.1; x += 0.36)
-			spike(0.22, 0.06, x, 0.43, sd * (z0 + 0.07), [0, -0.3, sd]);
+			spike(0.22, 0.06, x, yb, sd * (z0 + 0.07), [0, -0.3, sd]);
+		[-0.38, 0, 0.38].forEach((u) =>
+			strut(g, [cx + u * L, yt - 0.06, sd * (W / 2 - 0.08)], [cx + u * L, yt - 0.06, sd * (z0 - 0.03)], 0.09, DK, 1),
+		);
 	});
-	/* bars over the windows: a frame and uprights just off the glass */
-	glass.forEach((b) => {
-		const sx = b.max.x - b.min.x,
-			sy = b.max.y - b.min.y,
-			sz = b.max.z - b.min.z;
-		if (sy < 0.12) return;
-		const cy = (b.min.y + b.max.y) / 2;
-		if (sx <= sz) {
-			/* windscreen / rear window: uprights across */
-			const fr = (b.min.x + b.max.x) / 2 > (fx + rx) / 2,
-				x = fr ? b.max.x + 0.04 : b.min.x - 0.04,
-				n = Math.max(2, Math.round(sz / 0.2));
+	/* bars over the windows: a rail and uprights just off every outward face of the glass (front or back; the sides of a
+	   pane that spans the cab, or a side window) */
+	const barsX = (b, x) => {
+			const sz = b.max.z - b.min.z,
+				sy = b.max.y - b.min.y,
+				cy = (b.min.y + b.max.y) / 2,
+				n = Math.max(3, Math.round(sz / 0.2));
 			for (let i = 1; i < n; i++) g.add(B_(0.05, sy + 0.06, 0.05, DK, x, cy, b.min.z + (i * sz) / n));
 			g.add(B_(0.05, 0.05, sz + 0.04, DK, x, cy, (b.min.z + b.max.z) / 2));
-		} else {
-			/* side window: uprights along */
-			const s = (b.min.z + b.max.z) / 2 > 0,
-				z = s ? b.max.z + 0.04 : b.min.z - 0.04,
-				n = Math.max(2, Math.round(sx / 0.2));
+		},
+		barsZ = (b, z) => {
+			const sx = b.max.x - b.min.x,
+				sy = b.max.y - b.min.y,
+				cy = (b.min.y + b.max.y) / 2,
+				n = Math.max(3, Math.round(sx / 0.2));
 			for (let i = 1; i < n; i++) g.add(B_(0.05, sy + 0.06, 0.05, DK, b.min.x + (i * sx) / n, cy, z));
 			g.add(B_(sx + 0.04, 0.05, 0.05, DK, (b.min.x + b.max.x) / 2, cy, z));
-		}
+		};
+	glass.forEach((b) => {
+		const sx = b.max.x - b.min.x,
+			sz = b.max.z - b.min.z;
+		if (b.max.y - b.min.y < 0.12) return;
+		if (sx <= sz) barsX(b, (b.min.x + b.max.x) / 2 > (fx + rx) / 2 ? b.max.x + 0.04 : b.min.x - 0.04);
+		if (sx > sz) barsZ(b, (b.min.z + b.max.z) / 2 > 0 ? b.max.z + 0.04 : b.min.z - 0.04);
+		else if (sz > W * 0.8 && sx >= 0.18) [b.max.z + 0.04, b.min.z - 0.04].forEach((z) => barsZ(b, z));
 	});
-	/* the cowcatcher: tubes in a wedge out front, side frames, a row of spikes along the bottom */
+	/* the cowcatcher: from just off the ground up past the body's front edge; tubes in a wedge out front, side frames,
+	   uprights, a row of spikes along the bottom, and two arms back into the chassis */
 	const cw = W / 2 + 0.22,
-		bx = fx + 0.06;
-	[0.32, 0.5, 0.68, 0.86].forEach((y, i) =>
-		strut(g, [bx + 0.42 - i * 0.12, y, -cw], [bx + 0.42 - i * 0.12, y, cw], 0.09, ST, 1),
-	);
-	[-1, 1].forEach((sd) => {
-		strut(g, [bx + 0.48, 0.24, sd * cw], [bx + 0.02, 0.92, sd * cw], 0.11, DK, 2);
-		strut(g, [bx - 0.02, 0.3, sd * (cw - 0.15)], [bx + 0.42, 0.3, sd * (cw - 0.05)], 0.08, DK, 2);
+		bx = fx + 0.06,
+		c0 = 0.26,
+		c1 = Math.max(0.92, fb + 0.3),
+		ch = c1 - c0,
+		at = (u) => [bx + 0.46 * (1 - u), c0 + u * ch];
+	[0.1, 0.37, 0.64, 0.9].forEach((u) => {
+		const [x, y] = at(u);
+		strut(g, [x, y, -cw], [x, y, cw], 0.09, ST, 1);
 	});
-	[-0.3, 0, 0.3].forEach((z) => strut(g, [bx + 0.46, 0.26, z], [bx + 0.03, 0.9, z], 0.07, DK, 1));
+	[-1, 1].forEach((sd) => {
+		const [x0, y0] = at(-0.03),
+			[x1, y1] = at(1);
+		strut(g, [x0, y0, sd * cw], [x1, y1, sd * cw], 0.11, DK, 2);
+		strut(g, [bx + 0.02, c1 - 0.06, sd * 0.36], [fx - 0.32, c1 - 0.06, sd * 0.36], 0.1, DK, 1);
+		strut(g, [x0, y0 + 0.04, sd * (cw - 0.12)], [fx - 0.2, Math.max(y0 + 0.04, fb + 0.06), sd * 0.36], 0.08, DK, 2);
+	});
+	[-0.3, 0, 0.3].forEach((z) => strut(g, [...at(-0.02), z], [...at(0.98), z], 0.07, DK, 1));
 	for (let z = -cw + 0.12; z <= cw - 0.1; z += 0.2) spike(0.26, 0.055, bx + 0.48, 0.28, z, [1, -0.15, 0]);
 	/* the blower on the hood (trucks with one: cab-overs have the cab up front), a block, three chrome stacks */
 	if (hoodY < 1.05) {
