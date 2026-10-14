@@ -307,12 +307,13 @@ i.bi{font-style:normal}
 .px .ribbon{display:flex;justify-content:center;position:relative;margin:-42px -18px 14px;height:48px}
 .px .ribbon::before,.px .ribbon::after{content:"";position:absolute;top:12px;width:34px;height:40px;background:linear-gradient(#2D86C4 0 calc(100% - 6px),#1E5F8E 0);clip-path:polygon(0 0,100% 0,100% 100%,0 100%,12px 50%)}
 .px .ribbon::before{left:-10px}.px .ribbon::after{right:-10px;transform:scaleX(-1)}
-.px .ribbon span{position:relative;z-index:1;flex:1;display:flex;align-items:center;justify-content:center;font-family:var(--display);font-size:20px;color:#fff;text-transform:uppercase;letter-spacing:1px;text-shadow:2px 2px 0 #1E5F8E;background:linear-gradient(#7CCBF5 0 5px,#43A8EA 5px calc(100% - 7px),#2D86C4 0);clip-path:var(--stp)}
+.px .ribbon span{position:relative;z-index:1;flex:1;display:flex;align-items:center;justify-content:center;font-family:var(--display);font-size:calc(20px * var(--dz,1));color:#fff;text-transform:uppercase;letter-spacing:1px;text-shadow:2px 2px 0 #1E5F8E;background:linear-gradient(#7CCBF5 0 5px,#43A8EA 5px calc(100% - 7px),#2D86C4 0);clip-path:var(--stp)}
 .px .rbh{display:none}
-.px .btn{--c:#5E7A8C;--hi:#8CA6B6;--lo:#3F5868;--st:3px;position:relative;border:0;border-radius:0;padding:14px 16px 17px 58px;justify-content:flex-start;font-family:var(--display);font-size:17px;font-weight:400;text-transform:uppercase;letter-spacing:.5px;color:#fff;text-shadow:2px 2px 0 var(--lo);background:linear-gradient(var(--hi) 0 4px,var(--c) 4px calc(100% - 6px),var(--lo) 0);box-shadow:none;clip-path:var(--stp);margin-bottom:0}
+.px .sheet h2{font-size:calc(18px * var(--dz,1))}
+.px .btn{--c:#5E7A8C;--hi:#8CA6B6;--lo:#3F5868;--st:3px;position:relative;border:0;border-radius:0;padding:14px 16px 17px 58px;justify-content:flex-start;font-family:var(--display);font-size:calc(17px * var(--dz,1));font-weight:400;text-transform:uppercase;letter-spacing:.5px;color:#fff;text-shadow:2px 2px 0 var(--lo);background:linear-gradient(var(--hi) 0 4px,var(--c) 4px calc(100% - 6px),var(--lo) 0);box-shadow:none;clip-path:var(--stp);margin-bottom:0}
 .px .btn:active{transform:translateY(3px);background:linear-gradient(var(--c) 0 calc(100% - 3px),var(--lo) 0)}
 .px .btn i.bi{position:absolute;left:8px;top:7px;bottom:10px;width:40px;display:grid;place-items:center;font-size:19px;text-shadow:none;background:var(--lo);clip-path:var(--stp)}
-.px .btn.small{padding:10px 14px 12px;font-size:13px;--c:#9AAEBB;--hi:#BBCBD5;--lo:#6F8594}
+.px .btn.small{padding:10px 14px 12px;font-size:calc(13px * var(--dz,1));--c:#9AAEBB;--hi:#BBCBD5;--lo:#6F8594}
 .px .btn[data-a=hosttv],.px .btn[data-a=resume]{--c:#FFA726;--hi:#FFC66A;--lo:#C9700C}
 .px .btn[data-a=host]{--c:#3D9BE9;--hi:#7CC1F5;--lo:#2468A8}
 .px .btn[data-a=joinlist]{--c:#2BC37A;--hi:#6CE0A6;--lo:#178A52}
@@ -323,12 +324,12 @@ i.bi{font-style:normal}
 .px .tc{--st:3px;border:0;border-radius:0;background:linear-gradient(#EEF4F8 0 3px,#DCE8EF 3px calc(100% - 4px),#B5C8D4 0);clip-path:var(--stp);padding:6px 4px 9px}
 .px .tc.sel{background:linear-gradient(#FFD27A 0 3px,#FFB547 3px calc(100% - 4px),#C9700C 0)}
 .px .tc.sel span{color:#fff;text-shadow:1px 1px 0 #C9700C}
-.px .tc span{font-family:var(--display);font-size:11px;text-transform:uppercase}
+.px .tc span{font-family:var(--display);font-size:calc(11px * var(--dz,1));text-transform:uppercase}
 .px .arr{--st:3px;border-radius:0;background:linear-gradient(#7CC1F5 0 4px,#3D9BE9 4px calc(100% - 5px),#2468A8 0);clip-path:var(--stp);-webkit-backdrop-filter:none;backdrop-filter:none;font-family:var(--display)}
-.px .showname h2{text-transform:uppercase;text-shadow:3px 3px 0 #1D2B38}
-.px label.field{font-family:var(--display);font-weight:400;font-size:12px;text-transform:uppercase}
+.px .showname h2{font-size:calc(clamp(28px,8vw,40px) * var(--dz,1));text-transform:uppercase;text-shadow:3px 3px 0 #1D2B38}
+.px label.field{font-family:var(--display);font-weight:400;font-size:calc(12px * var(--dz,1));text-transform:uppercase}
 .px label.field input{--st:3px;border:0;border-radius:0;clip-path:var(--stp);background:linear-gradient(#B5C8D4 0 4px,#DCE8EF 4px);font-family:var(--body);font-weight:700}
-.px details.how summary{font-family:var(--display);text-transform:uppercase}
+.px details.how summary{font-size:calc(17px * var(--dz,1));font-family:var(--display);text-transform:uppercase}
 .px .fp{--st:2px;border:0;clip-path:var(--stp);background:#DCE8EF}
 .px .fp.sel{background:#FFA726;color:#fff}
 .fontpick{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:2px}

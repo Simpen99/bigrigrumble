@@ -481,6 +481,8 @@ function fontSet(f) {
 	if (!FONT_TRY.includes(f)) f = "Bungee";
 	if (f !== "Bungee") fontLoad();
 	document.documentElement.style.setProperty("--display", `"${f}","Arial Black",Impact,system-ui,sans-serif`);
+	/* Jersey 20 runs small: the pixel style scales its display text by --dz */
+	document.documentElement.style.setProperty("--dz", f === "Jersey 20" ? 1.35 : 1);
 	LS.set("trp_font", f);
 }
 function fontLoad() {
