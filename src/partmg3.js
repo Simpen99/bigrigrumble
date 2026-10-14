@@ -8288,7 +8288,10 @@ Object.assign(MG, {
 					c.kT = W.t;
 					c.kd = -sd;
 					e.f.tk = (e.f.tk || []).concat([[c.id, Math.round(W.t * 100) / 100, -sd]]).slice(-8);
-					e.vz *= 0.97;
+					/* a little bump back: some speed lost, nudged away from the car */
+					e.vz *= 0.82;
+					e.vx += sd * 2.5;
+					if (e.isMe) W.shake = Math.max(W.shake || 0, 0.25);
 					this.carFx(W, c, e);
 					continue;
 				}
