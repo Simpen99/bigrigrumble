@@ -5,9 +5,9 @@ const b64 = fs.readFileSync(src).toString("base64");
 const br = await chromium.launch();
 const pg = await br.newPage();
 const res = await pg.evaluate(
-	async ({ b64, W }) => {
+	async ({ b64, W, ext }) => {
 		const im = new Image();
-		im.src = "data:image/webp;base64," + b64;
+		im.src = "data:image/" + ext + ";base64," + b64;
 		await im.decode();
 		const w = im.width,
 			h = im.height;
@@ -16,7 +16,9 @@ const res = await pg.evaluate(
 		x.drawImage(im, 0, 0);
 		const d = x.getImageData(0, 0, w, h),
 			p = d.data;
+		// opaque near-white = background (a source that is already transparent is only cropped and scaled)
 		const light = (i) =>
+			p[i + 3] > 250 &&
 			Math.min(p[i], p[i + 1], p[i + 2]) > 200 &&
 			Math.max(p[i], p[i + 1], p[i + 2]) - Math.min(p[i], p[i + 1], p[i + 2]) < 25;
 		const bg = new Uint8Array(w * h),
@@ -85,7 +87,7 @@ const res = await pg.evaluate(
 		for (const v of buf) s += String.fromCharCode(v);
 		return { b64: btoa(s), W, H, crop: [x0, y0, cw, ch] };
 	},
-	{ b64, W: +W },
+	{ b64, W: +W, ext: src.split(".").pop() },
 );
 fs.writeFileSync(out, Buffer.from(res.b64, "base64"));
 console.log(res.W, res.H, res.crop, fs.statSync(out).size);
