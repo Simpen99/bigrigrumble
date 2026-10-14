@@ -7237,7 +7237,7 @@ Object.assign(MG, {
 				e.bags = this.BAGS;
 				e.lbN = 0;
 				e.mass = 3.2;
-				e.rad = 1.25;
+				e.rad = 1.3;
 				/* the armoured version of its own truck (buildTruck mode "armour"), a size up */
 				const sc = 0.8 * 1.3;
 				e.g.remove(e.tr);

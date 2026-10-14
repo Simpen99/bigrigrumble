@@ -164,7 +164,7 @@ function buildTruck(i, mode) {
 	};
 	const monAx = [];
 	const wheels = (xs, r = 0.3, z = W / 2) =>
-		mon
+		mon || armour
 			? monAx.push(...xs)
 			: xs.forEach((x) =>
 					[-1, 1].forEach((s) => {
@@ -298,7 +298,7 @@ function buildTruck(i, mode) {
 			chassis(2.2, -0.05);
 			add(B(1.45, 0.85, W, c, -0.38, 0.95, 0, NY), B(1.47, 0.12, W + 0.06, a, -0.38, 0.8, 0));
 			const lad = new THREE.Group();
-			if (!hose) {
+			if (!hose && !armour) {
 				lad.position.set(-0.8, 1.5, 0);
 				lad.add(B(1.6, 0.06, 0.06, "#CFD4DC", 0.72, 0, 0.26), B(1.6, 0.06, 0.06, "#CFD4DC", 0.72, 0, -0.26));
 				for (let k = 0; k < 7; k++) lad.add(B(0.05, 0.05, 0.52, "#CFD4DC", k * 0.24, 0, 0));
@@ -356,10 +356,11 @@ function buildTruck(i, mode) {
 			const bed = new THREE.Group();
 			bed.position.set(-1.0, 0.6, 0);
 			const bb = B(1.35, 0.75, W, c, 0.66, 0.38, 0);
-			bb.rotation.z = hose ? 0 : -0.06;
+			bb.rotation.z = hose || armour ? 0 : -0.06;
 			bed.add(bb);
 			[-0.8, -0.34, 0.12].forEach((x) => bed.add(B(0.06, 0.78, W + 0.04, a, x + 1.0, 0.38, 0)));
-			if (!hose) bed.add(B(0.3, 0.25, 0.9, "#8C5A3C", 0.5, 0.85, 0), B(0.25, 0.2, 0.5, "#6F7682", 0.95, 0.82, 0.15));
+			if (!hose && !armour)
+				bed.add(B(0.3, 0.25, 0.9, "#8C5A3C", 0.5, 0.85, 0), B(0.25, 0.2, 0.5, "#6F7682", 0.95, 0.82, 0.15));
 			mount = { x: -0.34, y: 1.37, s: 0.95 };
 			g.add(bed);
 			const ram = B(0.1, 0.5, 0.1, "#8E96A3", -0.1, 0.6, 0);
@@ -367,7 +368,7 @@ function buildTruck(i, mode) {
 			add(ram);
 			cab(0.72);
 			anims.push((tm) => {
-				if (hose) return;
+				if (hose || armour) return;
 				const u = Math.max(0, Math.sin(tm * 0.7));
 				const e = u * u;
 				bed.rotation.z = e * 0.6;
@@ -541,7 +542,7 @@ function buildTruck(i, mode) {
 			if (hose) {
 				add(B(1.1, 0.26, 0.7, D, -0.35, 1.43, 0));
 				mount = { x: -0.35, y: 1.56, s: 0.95 };
-			} else {
+			} else if (!armour) {
 				add(Cy(0.12, 0.12, 0.14, 8, "#AAB3C0", -0.35, 1.55, 0), B(1.3, 0.04, 0.04, "#8E96A3", -0.35, 1.56, 0.3));
 				[-0.94, -0.55, -0.15, 0.24].forEach((x) => add(B(0.03, 0.17, 0.03, "#8E96A3", x, 1.475, 0.3)));
 				lid.position.set(-0.47, 1.63, 0);
@@ -681,7 +682,18 @@ function buildTruck(i, mode) {
 	/* armour: roof ornaments off, the strongbox goes on the roof itself */
 	if (armour) {
 		roof.forEach((o) => o.parent && o.parent.remove(o));
-		armourize(g, W, wheelsL, t.kind, mount);
+		/* beefed up: the whole body longer, taller and wider, then lifted on big tyres */
+		const BX = 1.06,
+			BY = 1.1,
+			BZ = 1.12,
+			DY = 0.55,
+			R = 0.52,
+			beef = new THREE.Group();
+		beef.scale.set(BX, BY, BZ);
+		[...g.children].forEach((o) => beef.add(o));
+		g.add(beef);
+		liftWheels(g, monAx, wheelsL, R, DY, (W * BZ) / 2 + 0.36);
+		armourize(g, W * BZ, wheelsL, t.kind, mount && { x: mount.x * BX, y: mount.y * BY + DY }, R);
 	}
 	{
 		/* paint (body and accent colour) gets its own materials per truck, tagged for the new look's slight shine (lookEnv) */
@@ -739,26 +751,18 @@ function springSet(tr, ext) {
 /* monster mode (Monster Mash's boss): the truck's own body, paint a shade darker, lifted on long shocks over huge
    treaded tyres with spiked hubs, a toothed bull bar, red glowing eyes under angry brows, and exhaust stacks with flames */
 const MON = { R: 0.62, DY: 0.7, EYE: { emissive: "#FF2A1A", emissiveIntensity: 0.9 } };
-function monsterize(g, xs, anims, wheelsL, own) {
-	const DY = own ? 0.2 : MON.DY,
-		R = MON.R,
-		D = "#353A46",
-		ST = "#4A525C",
+/* the body lifted DY on long shocks over big treaded tyres (radius R, ZW out from the middle) with spiked hubs: Monster
+   Mash's monster and the armoured cash truck. Returns the lift group (the body is in it) */
+function liftWheels(g, xs, wheelsL, R, DY, ZW) {
+	const D = "#353A46",
 		CH = "#C9CED8",
-		BONE = "#E8E2D0",
-		W2 = 0.55,
-		ZW = W2 + 0.27,
-		lift = new THREE.Group();
+		lift = new THREE.Group(),
+		add = (p, ...m) => m.forEach((x) => p.add(x)),
+		cyl = (rt, rb, h, n, col, x, y, z, o) => Cy(rt, rb, h, n, col, x, y, z, o);
 	lift.position.y = DY;
 	[...g.children].forEach((o) => lift.add(o));
 	g.add(lift);
 	g.userData.lift = lift;
-	g.updateMatrixWorld(true);
-	const bb = new THREE.Box3().setFromObject(lift),
-		fx = bb.max.x,
-		top = bb.max.y - DY,
-		add = (p, ...m) => m.forEach((x) => p.add(x)),
-		cyl = (rt, rb, h, n, col, x, y, z, o) => Cy(rt, rb, h, n, col, x, y, z, o);
 	/* axles: close tandem axles share one big tyre, and the two ends stay a tyre apart */
 	const ax = [];
 	xs.slice()
@@ -818,6 +822,24 @@ function monsterize(g, xs, anims, wheelsL, own) {
 			wheelsL.push({ g: wg, r: R });
 		});
 	});
+	return lift;
+}
+function monsterize(g, xs, anims, wheelsL, own) {
+	const DY = own ? 0.2 : MON.DY,
+		R = MON.R,
+		D = "#353A46",
+		ST = "#4A525C",
+		CH = "#C9CED8",
+		BONE = "#E8E2D0",
+		W2 = 0.55,
+		ZW = W2 + 0.27,
+		lift = liftWheels(g, xs, wheelsL, R, DY, ZW);
+	g.updateMatrixWorld(true);
+	const bb = new THREE.Box3().setFromObject(lift),
+		fx = bb.max.x,
+		top = bb.max.y - DY,
+		add = (p, ...m) => m.forEach((x) => p.add(x)),
+		cyl = (rt, rb, h, n, col, x, y, z, o) => Cy(rt, rb, h, n, col, x, y, z, o);
 	/* toothed bull bar = the mouth: the upper bar with fangs is fixed, the lower bar with teeth is a jaw hinged at the
 	   back (userData.jaw, rotation.z < 0 opens it), a dark throat between them. userData.mouth = where things come out */
 	const bx = fx + 0.12,
@@ -888,14 +910,16 @@ function monsterize(g, xs, anims, wheelsL, own) {
 		});
 	});
 }
-/* armour mode (Getaway's cash truck): the truck's own body and paint as a war rig (inspired by Mad Max style builds,
-   kept chunky and toy-like): a spiked tube cowcatcher on the front, bars over every window, a blower with three chrome
-   stacks on the hood, riveted steel skirts with spikes along the bottom, spiked wheel hubs, a heavy rear push bar, and
-   on the roof a steel strongbox with gold badges (the money bags sit on it) in a tube roll cage with spotlights and
-   amber beacons */
-function armourize(g, W, wheelsL, kind, mount) {
+/* armour mode (Getaway's cash truck): the truck's own body made chunkier (beefUp: longer, taller, wider) and lifted on big
+   treaded tyres (liftWheels), then built up as a war rig (inspired by Mad Max style builds, kept chunky and toy-like):
+   steel fenders over the tyres, a spiked tube cowcatcher across the front, bars over every window, a blower with three
+   chrome stacks on the hood, a heavy rear push bar, and a steel strongbox with gold badges (the money bags sit on it) in
+   a tube roll cage with spotlights and amber beacons: on the roof, in the pickup's bed, on the tow truck's deck, on a
+   braced platform over the mixer's drum and the tanker's tank. W = the beefed-up width, R = the tyres' radius */
+function armourize(g, W, wheelsL, kind, mount, R) {
 	g.updateMatrixWorld(true);
-	const bb = new THREE.Box3().setFromObject(g),
+	const body = g.userData.lift || g,
+		bb = new THREE.Box3().setFromObject(body),
 		fx = bb.max.x,
 		rx = bb.min.x,
 		ST = "#5A6272",
@@ -911,58 +935,43 @@ function armourize(g, W, wheelsL, kind, mount) {
 			g.add(m);
 		},
 		ray = new THREE.Raycaster(),
-		hAt = (x, z) => {
+		hAt = (x, z, o = g) => {
 			ray.set(new THREE.Vector3(x, bb.max.y + 1, z), new THREE.Vector3(0, -1, 0));
-			const h = ray.intersectObject(g, true)[0];
+			const h = ray.intersectObject(o, true)[0];
 			return h ? h.point.y : 0.6;
 		};
-	/* measured before anything is added: the glass (bars go over it), the hood, and from the body alone (not the wheels)
-	   the lowest edge along its sides and at its front, so the skirts and the cowcatcher hang from the body itself */
-	const glass = [],
-		wheelM = new Set();
-	(wheelsL || []).forEach(({ g: wg }) => wg.traverse((o) => wheelM.add(o)));
+	/* measured on the body alone, before anything is added: the glass (bars go over it), the lowest edge along its sides
+	   and at its front (things hang from the body itself), the hood */
+	const glass = [];
 	let sb = 9,
 		fb = 9;
-	g.traverse((o) => {
+	body.traverse((o) => {
 		if (!o.isMesh) return;
-		if (o.material && o.material.color && o.material.color.getHex() === 0x2f3b52)
-			glass.push(new THREE.Box3().setFromObject(o));
-		if (wheelM.has(o)) return;
 		const b = new THREE.Box3().setFromObject(o);
+		if (o.material && o.material.color && o.material.color.getHex() === 0x2f3b52) glass.push(b);
 		if (b.max.z > W / 2 - 0.12 || b.min.z < -(W / 2 - 0.12)) sb = Math.min(sb, b.min.y);
 		if (b.max.x > fx - 0.45 && b.max.y - b.min.y > 0.08) fb = Math.min(fb, b.min.y);
 	});
 	if (sb > 5) sb = 0.45;
 	if (fb > 5) fb = 0.4;
-	const hoodY = hAt(fx - 0.3, 0),
-		/* skirt: its top tucked 0.08 up under the body's side edge */
-		yc = Math.max(0.62, sb + 0.1),
-		yt = yc + 0.17,
-		yb = yc - 0.17;
-	let mz = W / 2;
-	g.traverse((o) => {
-		if (!o.isMesh) return;
-		const b = new THREE.Box3().setFromObject(o);
-		if (b.max.y > yb && b.min.y < yt) mz = Math.max(mz, b.max.z, -b.min.z);
-	});
-	const z0 = mz + 0.07,
-		L = (fx - rx) * 0.86,
-		cx = (fx + rx) / 2 - 0.05;
-	/* side skirts: a thick plate, lips top and bottom, rivets, spikes along the bottom, and brackets from the body out to
-	   the plate along its top */
-	[-1, 1].forEach((sd) => {
-		g.add(B_(L, 0.34, 0.09, ST, cx, yc, sd * z0), B_(L + 0.06, 0.07, 0.13, DK, cx, yb, sd * (z0 + 0.01)));
-		g.add(B_(L + 0.04, 0.05, 0.12, DK, cx, yt, sd * (z0 + 0.005)));
-		for (let x = cx - L / 2 + 0.16; x < cx + L / 2 - 0.1; x += 0.28) {
-			const rv = Cy(0.04, 0.04, 0.05, 6, CH, x, yc, sd * (z0 + 0.06));
-			rv.rotation.x = Math.PI / 2;
-			g.add(rv);
-		}
-		for (let x = cx - L / 2 + 0.2; x < cx + L / 2 - 0.1; x += 0.36)
-			spike(0.22, 0.06, x, yb, sd * (z0 + 0.07), [0, -0.3, sd]);
-		[-0.38, 0, 0.38].forEach((u) =>
-			strut(g, [cx + u * L, yt - 0.06, sd * (W / 2 - 0.08)], [cx + u * L, yt - 0.06, sd * (z0 - 0.03)], 0.09, DK, 1),
-		);
+	const hoodY = hAt(fx - 0.3, 0, body),
+		tyres = (wheelsL || []).map(({ g: wg }) => wg.position);
+	/* fenders over the tyres: a plate, angled ends, a bracket to the body, spikes along the outer edge */
+	tyres.forEach((p) => {
+		const sd = Math.sign(p.z) || 1,
+			fy = 2 * R + 0.08,
+			fl = 2 * R + 0.2,
+			fd = 0.62,
+			fz = p.z;
+		g.add(B_(fl, 0.07, fd, ST, p.x, fy, fz));
+		[-1, 1].forEach((e) => {
+			const end = B_(0.34, 0.07, fd, ST, p.x + e * (fl / 2 + 0.13), fy - 0.12, fz);
+			end.rotation.z = -e * 0.7;
+			g.add(end);
+		});
+		g.add(B_(fl + 0.04, 0.05, 0.08, DK, p.x, fy + 0.04, fz + sd * (fd / 2 - 0.02)));
+		strut(g, [p.x, fy - 0.02, sd * (W / 2 - 0.08)], [p.x, fy - 0.02, fz - sd * (fd / 2 - 0.05)], 0.1, DK, 1);
+		[-0.3, 0, 0.3].forEach((u) => spike(0.2, 0.055, p.x + u, fy, fz + sd * (fd / 2), [0, 0.25, sd]));
 	});
 	/* bars over the windows: a rail and uprights just off every outward face of the glass (front or back; the sides of a
 	   pane that spans the cab, or a side window) */
@@ -990,10 +999,11 @@ function armourize(g, W, wheelsL, kind, mount) {
 		if (sx > sz) barsZ(b, (b.min.z + b.max.z) / 2 > 0 ? b.max.z + 0.04 : b.min.z - 0.04);
 		else if (sz > W * 0.8 && sx >= 0.18) [b.max.z + 0.04, b.min.z - 0.04].forEach((z) => barsZ(b, z));
 	});
-	/* the cowcatcher: from just off the ground up past the body's front edge; tubes in a wedge out front, side frames,
-	   uprights, a row of spikes along the bottom, and two arms back into the chassis */
-	const cw = W / 2 + 0.22,
-		bx = fx + 0.06,
+	/* the cowcatcher: ahead of the front tyres and as wide as them, from just off the ground up past the body's front
+	   edge; tubes in a wedge, side frames, uprights, spikes along the bottom, arms back into the chassis */
+	const tf = Math.max(fx, ...tyres.map((p) => p.x + R)),
+		cw = Math.max(W / 2 + 0.22, ...tyres.map((p) => Math.abs(p.z) + 0.26)),
+		bx = tf + 0.08,
 		c0 = 0.26,
 		c1 = Math.max(0.92, fb + 0.3),
 		ch = c1 - c0,
@@ -1007,12 +1017,12 @@ function armourize(g, W, wheelsL, kind, mount) {
 			[x1, y1] = at(1);
 		strut(g, [x0, y0, sd * cw], [x1, y1, sd * cw], 0.11, DK, 2);
 		strut(g, [bx + 0.02, c1 - 0.06, sd * 0.36], [fx - 0.32, c1 - 0.06, sd * 0.36], 0.1, DK, 1);
-		strut(g, [x0, y0 + 0.04, sd * (cw - 0.12)], [fx - 0.2, Math.max(y0 + 0.04, fb + 0.06), sd * 0.36], 0.08, DK, 2);
+		strut(g, [x0, y0 + 0.04, sd * 0.42], [fx - 0.2, Math.max(y0 + 0.04, fb + 0.06), sd * 0.36], 0.08, DK, 2);
 	});
 	[-0.3, 0, 0.3].forEach((z) => strut(g, [...at(-0.02), z], [...at(0.98), z], 0.07, DK, 1));
 	for (let z = -cw + 0.12; z <= cw - 0.1; z += 0.2) spike(0.26, 0.055, bx + 0.48, 0.28, z, [1, -0.15, 0]);
 	/* the blower on the hood (trucks with one: cab-overs have the cab up front), a block, three chrome stacks */
-	if (hoodY < 1.05) {
+	if (hoodY < 1.05 + (g.userData.lift ? g.userData.lift.position.y + 0.1 : 0)) {
 		const hx = fx - 0.32;
 		g.add(B_(0.34, 0.14, 0.44, DK, hx, hoodY + 0.07, 0), B_(0.38, 0.05, 0.48, ST, hx, hoodY + 0.02, 0));
 		[-0.14, 0, 0.14].forEach((z) => {
@@ -1022,55 +1032,46 @@ function armourize(g, W, wheelsL, kind, mount) {
 			);
 		});
 	}
-	/* spiked hubs */
-	(wheelsL || []).forEach(({ g: wg }) => {
-		const sd = Math.sign(wg.position.z) || 1,
-			s = Cy(0, 0.07, 0.2, 6, CH, 0, 0, sd * 0.28),
-			c = Cy(0.1, 0.1, 0.04, 8, DK, 0, 0, sd * 0.19);
-		s.rotation.x = (sd * Math.PI) / 2;
-		c.rotation.x = Math.PI / 2;
-		wg.add(s, c);
-	});
-	/* rear push bar */
-	strut(g, [rx - 0.1, 0.42, -W / 2 - 0.05], [rx - 0.1, 0.42, W / 2 + 0.05], 0.12, DK, 1);
-	[-0.32, 0.32].forEach((z) => strut(g, [rx - 0.1, 0.42, z], [rx + 0.06, 0.42, z], 0.08, DK, 2));
-	/* the strongbox, a gold badge each side: on the roof in a tube roll cage with spotlights and beacons; a pickup carries
-	   it down in its bed (no room for a cage there: the lights go on a bar over the cab), the tow truck on its deck where
-	   the crane was, the mixer on a platform in a frame over its drum (vault = where it sits, so a game can put the money bags on it) */
+	/* rear push bar, at the body's lower edge */
+	const py = Math.max(0.42, sb + 0.06);
+	strut(g, [rx - 0.1, py, -W / 2 - 0.05], [rx - 0.1, py, W / 2 + 0.05], 0.12, DK, 1);
+	[-0.32, 0.32].forEach((z) => strut(g, [rx - 0.1, py, z], [rx + 0.06, py, z], 0.08, DK, 2));
+	/* where the strongbox goes */
 	const bed = kind === "pickup",
 		deck = (bed || kind === "tow") && mount,
-		/* the mixer's drum is tilted: a steel frame round it carries a flat platform just over its top */
-		drum = kind === "mixer",
-		dx0 = -0.98,
-		dx1 = 0.14;
-	let pY = 0;
+		drum = kind === "mixer" || kind === "tanker";
+	let top;
 	if (drum) {
-		for (let x = dx0; x <= dx1; x += 0.08) [-0.35, 0, 0.35].forEach((z) => (pY = Math.max(pY, hAt(x, z))));
-		pY += 0.1;
-		const pz = W / 2 + 0.13;
-		[dx0, dx1].forEach((x) => [-1, 1].forEach((sd) => strut(g, [x, 0.62, sd * pz], [x, pY, sd * pz], 0.1, DK, 2)));
-		[-1, 1].forEach((sd) => {
-			strut(g, [dx0, 0.7, sd * pz], [dx1, pY - 0.08, sd * pz], 0.07, ST, 1);
-			strut(g, [dx1, 0.7, sd * pz], [dx0, pY - 0.08, sd * pz], 0.07, ST, 1);
-			strut(g, [dx0, pY - 0.04, sd * pz], [dx1, pY - 0.04, sd * pz], 0.09, DK, 2);
-			strut(
-				g,
-				[dx0 + (sd < 0 ? 0 : dx1 - dx0), pY - 0.04, -pz],
-				[dx0 + (sd < 0 ? 0 : dx1 - dx0), pY - 0.04, pz],
-				0.09,
-				DK,
-				2,
-			);
+		/* a braced platform just over the drum / tank: its posts stand in front of and behind it (measured), on the
+		   chassis, clear of the tyres beside it */
+		const xs = [],
+			cab0 = fx - 0.72;
+		let hy = 0;
+		for (let x = rx + 0.05; x < cab0; x += 0.04) {
+			const h = Math.max(...[-0.3, 0, 0.3].map((z) => hAt(x, z, body)));
+			if (h > sb + 0.75) {
+				xs.push(x);
+				hy = Math.max(hy, h);
+			}
+		}
+		const x0 = Math.max(rx + 0.04, (xs[0] ?? rx + 0.3) - 0.12),
+			x1 = Math.min(cab0 - 0.06, (xs[xs.length - 1] ?? cab0 - 0.3) + 0.12),
+			pY = hy + 0.1,
+			pz = 0.4;
+		[x0, x1].forEach((x) => {
+			[-1, 1].forEach((sd) => strut(g, [x, sb + 0.04, sd * pz], [x, pY, sd * pz], 0.1, DK, 2));
+			strut(g, [x, sb + 0.12, -pz], [x, pY - 0.08, pz], 0.07, ST, 1);
+			strut(g, [x, sb + 0.12, pz], [x, pY - 0.08, -pz], 0.07, ST, 1);
+			strut(g, [x, pY - 0.04, -pz], [x, pY - 0.04, pz], 0.09, DK, 2);
 		});
-		g.add(B_(dx1 - dx0 + 0.16, 0.06, pz * 2 + 0.12, ST, (dx0 + dx1) / 2, pY + 0.03, 0));
-	}
-	const top = deck
-			? { x: mount.x + (bed ? 0.03 : 0), y: mount.y }
-			: drum
-				? { x: (dx0 + dx1) / 2, y: pY + 0.06 }
-				: truckTop(g),
-		bw = bed ? 0.54 : 0.86,
-		bd = W * 0.66,
+		[-1, 1].forEach((sd) => strut(g, [x0, pY - 0.04, sd * pz], [x1, pY - 0.04, sd * pz], 0.09, DK, 2));
+		g.add(B_(x1 - x0 + 0.2, 0.06, W * 0.92, ST, (x0 + x1) / 2, pY + 0.03, 0));
+		top = { x: (x0 + x1) / 2, y: pY + 0.06 };
+	} else top = deck ? { x: mount.x + (bed ? 0.03 : 0), y: mount.y } : truckTop(body);
+	/* the strongbox, a gold badge each side, and round it a roll cage with spotlights and beacons (in a pickup's bed
+	   there's no room: the lights go on a bar over the cab); vault = where it sits, so a game can put the money bags on it */
+	const bw = bed ? 0.54 : 0.86,
+		bd = W * 0.6,
 		bh = bed ? 0.36 : 0.32,
 		by = top.y + bh / 2 - 0.02,
 		rw = bw / 2 + 0.12,
@@ -1097,9 +1098,8 @@ function armourize(g, W, wheelsL, kind, mount) {
 		beaconA = (x, y, z) =>
 			g.add(Cy(0.07, 0.08, 0.12, 8, "#FFB547", x, y, z, { emissive: "#FF9A1F", emissiveIntensity: 1.2 }));
 	if (bed) {
-		/* a light bar over the cab: two spotlights forward, a beacon each end */
-		const cx = mount.x + 0.77,
-			cy = hAt(cx, 0);
+		const cx = mount.x + 0.8,
+			cy = hAt(cx, 0, body);
 		g.add(B_(0.14, 0.08, W * 0.86, DK, cx, cy + 0.04, 0));
 		[-1, 1].forEach((sd) => {
 			g.add(B_(0.08, 0.1, 0.08, DK, cx, cy + 0.02, sd * W * 0.36));
@@ -1112,7 +1112,6 @@ function armourize(g, W, wheelsL, kind, mount) {
 		[-1, 1].forEach((fs) => strut(g, [top.x + fs * rw, top.y, sd * rd], [top.x + fs * rw, ry, sd * rd], 0.07, DK, 1));
 		strut(g, [top.x - rw, ry, sd * rd], [top.x + rw, ry, sd * rd], 0.07, DK, 2);
 		strut(g, [top.x + sd * rw, ry, -rd], [top.x + sd * rw, ry, rd], 0.07, DK, 2);
-		/* a spotlight on the front rail, a beacon at the back */
 		lamp(top.x + rw + 0.02, ry + 0.06, sd * (rd - 0.14));
 		beaconA(top.x - rw, ry + 0.09, sd * rd);
 	});
