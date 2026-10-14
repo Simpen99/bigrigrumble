@@ -7105,7 +7105,9 @@ Object.assign(MG, {
 		unit: "bags",
 		dur: 75,
 		bare: true,
-		lt: { amb: 0.6, sun: 0.88, warm: 0.4, haze: 60 },
+		/* dusk: the headlights, the cops' light bars and the helicopter's spotlight light up the road (glowing pools) */
+		dusk: true,
+		lt: { amb: 0.5, sun: 0.62, warm: 0.85, haze: 60 },
 		bound: { t: "none" },
 		/* the road: LANES lanes LW wide, ROADL long, the tunnel TL up it; traffic at CARV */
 		LANES: 6,
@@ -7192,6 +7194,8 @@ Object.assign(MG, {
 			this.tunnel(W, wid);
 			W.oilM = {};
 			W.loose = [];
+			this.streaks(W);
+			W.heli = this.heliModel(W);
 		},
 		/* the tunnel: a concrete portal into a grassy hill, its name on the beam, amber lamps */
 		tunnel(W, wid) {
@@ -7262,15 +7266,16 @@ Object.assign(MG, {
 		phys(W, e, inp, dt) {
 			const solo = e.side === 0,
 				T = solo ? null : this.solo(W),
-				/* catch-up: a cop more than 20 m behind the truck gets extra top speed, so the pack stays together (and on
-				   the TV) */
+				/* catch-up: a cop more than 20 m behind the truck cruises faster and gets extra top speed, so the pack stays
+				   together (and on the TV) */
 				lag = T ? e.z - T.z - 20 : 0,
-				top = this.V0 + (solo ? this.UP : this.UPC) + (lag > 0 ? Math.min(12, lag * 0.3) : 0),
+				cu = lag > 0 ? Math.min(12, lag * 0.3) : 0,
+				top = this.V0 + (solo ? this.UP : this.UPC) + cu,
 				low = this.V0 - this.DN,
 				on = inp && !e.d;
 			let fv = -e.vz;
 			const thr = on ? -(inp.y || 0) : 0,
-				want = thr >= 0 ? this.V0 + thr * (top - this.V0) : this.V0 + thr * (this.V0 - low),
+				want = cu + (thr >= 0 ? this.V0 + thr * (top - cu - this.V0) : this.V0 + thr * (this.V0 - low)),
 				acc = (W.t < (e.crT || 0) ? 5 : 11) * dt;
 			fv += Math.max(-acc, Math.min(acc, want - fv));
 			if (on) e.vx += (inp.x || 0) * this.LATA * dt;
@@ -7500,15 +7505,20 @@ Object.assign(MG, {
 		/* cameras: yours from behind and above, looking up the road; the TV follows the whole pack */
 		cam(W, tgt, pos, far) {
 			if (W.tv) {
-				/* the whole pack, led a little up the road since the camera eases after a moving target */
 				const L = W.list.filter((e) => !e.gone),
 					zs = L.map((e) => e.z),
 					z0 = Math.min(...zs),
 					z1 = Math.max(...zs),
-					zc = (z0 + z1) / 2 - 5,
 					sp = z1 - z0;
-				const t = new THREE.Vector3(0, 0, zc - 6),
-					p = new THREE.Vector3(0, 19 + sp * 0.8, zc + 22 + sp * 0.62);
+				/* a fixed tilt (35 degrees down) at the middle of the pack, pulled back as its length grows (hl = half the
+				   pack) so both ends stay in view */
+				/* at most ~60 m of road: a straggler further back than that drops out, the front of the chase stays */
+				const hl = Math.min(sp / 2 + 6, 36),
+					zc = Math.min((z0 + z1) / 2, z0 + hl - 6),
+					a = 0.62,
+					D = Math.max(26, hl * 2 + 6),
+					t = new THREE.Vector3(0, 0, zc),
+					p = new THREE.Vector3(0, D * Math.sin(a), zc + D * Math.cos(a));
 				return [t, p];
 			}
 			const e = W.me,
@@ -7521,6 +7531,11 @@ Object.assign(MG, {
 		render(W, e, dt) {
 			this.scene(W, dt);
 			const f = e.f || {};
+			this.truckLights(W, e);
+			/* grinding along the guardrail: sparks (and a grind for your own truck) */
+			const hw = (this.LANES * this.LW) / 2 - (e.rad || 0.95) * 0.85;
+			if (W.t > 0 && !e.gone && Math.abs(e.x) > hw - 0.03 && Math.hypot(e.vx || 0, e.vz || 0) > 5)
+				this.sparks(W, e, Math.sign(e.x) * (hw + (e.rad || 0.95) * 0.8), e.z, e.isMe && !W.tv);
 			/* another device's truck: projected on by the update's real age (its game time e.f.t, clocks are synced), the
 			   engine's guess doesn't know how old an update is and at highway speed every 0.1 s is 2 m */
 			if (!e.local && e.net && f.t !== undefined) {
@@ -7627,6 +7642,248 @@ Object.assign(MG, {
 				t: W.t,
 			});
 		},
+		/* a few sparks at (x, z) by truck e (rate-limited per truck), a faint grind when it's yours */
+		sparks(W, e, x, z, snd) {
+			if (W.t - (e.spkT ?? -9) < 0.07) return;
+			e.spkT = W.t;
+			burst(W.sc, x, 0.55 + Math.random() * 0.4, z, {
+				n: 4,
+				shape: "cube",
+				cols: ["#FFE27A", "#FFB547", "#FFF6D8"],
+				spd: 4.5,
+				up: 3,
+				life: 0.35,
+				size: 0.32,
+			});
+			if (snd && W.t - (W.grT ?? -9) > 0.22) {
+				W.grT = W.t;
+				sfx("grind");
+			}
+		},
+		/* speed lines: thin streaks hanging in the air along the road, recycled ahead of the camera, drifting back a little;
+		   they show more the faster you go (the TV: the pack) */
+		streaks(W) {
+			const N = 44,
+				m = new THREE.InstancedMesh(
+					new THREE.BoxGeometry(0.05, 0.05, 1),
+					new THREE.MeshBasicMaterial({
+						color: "#FFFFFF",
+						transparent: true,
+						opacity: 0,
+						depthWrite: false,
+						blending: THREE.AdditiveBlending,
+					}),
+					N,
+				);
+			m.frustumCulled = false;
+			m.renderOrder = 3;
+			W.sc.add(m);
+			W.stk = { m, L: [], o: new THREE.Object3D() };
+			for (let i = 0; i < N; i++) W.stk.L.push({ x: 0, y: 0, z: 1e6, l: 4 });
+		},
+		/* where the action is: your truck, or the pack on the TV, and how fast it goes */
+		focus(W) {
+			const L = W.tv ? W.list.filter((e) => !e.gone) : [W.me],
+				n = Math.max(1, L.length);
+			return {
+				x: L.reduce((a, e) => a + e.x, 0) / n,
+				z: W.tv ? Math.min(...L.map((e) => e.z)) : W.me.z,
+				sp: L.reduce((a, e) => a + Math.hypot(e.vx || 0, e.vz || 0), 0) / n,
+			};
+		},
+		streakStep(W, dt) {
+			const K = W.stk;
+			if (!K) return;
+			const F = this.focus(W),
+				on = W.t > 0 && !W.over ? Math.max(0, Math.min(1, (F.sp - 10) / 10)) : 0;
+			K.m.material.opacity = 0.32 * on;
+			K.m.visible = on > 0.01;
+			if (!K.m.visible) return;
+			K.L.forEach((q, i) => {
+				q.z += 9 * dt;
+				if (q.z > F.z + 12 || q.z < F.z - 70) {
+					/* a new one up ahead, off to the sides or overhead, rarely right in the middle */
+					const side = Math.random() < 0.5 ? -1 : 1;
+					q.x = F.x * 0.5 + side * (2.5 + Math.random() * 11);
+					q.y = 0.6 + Math.random() * 6;
+					q.z = F.z - 25 - Math.random() * 40;
+					q.l = 3 + Math.random() * 4;
+				}
+				K.o.position.set(q.x, q.y, q.z);
+				K.o.scale.set(1, 1, q.l);
+				K.o.updateMatrix();
+				K.m.setMatrixAt(i, K.o.matrix);
+			});
+			K.m.instanceMatrix.needsUpdate = true;
+		},
+		/* a faint whoosh as you pass close to a car, a screech when you swerve hard at speed (your truck, phone only) */
+		nearMiss(W) {
+			const e = W.me;
+			if (W.tv || !e || e.gone || W.t <= 0 || W.over) return;
+			for (const c of W.cars) {
+				if (c.kT !== undefined) continue;
+				const cz = this.carZ(W, c),
+					rel = cz > e.z ? 1 : -1;
+				if (c.rel === -1 && rel === 1 && Math.abs(this.lx(c.l) - e.x) < 5) sfx("whoosh");
+				c.rel = Math.abs(cz - e.z) < 30 ? rel : 0;
+			}
+			if (Math.abs(e.vx || 0) > 6.5 && -e.vz > 13 && W.t - (W.scrT ?? -9) > 0.9) {
+				W.scrT = W.t;
+				sfx("screech");
+			}
+		},
+		/* lights on the road at dusk: a warm pool ahead of every truck's headlights; under each cop a pool flashing red
+		   and blue with its light bar */
+		truckLights(W, e) {
+			if (!e.hl) {
+				const pool = (col, w, l, x) => {
+						const m = new THREE.Mesh(
+							new THREE.PlaneGeometry(l, w),
+							new THREE.MeshBasicMaterial({
+								map: this.glowTex(W),
+								color: col,
+								transparent: true,
+								opacity: 0.5,
+								depthWrite: false,
+								blending: THREE.AdditiveBlending,
+							}),
+						);
+						m.rotation.x = -Math.PI / 2;
+						m.position.set(x, 0.14, 0);
+						m.renderOrder = 2;
+						e.g.add(m);
+						return m;
+					},
+					big = e.side === 0;
+				e.hl = { head: pool("#FFE7B0", big ? 4.6 : 3.4, big ? 10 : 8, big ? 6.2 : 4.8) };
+				if (e.side === 1) e.hl.bar = pool("#FF3B3B", 5, 5, 0);
+			}
+			e.hl.head.visible = !e.gone;
+			if (e.hl.bar) {
+				const ph = Math.floor(W.t * 6 + e.i) % 2;
+				e.hl.bar.material.color.set(ph ? "#FF2E2E" : "#2E6BFF");
+				e.hl.bar.material.opacity = 0.35 + 0.15 * Math.sin(W.t * 37);
+				e.hl.bar.visible = !e.gone;
+			}
+		},
+		/* a soft round glow (white in the middle, nothing at the edge), tinted per use */
+		glowTex(W) {
+			return (
+				W.glowTex ||
+				(W.glowTex = canvasTex(128, 128, (x, w, h) => {
+					const g = x.createRadialGradient(w / 2, h / 2, 2, w / 2, h / 2, w / 2);
+					g.addColorStop(0, "rgba(255,255,255,1)");
+					g.addColorStop(0.45, "rgba(255,255,255,0.55)");
+					g.addColorStop(1, "rgba(255,255,255,0)");
+					x.fillStyle = g;
+					x.fillRect(0, 0, w, h);
+				}))
+			);
+		},
+		/* the police helicopter: a chunky toy chopper in police blue and white, rotor and tail rotor turning, a red and blue
+		   belly light; its spotlight (a soft beam cone and a bright pool on the road) sweeps round the cash truck */
+		heliModel(W) {
+			const g = new THREE.Group(),
+				BL = "#3D6FD1",
+				WH = "#F4F6F9",
+				DK = "#3D424C",
+				cab = mesh(new THREE.IcosahedronGeometry(1, 1), BL),
+				glass = mesh(new THREE.IcosahedronGeometry(0.72, 1), "#9FD8F0", { roughness: 0.2 }),
+				rotor = new THREE.Group(),
+				tail = new THREE.Group(),
+				boom = Cy(0.12, 0.24, 2.6, 8, BL, -2.2, 0.15, 0);
+			cab.scale.set(1.55, 0.95, 1.0);
+			glass.scale.set(0.95, 0.72, 0.86);
+			glass.position.set(0.75, 0.12, 0);
+			boom.rotation.z = Math.PI / 2;
+			g.add(cab, glass, boom, B(1.6, 0.18, 1.62, WH, -0.1, -0.15, 0));
+			g.add(B(0.55, 0.75, 0.09, BL, -3.45, 0.55, 0), B(0.7, 0.08, 0.6, WH, -3.3, 0.2, 0));
+			/* skids */
+			[-1, 1].forEach((sd) => {
+				const sk = Cy(0.06, 0.06, 2.4, 6, DK, 0.1, -1.05, sd * 0.7);
+				sk.rotation.z = Math.PI / 2;
+				g.add(
+					sk,
+					Cy(0.05, 0.05, 0.55, 6, DK, 0.55, -0.8, sd * 0.62),
+					Cy(0.05, 0.05, 0.55, 6, DK, -0.45, -0.8, sd * 0.62),
+				);
+			});
+			/* main rotor on a mast, tail rotor */
+			g.add(Cy(0.1, 0.12, 0.42, 8, DK, 0, 1.08, 0));
+			rotor.position.set(0, 1.3, 0);
+			rotor.add(B(5.6, 0.05, 0.26, DK, 0, 0, 0), B(0.26, 0.05, 5.6, DK, 0, 0, 0), Cy(0.18, 0.18, 0.12, 8, WH, 0, 0, 0));
+			tail.position.set(-3.45, 0.6, 0.12);
+			tail.add(B(0.06, 1.0, 0.04, DK, 0, 0, 0), B(1.0, 0.06, 0.04, DK, 0, 0, 0));
+			g.add(rotor, tail);
+			const lamp = B(0.3, 0.12, 0.3, "#FF3B3B", 0.2, -0.95, 0, { emissive: "#FF2A2A", emissiveIntensity: 1.4 });
+			g.add(lamp);
+			[rotor, tail, lamp].forEach((o) => (o.userData.dyn = true));
+			g.position.set(0, 11, -10);
+			g.rotation.y = Math.PI / 2;
+			W.sc.add(g);
+			/* the beam (a cone, tip up at the helicopter) and the pool on the road */
+			const beam = new THREE.Mesh(
+					new THREE.ConeGeometry(1, 1, 18, 1, true),
+					new THREE.MeshBasicMaterial({
+						color: "#FFF3C4",
+						transparent: true,
+						opacity: 0.1,
+						depthWrite: false,
+						side: THREE.DoubleSide,
+						blending: THREE.AdditiveBlending,
+					}),
+				),
+				pool = new THREE.Mesh(
+					new THREE.PlaneGeometry(1, 1),
+					new THREE.MeshBasicMaterial({
+						map: this.glowTex(W),
+						color: "#FFF3C4",
+						transparent: true,
+						opacity: 0.7,
+						depthWrite: false,
+						blending: THREE.AdditiveBlending,
+					}),
+				);
+			pool.rotation.x = -Math.PI / 2;
+			pool.scale.set(8, 8, 1);
+			pool.renderOrder = beam.renderOrder = 3;
+			W.sc.add(beam, pool);
+			return { g, rotor, tail, lamp, beam, pool, p: g.position.clone() };
+		},
+		heliStep(W, dt) {
+			const H = W.heli,
+				T = this.solo(W);
+			if (!H || !T) return;
+			/* ahead of the cash truck out over the roadside, easing after it: high on a phone (out of your view: you see its
+			   shadow and beam), lower on the TV, whose camera looks down from higher up */
+			const tv = !!W.tv,
+				tx = T.x * 0.4 + (tv ? 6 : 9),
+				tz = T.z - (tv ? 8 : 17),
+				k = 1 - Math.exp(-dt * 1.6);
+			H.p.x += (tx - H.p.x) * k;
+			H.p.z += (tz - H.p.z) * (1 - Math.exp(-dt * 3));
+			H.p.y = (tv ? 9.5 : 15) + Math.sin(W.t * 1.3) * 0.4;
+			H.g.position.copy(H.p);
+			H.g.rotation.z = -0.12 + Math.sin(W.t * 0.9) * 0.04;
+			H.g.rotation.x = (tx - H.p.x) * 0.04;
+			H.rotor.rotation.y += dt * 26;
+			H.tail.rotation.z += dt * 34;
+			H.lamp.material.color.set(Math.floor(W.t * 3) % 2 ? "#FF3B3B" : "#2E6BFF");
+			H.lamp.material.emissive.set(Math.floor(W.t * 3) % 2 ? "#FF2A2A" : "#2A6BFF");
+			/* the spotlight sweeps round the truck */
+			const sx = T.x + Math.sin(W.t * 0.8) * 1.6,
+				sz = T.z + Math.cos(W.t * 1.1) * 2.2,
+				top = new THREE.Vector3(H.p.x, H.p.y - 0.9, H.p.z),
+				bot = new THREE.Vector3(sx, 0.15, sz),
+				d = top.clone().sub(bot),
+				len = d.length();
+			H.pool.position.set(sx, 0.16, sz);
+			H.beam.position.copy(bot).addScaledVector(d, 0.5);
+			H.beam.scale.set(3.2, len, 3.2);
+			H.beam.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize());
+			const on = W.t > -1;
+			H.beam.visible = H.pool.visible = on;
+		},
 		/* a money bag: a squat sack with a tied neck */
 		bagKit() {
 			if (this.BK) return this.BK;
@@ -7677,6 +7934,21 @@ Object.assign(MG, {
 				c.g.rotation.set(0, c.kd * a * 3.2, c.kd * Math.min(1.4, a * 2.4));
 			});
 			const fdt = Math.min(0.05, dt || 0.016);
+			this.streakStep(W, fdt);
+			this.heliStep(W, fdt);
+			this.nearMiss(W);
+			/* trucks grinding side by side: sparks between them */
+			if (W.t > 0)
+				W.list.forEach((a, i) =>
+					W.list.slice(i + 1).forEach((b) => {
+						if (a.gone || b.gone) return;
+						const dx = b.x - a.x,
+							dz = b.z - a.z,
+							rr = (a.rad || 0.95) + (b.rad || 0.95);
+						if (Math.hypot(dx, dz) < rr + 0.12 && Math.abs(dz) < rr * 0.8)
+							this.sparks(W, a, (a.x + b.x) / 2, (a.z + b.z) / 2, (a.isMe || b.isMe) && !W.tv);
+					}),
+				);
 			W.loose = W.loose.filter((b) => {
 				const g = b.g;
 				if (W.t - b.t > 10) {

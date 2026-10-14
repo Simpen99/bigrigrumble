@@ -1308,6 +1308,17 @@ function sfx(n) {
 				tone(196, 0.6, "square", 0.12, 0, 0.6);
 				tone(247, 0.6, "square", 0.1, 0, 0.6);
 				break;
+			/* Getaway: passing a car close by, a hard swerve, metal grinding (all faint) */
+			case "whoosh":
+				noiseHit(0.32, 0.06, 1600, 260, 0, 0.9);
+				break;
+			case "screech":
+				noiseHit(0.42, 0.045, 3400, 2600, 0, 7);
+				noiseHit(0.3, 0.03, 2100, 1700, 0.05, 6);
+				break;
+			case "grind":
+				noiseHit(0.14, 0.05, 4200, 2800, 0, 3);
+				break;
 			case "skid":
 				noiseHit(0.55, 0.2, 2400, 900, 0, 4);
 				noiseHit(0.45, 0.12, 1300, 700, 0.08, 3);
