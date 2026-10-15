@@ -476,7 +476,7 @@ function showNameHTML(i) {
 	const t = TRUCKS[i];
 	return `<h2 class="mm-name">${esc(t.name)}</h2><p class="mm-tag">${esc(t.blurb)}</p><div class="mm-dice" aria-label="Die faces">${t.faces.map((f, k) => `<span class="mm-die" style="--dt:var(--ui-dtile-${k + 1})">${f.m}${f.c ? `<small class="${f.c > 0 ? "up" : "dn"}">${f.c > 0 ? "+" : "−"}${Math.abs(f.c)}</small>` : ""}</span>`).join("")}</div>`;
 }
-/* roster: a rock slab per truck (dark ones cycle through four shapes, the selected truck on the white one) */
+/* roster: a rock slab per truck (four shapes in turn), the selected truck's own slab grows 15% */
 const ROCKS = [
 	["d1", 77],
 	["d2", 74],
