@@ -1,5 +1,5 @@
 /* Main menu art: art/ui/*.png (designer's final art) → src/partui.js, each scaled to about twice its size on the 1280 x 720 menu and embedded as WebP (UI_ART, set as CSS variables --ui-<name> by part3).
-   The designer drew one white rock (rock-w1). It is only the colour reference for white versions of the four dark roster rocks (rock-l1 / l2 / l4 / l5 = the selected truck's slab): each dark rock's pixels take the white rock's brightness at the same rank, in its colour.
+   Roster rocks: dark rock-d1 / d2 / d4 / d5, and a white version of each shape (rock-w1 / w2 / w4 / w5, the selected truck's slab).
    node tools/uiart.mjs */
 import { chromium } from "playwright";
 import fs from "fs";
@@ -16,6 +16,10 @@ const W = {
 	"rock-d2": 160,
 	"rock-d4": 170,
 	"rock-d5": 165,
+	"rock-w1": 180,
+	"rock-w2": 180,
+	"rock-w4": 185,
+	"rock-w5": 185,
 };
 for (let i = 1; i <= 6; i++) W["dtile-" + i] = 112;
 const dir = new URL("../art/ui/", import.meta.url);
@@ -23,10 +27,9 @@ const br = await chromium.launch();
 const pg = await br.newPage();
 const out = {};
 let total = 0;
-const png = (f) => fs.readFileSync(new URL(f + ".png", dir)).toString("base64");
 for (const f of fs
 	.readdirSync(dir)
-	.filter((f) => f.endsWith(".png") && f !== "rock-w1.png")
+	.filter((f) => f.endsWith(".png"))
 	.sort()) {
 	const k = f.slice(0, -4),
 		b64 = fs.readFileSync(new URL(f, dir)).toString("base64");
@@ -48,75 +51,6 @@ for (const f of fs
 		{ b64, w: W[k] || 200 },
 	);
 	total += out[k].length;
-}
-for (const n of [1, 2, 4, 5]) {
-	out["rock-l" + n] = await pg.evaluate(
-		async ({ src, ref, w }) => {
-			const load = async (b64) => {
-				const im = new Image();
-				im.src = "data:image/png;base64," + b64;
-				await im.decode();
-				const c = document.createElement("canvas");
-				c.width = Math.min(w, im.width);
-				c.height = Math.round((im.height * c.width) / im.width);
-				const x = c.getContext("2d");
-				x.imageSmoothingQuality = "high";
-				x.drawImage(im, 0, 0, c.width, c.height);
-				return { c, x, d: x.getImageData(0, 0, c.width, c.height) };
-			};
-			const lum = (p, i) => Math.round(p[i] * 0.3 + p[i + 1] * 0.59 + p[i + 2] * 0.11);
-			const R = await load(ref),
-				S = await load(src),
-				rp = R.d.data,
-				sp = S.d.data;
-			/* the white rock: its brightness values in order, and its average colour at each brightness */
-			const rl = [],
-				sum = Array.from({ length: 256 }, () => [0, 0, 0, 0]);
-			for (let i = 0; i < rp.length; i += 4)
-				if (rp[i + 3] > 200) {
-					const l = lum(rp, i),
-						b = sum[l];
-					rl.push(l);
-					b[0] += rp[i];
-					b[1] += rp[i + 1];
-					b[2] += rp[i + 2];
-					b[3]++;
-				}
-			rl.sort((a, b) => a - b);
-			const col = sum.map((b) => (b[3] ? [b[0] / b[3], b[1] / b[3], b[2] / b[3]] : null));
-			for (let l = 0; l < 256; l++)
-				if (!col[l]) {
-					let k = 1;
-					while (!col[l - k] && !col[l + k]) k++;
-					col[l] = col[l - k] || col[l + k];
-				}
-			/* the dark rock: where each brightness ranks among its opaque pixels */
-			const hist = new Array(256).fill(0);
-			let n = 0;
-			for (let i = 0; i < sp.length; i += 4)
-				if (sp[i + 3] > 200) {
-					hist[lum(sp, i)]++;
-					n++;
-				}
-			const cum = [];
-			let acc = 0;
-			for (let l = 0; l < 256; l++) {
-				cum[l] = (acc + hist[l] / 2) / n;
-				acc += hist[l];
-			}
-			for (let i = 0; i < sp.length; i += 4) {
-				if (!sp[i + 3]) continue;
-				const c = col[rl[Math.min(rl.length - 1, Math.round(cum[lum(sp, i)] * (rl.length - 1)))]];
-				sp[i] = c[0];
-				sp[i + 1] = c[1];
-				sp[i + 2] = c[2];
-			}
-			S.x.putImageData(S.d, 0, 0);
-			return S.c.toDataURL("image/webp", 0.88);
-		},
-		{ src: png("rock-d" + n), ref: png("rock-w1"), w: Math.round(W["rock-d" + n] * 1.15) },
-	);
-	total += out["rock-l" + n].length;
 }
 await br.close();
 fs.writeFileSync(
