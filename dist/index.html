@@ -409,15 +409,15 @@ i.bi{font-style:normal}
 .mm-sheet details.how{margin-top:14px;border-top:2px solid rgba(42,36,51,.12);padding-top:12px}
 .mm-sheet details.how summary{font:20px "Lilita One",sans-serif;letter-spacing:.5px}
 @media (orientation:portrait){
-/* portrait fits the screen: --mzp (menuZoom) keeps the stack (736 px at zoom 1) within the height with at least 230 px left for the truck, which the camera frames into .mm-gap */
+/* portrait fits the screen: --mzp (menuZoom) keeps the stack (641 px at zoom 1) within the height with at least 230 px left for the truck, which the camera frames into .mm-gap; the logo and Settings sit over the scene in the top corners */
 #app.mm{display:flex;flex-direction:column;align-items:center;min-height:100vh;min-height:100dvh;padding:calc(env(safe-area-inset-top,0px) + 12px) 12px calc(env(safe-area-inset-bottom,0px) + 20px)}
 .mm .mmg{position:static;zoom:var(--mzp,1)}
-.mm-logo{width:150px;order:0;align-self:flex-start}
+.mm-logo{width:150px;position:absolute!important;left:12px;top:calc(env(safe-area-inset-top,0px) + 12px)}
 .mm-top{position:absolute!important;right:12px;top:calc(env(safe-area-inset-top,0px) + 12px)}
 .mm-gap{display:block;order:1;flex:1 0 230px}
 .mm-info{order:2;gap:6px;width:444px}
-.mm-name{font-size:60px}
-.mm-die{width:48px;height:48px;font-size:22px}
+.mm-name{font-size:54px}
+.mm-die{width:44px;height:44px;font-size:20px}
 .mm-plate{order:3;margin-top:10px}
 .mm-roster{order:4;margin-top:8px}
 .mm-act{order:5;align-self:center;margin-top:12px;position:relative!important;right:auto;bottom:auto}
@@ -967,7 +967,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-15 22:55 a6bf2d3";
+const BUILD = "2026-10-15 23:14 71e7f82";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -10849,10 +10849,10 @@ function menuZoom() {
 		cs = app && app.classList.contains("mm") && getComputedStyle(app),
 		pad = cs ? parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom) : 32;
 	st.setProperty("--mz", Math.min(innerWidth / 1280, innerHeight / 720).toFixed(4));
-	/* portrait: as wide as the plate row allows, but short enough that the stack (736 px at zoom 1) leaves 230 px for the truck */
+	/* portrait: as wide as the plate row allows, but short enough that the stack (641 px at zoom 1) leaves 230 px for the truck */
 	st.setProperty(
 		"--mzp",
-		Math.max(0.5, Math.min(1.2, (innerWidth - 24) / 444, (innerHeight - pad - 230) / 736)).toFixed(4),
+		Math.max(0.5, Math.min(1.2, (innerWidth - 24) / 444, (innerHeight - pad - 230) / 641)).toFixed(4),
 	);
 	menuGap();
 }

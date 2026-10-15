@@ -484,10 +484,10 @@ function menuZoom() {
 		cs = app && app.classList.contains("mm") && getComputedStyle(app),
 		pad = cs ? parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom) : 32;
 	st.setProperty("--mz", Math.min(innerWidth / 1280, innerHeight / 720).toFixed(4));
-	/* portrait: as wide as the plate row allows, but short enough that the stack (736 px at zoom 1) leaves 230 px for the truck */
+	/* portrait: as wide as the plate row allows, but short enough that the stack (641 px at zoom 1) leaves 230 px for the truck */
 	st.setProperty(
 		"--mzp",
-		Math.max(0.5, Math.min(1.2, (innerWidth - 24) / 444, (innerHeight - pad - 230) / 736)).toFixed(4),
+		Math.max(0.5, Math.min(1.2, (innerWidth - 24) / 444, (innerHeight - pad - 230) / 641)).toFixed(4),
 	);
 	menuGap();
 }
