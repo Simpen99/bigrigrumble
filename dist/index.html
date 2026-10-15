@@ -332,7 +332,7 @@ i.bi{font-style:normal}
 #app.mm{--bsh:drop-shadow(0 3px 6px rgba(20,16,28,.28));max-width:none;margin:0;padding:0;--sl:calc(env(safe-area-inset-left,0px) / var(--mz,1));--sr:calc(env(safe-area-inset-right,0px) / var(--mz,1));--sb:calc(env(safe-area-inset-bottom,0px) / var(--mz,1));--st:calc(env(safe-area-inset-top,0px) / var(--mz,1))}
 #app.mm::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;background:linear-gradient(90deg,rgba(30,60,30,.35),rgba(30,60,30,0) 55%)}
 .mm .mmg{position:fixed;zoom:var(--mz,1)}
-.mm-logo{left:calc(34px + var(--sl));top:calc(20px + var(--st));width:300px;filter:drop-shadow(0 6px 10px rgba(0,0,0,.3));animation:mmLogo .8s cubic-bezier(.2,1.5,.4,1) both;pointer-events:none}
+.mm-logo{left:calc(34px + var(--sl));top:calc(20px + var(--st));width:300px;aspect-ratio:720/414;filter:drop-shadow(0 6px 10px rgba(0,0,0,.3));animation:mmLogo .8s cubic-bezier(.2,1.5,.4,1) both;pointer-events:none}
 @keyframes mmLogo{from{opacity:0;transform:translateY(-30px) scale(.7)}to{opacity:1;transform:none}}
 .mm-top{right:calc(30px + var(--sr));top:calc(26px + var(--st));display:flex;gap:10px;align-items:center}
 .mm-info{left:calc(40px + var(--sl));top:calc(222px + var(--st));display:flex;flex-direction:column;align-items:flex-start;gap:10px;max-width:640px;pointer-events:none}
@@ -394,6 +394,7 @@ i.bi{font-style:normal}
 /* reduced motion (the global rule cuts every transition): the buttons keep their small hover / press easing, it only follows your own touch */
 @media (prefers-reduced-motion: reduce){.mm-hs,.mm-js,.mm-more,.mm-opts{transition-duration:.25s,.2s,0s!important}.mm .mb,.mm-arr,.mm .tc{transition-duration:.16s!important}.mm .mb:not(:disabled):active,.mm-arr:active,.mm .tc:active{transition-duration:.1s!important}}
 .mm .mb:focus-visible,.mm-arr:focus-visible,.mm .tc:focus-visible{outline:0;transform:scale(1.04);filter:drop-shadow(0 0 2px #ffcc30) drop-shadow(0 0 3px #ffcc30) var(--bsh)}
+.mm-gap{display:none}
 .mm-notice{position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 12px);transform:translateX(-50%);z-index:5;max-width:min(90vw,520px)}
 /* settings: a stone panel over the menu (volume, status, bug report, how to play) */
 .mm-pop{position:fixed;inset:0;z-index:20;display:grid;place-items:center;padding:16px}
@@ -408,14 +409,18 @@ i.bi{font-style:normal}
 .mm-sheet details.how{margin-top:14px;border-top:2px solid rgba(42,36,51,.12);padding-top:12px}
 .mm-sheet details.how summary{font:20px "Lilita One",sans-serif;letter-spacing:.5px}
 @media (orientation:portrait){
-#app.mm{display:flex;flex-direction:column;align-items:flex-start;padding:calc(env(safe-area-inset-top,0px) + 12px) 12px calc(env(safe-area-inset-bottom,0px) + 20px)}
+/* portrait fits the screen: --mzp (menuZoom) keeps the stack (736 px at zoom 1) within the height with at least 230 px left for the truck, which the camera frames into .mm-gap */
+#app.mm{display:flex;flex-direction:column;align-items:center;min-height:100vh;min-height:100dvh;padding:calc(env(safe-area-inset-top,0px) + 12px) 12px calc(env(safe-area-inset-bottom,0px) + 20px)}
 .mm .mmg{position:static;zoom:var(--mzp,1)}
-.mm-logo{width:170px;order:0}
-.mm-top{position:absolute!important;right:12px;top:calc(env(safe-area-inset-top,0px) + 14px)}
-.mm-info{order:1;margin-top:240px}
-.mm-plate{order:2;margin-top:16px}
-.mm-roster{order:3;margin-top:10px}
-.mm-act{order:4;align-self:center;margin-top:16px;position:relative!important;right:auto;bottom:auto}
+.mm-logo{width:150px;order:0;align-self:flex-start}
+.mm-top{position:absolute!important;right:12px;top:calc(env(safe-area-inset-top,0px) + 12px)}
+.mm-gap{display:block;order:1;flex:1 0 230px}
+.mm-info{order:2;gap:6px;width:444px}
+.mm-name{font-size:60px}
+.mm-die{width:48px;height:48px;font-size:22px}
+.mm-plate{order:3;margin-top:10px}
+.mm-roster{order:4;margin-top:8px}
+.mm-act{order:5;align-self:center;margin-top:12px;position:relative!important;right:auto;bottom:auto}
 }
 .pgrid{display:grid;gap:8px}
 .pgame{display:flex;align-items:center;gap:10px;width:100%;text-align:left;border:0;background:var(--panel2);border-radius:14px;padding:11px 12px}
@@ -962,7 +967,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-15 21:47 9c53505";
+const BUILD = "2026-10-15 22:55 a6bf2d3";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -1939,15 +1944,29 @@ function frame(t) {
 			home = view === "home",
 			w = GFX.w,
 			h = GFX.h;
-		/* main menu: one truck, further back; landscape puts it right of centre (the info column is on the left), portrait higher up (above the info) */
-		const d = asp < 1 ? (n > 1 ? 17 + n * 1.3 : home ? 24 : 19) : n > 1 ? 11 + n * 0.5 : home ? 14 : 10.5;
+		/* main menu: one truck, further back; landscape puts it right of centre (the info column is on the left), portrait frames it into the gap above the info (GFX.menuGap, part3: its middle on the screen, its height sets the distance) */
+		const gap = home && n === 1 && asp < 1 && GFX.menuGap,
+			gy = gap && ((gap[0] + gap[1]) / 2 - scrollY) / innerHeight;
+		const d = gap
+			? Math.min(40, Math.max(14, (6.7 * innerHeight) / (gap[1] - gap[0])))
+			: asp < 1
+				? n > 1
+					? 17 + n * 1.3
+					: home
+						? 24
+						: 19
+				: n > 1
+					? 11 + n * 0.5
+					: home
+						? 14
+						: 10.5;
 		cam.position.set(0, 1.2 + d * 0.3, d);
 		cam.lookAt(0, 0.9, 0);
 		cam.setViewOffset(
 			w,
 			h,
 			home && n === 1 && asp >= 1 ? -w * 0.13 : 0,
-			h * (home ? (asp < 1 ? 0.26 : 0.2) : 0.32),
+			gap ? h * (0.5 - gy) : h * (home ? (asp < 1 ? 0.26 : 0.2) : 0.32),
 			w,
 			h,
 		);
@@ -10784,8 +10803,10 @@ function render() {
 	const app = $("#app"),
 		ae = document.activeElement,
 		keep = ae && ae.id && ae.tagName === "INPUT" ? { id: ae.id, v: ae.value, s: ae.selectionStart } : null;
-	if (v === "home") app.innerHTML = homeHTML();
-	else if (v === "join") app.innerHTML = joinHTML();
+	if (v === "home") {
+		app.innerHTML = homeHTML();
+		menuZoom();
+	} else if (v === "join") app.innerHTML = joinHTML();
 	else if (v === "practice") app.innerHTML = practiceHTML();
 	else if (v === "waiting")
 		app.innerHTML = `<div class="stage"></div><div class="sheet"><h2>Connecting to the host…</h2><p class="note">Hang tight. If this takes more than a few seconds, the host may have closed the game.</p><div style="margin-top:12px">${statusHTML()}</div><button class="btn ghost" data-a="leave" style="margin-top:12px">Back</button></div>`;
@@ -10823,9 +10844,25 @@ function homeOpenSet() {
 }
 for (const k in UI_ART) document.documentElement.style.setProperty("--ui-" + k, `url(${UI_ART[k]})`);
 function menuZoom() {
-	const st = document.documentElement.style;
+	const st = document.documentElement.style,
+		app = $("#app"),
+		cs = app && app.classList.contains("mm") && getComputedStyle(app),
+		pad = cs ? parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom) : 32;
 	st.setProperty("--mz", Math.min(innerWidth / 1280, innerHeight / 720).toFixed(4));
-	st.setProperty("--mzp", Math.min(1.2, (innerWidth - 24) / 444).toFixed(4));
+	/* portrait: as wide as the plate row allows, but short enough that the stack (736 px at zoom 1) leaves 230 px for the truck */
+	st.setProperty(
+		"--mzp",
+		Math.max(0.5, Math.min(1.2, (innerWidth - 24) / 444, (innerHeight - pad - 230) / 736)).toFixed(4),
+	);
+	menuGap();
+}
+/* portrait: where the truck's gap is on the page (GFX.menuGap = [top, bottom] in CSS px), for the showroom camera */
+function menuGap() {
+	const g = $(".mm-gap");
+	GFX.menuGap = null;
+	if (!g || !g.offsetHeight) return;
+	const r = g.getBoundingClientRect();
+	GFX.menuGap = [r.top + scrollY, r.bottom + scrollY];
 }
 menuZoom();
 addEventListener("resize", menuZoom);
@@ -10869,7 +10906,7 @@ function settingsHTML() {
 function homeHTML() {
 	const saved = LS.get("trp_host", null);
 	const canResume = saved && saved.phase && saved.phase !== "over" && saved.players && saved.players.length;
-	return `<img class="mmg mm-logo" src="${LOGO_ART}" alt="Big Rig Rumble">
+	return `<img class="mmg mm-logo" src="${LOGO_ART}" alt="Big Rig Rumble"><div class="mm-gap"></div>
   ${notice ? `<div class="banner mm-notice">${esc(notice)}</div>` : ""}
   <div class="mmg mm-info" id="shown">${showNameHTML(me.truck)}</div>
   <div class="mmg mm-roster" id="car">${rosterHTML(me.truck)}</div>

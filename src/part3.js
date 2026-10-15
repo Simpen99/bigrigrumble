@@ -438,8 +438,10 @@ function render() {
 	const app = $("#app"),
 		ae = document.activeElement,
 		keep = ae && ae.id && ae.tagName === "INPUT" ? { id: ae.id, v: ae.value, s: ae.selectionStart } : null;
-	if (v === "home") app.innerHTML = homeHTML();
-	else if (v === "join") app.innerHTML = joinHTML();
+	if (v === "home") {
+		app.innerHTML = homeHTML();
+		menuZoom();
+	} else if (v === "join") app.innerHTML = joinHTML();
 	else if (v === "practice") app.innerHTML = practiceHTML();
 	else if (v === "waiting")
 		app.innerHTML = `<div class="stage"></div><div class="sheet"><h2>Connecting to the host…</h2><p class="note">Hang tight. If this takes more than a few seconds, the host may have closed the game.</p><div style="margin-top:12px">${statusHTML()}</div><button class="btn ghost" data-a="leave" style="margin-top:12px">Back</button></div>`;
@@ -477,9 +479,25 @@ function homeOpenSet() {
 }
 for (const k in UI_ART) document.documentElement.style.setProperty("--ui-" + k, `url(${UI_ART[k]})`);
 function menuZoom() {
-	const st = document.documentElement.style;
+	const st = document.documentElement.style,
+		app = $("#app"),
+		cs = app && app.classList.contains("mm") && getComputedStyle(app),
+		pad = cs ? parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom) : 32;
 	st.setProperty("--mz", Math.min(innerWidth / 1280, innerHeight / 720).toFixed(4));
-	st.setProperty("--mzp", Math.min(1.2, (innerWidth - 24) / 444).toFixed(4));
+	/* portrait: as wide as the plate row allows, but short enough that the stack (736 px at zoom 1) leaves 230 px for the truck */
+	st.setProperty(
+		"--mzp",
+		Math.max(0.5, Math.min(1.2, (innerWidth - 24) / 444, (innerHeight - pad - 230) / 736)).toFixed(4),
+	);
+	menuGap();
+}
+/* portrait: where the truck's gap is on the page (GFX.menuGap = [top, bottom] in CSS px), for the showroom camera */
+function menuGap() {
+	const g = $(".mm-gap");
+	GFX.menuGap = null;
+	if (!g || !g.offsetHeight) return;
+	const r = g.getBoundingClientRect();
+	GFX.menuGap = [r.top + scrollY, r.bottom + scrollY];
 }
 menuZoom();
 addEventListener("resize", menuZoom);
@@ -523,7 +541,7 @@ function settingsHTML() {
 function homeHTML() {
 	const saved = LS.get("trp_host", null);
 	const canResume = saved && saved.phase && saved.phase !== "over" && saved.players && saved.players.length;
-	return `<img class="mmg mm-logo" src="${LOGO_ART}" alt="Big Rig Rumble">
+	return `<img class="mmg mm-logo" src="${LOGO_ART}" alt="Big Rig Rumble"><div class="mm-gap"></div>
   ${notice ? `<div class="banner mm-notice">${esc(notice)}</div>` : ""}
   <div class="mmg mm-info" id="shown">${showNameHTML(me.truck)}</div>
   <div class="mmg mm-roster" id="car">${rosterHTML(me.truck)}</div>
