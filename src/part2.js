@@ -976,7 +976,7 @@ function frame(t) {
 			home = view === "home",
 			w = GFX.w,
 			h = GFX.h;
-		/* main menu: one truck, further back; landscape puts it right of centre (the info column is on the left), portrait frames it into the gap above the info (GFX.menuGap, part3: its middle on the screen, its height sets the distance) */
+		/* main menu: one truck, further back; landscape puts it in the middle, a little high (its name and die sit under the turntable), portrait frames it into the gap above the info (GFX.menuGap, part3: its middle on the screen, its height sets the distance) */
 		const gap = home && n === 1 && asp < 1 && GFX.menuGap,
 			gy = gap && ((gap[0] + gap[1]) / 2 - scrollY) / innerHeight;
 		const d = gap
@@ -990,18 +990,11 @@ function frame(t) {
 				: n > 1
 					? 11 + n * 0.5
 					: home
-						? 14
+						? 12
 						: 10.5;
 		cam.position.set(0, 1.2 + d * 0.3, d);
 		cam.lookAt(0, 0.9, 0);
-		cam.setViewOffset(
-			w,
-			h,
-			home && n === 1 && asp >= 1 ? -w * 0.13 : 0,
-			gap ? h * (0.5 - gy) : h * (home ? (asp < 1 ? 0.26 : 0.2) : 0.32),
-			w,
-			h,
-		);
+		cam.setViewOffset(w, h, 0, gap ? h * (0.5 - gy) : h * (home ? (asp < 1 ? 0.26 : 0.2) : 0.32), w, h);
 		cam.updateProjectionMatrix();
 		cam.updateMatrixWorld();
 		swayStep(S.scene);

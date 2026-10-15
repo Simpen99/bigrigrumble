@@ -335,15 +335,15 @@ i.bi{font-style:normal}
 .mm-logo{left:calc(34px + var(--sl));top:calc(20px + var(--st));width:300px;aspect-ratio:720/378;filter:drop-shadow(0 6px 10px rgba(0,0,0,.3));animation:mmLogo .8s cubic-bezier(.2,1.5,.4,1) both;pointer-events:none}
 @keyframes mmLogo{from{opacity:0;transform:translateY(-30px) scale(.7)}to{opacity:1;transform:none}}
 .mm-top{right:calc(30px + var(--sr));top:calc(26px + var(--st));display:flex;gap:10px;align-items:center}
-.mm-info{left:calc(40px + var(--sl));top:calc(222px + var(--st));display:flex;flex-direction:column;align-items:flex-start;gap:10px;max-width:640px;pointer-events:none}
-.mm-name{font:76px/1 "Lilita One",sans-serif;letter-spacing:2px;text-transform:uppercase;color:#fff;text-shadow:0 5px 0 #2a2433,2px 0 0 #2a2433,-2px 0 0 #2a2433,0 -2px 0 #2a2433,2px 2px 0 #2a2433,-2px 2px 0 #2a2433,2px -2px 0 #2a2433,-2px -2px 0 #2a2433;animation:mmSwap .25s cubic-bezier(.2,1.5,.4,1) both}
+.mm-info{left:0;right:0;margin:0 auto;top:calc(330px + var(--st));width:488px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:8px;pointer-events:none}
+.mm-name{font:56px/1 "Lilita One",sans-serif;letter-spacing:2px;text-transform:uppercase;color:#fff;text-shadow:0 5px 0 #2a2433,2px 0 0 #2a2433,-2px 0 0 #2a2433,0 -2px 0 #2a2433,2px 2px 0 #2a2433,-2px 2px 0 #2a2433,2px -2px 0 #2a2433,-2px -2px 0 #2a2433;animation:mmSwap .25s cubic-bezier(.2,1.5,.4,1) both}
 .mm-tag{font:600 18px Rubik,sans-serif;line-height:1.3;color:#fff;text-shadow:0 2px 0 rgba(0,0,0,.45);animation:mmSwap .25s .03s cubic-bezier(.2,1.5,.4,1) both}
 .mm-dice{display:flex;gap:6px;margin-top:4px;animation:mmSwap .25s .06s cubic-bezier(.2,1.5,.4,1) both}
 @keyframes mmSwap{from{opacity:0;transform:translateX(-14px)}to{opacity:1;transform:none}}
 .mm-die{width:54px;height:54px;background:var(--dt) center/100% 100% no-repeat;display:flex;flex-direction:column;align-items:center;justify-content:center;font:24px/1 "Lilita One",sans-serif;color:#2a2433}
 .mm-die small{font:700 11px Rubik,sans-serif;color:#d32d22}
 .mm-die small.up{color:#1d8a3e}
-.mm-plate{left:calc(40px + var(--sl));bottom:calc(172px + var(--sb));display:flex;align-items:center;gap:8px}
+.mm-plate{left:calc(40px + var(--sl));bottom:calc(110px + var(--sb));display:flex;align-items:center;gap:8px}
 .mm-arr{flex:none;width:64px;height:64px;border:0;padding:0;background:var(--ui-arrow3-l) center/100% 100% no-repeat}
 .mm-arr.r{background-image:var(--ui-arrow3-r)}
 .mm-np{width:300px;height:102px;background:var(--ui-plate3) center/100% 100% no-repeat;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:text;transition:transform .12s ease-out}
@@ -351,7 +351,7 @@ i.bi{font-style:normal}
 .mm-np input{width:262px;border:0;outline:0;background:none;padding:0 0 0 6px;margin:0;text-align:center;font:40px/1.05 "Lilita One",sans-serif;letter-spacing:6px;color:#2a2433;text-transform:uppercase;caret-color:#d32d22}
 .mm-np input::placeholder{color:#2a2433;opacity:1}
 .mm-np:focus-within{transform:scale(1.04);filter:drop-shadow(0 0 2px #ffcc30) drop-shadow(0 0 3px #ffcc30) var(--bsh)}
-.mm-roster{left:calc(40px + var(--sl));bottom:calc(77px + var(--sb));width:444px;height:75px;display:flex;gap:8px;align-items:center;overflow-x:auto;scrollbar-width:none;scroll-snap-type:x proximity;padding:0 2px}
+.mm-roster{left:calc(40px + var(--sl));bottom:calc(25px + var(--sb));width:444px;height:75px;display:flex;gap:8px;align-items:center;overflow-x:auto;scrollbar-width:none;scroll-snap-type:x proximity;padding:0 2px}
 .mm-roster::-webkit-scrollbar{display:none}
 .mm .tc{flex:none;width:var(--w);height:62px;border:0;border-radius:0;padding:0;background:var(--rk) center/100% 100% no-repeat;display:grid;place-items:center;scroll-snap-align:center;transition:width .15s ease-in-out,height .15s ease-in-out,transform .16s ease-in-out}
 .mm .tc img{width:56px;height:auto;max-height:52px;object-fit:contain;transition:width .15s}
