@@ -517,11 +517,11 @@ function homeHTML() {
   <div class="mmg mm-roster" id="car">${rosterHTML(me.truck)}</div>
   <div class="mmg mm-plate"><button class="mm-arr l" data-step="-1" tabindex="-1" aria-label="Previous truck"></button><label class="mm-np"><span>DRIVER NAME</span><input id="nm" maxlength="10" value="${esc(me.name)}" placeholder="DRIVER" autocomplete="off" spellcheck="false" style="font-size:${npSize((me.name || "DRIVER").length)}px"></label><button class="mm-arr r" data-step="1" tabindex="-1" aria-label="Next truck"></button></div>
   <div class="mmg mm-act">
-    <button class="mb mb-y" data-a="hosttv">Host on a<br>big screen</button>
-    <div class="mm-row"><button class="mb mb-g" data-a="joinlist">Join game</button><button class="mb mb-w" data-a="host">Host here</button></div>
-    <div class="mm-row sm"><button class="mb mb-d1" data-a="practice">Practice</button>${FINE && GFX.ok ? `<button class="mb mb-d2" data-a="editor">Map editor</button>` : ""}</div>
+    <button class="mb mb-y" data-a="hosttv"><span>Host on a<br>big screen</span></button>
+    <div class="mm-row"><button class="mb mb-g" data-a="joinlist"><span>Join game</span></button><button class="mb mb-w" data-a="host"><span>Host here</span></button></div>
+    <div class="mm-row sm"><button class="mb mb-d1" data-a="practice"><span>Practice</span></button>${FINE && GFX.ok ? `<button class="mb mb-d2" data-a="editor"><span>Map editor</span></button>` : ""}</div>
   </div>
-  <div class="mmg mm-top">${canResume ? `<button class="mb mb-y" data-a="resume">Resume</button>` : ""}<button class="mb mb-w" data-a="settings">Settings</button></div>
+  <div class="mmg mm-top">${canResume ? `<button class="mb mb-y" data-a="resume"><span>Resume</span></button>` : ""}<button class="mb mb-w" data-a="settings"><span>Settings</span></button></div>
   ${homeSet ? settingsHTML() : ""}`;
 }
 function diagHTML() {

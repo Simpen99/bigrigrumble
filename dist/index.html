@@ -328,7 +328,7 @@ i.bi{font-style:normal}
 .pt .empty{border-color:rgba(244,246,249,.25)}
 .pt .localform{background:rgba(11,14,20,.3)}
 .pt select.inp{border:2.5px solid rgba(244,246,249,.28);border-radius:10px;background:var(--hb2);color:#fff}
-/* main menu (#app.mm = the home view, design_handoff_main_menu): authored at 1280 x 720. Landscape: each group is fixed to a corner and zoomed by --mz = min(width / 1280, height / 720) (offsets zoom with it; --sl / --sr / --sb / --st add the safe areas back unzoomed). Portrait: the same groups stacked, zoomed to the width by --mzp. Art from UI_ART as --ui-<name>. Ink #2a2433, label #8a7f6c, cost red #d32d22, focus yellow #ffcc30 */
+/* main menu (#app.mm = the home view, design_handoff_main_menu): authored at 1280 x 720. Landscape: each group is fixed to a corner and zoomed by --mz = min(width / 1280, height / 720) (offsets zoom with it; --sl / --sr / --sb / --st add the safe areas back unzoomed). Portrait: the same groups stacked, zoomed to the width by --mzp. Art from UI_ART as --ui-<name>. Button labels sit on the middle of the raised face (measured from the art: yellow, green and white faces are centred, the dark ones sit 3.8% low), trimmed to the cap height. Ink #2a2433, label #8a7f6c, cost red #d32d22, focus yellow #ffcc30 */
 #app.mm{max-width:none;margin:0;padding:0;--sl:calc(env(safe-area-inset-left,0px) / var(--mz,1));--sr:calc(env(safe-area-inset-right,0px) / var(--mz,1));--sb:calc(env(safe-area-inset-bottom,0px) / var(--mz,1));--st:calc(env(safe-area-inset-top,0px) / var(--mz,1))}
 #app.mm::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;background:linear-gradient(90deg,rgba(30,60,30,.35),rgba(30,60,30,0) 55%)}
 .mm .mmg{position:fixed;zoom:var(--mz,1)}
@@ -361,12 +361,13 @@ i.bi{font-style:normal}
 .mm-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;width:100%}
 .mm-row.sm{width:80%}
 .mm-row.sm:has(>:only-child){grid-template-columns:1fr;width:40%}
-.mb{display:grid;place-items:center;width:100%;border:0;margin:0;padding:0 4% 6%;background:var(--bg) center/100% 100% no-repeat;font:21px/1 "Lilita One",sans-serif;letter-spacing:1px;color:#fff;text-align:center;text-transform:uppercase;transition:transform .18s cubic-bezier(.34,1.8,.5,1)}
+.mb{display:grid;place-items:center;width:100%;border:0;margin:0;padding:0 4%;background:var(--bg) center/100% 100% no-repeat;font:21px/1 "Lilita One",sans-serif;letter-spacing:1px;color:#fff;text-align:center;text-transform:uppercase;transition:transform .18s cubic-bezier(.34,1.8,.5,1)}
 .mb-y{--bg:var(--ui-bb-yellow);aspect-ratio:1415/561;font-size:30px;text-shadow:0 3px 0 #7a5200,2px 0 0 #7a5200,-2px 0 0 #7a5200,0 -2px 0 #7a5200,2px 2px 0 #7a5200,-2px 2px 0 #7a5200,2px -2px 0 #7a5200,-2px -2px 0 #7a5200}
 .mb-g{--bg:var(--ui-bb-green);aspect-ratio:703/296;text-shadow:0 3px 0 #146b2e,2px 0 0 #146b2e,-2px 0 0 #146b2e,0 -2px 0 #146b2e,2px 2px 0 #146b2e,-2px 2px 0 #146b2e,2px -2px 0 #146b2e,-2px -2px 0 #146b2e}
 .mb-w{--bg:var(--ui-bb-white);aspect-ratio:702/295;color:#2a2433}
-.mb-d1{--bg:var(--ui-bb-dark1);aspect-ratio:490/212;font-size:16px}
-.mb-d2{--bg:var(--ui-bb-dark2);aspect-ratio:492/212;font-size:16px}
+.mb span{display:block;text-box:trim-both cap alphabetic}
+.mb-d1{--bg:var(--ui-bb-dark1);aspect-ratio:490/212;font-size:16px;padding-top:3.3%}
+.mb-d2{--bg:var(--ui-bb-dark2);aspect-ratio:492/212;font-size:16px;padding-top:3.3%}
 .mm-top .mb{width:128px;font-size:18px}
 .mm-top .mb-y{aspect-ratio:702/295;text-shadow:0 2px 0 #7a5200,1.5px 0 0 #7a5200,-1.5px 0 0 #7a5200,0 -1.5px 0 #7a5200,1.5px 1.5px 0 #7a5200,-1.5px 1.5px 0 #7a5200,1.5px -1.5px 0 #7a5200,-1.5px -1.5px 0 #7a5200}
 .mm .mb:disabled{opacity:.5}
@@ -941,7 +942,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-15 20:04 e0a3bde";
+const BUILD = "2026-10-15 20:13 b125636";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -10842,11 +10843,11 @@ function homeHTML() {
   <div class="mmg mm-roster" id="car">${rosterHTML(me.truck)}</div>
   <div class="mmg mm-plate"><button class="mm-arr l" data-step="-1" tabindex="-1" aria-label="Previous truck"></button><label class="mm-np"><span>DRIVER NAME</span><input id="nm" maxlength="10" value="${esc(me.name)}" placeholder="DRIVER" autocomplete="off" spellcheck="false" style="font-size:${npSize((me.name || "DRIVER").length)}px"></label><button class="mm-arr r" data-step="1" tabindex="-1" aria-label="Next truck"></button></div>
   <div class="mmg mm-act">
-    <button class="mb mb-y" data-a="hosttv">Host on a<br>big screen</button>
-    <div class="mm-row"><button class="mb mb-g" data-a="joinlist">Join game</button><button class="mb mb-w" data-a="host">Host here</button></div>
-    <div class="mm-row sm"><button class="mb mb-d1" data-a="practice">Practice</button>${FINE && GFX.ok ? `<button class="mb mb-d2" data-a="editor">Map editor</button>` : ""}</div>
+    <button class="mb mb-y" data-a="hosttv"><span>Host on a<br>big screen</span></button>
+    <div class="mm-row"><button class="mb mb-g" data-a="joinlist"><span>Join game</span></button><button class="mb mb-w" data-a="host"><span>Host here</span></button></div>
+    <div class="mm-row sm"><button class="mb mb-d1" data-a="practice"><span>Practice</span></button>${FINE && GFX.ok ? `<button class="mb mb-d2" data-a="editor"><span>Map editor</span></button>` : ""}</div>
   </div>
-  <div class="mmg mm-top">${canResume ? `<button class="mb mb-y" data-a="resume">Resume</button>` : ""}<button class="mb mb-w" data-a="settings">Settings</button></div>
+  <div class="mmg mm-top">${canResume ? `<button class="mb mb-y" data-a="resume"><span>Resume</span></button>` : ""}<button class="mb mb-w" data-a="settings"><span>Settings</span></button></div>
   ${homeSet ? settingsHTML() : ""}`;
 }
 function diagHTML() {
