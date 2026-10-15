@@ -491,16 +491,10 @@ function menuZoom() {
 	);
 	menuGap();
 }
-/* for the showroom camera: portrait = where the truck's gap is on the page (GFX.menuGap = [top, bottom] in CSS px), landscape = the middle of the truck's column (name plate and roster) as a share of the width (GFX.menuCx) */
+/* portrait: where the truck's gap is on the page (GFX.menuGap = [top, bottom] in CSS px), for the showroom camera */
 function menuGap() {
-	const g = $(".mm-gap"),
-		pl = $(".mm-plate");
+	const g = $(".mm-gap");
 	GFX.menuGap = null;
-	GFX.menuCx = null;
-	if (pl && innerWidth >= innerHeight) {
-		const r = pl.getBoundingClientRect();
-		GFX.menuCx = (r.left + r.right) / 2 / innerWidth;
-	}
 	if (!g || !g.offsetHeight) return;
 	const r = g.getBoundingClientRect();
 	GFX.menuGap = [r.top + scrollY, r.bottom + scrollY];
