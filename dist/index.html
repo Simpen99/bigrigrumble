@@ -415,7 +415,7 @@ i.bi{font-style:normal}
 .mm-logo{width:150px;position:absolute!important;left:12px;top:calc(env(safe-area-inset-top,0px) + 12px)}
 .mm-top{position:absolute!important;right:12px;top:calc(env(safe-area-inset-top,0px) + 12px)}
 .mm-gap{display:block;order:1;flex:1 0 230px}
-.mm-info{order:2;gap:6px;width:444px}
+.mm-info{order:2;gap:6px;width:444px;align-items:center;text-align:center}
 .mm-name{font-size:54px}
 .mm-die{width:44px;height:44px;font-size:20px}
 .mm-plate{order:3;margin-top:10px}
@@ -967,7 +967,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-15 23:14 71e7f82";
+const BUILD = "2026-10-15 23:15 d3219e6";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
