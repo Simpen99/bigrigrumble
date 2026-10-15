@@ -375,6 +375,8 @@ i.bi{font-style:normal}
 .mm-arr{transition:transform .3s ease-in-out}
 @media (hover:hover){.mm .mb:not(:disabled):hover,.mm-arr:hover,.mm .tc:hover{transform:scale(1.04)}}
 .mm .mb:not(:disabled):active,.mm-arr:active,.mm .tc:active{transform:scale(.96);transition:transform .18s ease-in-out}
+/* reduced motion (the global rule cuts every transition): the buttons keep their small hover / press easing, it only follows your own touch */
+@media (prefers-reduced-motion: reduce){.mm .mb,.mm-arr,.mm .tc{transition-duration:.3s!important}.mm .mb:not(:disabled):active,.mm-arr:active,.mm .tc:active{transition-duration:.18s!important}}
 .mm .mb:focus-visible,.mm-arr:focus-visible,.mm .tc:focus-visible{outline:0;transform:scale(1.04);filter:drop-shadow(0 0 2px #ffcc30) drop-shadow(0 0 3px #ffcc30)}
 .mm-notice{position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 12px);transform:translateX(-50%);z-index:5;max-width:min(90vw,520px)}
 /* settings: a stone panel over the menu (volume, status, bug report, how to play) */
