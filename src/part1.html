@@ -329,7 +329,7 @@ i.bi{font-style:normal}
 .pt .localform{background:rgba(11,14,20,.3)}
 .pt select.inp{border:2.5px solid rgba(244,246,249,.28);border-radius:10px;background:var(--hb2);color:#fff}
 /* main menu (#app.mm = the home view, design_handoff_main_menu): authored at 1280 x 720. Landscape: each group is fixed to a corner and zoomed by --mz = min(width / 1280, height / 720) (offsets zoom with it; --sl / --sr / --sb / --st add the safe areas back unzoomed). Portrait: the same groups stacked, zoomed to the width by --mzp. Art from UI_ART as --ui-<name>. Button labels sit on the middle of the raised face (measured from the art: yellow, green and white faces are centred, the dark ones sit 3.8% low), trimmed to the cap height. Ink #2a2433, label #8a7f6c, cost red #d32d22, focus yellow #ffcc30 */
-#app.mm{max-width:none;margin:0;padding:0;--sl:calc(env(safe-area-inset-left,0px) / var(--mz,1));--sr:calc(env(safe-area-inset-right,0px) / var(--mz,1));--sb:calc(env(safe-area-inset-bottom,0px) / var(--mz,1));--st:calc(env(safe-area-inset-top,0px) / var(--mz,1))}
+#app.mm{--bsh:drop-shadow(0 3px 6px rgba(20,16,28,.28));max-width:none;margin:0;padding:0;--sl:calc(env(safe-area-inset-left,0px) / var(--mz,1));--sr:calc(env(safe-area-inset-right,0px) / var(--mz,1));--sb:calc(env(safe-area-inset-bottom,0px) / var(--mz,1));--st:calc(env(safe-area-inset-top,0px) / var(--mz,1))}
 #app.mm::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;background:linear-gradient(90deg,rgba(30,60,30,.35),rgba(30,60,30,0) 55%)}
 .mm .mmg{position:fixed;zoom:var(--mz,1)}
 .mm-logo{left:calc(34px + var(--sl));top:calc(20px + var(--st));width:300px;filter:drop-shadow(0 6px 10px rgba(0,0,0,.3));animation:mmLogo .8s cubic-bezier(.2,1.5,.4,1) both;pointer-events:none}
@@ -350,7 +350,7 @@ i.bi{font-style:normal}
 .mm-np span{font:11px "Lilita One",sans-serif;letter-spacing:3px;color:#8a7f6c}
 .mm-np input{width:262px;border:0;outline:0;background:none;padding:0 0 0 6px;margin:0;text-align:center;font:40px/1.05 "Lilita One",sans-serif;letter-spacing:6px;color:#2a2433;text-transform:uppercase;caret-color:#d32d22}
 .mm-np input::placeholder{color:#2a2433;opacity:1}
-.mm-np:focus-within{transform:scale(1.04);filter:drop-shadow(0 0 2px #ffcc30) drop-shadow(0 0 3px #ffcc30)}
+.mm-np:focus-within{transform:scale(1.04);filter:drop-shadow(0 0 2px #ffcc30) drop-shadow(0 0 3px #ffcc30) var(--bsh)}
 .mm-roster{left:calc(40px + var(--sl));bottom:calc(77px + var(--sb));width:444px;height:75px;display:flex;gap:8px;align-items:center;overflow-x:auto;scrollbar-width:none;scroll-snap-type:x proximity;padding:0 2px}
 .mm-roster::-webkit-scrollbar{display:none}
 .mm .tc{flex:none;width:var(--w);height:62px;border:0;border-radius:0;padding:0;background:var(--rk) center/100% 100% no-repeat;display:grid;place-items:center;scroll-snap-align:center;transition:width .15s ease-in-out,height .15s ease-in-out,transform .16s ease-in-out}
@@ -373,11 +373,13 @@ i.bi{font-style:normal}
 .mm .mb:disabled{opacity:.5}
 /* buttons scale about their centre: hover grows, a press shrinks in place (no slide), all eased in and out */
 .mm-arr{transition:transform .16s ease-in-out}
+/* a faint soft shadow under everything you can press (follows the art's outline) */
+.mm .mb,.mm-arr,.mm .tc,.mm-np{filter:var(--bsh)}
 @media (hover:hover){.mm .mb:not(:disabled):hover,.mm-arr:hover,.mm .tc:hover{transform:scale(1.04)}}
 .mm .mb:not(:disabled):active,.mm-arr:active,.mm .tc:active{transform:scale(.96);transition:transform .1s ease-in-out}
 /* reduced motion (the global rule cuts every transition): the buttons keep their small hover / press easing, it only follows your own touch */
 @media (prefers-reduced-motion: reduce){.mm .mb,.mm-arr,.mm .tc{transition-duration:.16s!important}.mm .mb:not(:disabled):active,.mm-arr:active,.mm .tc:active{transition-duration:.1s!important}}
-.mm .mb:focus-visible,.mm-arr:focus-visible,.mm .tc:focus-visible{outline:0;transform:scale(1.04);filter:drop-shadow(0 0 2px #ffcc30) drop-shadow(0 0 3px #ffcc30)}
+.mm .mb:focus-visible,.mm-arr:focus-visible,.mm .tc:focus-visible{outline:0;transform:scale(1.04);filter:drop-shadow(0 0 2px #ffcc30) drop-shadow(0 0 3px #ffcc30) var(--bsh)}
 .mm-notice{position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 12px);transform:translateX(-50%);z-index:5;max-width:min(90vw,520px)}
 /* settings: a stone panel over the menu (volume, status, bug report, how to play) */
 .mm-pop{position:fixed;inset:0;z-index:20;display:grid;place-items:center;padding:16px}
