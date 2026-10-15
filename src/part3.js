@@ -379,6 +379,7 @@ function render() {
 	/* menu style (CSS .pt): the menu views only, the board and minigames keep the HUD look */
 	$("#app").classList.toggle("pt", MENU_VIEWS.includes(v) && v !== "home");
 	$("#app").classList.toggle("mm", v === "home");
+	if (v !== "home") homeOpen = null;
 	{
 		const tvp = role === "client" && !!G && !!G.tv && !SCREEN;
 		document.body.classList.toggle("tvphone", tvp);
@@ -462,7 +463,18 @@ function carouselHTML(sel) {
 	return `<div class="carousel" id="car">${TRUCKS.map((t, i) => `<button class="tc ${i === sel ? "sel" : ""}" data-t="${i}" aria-pressed="${i === sel}"><img alt="" src="${thumb(i)}"><span>${esc(t.name)}</span></button>`).join("")}</div>`;
 }
 /* main menu (design_handoff_main_menu): logo, truck info, name plate and roster on the left, the live 3D truck centre-right (showroom camera in part2), buttons on the right; CSS .mm in part1. Art from UI_ART (partui.js) as CSS variables --ui-<name> */
-let homeSet = false;
+let homeSet = false,
+	homeOpen = null;
+/* Host / Join open their two choices in place: the opened button slides up, the others fade out, the choices and Back fade in below (class op-host / op-join on .mm-act, no re-render so it animates) */
+function homeOpenSet() {
+	const el = $("#mmact");
+	if (!el) return;
+	el.classList.toggle("op-host", homeOpen === "host");
+	el.classList.toggle("op-join", homeOpen === "join");
+	el.querySelectorAll("[aria-expanded]").forEach((b) =>
+		b.setAttribute("aria-expanded", b.dataset.a === homeOpen + "menu"),
+	);
+}
 for (const k in UI_ART) document.documentElement.style.setProperty("--ui-" + k, `url(${UI_ART[k]})`);
 function menuZoom() {
 	const st = document.documentElement.style;
@@ -516,10 +528,12 @@ function homeHTML() {
   <div class="mmg mm-info" id="shown">${showNameHTML(me.truck)}</div>
   <div class="mmg mm-roster" id="car">${rosterHTML(me.truck)}</div>
   <div class="mmg mm-plate"><button class="mm-arr l" data-step="-1" tabindex="-1" aria-label="Previous truck"></button><label class="mm-np"><span>DRIVER NAME</span><input id="nm" maxlength="10" value="${esc(me.name)}" placeholder="DRIVER" autocomplete="off" spellcheck="false" style="font-size:${npSize((me.name || "DRIVER").length)}px"></label><button class="mm-arr r" data-step="1" tabindex="-1" aria-label="Next truck"></button></div>
-  <div class="mmg mm-act">
-    <button class="mb mb-y" data-a="hosttv"><span>Host on a<br>big screen</span></button>
-    <div class="mm-row"><button class="mb mb-g" data-a="joinlist"><span>Join game</span></button><button class="mb mb-w" data-a="host"><span>Host here</span></button></div>
-    <div class="mm-row sm"><button class="mb mb-d1" data-a="practice"><span>Practice</span></button>${FINE && GFX.ok ? `<button class="mb mb-d2" data-a="editor"><span>Map editor</span></button>` : ""}</div>
+  <div class="mmg mm-act${homeOpen ? " op-" + homeOpen : ""}" id="mmact">
+    <div class="mm-hs"><button class="mb mb-y mm-host" data-a="hostmenu" aria-expanded="${homeOpen === "host"}"><span>Host</span></button></div>
+    <div class="mm-row one mm-js"><button class="mb mb-g mm-join" data-a="joinmenu" aria-expanded="${homeOpen === "join"}"><span>Join</span></button></div>
+    <div class="mm-row sm mm-more"><button class="mb mb-d1" data-a="practice"><span>Practice</span></button>${FINE && GFX.ok ? `<button class="mb mb-d2" data-a="editor"><span>Map editor</span></button>` : ""}</div>
+    <div class="mm-opts mm-oh"><div class="mm-row"><button class="mb mb-y" data-a="hosttv"><span>TV + phones</span></button><button class="mb mb-y" data-a="host"><span>Phones only</span></button></div><button class="mb mb-d1 mm-back" data-a="menuback"><span>Back</span></button></div>
+    <div class="mm-opts mm-oj"><div class="mm-row"><button class="mb mb-g" data-a="joinas" data-as="phone"><span>Player</span></button><button class="mb mb-g" data-a="joinas" data-as="screen"><span>Big screen</span></button></div><button class="mb mb-d1 mm-back" data-a="menuback"><span>Back</span></button></div>
   </div>
   <div class="mmg mm-top">${canResume ? `<button class="mb mb-y" data-a="resume"><span>Resume</span></button>` : ""}<button class="mb mb-w" data-a="settings"><span>Settings</span></button></div>
   ${homeSet ? settingsHTML() : ""}`;

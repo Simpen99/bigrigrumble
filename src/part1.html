@@ -361,6 +361,20 @@ i.bi{font-style:normal}
 .mm-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;width:100%}
 .mm-row.sm{width:80%}
 .mm-row.sm:has(>:only-child){grid-template-columns:1fr;width:40%}
+.mm-row.one{grid-template-columns:1fr;width:calc(50% - 5px)}
+.mm-hs{width:100%}
+.mb.mm-host{font-size:40px;letter-spacing:2px}
+.mb.mm-join{font-size:26px;letter-spacing:2px}
+/* Host / Join choices (.op-host / .op-join on .mm-act): the opened button slides up (Join into the Host button's slot), the rest fades out, the two choices and Back fade in below the Host slot (153 = the Host button's height + the gap) */
+.mm-hs,.mm-js,.mm-more,.mm-opts{transition:transform .25s ease-in-out,opacity .2s ease-in-out,visibility 0s}
+.mm-opts{position:absolute;left:0;right:0;top:153px;display:flex;flex-direction:column;align-items:center;gap:10px;opacity:0;visibility:hidden;transform:translateY(14px);transition-delay:0s,0s,.25s}
+.mm-opts .mm-row .mb{font-size:19px}
+.mm-opts .mm-back{width:139px}
+.op-host .mm-hs{transform:translateY(-20px)}
+.op-join .mm-js{transform:translateY(-104px)}
+.op-host .mm-js,.op-host .mm-more,.op-join .mm-more{opacity:0;visibility:hidden;transform:translateY(14px);transition-delay:0s,0s,.25s}
+.op-join .mm-hs{opacity:0;visibility:hidden;transform:translateY(-20px);transition-delay:0s,0s,.25s}
+.op-host .mm-oh,.op-join .mm-oj{opacity:1;visibility:visible;transform:none;transition-delay:.05s,.05s,0s}
 .mb{display:grid;place-items:center;width:100%;border:0;margin:0;padding:0 4%;background:var(--bg) center/100% 100% no-repeat;font:21px/1 "Lilita One",sans-serif;letter-spacing:1px;color:#fff;text-align:center;text-transform:uppercase;transition:transform .16s ease-in-out}
 .mb-y{--bg:var(--ui-bb-yellow);aspect-ratio:1415/561;font-size:30px;text-shadow:0 3px 0 #7a5200,2px 0 0 #7a5200,-2px 0 0 #7a5200,0 -2px 0 #7a5200,2px 2px 0 #7a5200,-2px 2px 0 #7a5200,2px -2px 0 #7a5200,-2px -2px 0 #7a5200}
 .mb-g{--bg:var(--ui-bb-green);aspect-ratio:703/296;text-shadow:0 3px 0 #146b2e,2px 0 0 #146b2e,-2px 0 0 #146b2e,0 -2px 0 #146b2e,2px 2px 0 #146b2e,-2px 2px 0 #146b2e,2px -2px 0 #146b2e,-2px -2px 0 #146b2e}
@@ -378,7 +392,7 @@ i.bi{font-style:normal}
 @media (hover:hover){.mm .mb:not(:disabled):hover,.mm-arr:hover,.mm .tc:hover{transform:scale(1.04)}}
 .mm .mb:not(:disabled):active,.mm-arr:active,.mm .tc:active{transform:scale(.96);transition:transform .1s ease-in-out}
 /* reduced motion (the global rule cuts every transition): the buttons keep their small hover / press easing, it only follows your own touch */
-@media (prefers-reduced-motion: reduce){.mm .mb,.mm-arr,.mm .tc{transition-duration:.16s!important}.mm .mb:not(:disabled):active,.mm-arr:active,.mm .tc:active{transition-duration:.1s!important}}
+@media (prefers-reduced-motion: reduce){.mm-hs,.mm-js,.mm-more,.mm-opts{transition-duration:.25s,.2s,0s!important}.mm .mb,.mm-arr,.mm .tc{transition-duration:.16s!important}.mm .mb:not(:disabled):active,.mm-arr:active,.mm .tc:active{transition-duration:.1s!important}}
 .mm .mb:focus-visible,.mm-arr:focus-visible,.mm .tc:focus-visible{outline:0;transform:scale(1.04);filter:drop-shadow(0 0 2px #ffcc30) drop-shadow(0 0 3px #ffcc30) var(--bsh)}
 .mm-notice{position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 12px);transform:translateX(-50%);z-index:5;max-width:min(90vw,520px)}
 /* settings: a stone panel over the menu (volume, status, bug report, how to play) */
@@ -401,7 +415,7 @@ i.bi{font-style:normal}
 .mm-info{order:1;margin-top:240px}
 .mm-plate{order:2;margin-top:16px}
 .mm-roster{order:3;margin-top:10px}
-.mm-act{order:4;align-self:center;margin-top:16px}
+.mm-act{order:4;align-self:center;margin-top:16px;position:relative!important}
 }
 .pgrid{display:grid;gap:8px}
 .pgame{display:flex;align-items:center;gap:10px;width:100%;text-align:left;border:0;background:var(--panel2);border-radius:14px;padding:11px 12px}

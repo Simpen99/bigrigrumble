@@ -111,6 +111,15 @@ document.addEventListener("click", (e) => {
 	} else if (a === "resume") {
 		notice = "";
 		hostResume(LS.get("trp_host", null));
+	} else if (a === "hostmenu" || a === "joinmenu" || a === "menuback") {
+		const k = a === "hostmenu" ? "host" : a === "joinmenu" ? "join" : null;
+		homeOpen = homeOpen === k ? null : k;
+		homeOpenSet();
+	} else if (a === "joinas") {
+		joinAs = b.dataset.as === "screen" ? "screen" : "phone";
+		notice = "";
+		homeSub = "join";
+		render();
 	} else if (a === "joinlist") {
 		notice = "";
 		homeSub = "join";
@@ -468,12 +477,15 @@ document.addEventListener(
 );
 addEventListener("keydown", (e) => {
 	if (e.key === "F8") dbgOpen();
-	/* main menu: arrow keys pick the truck, Escape closes the settings */
+	/* main menu: arrow keys pick the truck, Escape closes the settings or the Host / Join choices */
 	if (view !== "home" || GFX.mode === "edit") return;
 	if (e.key === "Escape" && homeSet) {
 		homeSet = false;
 		render.last = null;
 		render();
+	} else if (e.key === "Escape" && homeOpen) {
+		homeOpen = null;
+		homeOpenSet();
 	} else if (
 		(e.key === "ArrowLeft" || e.key === "ArrowRight") &&
 		!homeSet &&
