@@ -377,7 +377,8 @@ function render() {
 	}
 	document.body.dataset.view = v;
 	/* menu style (CSS .pt): the menu views only, the board and minigames keep the HUD look */
-	$("#app").classList.toggle("pt", MENU_VIEWS.includes(v));
+	$("#app").classList.toggle("pt", MENU_VIEWS.includes(v) && v !== "home");
+	$("#app").classList.toggle("mm", v === "home");
 	{
 		const tvp = role === "client" && !!G && !!G.tv && !SCREEN;
 		document.body.classList.toggle("tvphone", tvp);
@@ -423,7 +424,7 @@ function render() {
 		NET.err +
 		NET.code;
 	if (v === "join") key += JSON.stringify([othersHere().length, gamesAvailable().map((g) => g.id + ":" + g.v)]);
-	else if (v === "home") key += othersHere().length;
+	else if (v === "home") key += othersHere().length + "|" + homeSet;
 	else
 		key += JSON.stringify([
 			G && G.v,
@@ -460,30 +461,43 @@ function render() {
 function carouselHTML(sel) {
 	return `<div class="carousel" id="car">${TRUCKS.map((t, i) => `<button class="tc ${i === sel ? "sel" : ""}" data-t="${i}" aria-pressed="${i === sel}"><img alt="" src="${thumb(i)}"><span>${esc(t.name)}</span></button>`).join("")}</div>`;
 }
+/* main menu (design_handoff_main_menu): logo, truck info, name plate and roster on the left, the live 3D truck centre-right (showroom camera in part2), buttons on the right; CSS .mm in part1. Art from UI_ART (partui.js) as CSS variables --ui-<name> */
+let homeSet = false;
+for (const k in UI_ART) document.documentElement.style.setProperty("--ui-" + k, `url(${UI_ART[k]})`);
+function menuZoom() {
+	const st = document.documentElement.style;
+	st.setProperty("--mz", Math.min(innerWidth / 1280, innerHeight / 720).toFixed(4));
+	st.setProperty("--mzp", Math.min(1.2, (innerWidth - 24) / 444).toFixed(4));
+}
+menuZoom();
+addEventListener("resize", menuZoom);
+/* the truck's info beside the 3D truck (pickTruck swaps it): name, tagline, its die on stone tiles (coins gained green, paid red) */
 function showNameHTML(i) {
 	const t = TRUCKS[i];
-	return `<div class="showname"><div><h2>${esc(t.name)}</h2><p>${esc(t.blurb)}</p><div style="margin-top:8px">${facesHTML(t.faces)}</div></div><div class="arrows"><button class="arr" data-step="-1" aria-label="Previous truck">‹</button><button class="arr" data-step="1" aria-label="Next truck">›</button></div></div>`;
+	return `<h2 class="mm-name">${esc(t.name)}</h2><p class="mm-tag">${esc(t.blurb)}</p><div class="mm-dice" aria-label="Die faces">${t.faces.map((f, k) => `<span class="mm-die" style="--dt:var(--ui-dtile-${k + 1})">${f.m}${f.c ? `<small class="${f.c > 0 ? "up" : "dn"}">${f.c > 0 ? "+" : "−"}${Math.abs(f.c)}</small>` : ""}</span>`).join("")}</div>`;
 }
-function homeHTML() {
-	const saved = LS.get("trp_host", null);
-	const canResume = saved && saved.phase && saved.phase !== "over" && saved.players && saved.players.length;
-	return `<div class="stage"><div class="logo"><img class="lg" src="${LOGO_ART}" alt="Big Rig Rumble"></div><div id="shown">${showNameHTML(me.truck)}</div></div>
-  ${notice ? `<div class="banner">${esc(notice)}</div>` : ""}
-  <section class="sheet"><div class="ribbon"><span>Choose your truck</span></div><h2 class="rbh">Choose your truck</h2>${carouselHTML(me.truck)}
-  <p class="note" style="margin-top:4px">Each truck brings its own die. Small numbers under a face are coins you gain or pay when you roll it. The standard 1–6 die is always available too.</p>
-  <label class="field" style="margin-top:14px">Driver name<input id="nm" maxlength="12" value="${esc(me.name)}" placeholder="Your name" autocomplete="off"></label></section>
-  <section class="sheet stack">
-    ${canResume ? `<button class="btn go" data-a="resume"><i class="bi">▶️</i>Resume your hosted game</button>` : ""}
-    <button class="btn ${canResume ? "ghost" : "go"}" data-a="hosttv"><i class="bi">📺</i>Host on a big screen</button>
-    <button class="btn ghost" data-a="host"><i class="bi">📱</i>Host on this phone</button>
-    <button class="btn sign" data-a="joinlist"><i class="bi">📲</i>Join Game</button>
-    <button class="btn ghost" data-a="practice"><i class="bi">🎮</i>Minigame practice</button>
-    ${FINE && GFX.ok ? `<button class="btn ghost" data-a="editor"><i class="bi">🛠</i>Map editor</button>` : ""}
-    <div class="volbox">${volHTML()}</div>
-    <div>${statusHTML()}</div>
-    <button class="btn ghost small" data-dbg="open">🐞 Report a bug</button>
-  </section>
-  <details class="sheet how"><summary>How to play</summary><ul>
+/* roster: a rock slab per truck (dark ones cycle through four shapes, the selected truck on the white one) */
+const ROCKS = [
+	["d1", 77],
+	["d2", 74],
+	["d4", 84],
+	["d5", 80],
+];
+function rosterHTML(sel) {
+	return TRUCKS.map((t, i) => {
+		const [r, w] = ROCKS[i % 4];
+		return `<button class="tc ${i === sel ? "sel" : ""}" data-t="${i}" aria-pressed="${i === sel}" aria-label="${esc(t.name)}" style="--rk:var(--ui-rock-${r});--w:${w}px"><img alt="" src="${thumb(i)}"></button>`;
+	}).join("");
+}
+/* the name plate shrinks long names to fit */
+const npSize = (n) => Math.min(40, Math.floor((262 / Math.max(1, n) - 6) / 0.62));
+function settingsHTML() {
+	return `<div class="mm-pop"><button class="mm-scrim" data-a="setclose" aria-label="Close settings"></button><section class="mm-sheet" role="dialog" aria-label="Settings"><div class="mm-sh"><h2>SETTINGS</h2><button class="mm-x" data-a="setclose" aria-label="Close">✕</button></div>
+  <div class="volbox">${volHTML()}</div>
+  <div style="margin-top:10px">${statusHTML()}</div>
+  <button class="btn ghost small" data-dbg="open">🐞 Report a bug</button>
+  <details class="how"><summary>How to play</summary><ul>
+    <li>Each truck brings its own die. Small numbers under a face are coins you gain or pay when you roll it. The standard 1–6 die is always available too.</li>
     <li>On your turn, pick the standard die or your truck's special die and roll.</li>
     <li>Blue tiles pay 3 coins, red tiles cost 3, and purple tiles trigger a surprise.</li>
     <li>Drive onto or past the battery factory with ${PRICE} coins to buy a battery. The factory then moves somewhere new.</li>
@@ -491,7 +505,24 @@ function homeHTML() {
     <li>After everyone moves, all drivers play a minigame at the same time. First place earns 10 coins.</li>
     <li>After the last round, the most batteries wins. Coins break ties.</li>
     <li>No second phone? The host can add players on the same phone and pass it around.</li>
-  </ul></details>`;
+  </ul></details></section></div>`;
+}
+/* DOM order = focus order: roster, plate, the buttons, then the top-right ones */
+function homeHTML() {
+	const saved = LS.get("trp_host", null);
+	const canResume = saved && saved.phase && saved.phase !== "over" && saved.players && saved.players.length;
+	return `<img class="mmg mm-logo" src="${LOGO_ART}" alt="Big Rig Rumble">
+  ${notice ? `<div class="banner mm-notice">${esc(notice)}</div>` : ""}
+  <div class="mmg mm-info" id="shown">${showNameHTML(me.truck)}</div>
+  <div class="mmg mm-roster" id="car">${rosterHTML(me.truck)}</div>
+  <div class="mmg mm-plate"><button class="mm-arr l" data-step="-1" tabindex="-1" aria-label="Previous truck"></button><label class="mm-np"><span>DRIVER NAME</span><input id="nm" maxlength="10" value="${esc(me.name)}" placeholder="DRIVER" autocomplete="off" spellcheck="false" style="font-size:${npSize((me.name || "DRIVER").length)}px"></label><button class="mm-arr r" data-step="1" tabindex="-1" aria-label="Next truck"></button></div>
+  <div class="mmg mm-act">
+    <button class="mb mb-y" data-a="hosttv">Host on a<br>big screen</button>
+    <div class="mm-row"><button class="mb mb-g" data-a="joinlist">Join game</button><button class="mb mb-w" data-a="host">Host here</button></div>
+    <div class="mm-row sm"><button class="mb mb-d1" data-a="practice">Practice</button>${FINE && GFX.ok ? `<button class="mb mb-d2" data-a="editor">Map editor</button>` : ""}</div>
+  </div>
+  <div class="mmg mm-top">${canResume ? `<button class="mb mb-y" data-a="resume">Resume</button>` : ""}<button class="mb mb-w" data-a="settings">Settings</button></div>
+  ${homeSet ? settingsHTML() : ""}`;
 }
 function diagHTML() {
 	if (!room)

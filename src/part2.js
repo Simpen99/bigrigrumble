@@ -976,10 +976,18 @@ function frame(t) {
 			home = view === "home",
 			w = GFX.w,
 			h = GFX.h;
-		const d = asp < 1 ? (n > 1 ? 17 + n * 1.3 : 19) : n > 1 ? 11 + n * 0.5 : 10.5;
+		/* main menu: one truck, further back; landscape puts it right of centre (the info column is on the left), portrait higher up (above the info) */
+		const d = asp < 1 ? (n > 1 ? 17 + n * 1.3 : home ? 24 : 19) : n > 1 ? 11 + n * 0.5 : home ? 14 : 10.5;
 		cam.position.set(0, 1.2 + d * 0.3, d);
 		cam.lookAt(0, 0.9, 0);
-		cam.setViewOffset(w, h, home && n === 1 ? -w * (asp < 1 ? 0.16 : 0.12) : 0, h * (home ? 0.2 : 0.32), w, h);
+		cam.setViewOffset(
+			w,
+			h,
+			home && n === 1 && asp >= 1 ? -w * 0.13 : 0,
+			h * (home ? (asp < 1 ? 0.26 : 0.2) : 0.32),
+			w,
+			h,
+		);
 		cam.updateProjectionMatrix();
 		cam.updateMatrixWorld();
 		swayStep(S.scene);
