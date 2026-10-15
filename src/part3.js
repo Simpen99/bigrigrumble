@@ -476,7 +476,7 @@ function showNameHTML(i) {
 	const t = TRUCKS[i];
 	return `<h2 class="mm-name">${esc(t.name)}</h2><p class="mm-tag">${esc(t.blurb)}</p><div class="mm-dice" aria-label="Die faces">${t.faces.map((f, k) => `<span class="mm-die" style="--dt:var(--ui-dtile-${k + 1})">${f.m}${f.c ? `<small class="${f.c > 0 ? "up" : "dn"}">${f.c > 0 ? "+" : "−"}${Math.abs(f.c)}</small>` : ""}</span>`).join("")}</div>`;
 }
-/* roster: a rock slab per truck (four shapes in turn), the selected truck's own slab grows 15% */
+/* roster: a rock slab per truck (four dark shapes in turn); the selected truck's slab turns white (--rl, the same shape) and grows 15% */
 const ROCKS = [
 	["d1", 77],
 	["d2", 74],
@@ -486,7 +486,7 @@ const ROCKS = [
 function rosterHTML(sel) {
 	return TRUCKS.map((t, i) => {
 		const [r, w] = ROCKS[i % 4];
-		return `<button class="tc ${i === sel ? "sel" : ""}" data-t="${i}" aria-pressed="${i === sel}" aria-label="${esc(t.name)}" style="--rk:var(--ui-rock-${r});--w:${w}px"><img alt="" src="${thumb(i)}"></button>`;
+		return `<button class="tc ${i === sel ? "sel" : ""}" data-t="${i}" aria-pressed="${i === sel}" aria-label="${esc(t.name)}" style="--rk:var(--ui-rock-${r});--rl:var(--ui-rock-l${r.slice(1)});--w:${w}px"><img alt="" src="${thumb(i)}"></button>`;
 	}).join("");
 }
 /* the name plate shrinks long names to fit */
