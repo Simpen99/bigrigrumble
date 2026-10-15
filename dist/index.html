@@ -371,8 +371,10 @@ i.bi{font-style:normal}
 .mm-top .mb{width:128px;font-size:18px}
 .mm-top .mb-y{aspect-ratio:702/295;text-shadow:0 2px 0 #7a5200,1.5px 0 0 #7a5200,-1.5px 0 0 #7a5200,0 -1.5px 0 #7a5200,1.5px 1.5px 0 #7a5200,-1.5px 1.5px 0 #7a5200,1.5px -1.5px 0 #7a5200,-1.5px -1.5px 0 #7a5200}
 .mm .mb:disabled{opacity:.5}
+/* buttons scale from their base (bottom centre): hover lifts the face, a press squashes it down onto the base without the button sliding */
+.mm .mb,.mm-arr,.mm .tc{transform-origin:50% 100%}
 @media (hover:hover){.mm .mb:not(:disabled):hover,.mm-arr:hover,.mm .tc:hover{transform:scale(1.04);transition:transform .12s ease-out}}
-.mm .mb:not(:disabled):active,.mm-arr:active,.mm .tc:active{transform:translateY(4px) scale(.98);transition:transform .08s}
+.mm .mb:not(:disabled):active,.mm-arr:active,.mm .tc:active{transform:scale(.96);transition:transform .08s}
 .mm .mb:focus-visible,.mm-arr:focus-visible,.mm .tc:focus-visible{outline:0;transform:scale(1.04);filter:drop-shadow(0 0 2px #ffcc30) drop-shadow(0 0 3px #ffcc30)}
 .mm-notice{position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 12px);transform:translateX(-50%);z-index:5;max-width:min(90vw,520px)}
 /* settings: a stone panel over the menu (volume, status, bug report, how to play) */
@@ -942,7 +944,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-15 20:13 b125636";
+const BUILD = "2026-10-15 20:16 f92a15b";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
