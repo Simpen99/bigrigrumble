@@ -29,11 +29,16 @@ const TS = {
 	AIR: 0.99979 /* air drag per step */,
 	KO: 3.5 /* s from a goal to the next kickoff */,
 	WIN: 3 /* goals to win the match */,
-	/* boost is a meter (0..BMAX, start BSTART); a BOOST dash costs BCOST; a pad near each corner fills it, back PADT s
-	   after it is taken (PADS = where, PADR = pick-up reach) */
+	/* boost is a meter (0..BMAX), BSTART at every kickoff. BOOST is held: it drains BDRAIN a second and pushes the truck
+	   (BACC m/s² on the ground, up to BTOP m/s; in the air BAIR forward and BLIFT up, which beats gravity: an aerial).
+	   A pad near each corner fills it, back PADT s after it is taken (PADS = where, PADR = pick-up reach) */
 	BMAX: 100,
-	BSTART: 34,
-	BCOST: 34,
+	BSTART: 33,
+	BDRAIN: 33,
+	BACC: 34,
+	BTOP: 19,
+	BAIR: 16,
+	BLIFT: 33,
 	PADS: [
 		[-9.5, -18],
 		[9.5, -18],
@@ -50,7 +55,11 @@ const TS = {
 	LAUNCHMAX: 15,
 	BOOMR: 15 /* m: trucks this close to a goal explosion get blown away */,
 	BOOMV: 16 /* m/s that blast gives a truck right at it */,
-	STUN: 0.5 /* s a truck can't steer, boost or jump after being BOOSTed into (a tackle) */,
+	/* a tackle: BOOSTing into a truck of the other team at TACKV m/s or more knocks it TACKK m/s away and stuns it for
+	   STUN s (no steering, boost or jump) */
+	STUN: 1,
+	TACKV: 14,
+	TACKK: 11,
 	WINWAIT: 3 /* s of celebration after the winning goal before the match ends */,
 	HOLD: 1.6 /* s before a kickoff when the trucks are put back on their spots */,
 	GOALWAIT: 1.2 /* s the host waits for the kicker's device to announce a goal before it does */,
@@ -59,23 +68,21 @@ const TS = {
 	/* kicks (rules): a plain touch sends the ball at TOUCH x the truck's speed (+0.6 m/s), a BOOST shot at 1.1 x + SHOT
 	   m/s with CHIP m/s up; AIM = how much the ball follows the way the truck faces instead of the contact direction */
 	TOUCH: 1.05,
-	SHOT: 13,
+	SHOT: 7 /* boosting, the truck is already fast: the shot adds this on top */,
 	CHIP: 11 /* about 1.8 m up at the top */,
 	AIM: 0.45,
 	POP: 14 /* m/s up when the ball is squeezed between two trucks (about 2.9 m up, clear over the roofs) */,
 	ESC: 7 /* m/s sideways for a popped ball, so it lands out of the pile (about 6 m away), and off a roof */,
 	ROOF: 0.6 /* a ball falling onto a truck with its bottom this high rolls off the roof */,
-	/* JUMP (the second button, Rocket League style): a hop, then a second tap in the air flips the truck the way the stick
-	   points (or forward), a burst of FLIPV m/s; a flip into the ball is a power hit (+FLIPK m/s). BOOST in the air is an
-	   aerial: AERV m/s up and AERH m/s forward. AIRC = how much the stick steers in the air */
+	/* JUMP (the second button, Rocket League style): a hop (off a ramp: away from its surface), then a second tap in
+	   the air flips the truck the way the stick points (or forward), a burst of FLIPV m/s; a flip into the ball is a
+	   power hit (+FLIPK m/s). AIRC = how much the stick steers in the air */
 	JUMP: 10,
 	TGRAV: 26 /* the trucks' gravity: a hop is about 1.9 m and 0.8 s */,
 	FLIPWIN: 1.4 /* s after the jump the flip can still be used */,
 	FLIPV: 13,
 	FLIPDUR: 0.5 /* s the flip's spin takes */,
 	FLIPK: 11,
-	AERV: 9,
-	AERH: 8,
 	AIRC: 10,
 	TVD: [45, 24] /* the TV camera's height and distance out to the side */,
 	TVK: [1.1, 0.55] /* its zoom: at most [0], else [1] x the screen's width / height (both goals in view) */,
@@ -364,10 +371,12 @@ Object.assign(MG, {
 		ramK: 0.75 /* bumps between trucks a bit softer than Mud Brawl's rams */,
 		how: "Push the ball into the other team's goal. First team to 3 goals wins!",
 		teamHow: (s) => (s === 0 ? "Blue: score in the red goal." : "Red: score in the blue goal."),
-		tvHint: "Drag to drive · BOOST smashes the ball (corner pads fill it) · JUMP, again in the air to flip",
+		tvHint: "Drag to drive · hold BOOST to speed up (corner pads fill it) · JUMP, again in the air to flip",
 		/* the BOOST button shows the meter (dark = empty), lit when there is enough for a dash */
 		ramCd: (W) => 1 - Math.min(1, (W.me.bst ?? W.me.f.bs ?? 0) / TS.BMAX),
-		ramReady: (W) => (W.me.bst ?? W.me.f.bs ?? 0) >= TS.BCOST,
+		ramReady: (W) => (W.me.bst ?? W.me.f.bs ?? 0) > 0,
+		/* BOOST never rams (the tackle is soccer's own, in tackle) */
+		canRam: () => false,
 		ramLabel: "BOOST",
 		btn2: () => "JUMP",
 		/* where trucks line up for a kickoff: each team on its own half, side by side, facing the ball (j of n team mates) */
@@ -393,8 +402,6 @@ Object.assign(MG, {
 			if (e.side === undefined) e.side = W.list.indexOf(e) % 2;
 			e.f = { bl: null, gl: [], fp: null, st: 0, pk: [], bs: TS.BSTART };
 			e.bst = TS.BSTART;
-			/* the dash itself has no cooldown beyond its own length: the meter limits it */
-			e.ramCdT = 0.45;
 		},
 		build(W) {
 			const T = TS,
@@ -761,8 +768,8 @@ Object.assign(MG, {
 				e.f.pk = e.f.pk.concat([[i, Math.round(W.t * 1000) / 1000]]).slice(-8);
 				pd.ready = W.t + TS.PADT;
 				e.bst = TS.BMAX;
+				e.f.pg = Math.round(W.t * 1000) / 1000;
 				if (e.isMe) sfx("coin");
-				fb(W, e, "BOOST", { tone: "good" });
 				mgLog(W, `pad ${i} ${mgName(e)}`);
 			});
 		},
@@ -775,6 +782,70 @@ Object.assign(MG, {
 				pd.orb.rotation.y = W.t * 1.8;
 				pd.ring.material.color.set(on ? "#FFB52E" : "#5A4A2A");
 			});
+		},
+		/* boost on the truck: flames out of its back while boosting (local, or the shared boost flag), an orange glow
+		   swelling round it when it takes a pad (e.f.pg = when) */
+		boostFx(W, e) {
+			if (!e.bfx) {
+				const q = e.tr.quaternion.clone(),
+					p0 = e.tr.position.clone();
+				e.tr.quaternion.identity();
+				e.tr.position.set(0, 0, 0);
+				e.g.updateMatrixWorld(true);
+				const bx = new THREE.Box3().setFromObject(e.tr),
+					sc = e.tr.scale.x || 1;
+				e.tr.quaternion.copy(q);
+				e.tr.position.copy(p0);
+				const rear = (bx.min.x - e.g.position.x) / sc,
+					hy = ((bx.max.y - e.g.position.y) * 0.32) / sc,
+					fl = new THREE.Group(),
+					add = (r, h, c, z, op) => {
+						const m = new THREE.Mesh(
+							new THREE.ConeGeometry(r, h, 10),
+							new THREE.MeshBasicMaterial({
+								color: c,
+								transparent: true,
+								opacity: op,
+								depthWrite: false,
+								blending: THREE.AdditiveBlending,
+							}),
+						);
+						m.rotation.z = Math.PI / 2;
+						m.position.set(-h / 2, 0, z);
+						fl.add(m);
+					};
+				[-0.35, 0.35].forEach((z) => {
+					add(0.3, 1.4, "#FF7A1A", z, 0.85);
+					add(0.17, 0.9, "#FFE27A", z, 1);
+				});
+				fl.position.set(rear, hy, 0);
+				fl.visible = false;
+				e.tr.add(fl);
+				const glow = new THREE.Mesh(
+					new THREE.SphereGeometry(1.6, 18, 12),
+					new THREE.MeshBasicMaterial({
+						color: "#FFB52E",
+						transparent: true,
+						opacity: 0,
+						depthWrite: false,
+						blending: THREE.AdditiveBlending,
+					}),
+				);
+				glow.position.y = 0.8;
+				glow.visible = false;
+				e.g.add(glow);
+				e.bfx = { fl, glow };
+			}
+			const on = e.boostT > 0 && !e.gone && W.t >= 0;
+			e.bfx.fl.visible = on;
+			if (on) e.bfx.fl.scale.set(0.8 + Math.random() * 0.45, 0.9 + Math.random() * 0.2, 1);
+			const a = W.t - ((e.f && e.f.pg) || -9),
+				g = e.bfx.glow;
+			g.visible = a >= 0 && a < 0.6;
+			if (g.visible) {
+				g.scale.setScalar(0.8 + a * 1.6);
+				g.material.opacity = 0.55 * (1 - a / 0.6);
+			}
 		},
 		/* the boost bar over a truck (its meter: its own, or the shared e.f.bs) */
 		boostBar(W, e) {
@@ -856,6 +927,9 @@ Object.assign(MG, {
 				e.vx = e.vz = e.vy = e.y = 0;
 				e.air = false;
 				e.boostT = 0;
+				e.bst = TS.BSTART;
+				e.f.bs = TS.BSTART;
+				e.f.st = 0;
 				if (inp) inp.b2 = false;
 				return;
 			}
@@ -871,25 +945,20 @@ Object.assign(MG, {
 			}
 		},
 		drive(W, e, inp, dt) {
-			/* a tackle: rammed by a BOOSTing truck (the engine's ram, on this device or sent over by the rammer's) stuns
-			   for STUN s: no steering, boost or jump, the knock carries it. The stun's end is shared (e.f.st) for the wobble */
-			const lh = e.lastHit;
-			if (lh && lh.t !== e.stunSeen && /^rammed/.test(lh.k)) {
-				e.stunSeen = lh.t;
-				e.f.st = Math.round((W.t + TS.STUN) * 1000) / 1000;
-				fb(W, e, "STUNNED", { tone: "bad" });
-				mgLog(W, `tackle on ${mgName(e)} (${lh.k})`);
-			}
-			if (W.t < (e.f.st || 0)) {
+			/* tackles on this truck (sent by the tackler's device), then the stun: no input; its end is shared (e.f.st)
+			   for the stars */
+			this.tackled(W, e);
+			if (e.f.st > 0 && W.t < e.f.st) {
 				if (inp) inp.boost = inp.b2 = false;
-				inp = { x: 0, y: 0, boost: false, b2: false };
+				inp = { x: 0, y: 0, boost: false, b2: false, hold: false };
 			}
-			/* BOOST only with enough in the meter; a dash (on the ground or in the air) costs BCOST */
-			let dash = false;
-			if (inp && inp.boost) {
-				if (e.bcd > 0 || e.bst < TS.BCOST) inp.boost = false;
-				else dash = true;
-			}
+			/* BOOST is held (no dash): boostT marks it (the engine's faster top speed and the shared flag for the flames);
+			   letting go slides it back down to normal speed instead of snapping */
+			if (inp) inp.boost = false;
+			const boosting = !!(inp && inp.hold) && e.bst > 0 && e.al && !e.d;
+			if (boosting) e.boostT = 0.12;
+			else if (e.boosting) e.slideT = Math.max(e.slideT || 0, 0.6);
+			e.boosting = boosting;
 			const jump = !!(inp && inp.b2);
 			if (inp) inp.b2 = false;
 			if (jump && e.al && !e.d) this.jump(W, e, inp);
@@ -899,7 +968,10 @@ Object.assign(MG, {
 				arenaPhys(W, e, inp, dt);
 				this.rampRide(W, e, dt, yaw0);
 			}
-			if (dash && e.boostT > 0.4) e.bst -= TS.BCOST;
+			if (boosting) {
+				this.boostPush(W, e, inp, dt);
+				this.tackle(W, e);
+			}
 			this.padPick(W, e);
 			e.f.bs = Math.round(e.bst);
 			/* the ramps let a truck right up to the wall; only round the goal mouths it keeps its own width off them */
@@ -916,6 +988,85 @@ Object.assign(MG, {
 					e.vz -= k * vn * c.nz;
 				}
 			}
+		},
+		/* holding BOOST: a push the way the stick points (or forward), harder in a straight line than the engine's
+		   steering; in the air also up (an aerial); the meter drains */
+		boostPush(W, e, inp, dt) {
+			const T = TS;
+			let dx = inp.x,
+				dz = inp.y,
+				l = Math.hypot(dx, dz);
+			if (l < 0.3) {
+				dx = Math.cos(e.yaw);
+				dz = -Math.sin(e.yaw);
+				l = 1;
+			}
+			dx /= l;
+			dz /= l;
+			const a = e.air ? T.BAIR : T.BACC;
+			e.vx += dx * a * dt;
+			e.vz += dz * a * dt;
+			if (e.air) e.vy += T.BLIFT * dt;
+			const sp = Math.hypot(e.vx, e.vz);
+			if (sp > T.BTOP) {
+				e.vx *= T.BTOP / sp;
+				e.vz *= T.BTOP / sp;
+			}
+			e.bst = Math.max(0, e.bst - T.BDRAIN * dt);
+		},
+		/* boosting fast into a truck of the other team: a tackle, shared as e.f.tk = [[its key, t, push x, push z]] for
+		   its own device to apply (tackled); once a stun per truck */
+		tackle(W, e) {
+			const T = TS,
+				r3 = (v) => Math.round(v * 1000) / 1000;
+			if (Math.hypot(e.vx, e.vz) < T.TACKV) return;
+			W.list.forEach((o) => {
+				if (o === e || o.gone || !o.al || (o.side === 1 ? 1 : 0) === (e.side === 1 ? 1 : 0)) return;
+				const dx = o.x - e.x,
+					dz = o.z - e.z,
+					d = Math.hypot(dx, dz) || 0.01;
+				if (d > (e.rad || 0.95) + (o.rad || 0.95) + 0.25 || Math.abs((o.y || 0) - (e.y || 0)) > 1.5) return;
+				if (dx * e.vx + dz * e.vz <= 0) return;
+				e.tkT = e.tkT || {};
+				if (W.t - (e.tkT[o.k] ?? -9) < T.STUN + 0.3) return;
+				e.tkT[o.k] = W.t;
+				e.f.tk = (e.f.tk || []).concat([[o.k, r3(W.t), r3((dx / d) * T.TACKK), r3((dz / d) * T.TACKK)]]).slice(-6);
+				e.vx *= 0.7;
+				e.vz *= 0.7;
+				if (e.isMe || W.tv) W.shake = Math.max(W.shake || 0, 0.35);
+				sfx("ram");
+				hitFx(o, e);
+				mgLog(W, `tackle by ${mgName(e)} on ${mgName(o)}`);
+			});
+		},
+		/* tackles on a truck of this device: knocked away and up, stunned STUN s */
+		tackled(W, e) {
+			e.tkSeen = e.tkSeen || {};
+			W.list.forEach((a) => {
+				const L = a.f && a.f.tk;
+				if (!Array.isArray(L)) return;
+				L.forEach((q) => {
+					if (!Array.isArray(q) || q[0] !== e.k) return;
+					const id = a.k + ":" + q[1];
+					if (e.tkSeen[id]) return;
+					e.tkSeen[id] = 1;
+					if (W.t - q[1] > 1.5 || !e.al || e.d) return;
+					e.vx += +q[2] || 0;
+					e.vz += +q[3] || 0;
+					e.slideT = 1;
+					if (!e.air) {
+						e.air = true;
+						e.y = Math.max(e.y || 0, 0.01);
+						e.vy = 4;
+					}
+					e.flipOk = false;
+					e.f.st = Math.round(Math.max(e.f.st || 0, W.t + TS.STUN) * 1000) / 1000;
+					if (e.isMe) W.shake = 0.5;
+					if (!a.local) hitFx(e, a);
+					sfx("stun");
+					mgLog(W, `tackle on ${mgName(e)} by ${mgName(a)}`);
+				});
+			});
 		},
 		/* on the ground near a wall: up the ramp (gravity pulls it back down the slope, steeper = harder), heading kept on
 		   the steep part so it rolls back down tail first like a skater; still going out at the lip = launched straight up */
@@ -951,6 +1102,14 @@ Object.assign(MG, {
 			if (!e.air) {
 				e.air = true;
 				e.vy = T.JUMP;
+				/* on a ramp: off its surface (on the vertical part straight out from the wall, into the pitch) */
+				const E = (e.y || 0) > 0.02 && tsEdge(e.x, e.z);
+				if (E && E.d < T.RR) {
+					const u = Math.min(1, (T.RR - Math.max(0, E.d)) / T.RR);
+					e.vx -= E.nx * u * T.JUMP;
+					e.vz -= E.nz * u * T.JUMP;
+					e.vy = T.JUMP * Math.max(0.35, Math.sqrt(1 - u * u));
+				}
 				e.y = Math.max(e.y || 0, 0.01);
 				e.flipOk = true;
 				e.jumpT = W.t;
@@ -987,24 +1146,7 @@ Object.assign(MG, {
 			if (inp && e.al && !e.d) {
 				e.vx += inp.x * T.AIRC * dt;
 				e.vz += inp.y * T.AIRC * dt;
-				if (inp.boost && e.bcd <= 0) {
-					let dx = inp.x,
-						dz = inp.y,
-						l = Math.hypot(dx, dz);
-					if (l < 0.3) {
-						dx = Math.cos(e.yaw);
-						dz = -Math.sin(e.yaw);
-						l = 1;
-					}
-					e.vx += (dx / l) * T.AERH;
-					e.vz += (dz / l) * T.AERH;
-					e.vy = Math.max(e.vy, 0) + T.AERV;
-					e.bcd = e.ramCdT || 2;
-					e.boostT = 0.45;
-					mgLog(W, `aerial ${mgName(e)}`);
-				}
 			}
-			if (inp) inp.boost = false;
 			e.bcd = Math.max(0, e.bcd - dt);
 			e.boostT = Math.max(0, e.boostT - dt);
 			e.vy -= T.TGRAV * dt;
@@ -1522,8 +1664,20 @@ Object.assign(MG, {
 					}
 				}
 			}
-			/* stunned: a quick wobble */
-			if (W.t < ((e.f && e.f.st) || 0) && !(ft >= 0 && ft < TS.FLIPDUR)) e.tr.rotation.x = Math.sin(W.t * 45) * 0.14;
+			/* stunned: a quick wobble and dizzy stars circling over it (Monster Mash's) */
+			const st = (e.f && e.f.st) || 0,
+				stun = st > 0 && W.t >= 0 && W.t < st;
+			if (stun && !(ft >= 0 && ft < TS.FLIPDUR)) e.tr.rotation.x = Math.sin(W.t * 45) * 0.14;
+			if (stun && !e.stars) {
+				e.stars = mmStars();
+				e.stars.position.y = 2.1;
+				e.g.add(e.stars);
+			}
+			if (e.stars) {
+				e.stars.visible = stun && !e.gone;
+				if (stun) e.stars.rotation.y = W.t * 6;
+			}
+			this.boostFx(W, e);
 			if (e.disc === undefined) e.disc = e.g.children.find((c) => c.userData.disc) || null;
 			if (e.disc) e.disc.position.y = 0.03 - Math.max(0, e.y || 0);
 			this.boostBar(W, e);
@@ -1535,7 +1689,13 @@ Object.assign(MG, {
 		},
 		/* CPU: the truck nearest the ball goes behind it and drives it at the goal (boosting when lined up); the others
 		   hold a spot between the ball and their own goal */
+		/* every answer says whether BOOST is held (the watch tool copies it onto the player's own input) */
 		bot(W, e) {
+			const o = this.botIn(W, e);
+			o.hold = !!o.hold;
+			return o;
+		},
+		botIn(W, e) {
 			const T = TS,
 				b = W.bs;
 			if (!b || W.t < W.koT) return { x: 0, y: 0, boost: false };
@@ -1549,7 +1709,7 @@ Object.assign(MG, {
 				near = mates.slice().sort((p, q) => Math.hypot(p.x - px, p.z - pz) - Math.hypot(q.x - px, q.z - pz))[0];
 			if (near !== e) {
 				/* low on boost: fetch a ready pad if one is close */
-				if (e.bst < T.BCOST && W.pads) {
+				if (e.bst < 30 && W.pads) {
 					const pd = W.pads
 						.filter((q) => W.t >= q.ready)
 						.sort((p, q) => Math.hypot(p.x - e.x, p.z - e.z) - Math.hypot(q.x - e.x, q.z - e.z))[0];
@@ -1573,7 +1733,7 @@ Object.assign(MG, {
 				lined = (tx * ux + tz * uz) / td;
 			if (lined > 0.75) {
 				const o = steer(e, px + ux * 2, pz + uz * 2, 1);
-				o.boost = !e.air && td < 5.5 && e.bcd <= 0 && W.rng() < 0.06;
+				o.hold = e.bst > 5 && td < 9;
 				/* a ball up in the air just ahead: jump for it, and flip into it once close */
 				if (!e.air && b.y - T.BR > 1 && td < 6 && W.rng() < 0.15) o.b2 = true;
 				else if (e.air && e.flipOk && td < 3.6 && W.t - e.jumpT > 0.2) o.b2 = true;
@@ -1585,7 +1745,9 @@ Object.assign(MG, {
 				side = sx * -uz + sz * ux > 0 ? 1 : -1,
 				ox = ax + -uz * side * (lined < 0 ? 2.5 : 0),
 				oz = az + ux * side * (lined < 0 ? 2.5 : 0);
-			return steer(e, ox, oz, 1);
+			const o = steer(e, ox, oz, 1);
+			o.hold = e.bst > 40 && Math.hypot(ox - e.x, oz - e.z) > 14;
+			return o;
 		},
 		humanBot(W, e, dt) {
 			return this.bot(W, e, dt);
