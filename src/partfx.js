@@ -135,7 +135,10 @@ function sfxInit() {
 		const C = window.AudioContext || window.webkitAudioContext;
 		SFX.ctx = new C();
 		SFX.out = SFX.ctx.createGain();
-		SFX.out.gain.value = 0.32;
+		/* the master level fades in over 60 ms from silence, so the first sound after the tap that starts the audio doesn't click */
+		SFX.out.gain.value = 0;
+		SFX.out.gain.setValueAtTime(0, SFX.ctx.currentTime);
+		SFX.out.gain.linearRampToValueAtTime(0.32, SFX.ctx.currentTime + 0.06);
 		SFX.out.connect(SFX.ctx.destination);
 		/* sound effects go through their own bus, 25% under the music */
 		SFX.fx = SFX.ctx.createGain();
