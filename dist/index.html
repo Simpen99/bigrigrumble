@@ -998,7 +998,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-16 13:54 00db203";
+const BUILD = "2026-10-16 14:07 8f62f28";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -39140,6 +39140,9 @@ Object.assign(MG, {
 		bare: true,
 		noAssist: true,
 		camZoom: 1.1,
+		sun: [13.9, 41, 12.1],
+		lt: { amb: 0.42, sun: 0.7, warm: 0.3, haze: 50 },
+		fx: { aa: 1 },
 		/* the chip under the clock: your team live, the score at the end (results are your goals * 100 + theirs) */
 		fmt: (W, e) => (e.side === 1 ? "🔴 Red team" : "🔵 Blue team"),
 		fmtV: (v) => `${Math.floor(v / 100)}-${v % 100}`,

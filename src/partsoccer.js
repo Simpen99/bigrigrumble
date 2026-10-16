@@ -262,6 +262,9 @@ Object.assign(MG, {
 		bare: true,
 		noAssist: true,
 		camZoom: 1.1,
+		sun: [13.9, 41, 12.1],
+		lt: { amb: 0.42, sun: 0.7, warm: 0.3, haze: 50 },
+		fx: { aa: 1 },
 		/* the chip under the clock: your team live, the score at the end (results are your goals * 100 + theirs) */
 		fmt: (W, e) => (e.side === 1 ? "🔴 Red team" : "🔵 Blue team"),
 		fmtV: (v) => `${Math.floor(v / 100)}-${v % 100}`,
