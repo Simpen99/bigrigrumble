@@ -57,6 +57,7 @@ const TS = {
 	AIRC: 10,
 	TVD: [45, 24] /* the TV camera's height and distance out to the side */,
 	TVK: [1.1, 0.55] /* its zoom: at most [0], else [1] x the screen's width / height (both goals in view) */,
+	SIDEZ: 1.35 /* the follow camera pulled back this much in the side view (a wide screen shows less of the pitch's width) */,
 	TVX: 0.5 /* the TV camera's aim, metres towards the near side */,
 };
 /* where a circle of radius r centred at (x, z) is pushed back to (walls, goal posts, nets), or null when it fits;
@@ -552,18 +553,26 @@ Object.assign(MG, {
 			scr.position.z = 0.02;
 			sb.add(scr);
 			[-1, 1].forEach((sx) => sb.add(B(0.5, 8, 0.5, "#5A6272", sx * 5, -6, -0.6)));
-			if (W.tv) {
-				sb.rotation.order = "YXZ";
-				sb.rotation.set(0.12, Math.PI / 2, 0);
-				sb.position.set(-(T.FX + 14), 13, 0);
-			} else {
-				sb.position.set(0, 10.5, -(T.FZ + T.GD + 8.4));
-				sb.rotation.x = 0.12;
-			}
+			sb.rotation.order = "YXZ";
 			sb.traverse((o) => (o.userData.dyn = true));
 			s.add(sb);
-			W.sbd = { cv, tex, key: "" };
+			W.sbd = { cv, tex, key: "", g: sb };
+			this.boardAt(W, !!W.tv);
 			this.board(W);
+		},
+		/* the scoreboard faces the camera: over the far goal, or over the far stand when the view is from the side */
+		boardAt(W, side) {
+			const S = W.sbd,
+				T = TS;
+			if (!S || S.side === side) return;
+			S.side = side;
+			if (side) {
+				S.g.rotation.set(0.12, Math.PI / 2, 0);
+				S.g.position.set(-(T.FX + 14), 13, 0);
+			} else {
+				S.g.rotation.set(0.12, 0, 0);
+				S.g.position.set(0, 10.5, -(T.FZ + T.GD + 8.4));
+			}
 		},
 		/* the scoreboard's picture: BLUE 2 – 1 RED */
 		board(W) {
@@ -611,9 +620,9 @@ Object.assign(MG, {
 				return;
 			}
 			e.spotted = false;
-			/* the TV looks at the pitch from the side (cam): a player's stick turns with it (screen right = -z, screen up =
-			   -x); the button flags are handed back so they still fire once */
-			const raw = W.tv && e.rem && inp;
+			/* the TV and landscape screens look at the pitch from the side (cam, W.sideV): a player's stick turns with it
+			   (screen right = -z, screen up = -x); the button flags are handed back so they still fire once */
+			const raw = ((W.tv && e.rem) || (!W.tv && e.isMe && W.sideV)) && inp;
 			if (raw) inp = Object.assign({}, raw, { x: raw.y, y: -raw.x });
 			this.drive(W, e, inp, dt);
 			if (raw) {
@@ -1052,10 +1061,14 @@ Object.assign(MG, {
 				b = g.filter((q) => q[1] === 1).length;
 			return `🔵 ${a}-${b} 🔴`;
 		},
-		/* the camera: phones follow your truck and lean towards the ball; the TV shows the whole pitch, drifting with the ball */
+		/* the camera: phones follow your truck and lean towards the ball; the TV shows the whole pitch, drifting with the ball.
+		   The TV and landscape screens (PC, a phone on its side) look from the side, so the long pitch runs across the wide
+		   screen (blue's goal on the left); portrait phones look along it */
 		cam(W, tgt, pos, far) {
-			const b = W.bDraw || { x: 0, z: 0 };
-			/* the TV looks from the side, so the long pitch fills the wide screen (blue's goal on the left) */
+			const b = W.bDraw || { x: 0, z: 0 },
+				side = !!W.tv || GFX.w / GFX.h > 1.15;
+			W.sideV = side;
+			this.boardAt(W, side);
 			if (W.tv) {
 				const t = new THREE.Vector3(b.x * 0.05 + TS.TVX, 0, b.z * 0.08);
 				/* zoomed in on wide screens as far as both goals still fit (and the stands' fronts above and below) */
@@ -1066,7 +1079,16 @@ Object.assign(MG, {
 			const me = W.me,
 				t = new THREE.Vector3(me.x * 0.62 + b.x * 0.38, 0, me.z * 0.62 + b.z * 0.38),
 				zm = this.camZoom * far * (far > 1 ? 1.1 : 1);
-			return [t, t.clone().add(new THREE.Vector3(0, 23 * zm, 17 * zm))];
+			return [
+				t,
+				t
+					.clone()
+					.add(
+						side
+							? new THREE.Vector3(17 * zm * TS.SIDEZ, 23 * zm * TS.SIDEZ, 0)
+							: new THREE.Vector3(0, 23 * zm, 17 * zm),
+					),
+			];
 		},
 		render(W, e, dt) {
 			/* a flip: one somersault round the truck's middle (the shared start time e.f.fp, so remote trucks spin too);
