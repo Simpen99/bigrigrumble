@@ -90,8 +90,8 @@ sizes on the TV and on phones (`camK` in `fbStep`: size follows the camera dista
 - Team game ideas: Paint the Lot: Teams (2v2, cheapest), Getaway (1v3: armoured cash truck, reverse Mash), Tow Rope Tug-of-War (2v2), Relay Delivery (2v2), Wrecking Ball (1v3 on the Mud Bowl), Traffic Cop (1v3). 1v2 needs spaceSplit to allow 3 trucks.
 - Done: Hot Load (`hotload`, partmg3), Paint the Lot (`paint`, partmg3), team mode + Monster Mash (`mash`, partmg3, 1v3), Getaway (`getaway`, partmg3, 1v3 highway chase, 2026-10-14).
 - **Magnet Mike's Crane** (1v3): the solo player works a scrapyard magnet crane and lifts the others out of the arena.
-- **Truck Soccer** (2v2 / 4v4, arena): giant tyre ball, ramming physics. Needs a shared ball (host-simulated, like CPU trucks).
-- Team mode is in (`spaceSplit` in partgame). 2v2 splits play free-for-all until a 2v2 game exists (Truck Soccer). Monster Mash follow-up: boss intro (camera swoop + name card during the countdown). Done: monster versions of all 12 trucks (`buildTruck(i, "monster")`), FIRE/POUND buttons (also on TV controllers), dusk stadium look.
+- **Truck Soccer**: built (`soccer`, partsoccer.js, 2v2, a Rocket League style arena, 2026-10-16). Next ideas: boost pads on the pitch, a jump / flip button, overtime instead of a draw, 2v2 minigame music.
+- Team mode is in (`spaceSplit` in partgame). 2v2 splits now play Truck Soccer (the only 2v2 game so far). Monster Mash follow-up: boss intro (camera swoop + name card during the countdown). Done: monster versions of all 12 trucks (`buildTruck(i, "monster")`), FIRE/POUND buttons (also on TV controllers), dusk stadium look.
 
 ## Volcano Quarry bridge ideas
 - Crumbling bridge: each crossing cracks it; the 4th collapses a section (truck drops to the crater floor, loses a shard); the eruption rebuilds it.
