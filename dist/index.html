@@ -998,7 +998,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-16 09:25 a9150bc";
+const BUILD = "2026-10-16 09:36 fbf7f47";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -8354,6 +8354,9 @@ function sfxInit() {
 		SFX.ctx = null;
 	}
 }
+/* the audio engine is made at load (paused until the first tap resumes it): making it on the tap that starts the sound
+   knocked about half the time on iPhone Safari */
+sfxInit();
 addEventListener(
 	"pointerdown",
 	() => {

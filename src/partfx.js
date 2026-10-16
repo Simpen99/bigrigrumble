@@ -149,6 +149,9 @@ function sfxInit() {
 		SFX.ctx = null;
 	}
 }
+/* the audio engine is made at load (paused until the first tap resumes it): making it on the tap that starts the sound
+   knocked about half the time on iPhone Safari */
+sfxInit();
 addEventListener(
 	"pointerdown",
 	() => {
