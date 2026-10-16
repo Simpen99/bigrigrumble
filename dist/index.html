@@ -997,7 +997,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-16 05:36 e0754d1";
+const BUILD = "2026-10-16 06:39 202267b";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -8745,7 +8745,7 @@ function musBus() {
 	B.comp.ratio.value = 4;
 	B.comp.attack.value = 0.004;
 	B.comp.release.value = 0.15;
-	B.lvl = gain(0.4 * VOL.m, SFX.out);
+	B.lvl = gain(0.5 * VOL.m, SFX.out);
 	B.comp.connect(B.lvl);
 	/* one shared noise buffer for the drums */
 	B.noise = c.createBuffer(1, c.sampleRate * 2, c.sampleRate);
@@ -9615,7 +9615,7 @@ function volHTML() {
 function volApply() {
 	if (!SFX.ctx) return;
 	SFX.fx.gain.value = 0.75 * VOL.s;
-	if (SFX.mus) SFX.mus.lvl.gain.value = 0.4 * VOL.m;
+	if (SFX.mus) SFX.mus.lvl.gain.value = 0.5 * VOL.m;
 }
 document.addEventListener("input", (e) => {
 	const k = e.target.dataset && e.target.dataset.vol;

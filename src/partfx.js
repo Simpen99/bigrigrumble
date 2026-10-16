@@ -561,7 +561,7 @@ function musBus() {
 	B.comp.ratio.value = 4;
 	B.comp.attack.value = 0.004;
 	B.comp.release.value = 0.15;
-	B.lvl = gain(0.4 * VOL.m, SFX.out);
+	B.lvl = gain(0.5 * VOL.m, SFX.out);
 	B.comp.connect(B.lvl);
 	/* one shared noise buffer for the drums */
 	B.noise = c.createBuffer(1, c.sampleRate * 2, c.sampleRate);
@@ -1431,7 +1431,7 @@ function volHTML() {
 function volApply() {
 	if (!SFX.ctx) return;
 	SFX.fx.gain.value = 0.75 * VOL.s;
-	if (SFX.mus) SFX.mus.lvl.gain.value = 0.4 * VOL.m;
+	if (SFX.mus) SFX.mus.lvl.gain.value = 0.5 * VOL.m;
 }
 document.addEventListener("input", (e) => {
 	const k = e.target.dataset && e.target.dataset.vol;
