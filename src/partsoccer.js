@@ -42,6 +42,8 @@ const TS = {
 	],
 	PADR: 1.9,
 	PADT: 8,
+	BOOMR: 15 /* m: trucks this close to a goal explosion get blown away */,
+	BOOMV: 16 /* m/s that blast gives a truck right at it */,
 	STUN: 0.5 /* s a truck can't steer, boost or jump after being BOOSTed into (a tackle) */,
 	WINWAIT: 3 /* s of celebration after the winning goal before the match ends */,
 	HOLD: 1.6 /* s before a kickoff when the trucks are put back on their spots */,
@@ -894,6 +896,7 @@ Object.assign(MG, {
 				goals = this.goalList(W);
 			this.padState(W);
 			this.padFx(W);
+			this.boomFx(W);
 			if (goals.length > W.goals.length) goals.slice(W.goals.length).forEach((g) => this.scored(W, g));
 			W.goals = goals;
 			this.board(W);
@@ -977,21 +980,111 @@ Object.assign(MG, {
 				col = side === 0 ? "#2F7DE1" : "#E5484D",
 				e = W.ents[by];
 			mgLog(W, `got GOAL ${k} (${side === 0 ? "blue" : "red"} by ${e ? mgName(e) : "?"})`);
-			for (let i = 0; i < 3; i++)
-				burst(W.sc, (i - 1) * 2.5, 1.6, z, {
-					n: 26,
-					shape: "ico",
-					cols: [col, "#FFC83D", "#F4F6F9"],
-					spd: 7,
-					up: 9,
-					grav: 12,
-					life: 1.5,
-					size: 1.2,
-				});
-			W.shake = 0.5;
+			/* where the ball went in (this device's ball, if it saw it cross; else the middle of the goal) */
+			const S = W.bsim,
+				at = S && S.goal === side ? [S.s.x, Math.max(T.BR, S.s.y), S.s.z] : [0, T.GH / 2, z];
+			this.boom(W, at, col);
+			W.shake = 0.9;
 			W.hype = 1;
 			if (e) fb(W, e, e.side === side ? "GOAL!" : "OWN GOAL", { stamp: true, tone: e.side === side ? "good" : "bad" });
 			sfx("fanfare");
+		},
+		/* a Rocket League style goal explosion where the ball went in: a white flash, a low-poly blast in the scoring team's
+		   colour, a shockwave ring along the ground, a pillar of light and sparks; trucks close by are blown away (each
+		   device its own trucks) */
+		boom(W, at, col) {
+			const T = TS,
+				[x, y, z] = at;
+			if (!W.gxM) {
+				/* only the white flash adds light; the rest keeps the team colour true over the green */
+				const add = (geo, op, rot, glow) => {
+					const m = new THREE.Mesh(
+						geo,
+						new THREE.MeshBasicMaterial({
+							color: "#FFFFFF",
+							transparent: true,
+							opacity: op,
+							depthWrite: false,
+							blending: glow ? THREE.AdditiveBlending : THREE.NormalBlending,
+							side: THREE.DoubleSide,
+						}),
+					);
+					if (rot) m.rotation.x = -Math.PI / 2;
+					m.visible = false;
+					m.userData.dyn = true;
+					m.renderOrder = 4;
+					W.sc.add(m);
+					return m;
+				};
+				W.gxM = {
+					flash: add(new THREE.IcosahedronGeometry(1, 2), 1, false, true),
+					blast: add(new THREE.IcosahedronGeometry(1, 1), 0.7),
+					ring: add(new THREE.RingGeometry(0.9, 1, 64), 0.9, true),
+					pillar: add(new THREE.CylinderGeometry(1, 1.6, 1, 16, 1, true), 0.6),
+				};
+				W.gxM.blast.material.flatShading = true;
+			}
+			const M = W.gxM;
+			M.t0 = W.t;
+			M.at = at;
+			M.blast.material.color.set(col);
+			M.ring.material.color.set(col);
+			M.pillar.material.color.set(col);
+			[0, 1, 2].forEach((i) =>
+				burst(W.sc, x, y, z, {
+					n: 30,
+					shape: i === 2 ? "box" : "ico",
+					cols: i === 1 ? ["#FFC83D", "#FFFFFF"] : [col, "#FFFFFF"],
+					spd: 14 + i * 4,
+					up: 10,
+					grav: 14,
+					life: 1.6,
+					size: 1.1,
+				}),
+			);
+			sfx("cannon");
+			sfx("fanfare");
+			/* the blast: away from it, popped into the air */
+			W.list.forEach((e) => {
+				if (!e.local || e.gone || e.d || !e.al) return;
+				const dx = e.x - x,
+					dz = e.z - z,
+					d = Math.hypot(dx, dz) || 0.01;
+				if (d > T.BOOMR) return;
+				const k = T.BOOMV * (1 - d / T.BOOMR);
+				e.vx += (dx / d) * k;
+				e.vz += (dz / d) * k;
+				e.air = true;
+				e.flipOk = false;
+				e.y = Math.max(e.y || 0, 0.01);
+				e.vy = Math.max(e.vy || 0, 4 + k * 0.5);
+				e.slideT = 1;
+			});
+		},
+		/* the explosion over time: the flash pops and fades, the blast swells, the ring races out, the pillar shoots up */
+		boomFx(W) {
+			const M = W.gxM;
+			if (!M) return;
+			const a = W.t - M.t0,
+				[x, y, z] = M.at,
+				on = a >= 0 && a < 1.4;
+			Object.values(M).forEach((m) => m && m.isMesh && (m.visible = on));
+			if (!on) return;
+			const out = (q) => 1 - (1 - q) * (1 - q);
+			M.flash.position.set(x, y, z);
+			M.flash.scale.setScalar(1 + out(Math.min(1, a / 0.2)) * 6);
+			M.flash.material.opacity = Math.max(0, 1 - a / 0.35);
+			M.blast.position.set(x, y, z);
+			M.blast.scale.setScalar(2 + out(Math.min(1, a / 0.7)) * 8);
+			M.blast.rotation.y = a * 1.5;
+			M.blast.material.opacity = Math.max(0, 0.55 * (1 - a / 0.9));
+			M.ring.position.set(x, 0.08, z);
+			M.ring.scale.setScalar(1 + out(Math.min(1, a / 0.9)) * 22);
+			M.ring.material.opacity = Math.max(0, 0.9 * (1 - a / 1.1));
+			const ph = out(Math.min(1, a / 0.5)) * 24;
+			M.pillar.position.set(x, ph / 2, z);
+			M.pillar.scale.set(1.6 - a * 0.8, Math.max(0.01, ph), 1.6 - a * 0.8);
+			M.pillar.material.opacity = Math.max(0, 0.6 * (1 - a / 1.4));
 		},
 		/* the ball drawn where its path says (a remote kick's jump eased out), rolling, its shadow under it; hidden
 		   after a goal until it pops back onto the centre spot */
