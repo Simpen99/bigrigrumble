@@ -330,7 +330,7 @@ i.bi{font-style:normal}
 .pt select.inp{border:2.5px solid rgba(244,246,249,.28);border-radius:10px;background:var(--hb2);color:#fff}
 /* main menu (#app.mm = the home view, design_handoff_main_menu): authored at 1280 x 720. Landscape: each group is fixed to a corner and zoomed by --mz = min(width / 1280, height / 720) (offsets zoom with it; --sl / --sr / --sb / --st add the safe areas back unzoomed). Portrait: the same groups stacked, zoomed to the width by --mzp. Art from UI_ART as --ui-<name>. Button labels sit on the middle of the raised face (measured from the art: yellow, green and white faces are centred, the dark ones sit 3.8% low), trimmed to the cap height. Ink #2a2433, label #8a7f6c, cost red #d32d22, focus yellow #ffcc30 */
 #app.mm{--bsh:drop-shadow(0 3px 6px rgba(20,16,28,.28));max-width:none;margin:0;padding:0;--sl:calc(env(safe-area-inset-left,0px) / var(--mz,1));--sr:calc(env(safe-area-inset-right,0px) / var(--mz,1));--sb:calc(env(safe-area-inset-bottom,0px) / var(--mz,1));--st:calc(env(safe-area-inset-top,0px) / var(--mz,1))}
-#app.mm::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;background:linear-gradient(90deg,rgba(30,60,30,.35),rgba(30,60,30,0) 55%)}
+#app.mm::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;background:linear-gradient(270deg,rgba(24,32,50,.35),rgba(24,32,50,0) 55%)}
 .mm .mmg{position:fixed;zoom:var(--mz,1)}
 .mm-logo{left:calc(34px + var(--sl));top:calc(20px + var(--st));width:200px;aspect-ratio:720/378;filter:drop-shadow(0 6px 10px rgba(0,0,0,.3));animation:mmLogo .8s cubic-bezier(.2,1.5,.4,1) both;pointer-events:none}
 @keyframes mmLogo{from{opacity:0;transform:translateY(-30px) scale(.7)}to{opacity:1;transform:none}}
@@ -997,7 +997,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-16 06:41 0526a13";
+const BUILD = "2026-10-16 06:45 4430ed2";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
