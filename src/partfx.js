@@ -1212,6 +1212,12 @@ const LOBBY_MUS = "music/lobby.mp3",
 audLoad(LOBBY_MUS);
 function musScene(v) {
 	if (!SFX.ctx) return;
+	/* nothing starts until the audio has been running a moment (iPhone Safari knocks when a song starts the instant the first tap wakes the audio); try again shortly */
+	if (SFX.ctx.state !== "running" || SFX.ctx.currentTime < 0.15) {
+		clearTimeout(musScene.t);
+		musScene.t = setTimeout(() => musScene(view), 120);
+		return;
+	}
 	/* the lobby song, from the start page to the lobby (TV mode: on the big screen only, not the phones) */
 	if (MENU_VIEWS.includes(v) && !(G && G.tv && role === "client" && !SCREEN)) {
 		if (MUS.name !== LOBBY_MUS) musTrack(LOBBY_MUS, 0.7, 0.8);
