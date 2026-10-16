@@ -540,12 +540,12 @@ const ROCKS = [
 	[4, 84, 91],
 	[5, 80, 91],
 ];
-/* each truck's picture sized and shifted so its drawn part (GFX.thumbBox, props included) fills the rock's flat face, about 50 x 40 px a little above the middle: --iw = the 240 x 160 picture's width, --ix / --iy = the shift */
+/* each truck's picture sized and shifted so its drawn part (GFX.thumbBox, props included) fills the rock's flat face, about 50 x 40 px in the middle: --iw = the 240 x 160 picture's width, --ix / --iy = the shift */
 function thumbFit(i) {
 	const b = GFX.thumbBox && GFX.thumbBox[i];
 	if (!b) return "";
 	const s = Math.min(50 / (b[2] - b[0] + 1), 40 / (b[3] - b[1] + 1));
-	return `--iw:${(240 * s).toFixed(1)}px;--ix:${((120 - (b[0] + b[2] + 1) / 2) * s).toFixed(1)}px;--iy:${((80 - (b[1] + b[3] + 1) / 2) * s - 4).toFixed(1)}px`;
+	return `--iw:${(240 * s).toFixed(1)}px;--ix:${((120 - (b[0] + b[2] + 1) / 2) * s).toFixed(1)}px;--iy:${((80 - (b[1] + b[3] + 1) / 2) * s).toFixed(1)}px`;
 }
 function rosterHTML(sel) {
 	return TRUCKS.map((t, i) => {

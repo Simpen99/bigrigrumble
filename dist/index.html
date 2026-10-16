@@ -361,9 +361,9 @@ i.bi{font-style:normal}
 .mm-roster::-webkit-scrollbar{display:none}
 .mm .tc{flex:none;width:var(--w);height:62px;border:0;border-radius:0;padding:0;background:var(--rk) center/100% 100% no-repeat;display:grid;place-items:center;scroll-snap-align:center;transition:width .15s ease-in-out,height .15s ease-in-out,transform .16s ease-in-out}
 /* roster pictures: each truck fitted into the rock's flat face by its own outline (thumbFit in part3: --iw width, --ix / --iy shift); the selected one 15% bigger */
-.mm .tc img{width:var(--iw,83px);height:auto;max-width:none;transform:translate(var(--ix,0px),var(--iy,-4px));transition:width .15s,transform .15s}
+.mm .tc img{width:var(--iw,83px);height:auto;max-width:none;transform:translate(var(--ix,0px),var(--iy,0px));transition:width .15s,transform .15s}
 .mm .tc.sel{width:var(--ws);height:71px;background-image:var(--rw)}
-.mm .tc.sel img{width:calc(var(--iw,83px) * 1.15);transform:translate(calc(var(--ix,0px) * 1.15),calc(var(--iy,-4px) * 1.15))}
+.mm .tc.sel img{width:calc(var(--iw,83px) * 1.15);transform:translate(calc(var(--ix,0px) * 1.15),calc(var(--iy,0px) * 1.15))}
 .mm-act{right:calc(120px + var(--sr));top:calc(370px + var(--st));width:360px;display:flex;flex-direction:column;align-items:center;gap:10px}
 .mm-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;width:100%}
 .mm-row.sm{width:80%}
@@ -998,7 +998,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-16 07:09 1d2e67b";
+const BUILD = "2026-10-16 07:11 19652dc";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -10957,12 +10957,12 @@ const ROCKS = [
 	[4, 84, 91],
 	[5, 80, 91],
 ];
-/* each truck's picture sized and shifted so its drawn part (GFX.thumbBox, props included) fills the rock's flat face, about 50 x 40 px a little above the middle: --iw = the 240 x 160 picture's width, --ix / --iy = the shift */
+/* each truck's picture sized and shifted so its drawn part (GFX.thumbBox, props included) fills the rock's flat face, about 50 x 40 px in the middle: --iw = the 240 x 160 picture's width, --ix / --iy = the shift */
 function thumbFit(i) {
 	const b = GFX.thumbBox && GFX.thumbBox[i];
 	if (!b) return "";
 	const s = Math.min(50 / (b[2] - b[0] + 1), 40 / (b[3] - b[1] + 1));
-	return `--iw:${(240 * s).toFixed(1)}px;--ix:${((120 - (b[0] + b[2] + 1) / 2) * s).toFixed(1)}px;--iy:${((80 - (b[1] + b[3] + 1) / 2) * s - 4).toFixed(1)}px`;
+	return `--iw:${(240 * s).toFixed(1)}px;--ix:${((120 - (b[0] + b[2] + 1) / 2) * s).toFixed(1)}px;--iy:${((80 - (b[1] + b[3] + 1) / 2) * s).toFixed(1)}px`;
 }
 function rosterHTML(sel) {
 	return TRUCKS.map((t, i) => {

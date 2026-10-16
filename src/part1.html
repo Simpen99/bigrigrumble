@@ -361,9 +361,9 @@ i.bi{font-style:normal}
 .mm-roster::-webkit-scrollbar{display:none}
 .mm .tc{flex:none;width:var(--w);height:62px;border:0;border-radius:0;padding:0;background:var(--rk) center/100% 100% no-repeat;display:grid;place-items:center;scroll-snap-align:center;transition:width .15s ease-in-out,height .15s ease-in-out,transform .16s ease-in-out}
 /* roster pictures: each truck fitted into the rock's flat face by its own outline (thumbFit in part3: --iw width, --ix / --iy shift); the selected one 15% bigger */
-.mm .tc img{width:var(--iw,83px);height:auto;max-width:none;transform:translate(var(--ix,0px),var(--iy,-4px));transition:width .15s,transform .15s}
+.mm .tc img{width:var(--iw,83px);height:auto;max-width:none;transform:translate(var(--ix,0px),var(--iy,0px));transition:width .15s,transform .15s}
 .mm .tc.sel{width:var(--ws);height:71px;background-image:var(--rw)}
-.mm .tc.sel img{width:calc(var(--iw,83px) * 1.15);transform:translate(calc(var(--ix,0px) * 1.15),calc(var(--iy,-4px) * 1.15))}
+.mm .tc.sel img{width:calc(var(--iw,83px) * 1.15);transform:translate(calc(var(--ix,0px) * 1.15),calc(var(--iy,0px) * 1.15))}
 .mm-act{right:calc(120px + var(--sr));top:calc(370px + var(--st));width:360px;display:flex;flex-direction:column;align-items:center;gap:10px}
 .mm-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;width:100%}
 .mm-row.sm{width:80%}
