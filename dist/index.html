@@ -998,7 +998,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-16 17:49 9c4f94f";
+const BUILD = "2026-10-16 17:53 9a85e8f";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -38941,6 +38941,12 @@ const TS = {
 	],
 	PADR: 1.9,
 	PADT: 8,
+	/* the ramps: a quarter pipe of radius RR along every wall but the goal mouths, from the floor up to vertical at the
+	   wall. Trucks ride up and roll back; one still going out at the lip launches straight up (LAUNCHK x its speed out,
+	   at most LAUNCHMAX m/s) and drops back in. The ball rolls up them too (in tsStep) */
+	RR: 3,
+	LAUNCHK: 1.5,
+	LAUNCHMAX: 15,
 	BOOMR: 15 /* m: trucks this close to a goal explosion get blown away */,
 	BOOMV: 16 /* m/s that blast gives a truck right at it */,
 	STUN: 0.5 /* s a truck can't steer, boost or jump after being BOOSTed into (a tackle) */,
@@ -39019,6 +39025,30 @@ function tsClamp(x, z, r, ball, y) {
 	if (d <= c) return null;
 	return { x: cx + (dx / d) * c, z: cz + (dz / d) * c, nx: dx / d, nz: dz / d };
 }
+/* the nearest wall for a point on the pitch when it is within the ramps' reach: {d: distance to the wall, nx, nz: the
+   outward normal}, or null (further in, or in front of a goal mouth, where there is no ramp). Pure arithmetic + sqrt */
+function tsEdge(x, z) {
+	const T = TS;
+	if (Math.abs(x) < T.GW) return null;
+	const cx = Math.max(-(T.FX - T.CR), Math.min(T.FX - T.CR, x)),
+		cz = Math.max(-(T.FZ - T.CR), Math.min(T.FZ - T.CR, z)),
+		dx = x - cx,
+		dz = z - cz,
+		dc = Math.sqrt(dx * dx + dz * dz);
+	if (dc < T.CR - T.RR) return null;
+	return { d: T.CR - dc, nx: dx / dc, nz: dz / dc };
+}
+/* the ramp's height at a distance d from the wall (0 = the top, at the wall) */
+const tsRampY = (d) => {
+	const R = TS.RR,
+		u = R - Math.max(0, d);
+	return u <= 0 ? 0 : R - Math.sqrt(Math.max(0, R * R - u * u));
+};
+/* the floor under a point: the ramp, or 0 */
+function tsGround(x, z) {
+	const E = tsEdge(x, z);
+	return E && E.d < TS.RR ? tsRampY(E.d) : 0;
+}
 /* one 1/120 s step of the ball (state s: x y z vx vy vz). Returns the scoring side once it is fully over a goal line:
    0 = into the -z goal (blue scores), 1 = into the +z goal (red scores) */
 function tsStep(s) {
@@ -39038,6 +39068,35 @@ function tsStep(s) {
 	if (s.y <= T.BR + 0.001 && s.vy === 0) {
 		s.vx *= T.ROLL;
 		s.vz *= T.ROLL;
+	}
+	/* the ramps: the ball's centre stays RR - BR from the pipe's axis (RR in from the wall, RR up); moving into the
+		   curve it loses that part of its speed (a hard hit bounces a little), so it rolls up and back down */
+	const E = tsEdge(s.x, s.z);
+	if (E && E.d < T.RR) {
+		const oo = T.RR - E.d,
+			dn = T.RR - s.y;
+		if (oo > 0 && dn > 0) {
+			const q = Math.sqrt(oo * oo + dn * dn),
+				lim = T.RR - T.BR;
+			if (q > lim) {
+				const ux = oo / q,
+					uy = dn / q,
+					back = oo - ux * lim;
+				s.x -= E.nx * back;
+				s.z -= E.nz * back;
+				s.y = T.RR - uy * lim;
+				const vn = (s.vx * E.nx + s.vz * E.nz) * ux - s.vy * uy;
+				if (vn > 0) {
+					const k = vn > 6 ? 1 + T.BOUNCE * 0.5 : 1;
+					s.vx -= E.nx * ux * vn * k;
+					s.vz -= E.nz * ux * vn * k;
+					s.vy += uy * vn * k;
+					s.vx *= T.ROLL;
+					s.vz *= T.ROLL;
+					s.vy *= T.ROLL;
+				}
+			}
+		}
 	}
 	/* the goal roof */
 	if (Math.abs(s.z) > T.FZ && Math.abs(s.x) <= T.GW && s.y > T.GH - T.BR) {
@@ -39127,7 +39186,6 @@ function tsPitchTex() {
 			x.closePath();
 			x.stroke();
 		};
-		rr(T.FX - 0.6, T.FZ - 0.6, T.CR - 0.6);
 		x.beginPath();
 		x.moveTo(X(-T.FX + 0.6), Z(0));
 		x.lineTo(X(T.FX - 0.6), Z(0));
@@ -39254,6 +39312,7 @@ Object.assign(MG, {
 			pitch.receiveShadow = true;
 			s.add(pitch);
 			this.walls(W);
+			this.ramps(W);
 			this.goals(W);
 			this.stadium(W);
 			this.pads(W);
@@ -39329,6 +39388,74 @@ Object.assign(MG, {
 			/* kept on W so the scene merge leaves the transparent glass alone */
 			W.glass = gm;
 			s.add(gm);
+		},
+		/* the quarter pipes along the walls (not across the goal mouths): turf swept along the wall path, a cap where they
+		   end beside each goal, a team-coloured lip along the top */
+		ramps(W) {
+			const T = TS,
+				R = T.RR,
+				P = tsWallPath(),
+				NA = 10,
+				pos = [],
+				cap = [],
+				nrm = (x, z) => {
+					const E = tsEdge(x + (x > 0 ? -0.01 : 0.01), z) || { nx: 0, nz: z > 0 ? 1 : -1 };
+					return [E.nx, E.nz];
+				},
+				pt = (x, z, n, a) => {
+					const d = R * (1 - Math.sin(a));
+					return [x - n[0] * d, R * (1 - Math.cos(a)), z - n[1] * d];
+				};
+			for (let i = 0; i < P.length; i++) {
+				const [x0, z0] = P[i],
+					[x1, z1] = P[(i + 1) % P.length],
+					mx = (x0 + x1) / 2,
+					mz = (z0 + z1) / 2;
+				if (Math.abs(mz) > T.FZ - 0.01 && Math.abs(mx) < T.GW) continue;
+				const n0 = nrm(x0, z0),
+					n1 = nrm(x1, z1);
+				for (let j = 0; j < NA; j++) {
+					const a0 = (j / NA) * (Math.PI / 2),
+						a1 = ((j + 1) / NA) * (Math.PI / 2),
+						A = pt(x0, z0, n0, a0),
+						B2 = pt(x1, z1, n1, a0),
+						C = pt(x1, z1, n1, a1),
+						D = pt(x0, z0, n0, a1);
+					pos.push(...A, ...B2, ...C, ...A, ...C, ...D);
+				}
+				/* the team-coloured lip along the top */
+				const len = Math.hypot(x1 - x0, z1 - z0),
+					lip = B(len + 0.06, 0.22, 0.34, mz > 0 ? "#2F7DE1" : "#E5484D", mx, R + 0.11, mz);
+				lip.rotation.y = -Math.atan2(z1 - z0, x1 - x0);
+				W.sc.add(lip);
+			}
+			/* caps beside the goal mouths: the quarter-circle profile, filled */
+			[-1, 1].forEach((sx) =>
+				[-1, 1].forEach((sz) => {
+					const x = sx * T.GW,
+						z = sz * T.FZ,
+						n = [0, sz];
+					for (let j = 0; j < NA; j++) {
+						const a0 = (j / NA) * (Math.PI / 2),
+							a1 = ((j + 1) / NA) * (Math.PI / 2);
+						cap.push(x, 0, z, ...pt(x, z, n, a0), ...pt(x, z, n, a1));
+					}
+				}),
+			);
+			const mk = (arr, col) => {
+				const g = new THREE.BufferGeometry();
+				g.setAttribute("position", new THREE.Float32BufferAttribute(arr, 3));
+				g.computeVertexNormals();
+				const m = new THREE.Mesh(
+					g,
+					new THREE.MeshStandardMaterial({ color: col, roughness: 0.9, side: THREE.DoubleSide }),
+				);
+				m.receiveShadow = true;
+				W.sc.add(m);
+				return m;
+			};
+			mk(pos, "#5C9A4E");
+			mk(cap, "#3E6B37");
 		},
 		/* each goal: posts and crossbar in the defending team's colour, nets on the sides, back and roof, a glow strip */
 		goals(W) {
@@ -39665,20 +39792,55 @@ Object.assign(MG, {
 			const jump = !!(inp && inp.b2);
 			if (inp) inp.b2 = false;
 			if (jump && e.al && !e.d) this.jump(W, e, inp);
+			const yaw0 = e.yaw;
 			if (e.air) this.airPhys(W, e, inp, dt);
-			else arenaPhys(W, e, inp, dt);
+			else {
+				arenaPhys(W, e, inp, dt);
+				this.rampRide(W, e, dt, yaw0);
+			}
 			if (dash && e.boostT > 0.4) e.bst -= TS.BCOST;
 			this.padPick(W, e);
 			e.f.bs = Math.round(e.bst);
-			const c = tsClamp(e.x, e.z, e.rad || 0.95, false, 0);
+			/* the ramps let a truck right up to the wall; only round the goal mouths it keeps its own width off them */
+			const T = TS,
+				mouth = Math.abs(e.x) < T.GW + 1.5 && Math.abs(e.z) > T.FZ - 2.5,
+				c = tsClamp(e.x, e.z, mouth ? e.rad || 0.95 : 0.12, false, 0);
 			if (c) {
 				e.x = c.x;
 				e.z = c.z;
 				const vn = e.vx * c.nx + e.vz * c.nz;
 				if (vn > 0) {
-					e.vx -= 1.5 * vn * c.nx;
-					e.vz -= 1.5 * vn * c.nz;
+					const k = mouth ? 1.5 : 1;
+					e.vx -= k * vn * c.nx;
+					e.vz -= k * vn * c.nz;
 				}
+			}
+		},
+		/* on the ground near a wall: up the ramp (gravity pulls it back down the slope, steeper = harder), heading kept on
+		   the steep part so it rolls back down tail first like a skater; still going out at the lip = launched straight up */
+		rampRide(W, e, dt, yaw0) {
+			const T = TS,
+				E = tsEdge(e.x, e.z);
+			if (!E || E.d >= T.RR) {
+				e.y = 0;
+				return;
+			}
+			const u = Math.min(1, (T.RR - Math.max(0, E.d)) / T.RR),
+				cs = Math.sqrt(Math.max(0, 1 - u * u)),
+				a = (T.TGRAV * u) / Math.max(0.3, cs);
+			e.vx -= E.nx * a * dt;
+			e.vz -= E.nz * a * dt;
+			e.y = tsRampY(E.d);
+			if (u > 0.3) e.yaw = yaw0;
+			const vo = e.vx * E.nx + e.vz * E.nz;
+			if (u > 0.88 && vo > 0.5) {
+				e.vx -= E.nx * vo;
+				e.vz -= E.nz * vo;
+				e.air = true;
+				e.vy = Math.min(T.LAUNCHMAX, vo * T.LAUNCHK + 2);
+				e.flipOk = true;
+				e.jumpT = W.t;
+				mgLog(W, `launch ${mgName(e)} ${Math.round(e.vy)} m/s`);
 			}
 		},
 		/* JUMP on the ground hops; again in the air (once, within FLIPWIN s) flips the way the stick points, or forward.
@@ -39755,8 +39917,18 @@ Object.assign(MG, {
 			}
 			if (sp > 0.6 && !(W.t - (e.flipT || -9) < T.FLIPDUR))
 				e.yaw = lerpA(e.yaw, Math.atan2(-e.vz, e.vx), Math.min(1, dt * 4));
-			if (e.y <= 0) {
-				e.y = e.vy = 0;
+			/* down on the floor or a ramp: on a ramp the fall turns into speed down the slope */
+			const gy = tsGround(e.x, e.z);
+			if (e.y <= gy) {
+				if (gy > 0.01) {
+					const E = tsEdge(e.x, e.z),
+						u = Math.min(1, (T.RR - Math.max(0, E.d)) / T.RR),
+						push = -e.vy * u * 0.9;
+					e.vx -= E.nx * push;
+					e.vz -= E.nz * push;
+				}
+				e.y = gy;
+				e.vy = 0;
 				e.air = false;
 				if (e.isMe) sfx("land");
 			}
@@ -40015,7 +40187,7 @@ Object.assign(MG, {
 			W.ballSh.position.set(W.bDraw.x, 0.04, W.bDraw.z);
 			const k = Math.max(0.35, 1 - (W.bDraw.y - T.BR) / 9);
 			W.ballSh.scale.setScalar(k);
-			W.ballSh.visible = W.ball.visible;
+			W.ballSh.visible = W.ball.visible && tsGround(W.bDraw.x, W.bDraw.z) < 0.05;
 			if (S.goal >= 0 && !S.boom && W.t - S.gT > 0.3) {
 				S.boom = true;
 				burst(W.sc, W.bDraw.x, W.bDraw.y, W.bDraw.z, {
@@ -40231,6 +40403,24 @@ Object.assign(MG, {
 				e.tr.rotation.z = -a;
 				e.tr.position.set(-h * sa * Math.cos(e.yaw), h * (1 - Math.cos(a)), h * sa * Math.sin(e.yaw));
 			} else if (e.tr.position.y) e.tr.position.set(0, 0, 0);
+			/* on a ramp: tilted with its slope (sideways too, whichever way it faces); up the wall past the lip: upright
+			   against it; jumping well over a ramp: level */
+			{
+				const E = tsEdge(e.x, e.z),
+					y = e.y || 0;
+				if (E && E.d < TS.RR && y > 0.02) {
+					let u = Math.min(1, (TS.RR - Math.max(0, E.d)) / TS.RR);
+					if (y > TS.RR - 0.2 && E.d < 0.6) u = 1;
+					else if (y > tsRampY(E.d) + 0.8) u = 0;
+					if (u > 0.01) {
+						const q = W.tsQ || (W.tsQ = new THREE.Quaternion()),
+							ax = W.tsAx || (W.tsAx = new THREE.Vector3());
+						ax.set(-E.nz, 0, E.nx);
+						q.setFromAxisAngle(ax, Math.asin(u));
+						e.tr.quaternion.premultiply(q);
+					}
+				}
+			}
 			/* stunned: a quick wobble */
 			if (W.t < ((e.f && e.f.st) || 0) && !(ft >= 0 && ft < TS.FLIPDUR)) e.tr.rotation.x = Math.sin(W.t * 45) * 0.14;
 			if (e.disc === undefined) e.disc = e.g.children.find((c) => c.userData.disc) || null;
