@@ -998,7 +998,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-16 17:23 9536ace";
+const BUILD = "2026-10-16 17:43 e0b6397";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -38928,6 +38928,19 @@ const TS = {
 	AIR: 0.99979 /* air drag per step */,
 	KO: 3.5 /* s from a goal to the next kickoff */,
 	WIN: 3 /* goals to win the match */,
+	/* boost is a meter (0..BMAX, start BSTART); a BOOST dash costs BCOST; a pad near each corner fills it, back PADT s
+	   after it is taken (PADS = where, PADR = pick-up reach) */
+	BMAX: 100,
+	BSTART: 34,
+	BCOST: 34,
+	PADS: [
+		[-9.5, -18],
+		[9.5, -18],
+		[-9.5, 18],
+		[9.5, 18],
+	],
+	PADR: 1.9,
+	PADT: 8,
 	STUN: 0.5 /* s a truck can't steer, boost or jump after being BOOSTed into (a tackle) */,
 	WINWAIT: 3 /* s of celebration after the winning goal before the match ends */,
 	HOLD: 1.6 /* s before a kickoff when the trucks are put back on their spots */,
@@ -39190,7 +39203,10 @@ Object.assign(MG, {
 		ramK: 0.75 /* bumps between trucks a bit softer than Mud Brawl's rams */,
 		how: "Push the ball into the other team's goal. First team to 3 goals wins!",
 		teamHow: (s) => (s === 0 ? "Blue: score in the red goal." : "Red: score in the blue goal."),
-		tvHint: "Drag to drive · BOOST smashes the ball · JUMP, again in the air to flip",
+		tvHint: "Drag to drive · BOOST smashes the ball (corner pads fill it) · JUMP, again in the air to flip",
+		/* the BOOST button shows the meter (dark = empty), lit when there is enough for a dash */
+		ramCd: (W) => 1 - Math.min(1, (W.me.bst ?? W.me.f.bs ?? 0) / TS.BMAX),
+		ramReady: (W) => (W.me.bst ?? W.me.f.bs ?? 0) >= TS.BCOST,
 		ramLabel: "BOOST",
 		btn2: () => "JUMP",
 		/* where trucks line up for a kickoff: each team on its own half, side by side, facing the ball (j of n team mates) */
@@ -39214,7 +39230,10 @@ Object.assign(MG, {
 		},
 		initEnt(W, e) {
 			if (e.side === undefined) e.side = W.list.indexOf(e) % 2;
-			e.f = { bl: null, gl: [], fp: null, st: 0 };
+			e.f = { bl: null, gl: [], fp: null, st: 0, pk: [], bs: TS.BSTART };
+			e.bst = TS.BSTART;
+			/* the dash itself has no cooldown beyond its own length: the meter limits it */
+			e.ramCdT = 0.45;
 		},
 		build(W) {
 			const T = TS,
@@ -39235,6 +39254,7 @@ Object.assign(MG, {
 			this.walls(W);
 			this.goals(W);
 			this.stadium(W);
+			this.pads(W);
 			/* the ball and its shadow */
 			W.ball = tsBallMesh();
 			W.ball.position.set(0, T.BR, 0);
@@ -39460,6 +39480,96 @@ Object.assign(MG, {
 			this.boardAt(W, !!W.tv);
 			this.board(W);
 		},
+		/* the boost pads: a dark plate with an orange glowing ring, an orb floating over it while it is ready */
+		pads(W) {
+			const glow = new THREE.MeshBasicMaterial({ color: "#FFB52E" }),
+				orbM = new THREE.MeshBasicMaterial({ color: "#FFD15C" });
+			W.pads = TS.PADS.map(([x, z]) => {
+				const g = new THREE.Group();
+				g.add(Cy(1.5, 1.6, 0.12, 24, "#2F3644", 0, 0.06, 0));
+				const ring = new THREE.Mesh(new THREE.TorusGeometry(1.15, 0.12, 6, 28), glow.clone());
+				ring.rotation.x = Math.PI / 2;
+				ring.position.y = 0.14;
+				g.add(ring);
+				const orb = new THREE.Mesh(new THREE.IcosahedronGeometry(0.55, 1), orbM);
+				orb.position.y = 1.1;
+				g.add(orb);
+				const halo = new THREE.Mesh(
+					new THREE.CylinderGeometry(1.1, 1.1, 2.2, 20, 1, true),
+					new THREE.MeshBasicMaterial({
+						color: "#FFB52E",
+						transparent: true,
+						opacity: 0.16,
+						depthWrite: false,
+						side: THREE.DoubleSide,
+					}),
+				);
+				halo.position.y = 1.1;
+				g.add(halo);
+				g.position.set(x, 0, z);
+				g.traverse((o) => (o.userData.dyn = true));
+				W.sc.add(g);
+				return { x, z, g, ring, orb, halo, ready: 0 };
+			});
+		},
+		/* when each pad is back: from every truck's pick-ups (e.f.pk = [[pad, t]]), in time order, one per PADT s */
+		padState(W) {
+			const all = [];
+			W.list.forEach((e) => (e.f && Array.isArray(e.f.pk) ? e.f.pk : []).forEach((q) => all.push(q)));
+			all.sort((a, b) => a[1] - b[1]);
+			W.pads.forEach((pd) => (pd.ready = 0));
+			all.forEach(([i, t]) => {
+				const pd = W.pads[i];
+				if (pd && t >= pd.ready) pd.ready = t + TS.PADT;
+			});
+		},
+		/* a local truck over a ready pad fills its meter */
+		padPick(W, e) {
+			if (e.bst >= TS.BMAX) return;
+			W.pads.forEach((pd, i) => {
+				if (W.t < pd.ready || Math.hypot(e.x - pd.x, e.z - pd.z) > TS.PADR || (e.y || 0) > 2) return;
+				e.f.pk = e.f.pk.concat([[i, Math.round(W.t * 1000) / 1000]]).slice(-8);
+				pd.ready = W.t + TS.PADT;
+				e.bst = TS.BMAX;
+				if (e.isMe) sfx("coin");
+				fb(W, e, "BOOST", { tone: "good" });
+				mgLog(W, `pad ${i} ${mgName(e)}`);
+			});
+		},
+		/* the pads drawn: the orb bobs and spins while ready, gone (the ring dim) while it comes back */
+		padFx(W) {
+			W.pads.forEach((pd, i) => {
+				const on = W.t >= pd.ready;
+				pd.orb.visible = pd.halo.visible = on;
+				pd.orb.position.y = 1.1 + Math.sin(W.t * 2.4 + i) * 0.15;
+				pd.orb.rotation.y = W.t * 1.8;
+				pd.ring.material.color.set(on ? "#FFB52E" : "#5A4A2A");
+			});
+		},
+		/* the boost bar over a truck (its meter: its own, or the shared e.f.bs) */
+		boostBar(W, e) {
+			if (!e.bbar) {
+				const mk = (c, o) => {
+					const sp = new THREE.Sprite(
+						new THREE.SpriteMaterial({ color: c, depthTest: false, transparent: true, opacity: o }),
+					);
+					sp.renderOrder = 10;
+					sp.position.y = 2.05;
+					e.g.add(sp);
+					return sp;
+				};
+				e.bbar = { bg: mk("#10161F", 0.75), fill: mk("#FFB52E", 1) };
+				e.bbar.bg.scale.set(1.5, 0.16, 1);
+			}
+			const v = Math.max(0, Math.min(1, (e.local ? e.bst : e.f.bs || 0) / TS.BMAX)),
+				f = e.bbar.fill;
+			f.visible = v > 0.01 && !e.gone;
+			e.bbar.bg.visible = !e.gone;
+			if (f.visible) {
+				f.scale.set(1.4 * v, 0.1, 1);
+				f.center.set(0.5 / v, 0.5);
+			}
+		},
 		/* the scoreboard faces the camera: over the far goal, or over the far stand when the view is from the side */
 		boardAt(W, side) {
 			const S = W.sbd,
@@ -39544,11 +39654,20 @@ Object.assign(MG, {
 				if (inp) inp.boost = inp.b2 = false;
 				inp = { x: 0, y: 0, boost: false, b2: false };
 			}
+			/* BOOST only with enough in the meter; a dash (on the ground or in the air) costs BCOST */
+			let dash = false;
+			if (inp && inp.boost) {
+				if (e.bcd > 0 || e.bst < TS.BCOST) inp.boost = false;
+				else dash = true;
+			}
 			const jump = !!(inp && inp.b2);
 			if (inp) inp.b2 = false;
 			if (jump && e.al && !e.d) this.jump(W, e, inp);
 			if (e.air) this.airPhys(W, e, inp, dt);
 			else arenaPhys(W, e, inp, dt);
+			if (dash && e.boostT > 0.4) e.bst -= TS.BCOST;
+			this.padPick(W, e);
+			e.f.bs = Math.round(e.bst);
 			const c = tsClamp(e.x, e.z, e.rad || 0.95, false, 0);
 			if (c) {
 				e.x = c.x;
@@ -39672,6 +39791,8 @@ Object.assign(MG, {
 		tick(W, dt) {
 			const T = TS,
 				goals = this.goalList(W);
+			this.padState(W);
+			this.padFx(W);
 			if (goals.length > W.goals.length) goals.slice(W.goals.length).forEach((g) => this.scored(W, g));
 			W.goals = goals;
 			this.board(W);
@@ -40021,6 +40142,7 @@ Object.assign(MG, {
 			if (W.t < ((e.f && e.f.st) || 0) && !(ft >= 0 && ft < TS.FLIPDUR)) e.tr.rotation.x = Math.sin(W.t * 45) * 0.14;
 			if (e.disc === undefined) e.disc = e.g.children.find((c) => c.userData.disc) || null;
 			if (e.disc) e.disc.position.y = 0.03 - Math.max(0, e.y || 0);
+			this.boostBar(W, e);
 			if (W.crowdT !== W.t) {
 				W.crowdT = W.t;
 				W.hype = Math.max(0, (W.hype || 0) - dt * 0.4);
@@ -40042,6 +40164,13 @@ Object.assign(MG, {
 				mates = W.list.filter((o) => !o.gone && (o.side === 1 ? 1 : 0) === sd),
 				near = mates.slice().sort((p, q) => Math.hypot(p.x - px, p.z - pz) - Math.hypot(q.x - px, q.z - pz))[0];
 			if (near !== e) {
+				/* low on boost: fetch a ready pad if one is close */
+				if (e.bst < T.BCOST && W.pads) {
+					const pd = W.pads
+						.filter((q) => W.t >= q.ready)
+						.sort((p, q) => Math.hypot(p.x - e.x, p.z - e.z) - Math.hypot(q.x - e.x, q.z - e.z))[0];
+					if (pd && Math.hypot(pd.x - e.x, pd.z - e.z) < 13) return steer(e, pd.x, pd.z, 1);
+				}
 				const z0 = -dir * T.FZ,
 					hz = z0 + (pz - z0) * 0.35;
 				return steer(e, px * 0.5, hz, Math.hypot(e.x - px * 0.5, e.z - hz) > 2 ? 0.9 : 0.3);
