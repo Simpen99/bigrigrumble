@@ -152,25 +152,20 @@ function sfxInit() {
 /* the audio engine is made at load (paused until the first tap resumes it): making it on the tap that starts the sound
    knocked about half the time on iPhone Safari */
 sfxInit();
-addEventListener(
-	"pointerdown",
-	() => {
-		sfxInit();
-		if (SFX.ctx && SFX.ctx.state === "suspended") SFX.ctx.resume();
-		/* browsers only allow sound after a tap: the first one on the start page starts the song */
-		if (typeof view === "string" && MENU_VIEWS.includes(view)) musScene(view);
-	},
-	{ capture: true },
-);
-addEventListener(
-	"keydown",
-	() => {
-		sfxInit();
-		if (SFX.ctx && SFX.ctx.state === "suspended") SFX.ctx.resume();
-		if (typeof view === "string" && MENU_VIEWS.includes(view)) musScene(view);
-	},
-	{ capture: true },
-);
+/* browsers only allow sound after a tap, and iPhone Safari only counts the finger lifting (touchend / click), not
+   pointerdown: the first tap on the start page wakes the audio and starts the song. One resume at a time: quick taps
+   firing resume() again while the audio is still starting knocked on iPhone */
+function sfxWake() {
+	sfxInit();
+	const c = SFX.ctx,
+		now = performance.now();
+	if (c && c.state !== "running" && !(SFX.waking > now)) {
+		SFX.waking = now + 400;
+		c.resume().catch(() => {});
+	}
+	if (typeof view === "string" && MENU_VIEWS.includes(view)) musScene(view);
+}
+["touchend", "click", "keydown"].forEach((ev) => addEventListener(ev, sfxWake, { capture: true }));
 function tone(f, d, type = "sine", vol = 0.25, f2 = 0, at = 0) {
 	const c = SFX.ctx,
 		t = c.currentTime + at,
