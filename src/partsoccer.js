@@ -35,8 +35,9 @@ const TS = {
 	BMAX: 100,
 	BSTART: 33,
 	BDRAIN: 33,
-	BACC: 34,
-	BTOP: 19,
+	BACC: 18,
+	BTOP: 15,
+	NORMV: 11.5 /* top speed without boost (the engine's) */,
 	BAIR: 16,
 	BLIFT: 33,
 	PADS: [
@@ -966,11 +967,20 @@ Object.assign(MG, {
 			const jump = !!(inp && inp.b2);
 			if (inp) inp.b2 = false;
 			if (jump && e.al && !e.d) this.jump(W, e, inp);
-			const yaw0 = e.yaw;
+			const yaw0 = e.yaw,
+				sp0 = Math.hypot(e.vx, e.vz);
 			if (e.air) this.airPhys(W, e, inp, dt);
 			else {
 				arenaPhys(W, e, inp, dt);
 				this.rampRide(W, e, dt, yaw0);
+			}
+			/* not boosting, the stick never takes it past normal speed: after a boost, a knock or a blast (the engine's
+			   slide, which allows 23 m/s) it only slows back down */
+			const sp1 = Math.hypot(e.vx, e.vz),
+				cap = Math.max(TS.NORMV, sp0);
+			if (!boosting && sp1 > cap) {
+				e.vx *= cap / sp1;
+				e.vz *= cap / sp1;
 			}
 			if (boosting) {
 				this.boostPush(W, e, inp, dt);
