@@ -998,7 +998,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-16 12:45 429379b";
+const BUILD = "2026-10-16 12:55 46b15bd";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -38909,6 +38909,12 @@ const TS = {
 	GOALWAIT: 1.2 /* s the host waits for the kicker's device to announce a goal before it does */,
 	KICKCD: 0.1 /* s between two kicks by the same truck */,
 	MAXV: 32 /* the ball's top speed */,
+	/* kicks (rules): a plain touch sends the ball at TOUCH x the truck's speed (+0.6 m/s), a BOOST shot at 1.1 x + SHOT
+	   m/s with CHIP m/s up; AIM = how much the ball follows the way the truck faces instead of the contact direction */
+	TOUCH: 1.05,
+	SHOT: 13,
+	CHIP: 4.5,
+	AIM: 0.45,
 };
 /* where a circle of radius r centred at (x, z) is pushed back to (walls, goal posts, nets), or null when it fits;
    ball = true: the goal mouth is only open under the crossbar (y = the ball's height). Returns {x, z, nx, nz} with
@@ -39620,7 +39626,9 @@ Object.assign(MG, {
 				}
 			}
 		},
-		/* a local truck touching the ball kicks it: the ball takes the truck's push (more with BOOST) and pops up */
+		/* a local truck touching the ball kicks it. Steering into it is control: the ball leaves at about the truck's own
+		   speed (so you can dribble it), aimed partly the way the truck faces, and stays down unless you hit it fast.
+		   BOOST is the shot: much harder, with a chip up */
 		rules(W, e) {
 			e.sc = this.final(W, e);
 			const T = TS,
@@ -39634,26 +39642,27 @@ Object.assign(MG, {
 			if (d > r || d < 0.001 || b.y - T.BR > 1.45) return;
 			const nx = dx / d,
 				nz = dz / d,
-				ts = e.vx * nx + e.vz * nz,
-				rel = ts - (b.vx * nx + b.vz * nz),
-				boost = e.boostT > 0;
-			let vx = b.vx + nx * Math.max(0, rel) * 1.3,
-				vz = b.vz + nz * Math.max(0, rel) * 1.3;
-			const vn = vx * nx + vz * nz;
-			if (vn < 3) {
-				vx += nx * (3 - vn);
-				vz += nz * (3 - vn);
-			}
-			if (boost) {
-				vx += nx * 10;
-				vz += nz * 10;
-			}
+				ts = Math.max(0, e.vx * nx + e.vz * nz),
+				boost = e.boostT > 0,
+				hx = Math.cos(e.yaw),
+				hz = -Math.sin(e.yaw),
+				/* the ball in front of the truck goes partly where the truck faces */
+				aim = hx * nx + hz * nz > 0.3 && ts > 1 ? T.AIM : 0;
+			let ux = nx * (1 - aim) + hx * aim,
+				uz = nz * (1 - aim) + hz * aim;
+			const ul = Math.hypot(ux, uz) || 1;
+			ux /= ul;
+			uz /= ul;
+			const ba = b.vx * ux + b.vz * uz,
+				along = Math.max(ba, boost ? ts * 1.1 + T.SHOT : ts * T.TOUCH + 0.6);
+			let vx = (b.vx - ba * ux) * 0.5 + ux * along,
+				vz = (b.vz - ba * uz) * 0.5 + uz * along;
 			const sp = Math.hypot(vx, vz);
 			if (sp > T.MAXV) {
 				vx *= T.MAXV / sp;
 				vz *= T.MAXV / sp;
 			}
-			const vy = Math.max(b.vy, Math.min(10, 1.2 + Math.max(0, ts) * 0.3 + (boost ? 5 : 0)));
+			const vy = Math.max(b.vy, boost ? T.CHIP : Math.min(3, Math.max(0, ts - 8) * 0.6));
 			let x = e.x + nx * (r + 0.05),
 				z = e.z + nz * (r + 0.05);
 			const c = tsClamp(x, z, T.BR, true, b.y);
@@ -39664,13 +39673,13 @@ Object.assign(MG, {
 			const r3 = (v) => Math.round(v * 1000) / 1000;
 			e.f.bl = [W.ballK, ((e.f.bl && e.f.bl[1]) || 0) + 1, r3(W.t), r3(x), r3(b.y), r3(z), r3(vx), r3(vy), r3(vz)];
 			e.kickT = W.t;
-			e.vx *= 0.8;
-			e.vz *= 0.8;
+			e.vx *= boost ? 0.8 : 0.95;
+			e.vz *= boost ? 0.8 : 0.95;
 			if (boost || ts > 6) {
 				if (e.isMe || W.tv) W.shake = Math.max(W.shake || 0, boost ? 0.3 : 0.15);
 				sfx("ram");
 			}
-			mgLog(W, `kick ${mgName(e)} ${boost ? "BOOST " : ""}${Math.round(sp)} m/s`);
+			mgLog(W, `kick ${mgName(e)} ${boost ? "BOOST " : ""}${Math.round(Math.min(sp, T.MAXV))} m/s`);
 		},
 		/* each player's result: their team's goals * 100 + the other team's (the host compares sides with teamWin) */
 		final(W, e) {
