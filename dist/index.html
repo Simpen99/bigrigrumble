@@ -998,7 +998,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-16 16:50 2d69145";
+const BUILD = "2026-10-16 17:02 fa6b2cd";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -38917,7 +38917,7 @@ const TS = {
 	GW: 5.5 /* half the goal mouth's width */,
 	GH: 4.8 /* goal height (tall enough for a boosted shot that pops the ball up) */,
 	GD: 3.2 /* goal depth behind the line */,
-	BR: 1.45 /* ball radius */,
+	BR: 1.23 /* ball radius */,
 	WALL: 6.2 /* wall + glass height (above the goals) */,
 	KERB: 1.2 /* the solid kerb under the glass */,
 	H: 1 / 120 /* ball physics step */,
@@ -38937,7 +38937,7 @@ const TS = {
 	   m/s with CHIP m/s up; AIM = how much the ball follows the way the truck faces instead of the contact direction */
 	TOUCH: 1.05,
 	SHOT: 13,
-	CHIP: 9 /* about 1.2 m up at the top, still under the crossbar */,
+	CHIP: 11 /* about 1.8 m up at the top */,
 	AIM: 0.45,
 	POP: 14 /* m/s up when the ball is squeezed between two trucks (about 2.9 m up, clear over the roofs) */,
 	ESC: 7 /* m/s sideways for a popped ball, so it lands out of the pile (about 6 m away), and off a roof */,
@@ -38955,6 +38955,7 @@ const TS = {
 	AERH: 8,
 	AIRC: 10,
 	TVD: [45, 24] /* the TV camera's height and distance out to the side */,
+	TVK: [1.1, 0.55] /* its zoom: at most [0], else [1] x the screen's width / height (both goals in view) */,
 	TVX: 0.5 /* the TV camera's aim, metres towards the near side */,
 };
 /* where a circle of radius r centred at (x, z) is pushed back to (walls, goal posts, nets), or null when it fits;
@@ -39902,7 +39903,9 @@ Object.assign(MG, {
 			e.kickT = W.t;
 			e.vx *= boost ? 0.8 : 0.95;
 			e.vz *= boost ? 0.8 : 0.95;
-			if (boost || ts > 6) {
+			/* only real hits thump (a shot, a flip, a fast hit), at most every 0.3 s a truck: dribbling stays quiet */
+			if ((boost || flip || ts > 9) && W.t - (e.thudT || -9) > 0.3) {
+				e.thudT = W.t;
 				if (e.isMe || W.tv) W.shake = Math.max(W.shake || 0, boost ? 0.3 : 0.15);
 				sfx("ram");
 			}
@@ -39954,7 +39957,9 @@ Object.assign(MG, {
 			/* the TV looks from the side, so the long pitch fills the wide screen (blue's goal on the left) */
 			if (W.tv) {
 				const t = new THREE.Vector3(b.x * 0.05 + TS.TVX, 0, b.z * 0.08);
-				return [t, t.clone().add(new THREE.Vector3(TS.TVD[1], TS.TVD[0], 0))];
+				/* zoomed in on wide screens as far as both goals still fit (and the stands' fronts above and below) */
+				const k = Math.min(TS.TVK[0], (TS.TVK[1] * GFX.w) / GFX.h);
+				return [t, t.clone().add(new THREE.Vector3(TS.TVD[1] / k, TS.TVD[0] / k, 0))];
 			}
 			if (mgSpec(W)) return [tgt, pos];
 			const me = W.me,
