@@ -1067,7 +1067,7 @@ function musJingle(name, key = 0) {
 	MO = o;
 	J.n.forEach(([bt, m, l, vc, v]) => [].concat(m).forEach((n) => MV[vc](n + key, l * b, at + bt * b, v)));
 	J.d.forEach(([bt, k, v, f]) => mdrum(k, at + bt * b, v, f));
-	musDuck(J.len * b, 0.2);
+	musDuck(J.len * b, 0.44);
 	setTimeout(() => o.g.disconnect(), (J.len * b + 3) * 1000);
 }
 /* one 16th step: section sec at step count step (from the section start), at seconds from now */
