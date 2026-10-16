@@ -495,16 +495,31 @@ function menuZoom() {
 	menuGap();
 }
 /* portrait: where the truck's gap is on the page (GFX.menuGap = [top, bottom] in CSS px), for the showroom camera */
+/* the screen's safe-area insets in CSS px (the notch side in landscape), read from a probe element that isn't zoomed */
+function safeInsets() {
+	let pr = safeInsets.el;
+	if (!pr) {
+		pr = safeInsets.el = document.createElement("div");
+		pr.style.cssText =
+			"position:fixed;left:0;top:0;width:0;height:0;visibility:hidden;pointer-events:none;padding-left:env(safe-area-inset-left,0px);padding-top:env(safe-area-inset-top,0px)";
+		document.body.appendChild(pr);
+	}
+	const cs = getComputedStyle(pr);
+	return { l: parseFloat(cs.paddingLeft) || 0, t: parseFloat(cs.paddingTop) || 0 };
+}
 function menuGap() {
 	const g = $(".mm-gap"),
 		sg = $(".mm-stage");
 	GFX.menuGap = GFX.menuCx = null;
-	/* landscape: the truck sits between its arrows (GFX.menuCx / menuCy = where on the screen, menuK = how much bigger the screen is than the zoomed menu, for the camera distance) */
+	/* landscape: the truck sits between its arrows (GFX.menuCx / menuCy = where on the screen, menuK = how much bigger the screen is than the zoomed menu, for the camera distance).
+	   Worked out from the layout's numbers (the .mm-stage rules in part1: A at left 25 + safe area, top 329, 651 x 64; B centred, top 280), not measured: iOS Safari reports zoomed elements' positions wrong */
 	if (sg && sg.offsetWidth) {
-		const r = sg.getBoundingClientRect(),
-			z = Math.min(innerWidth / 1280, innerHeight / 720);
-		GFX.menuCx = (r.left + r.right) / 2 / innerWidth;
-		GFX.menuCy = ((r.top + r.bottom) / 2 - 18 * z) / innerHeight;
+		const z = Math.min(innerWidth / 1280, innerHeight / 720),
+			sa = safeInsets(),
+			x = MM_LAY === "b" ? innerWidth / 2 : sa.l + (25 + 651 / 2) * z,
+			y = sa.t + ((MM_LAY === "b" ? 280 : 329) + 32) * z;
+		GFX.menuCx = x / innerWidth;
+		GFX.menuCy = (y - 18 * z) / innerHeight;
 		GFX.menuK = innerHeight / 720 / z;
 	}
 	if (!g || !g.offsetHeight) return;
