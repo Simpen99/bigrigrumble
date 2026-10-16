@@ -976,9 +976,10 @@ function frame(t) {
 			home = view === "home",
 			w = GFX.w,
 			h = GFX.h;
-		/* main menu: one truck, further back; landscape puts it right of centre (the info column is on the left), portrait frames it into the gap above the info (GFX.menuGap, part3: its middle on the screen, its height sets the distance) */
+		/* main menu: one truck, further back; landscape puts it between its arrows (GFX.menuCx / menuCy / menuK, part3: where the arrows are, and how much bigger the screen is than the zoomed menu), portrait frames it into the gap above the info (GFX.menuGap, part3: its middle on the screen, its height sets the distance) */
 		const gap = home && n === 1 && asp < 1 && GFX.menuGap,
-			gy = gap && ((gap[0] + gap[1]) / 2 - scrollY) / innerHeight;
+			gy = gap && ((gap[0] + gap[1]) / 2 - scrollY) / innerHeight,
+			mid = home && n === 1 && asp >= 1 && GFX.menuCx;
 		const d = gap
 			? Math.min(40, Math.max(14, (6.7 * innerHeight) / (gap[1] - gap[0])))
 			: asp < 1
@@ -989,16 +990,16 @@ function frame(t) {
 						: 19
 				: n > 1
 					? 11 + n * 0.5
-					: home
-						? 14
+					: mid
+						? 13 * GFX.menuK
 						: 10.5;
 		cam.position.set(0, 1.2 + d * 0.3, d);
 		cam.lookAt(0, 0.9, 0);
 		cam.setViewOffset(
 			w,
 			h,
-			home && n === 1 && asp >= 1 ? -w * 0.13 : 0,
-			gap ? h * (0.5 - gy) : h * (home ? (asp < 1 ? 0.26 : 0.2) : 0.32),
+			mid ? w * (0.5 - GFX.menuCx) : 0,
+			gap ? h * (0.5 - gy) : mid ? h * (0.5 - GFX.menuCy) : h * (home ? (asp < 1 ? 0.26 : 0.2) : 0.32),
 			w,
 			h,
 		);

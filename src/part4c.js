@@ -37,6 +37,13 @@ document.addEventListener("click", (e) => {
 		pickTruck(+b.dataset.t);
 		return;
 	}
+	if (b.dataset.lay) {
+		MM_LAY = b.dataset.lay === "b" ? "b" : "a";
+		LS.set("trp_mmlay", MM_LAY);
+		render.last = null;
+		render();
+		return;
+	}
 	if (b.dataset.step) {
 		pickTruck(me.truck + +b.dataset.step);
 		return;

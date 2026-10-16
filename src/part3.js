@@ -379,6 +379,7 @@ function render() {
 	/* menu style (CSS .pt): the menu views only, the board and minigames keep the HUD look */
 	$("#app").classList.toggle("pt", MENU_VIEWS.includes(v) && v !== "home");
 	$("#app").classList.toggle("mm", v === "home");
+	$("#app").classList.toggle("lb", v === "home" && MM_LAY === "b");
 	if (v !== "home") homeOpen = null;
 	{
 		const tvp = role === "client" && !!G && !!G.tv && !SCREEN;
@@ -465,6 +466,8 @@ function carouselHTML(sel) {
 	return `<div class="carousel" id="car">${TRUCKS.map((t, i) => `<button class="tc ${i === sel ? "sel" : ""}" data-t="${i}" aria-pressed="${i === sel}"><img alt="" src="${thumb(i)}"><span>${esc(t.name)}</span></button>`).join("")}</div>`;
 }
 /* main menu (design_handoff_main_menu): logo, truck info, name plate and roster on the left, the live 3D truck centre-right (showroom camera in part2), buttons on the right; CSS .mm in part1. Art from UI_ART (partui.js) as CSS variables --ui-<name> */
+/* landscape main menu layout trial: "a" or "b" (Settings → Layout, localStorage trp_mmlay) */
+let MM_LAY = LS.get("trp_mmlay", "a") === "b" ? "b" : "a";
 let homeSet = false,
 	homeOpen = null;
 /* Host / Join open their two choices in place: the opened button slides up, the others fade out, the choices and Back fade in below (class op-host / op-join on .mm-act, no re-render so it animates) */
@@ -493,8 +496,17 @@ function menuZoom() {
 }
 /* portrait: where the truck's gap is on the page (GFX.menuGap = [top, bottom] in CSS px), for the showroom camera */
 function menuGap() {
-	const g = $(".mm-gap");
-	GFX.menuGap = null;
+	const g = $(".mm-gap"),
+		sg = $(".mm-stage");
+	GFX.menuGap = GFX.menuCx = null;
+	/* landscape: the truck sits between its arrows (GFX.menuCx / menuCy = where on the screen, menuK = how much bigger the screen is than the zoomed menu, for the camera distance) */
+	if (sg && sg.offsetWidth) {
+		const r = sg.getBoundingClientRect(),
+			z = Math.min(innerWidth / 1280, innerHeight / 720);
+		GFX.menuCx = (r.left + r.right) / 2 / innerWidth;
+		GFX.menuCy = ((r.top + r.bottom) / 2 - 18 * z) / innerHeight;
+		GFX.menuK = innerHeight / 720 / z;
+	}
 	if (!g || !g.offsetHeight) return;
 	const r = g.getBoundingClientRect();
 	GFX.menuGap = [r.top + scrollY, r.bottom + scrollY];
@@ -504,7 +516,7 @@ addEventListener("resize", menuZoom);
 /* the truck's info beside the 3D truck (pickTruck swaps it): name, tagline, its die on stone tiles (coins gained green, paid red) */
 function showNameHTML(i) {
 	const t = TRUCKS[i];
-	return `<h2 class="mm-name">${esc(t.name)}</h2><p class="mm-tag">${esc(t.blurb)}</p><div class="mm-dice" aria-label="Die faces">${t.faces.map((f, k) => `<span class="mm-die" style="--dt:var(--ui-dtile-${k + 1})">${f.m}${f.c ? `<small class="${f.c > 0 ? "up" : "dn"}">${f.c > 0 ? "+" : "−"}${Math.abs(f.c)}</small>` : ""}</span>`).join("")}</div>`;
+	return `<div class="mm-nrow"><span class="mm-idx">TRUCK ${i + 1}/${TRUCKS.length}</span><h2 class="mm-name">${esc(t.name)}</h2></div><p class="mm-tag">${esc(t.blurb)}</p><div class="mm-dice" aria-label="Die faces">${t.faces.map((f, k) => `<span class="mm-die" style="--dt:var(--ui-dtile-${k + 1})">${f.m}${f.c ? `<small class="${f.c > 0 ? "up" : "dn"}">${f.c > 0 ? "+" : "−"}${Math.abs(f.c)}</small>` : ""}</span>`).join("")}</div>`;
 }
 /* roster: a rock slab per truck (four dark shapes in turn: [rock, width, selected width]); the selected truck's slab turns into the white rock of the same shape (--rw), about 15% bigger */
 const ROCKS = [
@@ -523,6 +535,7 @@ function rosterHTML(sel) {
 const npSize = (n) => Math.min(40, Math.floor((262 / Math.max(1, n) - 6) / 0.62));
 function settingsHTML() {
 	return `<div class="mm-pop"><button class="mm-scrim" data-a="setclose" aria-label="Close settings"></button><section class="mm-sheet" role="dialog" aria-label="Settings"><div class="mm-sh"><h2>SETTINGS</h2><button class="mm-x" data-a="setclose" aria-label="Close">✕</button></div>
+  <div class="seg" style="margin-bottom:12px"><button data-lay="a" class="${MM_LAY === "a" ? "on" : ""}">Layout A</button><button data-lay="b" class="${MM_LAY === "b" ? "on" : ""}">Layout B</button></div>
   <div class="volbox">${volHTML()}</div>
   <div style="margin-top:10px">${statusHTML()}</div>
   <button class="btn ghost small" data-dbg="open">🐞 Report a bug</button>
@@ -544,6 +557,7 @@ function homeHTML() {
 	return `<img class="mmg mm-logo" src="${LOGO_ART}" alt="Big Rig Rumble"><div class="mm-gap"></div>
   ${notice ? `<div class="banner mm-notice">${esc(notice)}</div>` : ""}
   <div class="mmg mm-info" id="shown">${showNameHTML(me.truck)}</div>
+  <div class="mmg mm-stage"><button class="mm-arr l" data-step="-1" tabindex="-1" aria-label="Previous truck"></button><button class="mm-arr r" data-step="1" tabindex="-1" aria-label="Next truck"></button></div>
   <div class="mmg mm-roster" id="car">${rosterHTML(me.truck)}</div>
   <div class="mmg mm-plate"><button class="mm-arr l" data-step="-1" tabindex="-1" aria-label="Previous truck"></button><label class="mm-np"><span>DRIVER NAME</span><input id="nm" maxlength="10" value="${esc(me.name)}" placeholder="DRIVER" autocomplete="off" spellcheck="false" style="font-size:${npSize((me.name || "DRIVER").length)}px"></label><button class="mm-arr r" data-step="1" tabindex="-1" aria-label="Next truck"></button></div>
   <div class="mmg mm-act${homeOpen ? " op-" + homeOpen : ""}" id="mmact">
