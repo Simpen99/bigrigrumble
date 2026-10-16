@@ -1178,6 +1178,8 @@ function musTick() {
    over; silence elsewhere. Minigames play their own (Monster Mash), TV controller phones stay quiet */
 let musOverSeen = false;
 const LOBBY_MUS = "music/lobby.mp3",
+	/* Volcano Quarry's board song (the user's Suno track "Volcanic Pixel Rush", in place of the synth theme SONGS.volcano) */
+	VOLCANO_MUS = "music/volcano.mp3",
 	MENU_VIEWS = ["home", "join", "waiting", "practice", "lobby"];
 /* fetched at load, so the first tap starts it quickly */
 audLoad(LOBBY_MUS);
@@ -1205,7 +1207,11 @@ function musScene(v) {
 		!mgBusy &&
 		!["minigame", "mgres", "teams"].includes(G.phase);
 	if (!board) {
-		if (MUS.name && MUS.name !== "boss" && !MUS.track) musStop(0.6);
+		if (MUS.name && MUS.name !== "boss" && (!MUS.track || MUS.name === VOLCANO_MUS)) musStop(0.6);
+		return;
+	}
+	if (G.map === "volcano") {
+		if (MUS.name !== VOLCANO_MUS) musTrack(VOLCANO_MUS, 0.7, 1.2);
 		return;
 	}
 	const name = SONGS[G.map] ? G.map : "classic";
