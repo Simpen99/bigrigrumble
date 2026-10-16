@@ -2111,8 +2111,9 @@ const MG = {
 					e.hpSeen = hp;
 					e.hopT = W.t;
 				}
-				const sa = W.t - (e.hopT ?? -9);
-				springSet(e.tr, sa < 0.07 ? (sa / 0.07) * 0.5 : Math.max(0, 0.5 * (1 - (sa - 0.07) / 0.3)));
+				/* no hop yet: resting (W.t is -99 on the ready screen, which used to sink the body far under the slabs) */
+				const sa = e.hopT === undefined ? 9 : W.t - e.hopT;
+				springSet(e.tr, sa < 0 ? 0 : sa < 0.07 ? (sa / 0.07) * 0.5 : Math.max(0, 0.5 * (1 - (sa - 0.07) / 0.3)));
 			}
 			const vy = (e.y - (e.py === undefined ? e.y : e.py)) / Math.max(dt, 0.001);
 			e.py = e.y;
@@ -6175,6 +6176,8 @@ const MG = {
 		fmtV: (v) => `${(v / 100).toFixed(2)} m`,
 		dur: 75,
 		bare: true,
+		/* the TV splits into a view per player: one camera over every tower jumped about as they grew and fell */
+		tvGrid: true,
 		/* TV controller: slide pad on the left moves the crane, DROP and ROTATE share the right side */
 		slide: true,
 		slideBtn: "DROP",

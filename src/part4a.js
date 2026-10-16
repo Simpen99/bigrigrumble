@@ -3150,7 +3150,8 @@ function openTvSplit(mg) {
 	/* no players here (a linked screen nobody paired with): this screen just shows the board */
 	if (!humans.length || !GFX.ok) return;
 	mgBusy = true;
-	const mode = def.kind === "lane" ? "shared" : mg.g === "race" && humans.length === 2 ? "dyn" : "grid";
+	/* lane games share one wide view unless def.tvGrid asks for a view per player (Crate Drop: each tower its own camera) */
+	const mode = def.kind === "lane" && !def.tvGrid ? "shared" : mg.g === "race" && humans.length === 2 ? "dyn" : "grid";
 	mgOpen = true;
 	const box = $("#mg");
 	box.classList.remove("res");

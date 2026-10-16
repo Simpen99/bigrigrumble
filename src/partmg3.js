@@ -1823,7 +1823,7 @@ Object.assign(MG, {
 		fx: { col: 0.06 },
 		how: "3 rounds, everyone drops at once, a new board every round. Steer and hop your ball into the best slot, catch the sliding ×3!",
 		tvHint:
-			"Before the drop: LEFT / RIGHT move your magnet. Falling: LEFT / RIGHT steer, the middle button hops off pegs.",
+			"Before the drop: LEFT / RIGHT move your magnet. Falling: LEFT / RIGHT steer, HOP (right half) pops you off pegs.",
 		tapHint:
 			"◀ ▶ move your magnet before the drop, then steer as you fall; HOP pops you off the pegs (arrow keys, Space).",
 		/* board: COLS slots SW wide between walls at ±HW; ROWS peg rows RY apart from Y0 up (even rows line up with the
@@ -3098,8 +3098,8 @@ Object.assign(MG, {
 			e.tr.rotation.z = e.pitch;
 			e.g.position.set(e.x + this.WB * Math.sin(e.tt), e.y - this.WB * Math.cos(e.tt), e.z);
 			const bl = this.ball(W, e),
-				ha = W.t - (e.hopT ?? -9),
-				q = ha < 0.35 ? 0.13 * Math.sin((ha / 0.35) * Math.PI) : 0;
+				ha = e.hopT === undefined ? 9 : W.t - e.hopT,
+				q = ha >= 0 && ha < 0.35 ? 0.13 * Math.sin((ha / 0.35) * Math.PI) : 0;
 			bl.g.visible = !e.gone;
 			bl.g.position.set(e.x, e.y, e.z);
 			bl.g.scale.set(1 + q, 1 - q, 1 + q);
@@ -3254,8 +3254,8 @@ Object.assign(MG, {
 				if (W.split || e.isMe) sfx("step");
 			}
 			{
-				const sa = W.t - (e.hopT ?? -9);
-				springSet(e.tr, sa < 0.07 ? (sa / 0.07) * 0.3 : Math.max(0, 0.3 * (1 - (sa - 0.07) / 0.3)));
+				const sa = e.hopT === undefined ? 9 : W.t - e.hopT;
+				springSet(e.tr, sa < 0 ? 0 : sa < 0.07 ? (sa / 0.07) * 0.3 : Math.max(0, 0.3 * (1 - (sa - 0.07) / 0.3)));
 			}
 			/* scored: the slot floor flashes in the truck's colour, coins fly */
 			if (f.ls && f.ls[0] !== (e.lsSeen || 0)) {
@@ -3507,7 +3507,7 @@ Object.assign(MG, {
 		fx: { col: 0.06 },
 		how: "Every round: hide traps on a rival's board (wall off their way to the ×2 and SPLIT gates, plant a fake ×2, mine their pegs), then everyone drops. Traps stay hidden until hit; you score from your slots, plus points for every trap your rival hits!",
 		tvHint:
-			"Planning: your phone shows your rival's board: pick a trap, tap a gap. Playing: LEFT / RIGHT move and steer, the middle button hops.",
+			"Planning: your phone shows your rival's board: pick a trap, tap a gap. Playing: LEFT / RIGHT move and steer, HOP on the right half.",
 		tapHint:
 			"Planning: pick a trap, tap a gap on your rival's board (swipe to look around). Playing: ◀ ▶ move and steer, HOP pops you off the pegs.",
 		pad: ".sbpad",
@@ -5058,8 +5058,8 @@ Object.assign(MG, {
 			const K = this.K;
 			e.g.position.set(e.x + this.WB * K * Math.sin(e.tt), e.y - this.WB * K * Math.cos(e.tt), e.z);
 			const bl = this.ball(W, e),
-				ha = W.t - (e.hopT ?? -9),
-				q = ha < 0.35 ? 0.13 * Math.sin((ha / 0.35) * Math.PI) : 0;
+				ha = e.hopT === undefined ? 9 : W.t - e.hopT,
+				q = ha >= 0 && ha < 0.35 ? 0.13 * Math.sin((ha / 0.35) * Math.PI) : 0;
 			bl.g.visible = !e.gone;
 			bl.g.position.set(e.x, e.y, e.z);
 			bl.g.scale.set((1 + q) * K, (1 - q) * K, (1 + q) * K);
@@ -5072,8 +5072,8 @@ Object.assign(MG, {
 				if (W.split || e.isMe) sfx("step");
 			}
 			{
-				const sa = W.t - (e.hopT ?? -9);
-				springSet(e.tr, sa < 0.07 ? (sa / 0.07) * 0.3 : Math.max(0, 0.3 * (1 - (sa - 0.07) / 0.3)));
+				const sa = e.hopT === undefined ? 9 : W.t - e.hopT;
+				springSet(e.tr, sa < 0 ? 0 : sa < 0.07 ? (sa / 0.07) * 0.3 : Math.max(0, 0.3 * (1 - (sa - 0.07) / 0.3)));
 			}
 			if (f.ls && f.ls[0] !== (e.lsSeen || 0)) {
 				e.lsSeen = f.ls[0];
@@ -7494,7 +7494,7 @@ Object.assign(MG, {
 		/* driving: cruise V0, the stick adds up to UP (truck) / UPC (cops) or takes off DN; lateral push LATA */
 		V0: 16,
 		UP: 5.5,
-		UPC: 4,
+		UPC: 5.5 /* cops as fast as the cash truck (21.5 m/s top; were 20) */,
 		DN: 6,
 		LATA: 34,
 		/* cash: BAGS on the truck, IMM s safe after losing one; oil: cooldown OILCD, lasts OILT, radius OILR */
