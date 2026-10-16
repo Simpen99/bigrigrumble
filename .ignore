@@ -1,3 +1,4 @@
 # Keeps ripgrep (and Claude's Grep) out of huge one-line files: the built copies and the embedded art data URIs.
 dist/
 src/partart.js
+src/partui.js

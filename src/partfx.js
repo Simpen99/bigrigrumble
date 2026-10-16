@@ -135,7 +135,10 @@ function sfxInit() {
 		const C = window.AudioContext || window.webkitAudioContext;
 		SFX.ctx = new C();
 		SFX.out = SFX.ctx.createGain();
-		SFX.out.gain.value = 0.32;
+		/* the master level fades in over 60 ms from silence, so the first sound after the tap that starts the audio doesn't click */
+		SFX.out.gain.value = 0;
+		SFX.out.gain.setValueAtTime(0, SFX.ctx.currentTime);
+		SFX.out.gain.linearRampToValueAtTime(0.32, SFX.ctx.currentTime + 0.06);
 		SFX.out.connect(SFX.ctx.destination);
 		/* sound effects go through their own bus, 25% under the music */
 		SFX.fx = SFX.ctx.createGain();
@@ -146,25 +149,23 @@ function sfxInit() {
 		SFX.ctx = null;
 	}
 }
-addEventListener(
-	"pointerdown",
-	() => {
-		sfxInit();
-		if (SFX.ctx && SFX.ctx.state === "suspended") SFX.ctx.resume();
-		/* browsers only allow sound after a tap: the first one on the start page starts the song */
-		if (typeof view === "string" && MENU_VIEWS.includes(view)) musScene(view);
-	},
-	{ capture: true },
-);
-addEventListener(
-	"keydown",
-	() => {
-		sfxInit();
-		if (SFX.ctx && SFX.ctx.state === "suspended") SFX.ctx.resume();
-		if (typeof view === "string" && MENU_VIEWS.includes(view)) musScene(view);
-	},
-	{ capture: true },
-);
+/* the audio engine is made at load (paused until the first tap resumes it): making it on the tap that starts the sound
+   knocked about half the time on iPhone Safari */
+sfxInit();
+/* browsers only allow sound after a tap, and iPhone Safari only counts the finger lifting (touchend / click), not
+   pointerdown: the first tap on the start page wakes the audio and starts the song. One resume at a time: quick taps
+   firing resume() again while the audio is still starting knocked on iPhone */
+function sfxWake() {
+	sfxInit();
+	const c = SFX.ctx,
+		now = performance.now();
+	if (c && c.state !== "running" && !(SFX.waking > now)) {
+		SFX.waking = now + 400;
+		c.resume().catch(() => {});
+	}
+	if (typeof view === "string" && MENU_VIEWS.includes(view)) musScene(view);
+}
+["touchend", "click", "keydown"].forEach((ev) => addEventListener(ev, sfxWake, { capture: true }));
 function tone(f, d, type = "sine", vol = 0.25, f2 = 0, at = 0) {
 	const c = SFX.ctx,
 		t = c.currentTime + at,
@@ -561,7 +562,7 @@ function musBus() {
 	B.comp.ratio.value = 4;
 	B.comp.attack.value = 0.004;
 	B.comp.release.value = 0.15;
-	B.lvl = gain(0.4 * VOL.m, SFX.out);
+	B.lvl = gain(0.5 * VOL.m, SFX.out);
 	B.comp.connect(B.lvl);
 	/* one shared noise buffer for the drums */
 	B.noise = c.createBuffer(1, c.sampleRate * 2, c.sampleRate);
@@ -783,8 +784,22 @@ const MV = {
 		mv(m, d, at, { w: "sine", v: 0.1 * v, r: 0.05 });
 	},
 };
-const MUS = { song: null, name: null, o: null, lvl: 1, want: 1, step: 0, next: 0, iv: 0, hit: false, land: false };
-function musPlay(name, lvl = 1) {
+/* MUS.pos[name] = where a song was when it stopped (synth: the start of its bar and its level; file: seconds in), so the
+   board music picks up there after a minigame (musScene passes resume; a new game clears it) */
+const MUS = {
+	song: null,
+	name: null,
+	o: null,
+	lvl: 1,
+	want: 1,
+	step: 0,
+	next: 0,
+	iv: 0,
+	hit: false,
+	land: false,
+	pos: {},
+};
+function musPlay(name, lvl = 1, resume = false) {
 	musStop();
 	if (!SFX.ctx || !SONGS[name]) return;
 	const S = SONGS[name];
@@ -792,8 +807,9 @@ function musPlay(name, lvl = 1) {
 	MUS.name = name;
 	MUS.o = musOut(S.vol || 1);
 	MUS.lvl = MUS.want = Math.max(1, Math.min(S.sec.length, lvl | 0));
-	MUS.step = 0;
-	MUS.land = true;
+	const at = resume && MUS.pos[name];
+	MUS.step = at && at.lvl === MUS.lvl ? at.step : 0;
+	MUS.land = !MUS.step;
 	MUS.fill = false;
 	MUS.next = SFX.ctx.currentTime + 0.1;
 	MUS.iv = setInterval(musTick, 25);
@@ -805,6 +821,12 @@ function musHit() {
 	MUS.hit = true;
 }
 function musStop(fade = 0.25) {
+	const c = SFX.ctx;
+	if (MUS.name && MUS.song) MUS.pos[MUS.name] = { step: MUS.step - (MUS.step % 16), lvl: MUS.lvl };
+	else if (MUS.name && MUS.track && MUS.o && MUS.o.src && c) {
+		const len = MUS.o.src.buffer.duration;
+		MUS.pos[MUS.name] = { off: (c.currentTime - MUS.o.t0 + MUS.o.off) % len };
+	}
 	MUS.track = false;
 	clearInterval(MUS.iv);
 	MUS.iv = 0;
@@ -852,7 +874,7 @@ function sfxFile(url, vol = 1) {
 }
 /* a song from a file (Getaway's chase song, the lobby song), looped through the music bus like the synth songs (fading in
    over fadeIn s): musStop fades it, and musScene leaves it playing during the minigame (MUS.track) */
-function musTrack(url, vol = 0.7, fadeIn = 0) {
+function musTrack(url, vol = 0.7, fadeIn = 0, resume = false) {
 	musStop();
 	if (!SFX.ctx || !SFX.on) return;
 	const o = musOut(vol);
@@ -871,7 +893,10 @@ function musTrack(url, vol = 0.7, fadeIn = 0) {
 				o.g.gain.setValueAtTime(0.0001, t);
 				o.g.gain.linearRampToValueAtTime(vol, t + fadeIn);
 			}
-			s.start();
+			const at = resume && MUS.pos[url];
+			o.off = at ? at.off % buf.duration : 0;
+			o.t0 = SFX.ctx.currentTime;
+			s.start(0, o.off);
 			o.src = s;
 		})
 		.catch(() => {});
@@ -1067,7 +1092,7 @@ function musJingle(name, key = 0) {
 	MO = o;
 	J.n.forEach(([bt, m, l, vc, v]) => [].concat(m).forEach((n) => MV[vc](n + key, l * b, at + bt * b, v)));
 	J.d.forEach(([bt, k, v, f]) => mdrum(k, at + bt * b, v, f));
-	musDuck(J.len * b, 0.2);
+	musDuck(J.len * b, 0.65);
 	setTimeout(() => o.g.disconnect(), (J.len * b + 3) * 1000);
 }
 /* one 16th step: section sec at step count step (from the section start), at seconds from now */
@@ -1178,11 +1203,19 @@ function musTick() {
    over; silence elsewhere. Minigames play their own (Monster Mash), TV controller phones stay quiet */
 let musOverSeen = false;
 const LOBBY_MUS = "music/lobby.mp3",
+	/* Volcano Quarry's board song (the user's Suno track "Volcanic Pixel Rush", in place of the synth theme SONGS.volcano) */
+	VOLCANO_MUS = "music/volcano.mp3",
 	MENU_VIEWS = ["home", "join", "waiting", "practice", "lobby"];
 /* fetched at load, so the first tap starts it quickly */
 audLoad(LOBBY_MUS);
 function musScene(v) {
 	if (!SFX.ctx) return;
+	/* nothing starts until the audio has been running a moment (iPhone Safari knocks when a song starts the instant the first tap wakes the audio); try again shortly */
+	if (SFX.ctx.state !== "running" || SFX.ctx.currentTime < 0.15) {
+		clearTimeout(musScene.t);
+		musScene.t = setTimeout(() => musScene(view), 120);
+		return;
+	}
 	/* the lobby song, from the start page to the lobby (TV mode: on the big screen only, not the phones) */
 	if (MENU_VIEWS.includes(v) && !(G && G.tv && role === "client" && !SCREEN)) {
 		if (MUS.name !== LOBBY_MUS) musTrack(LOBBY_MUS, 0.7, 0.8);
@@ -1205,13 +1238,22 @@ function musScene(v) {
 		!mgBusy &&
 		!["minigame", "mgres", "teams"].includes(G.phase);
 	if (!board) {
-		if (MUS.name && MUS.name !== "boss" && !MUS.track) musStop(0.6);
+		if (MUS.name && MUS.name !== "boss" && (!MUS.track || MUS.name === VOLCANO_MUS)) musStop(0.6);
+		return;
+	}
+	/* back from a minigame the board song carries on where it stopped; a new game starts it over */
+	if (MUS.posGame !== G.id) {
+		MUS.pos = {};
+		MUS.posGame = G.id;
+	}
+	if (G.map === "volcano") {
+		if (MUS.name !== VOLCANO_MUS) musTrack(VOLCANO_MUS, 0.7, 1.2, true);
 		return;
 	}
 	const name = SONGS[G.map] ? G.map : "classic";
 	let lvl = G.round > G.rounds - 3 ? 2 : 1;
 	if (name === "volcano") lvl = G.phase === "erupt" ? 3 : lavaPh(G.round) >= 5 ? 2 : 1;
-	if (MUS.name !== name) musPlay(name, lvl);
+	if (MUS.name !== name) musPlay(name, lvl, true);
 	else musLevel(lvl);
 }
 /* a short buzz on phones that support it (Android). iPhone Safari has no vibration API, not even as a home screen app */
@@ -1431,7 +1473,7 @@ function volHTML() {
 function volApply() {
 	if (!SFX.ctx) return;
 	SFX.fx.gain.value = 0.75 * VOL.s;
-	if (SFX.mus) SFX.mus.lvl.gain.value = 0.4 * VOL.m;
+	if (SFX.mus) SFX.mus.lvl.gain.value = 0.5 * VOL.m;
 }
 document.addEventListener("input", (e) => {
 	const k = e.target.dataset && e.target.dataset.vol;

@@ -222,7 +222,7 @@ const W3 = (x, y) => [(x - 180) / 15, (y - 240) / 15];
 const TILE = PTS.map(([x, y]) => W3(x, y));
 
 /* ---------- 3D engine ---------- */
-const GFX = { ok: false, mode: "show", thumbs: {}, side: {}, top: {}, tok: {}, follow: true };
+const GFX = { ok: false, mode: "show", thumbs: {}, thumbBox: {}, side: {}, top: {}, tok: {}, follow: true };
 const MC = {};
 function M(c, o) {
 	const k = c + (o ? JSON.stringify(o) : "");
@@ -372,6 +372,25 @@ function lights(scene, shadow) {
 	scene.add(d);
 	return d;
 }
+/* the drawn part of what the renderer just drew: [x0, y0, x1, y1] in image pixels from the top left (the main menu roster fits each truck, props and all, into its rock) */
+function alphaBox(r, w, h) {
+	const gl = r.getContext(),
+		px = new Uint8Array(w * h * 4);
+	gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, px);
+	let x0 = w,
+		y0 = h,
+		x1 = -1,
+		y1 = -1;
+	for (let y = 0; y < h; y++)
+		for (let x = 0; x < w; x++)
+			if (px[(y * w + x) * 4 + 3] > 20) {
+				if (x < x0) x0 = x;
+				if (x > x1) x1 = x;
+				if (y < y0) y0 = y;
+				if (y > y1) y1 = y;
+			}
+	return x1 < 0 ? null : [x0, h - 1 - y1, x1, h - 1 - y0];
+}
 function makeThumbs() {
 	let r;
 	try {
@@ -399,6 +418,7 @@ function makeThumbs() {
 		r.setSize(240, 160);
 		r.render(sc, cp);
 		GFX.thumbs[i] = r.domElement.toDataURL("image/png");
+		GFX.thumbBox[i] = alphaBox(r, 240, 160);
 		const s = new Image();
 		r.setSize(270, 160);
 		r.render(sc, co);
@@ -976,10 +996,33 @@ function frame(t) {
 			home = view === "home",
 			w = GFX.w,
 			h = GFX.h;
-		const d = asp < 1 ? (n > 1 ? 17 + n * 1.3 : 19) : n > 1 ? 11 + n * 0.5 : 10.5;
+		/* main menu: one truck, further back; landscape puts it between its arrows (GFX.menuCx / menuCy / menuK, part3: where the arrows are, and how much bigger the screen is than the zoomed menu), portrait frames it into the gap above the info (GFX.menuGap, part3: its middle on the screen, its height sets the distance) */
+		const gap = home && n === 1 && asp < 1 && GFX.menuGap,
+			gy = gap && ((gap[0] + gap[1]) / 2 - scrollY) / innerHeight,
+			mid = home && n === 1 && asp >= 1 && GFX.menuCx;
+		const d = gap
+			? Math.min(40, Math.max(14, (6.7 * innerHeight) / (gap[1] - gap[0])))
+			: asp < 1
+				? n > 1
+					? 17 + n * 1.3
+					: home
+						? 24
+						: 19
+				: n > 1
+					? 11 + n * 0.5
+					: mid
+						? 13 * GFX.menuK
+						: 10.5;
 		cam.position.set(0, 1.2 + d * 0.3, d);
 		cam.lookAt(0, 0.9, 0);
-		cam.setViewOffset(w, h, home && n === 1 ? -w * (asp < 1 ? 0.16 : 0.12) : 0, h * (home ? 0.2 : 0.32), w, h);
+		cam.setViewOffset(
+			w,
+			h,
+			mid ? w * (0.5 - GFX.menuCx) : 0,
+			gap ? h * (0.5 - gy) : mid ? h * (0.5 - GFX.menuCy) : h * (home ? (asp < 1 ? 0.26 : 0.2) : 0.32),
+			w,
+			h,
+		);
 		cam.updateProjectionMatrix();
 		cam.updateMatrixWorld();
 		swayStep(S.scene);

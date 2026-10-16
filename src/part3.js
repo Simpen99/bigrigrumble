@@ -377,7 +377,10 @@ function render() {
 	}
 	document.body.dataset.view = v;
 	/* menu style (CSS .pt): the menu views only, the board and minigames keep the HUD look */
-	$("#app").classList.toggle("pt", MENU_VIEWS.includes(v));
+	$("#app").classList.toggle("pt", MENU_VIEWS.includes(v) && v !== "home");
+	$("#app").classList.toggle("mm", v === "home");
+	$("#app").classList.toggle("lb", v === "home" && MM_LAY === "b");
+	if (v !== "home") homeOpen = null;
 	{
 		const tvp = role === "client" && !!G && !!G.tv && !SCREEN;
 		document.body.classList.toggle("tvphone", tvp);
@@ -423,7 +426,7 @@ function render() {
 		NET.err +
 		NET.code;
 	if (v === "join") key += JSON.stringify([othersHere().length, gamesAvailable().map((g) => g.id + ":" + g.v)]);
-	else if (v === "home") key += othersHere().length;
+	else if (v === "home") key += othersHere().length + "|" + homeSet;
 	else
 		key += JSON.stringify([
 			G && G.v,
@@ -436,8 +439,10 @@ function render() {
 	const app = $("#app"),
 		ae = document.activeElement,
 		keep = ae && ae.id && ae.tagName === "INPUT" ? { id: ae.id, v: ae.value, s: ae.selectionStart } : null;
-	if (v === "home") app.innerHTML = homeHTML();
-	else if (v === "join") app.innerHTML = joinHTML();
+	if (v === "home") {
+		app.innerHTML = homeHTML();
+		menuZoom();
+	} else if (v === "join") app.innerHTML = joinHTML();
 	else if (v === "practice") app.innerHTML = practiceHTML();
 	else if (v === "waiting")
 		app.innerHTML = `<div class="stage"></div><div class="sheet"><h2>Connecting to the host…</h2><p class="note">Hang tight. If this takes more than a few seconds, the host may have closed the game.</p><div style="margin-top:12px">${statusHTML()}</div><button class="btn ghost" data-a="leave" style="margin-top:12px">Back</button></div>`;
@@ -460,30 +465,104 @@ function render() {
 function carouselHTML(sel) {
 	return `<div class="carousel" id="car">${TRUCKS.map((t, i) => `<button class="tc ${i === sel ? "sel" : ""}" data-t="${i}" aria-pressed="${i === sel}"><img alt="" src="${thumb(i)}"><span>${esc(t.name)}</span></button>`).join("")}</div>`;
 }
+/* main menu (design_handoff_main_menu): logo, truck info, name plate and roster on the left, the live 3D truck centre-right (showroom camera in part2), buttons on the right; CSS .mm in part1. Art from UI_ART (partui.js) as CSS variables --ui-<name> */
+/* landscape main menu layout trial: "a" or "b" (Settings → Layout, localStorage trp_mmlay) */
+let MM_LAY = LS.get("trp_mmlay", "a") === "b" ? "b" : "a";
+let homeSet = false,
+	homeOpen = null;
+/* Host / Join open their two choices in place: the opened button slides up, the others fade out, the choices and Back fade in below (class op-host / op-join on .mm-act, no re-render so it animates) */
+function homeOpenSet() {
+	const el = $("#mmact");
+	if (!el) return;
+	el.classList.toggle("op-host", homeOpen === "host");
+	el.classList.toggle("op-join", homeOpen === "join");
+	el.querySelectorAll("[aria-expanded]").forEach((b) =>
+		b.setAttribute("aria-expanded", b.dataset.a === homeOpen + "menu"),
+	);
+}
+for (const k in UI_ART) document.documentElement.style.setProperty("--ui-" + k, `url(${UI_ART[k]})`);
+function menuZoom() {
+	const st = document.documentElement.style,
+		app = $("#app"),
+		cs = app && app.classList.contains("mm") && getComputedStyle(app),
+		pad = cs ? parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom) : 32;
+	st.setProperty("--mz", Math.min(innerWidth / 1280, innerHeight / 720).toFixed(4));
+	/* portrait: as wide as the plate row allows, but short enough that the stack (641 px at zoom 1) leaves 230 px for the truck */
+	st.setProperty(
+		"--mzp",
+		Math.max(0.5, Math.min(1.2, (innerWidth - 24) / 444, (innerHeight - pad - 230) / 641)).toFixed(4),
+	);
+	menuGap();
+}
+/* portrait: where the truck's gap is on the page (GFX.menuGap = [top, bottom] in CSS px), for the showroom camera */
+/* the screen's safe-area insets in CSS px (the notch side in landscape), read from a probe element that isn't zoomed */
+function safeInsets() {
+	let pr = safeInsets.el;
+	if (!pr) {
+		pr = safeInsets.el = document.createElement("div");
+		pr.style.cssText =
+			"position:fixed;left:0;top:0;width:0;height:0;visibility:hidden;pointer-events:none;padding-left:env(safe-area-inset-left,0px);padding-top:env(safe-area-inset-top,0px)";
+		document.body.appendChild(pr);
+	}
+	const cs = getComputedStyle(pr);
+	return { l: parseFloat(cs.paddingLeft) || 0, t: parseFloat(cs.paddingTop) || 0 };
+}
+function menuGap() {
+	const g = $(".mm-gap"),
+		sg = $(".mm-stage");
+	GFX.menuGap = GFX.menuCx = null;
+	/* landscape: the truck sits between its arrows (GFX.menuCx / menuCy = where on the screen, menuK = how much bigger the screen is than the zoomed menu, for the camera distance).
+	   Worked out from the layout's numbers (the .mm-stage rules in part1: A at left 25 + safe area, top 329, 651 x 64; B centred, top 280), not measured: iOS Safari reports zoomed elements' positions wrong */
+	if (sg && sg.offsetWidth) {
+		const z = Math.min(innerWidth / 1280, innerHeight / 720),
+			sa = safeInsets(),
+			x = MM_LAY === "b" ? innerWidth / 2 : sa.l + (25 + 651 / 2) * z,
+			y = sa.t + ((MM_LAY === "b" ? 280 : 329) + 32) * z;
+		GFX.menuCx = x / innerWidth;
+		GFX.menuCy = (y - 18 * z) / innerHeight;
+		GFX.menuK = innerHeight / 720 / z;
+	}
+	if (!g || !g.offsetHeight) return;
+	const r = g.getBoundingClientRect();
+	GFX.menuGap = [r.top + scrollY, r.bottom + scrollY];
+}
+menuZoom();
+addEventListener("resize", menuZoom);
+/* the truck's info beside the 3D truck (pickTruck swaps it): name, tagline, its die on stone tiles (coins gained green, paid red) */
 function showNameHTML(i) {
 	const t = TRUCKS[i];
-	return `<div class="showname"><div><h2>${esc(t.name)}</h2><p>${esc(t.blurb)}</p><div style="margin-top:8px">${facesHTML(t.faces)}</div></div><div class="arrows"><button class="arr" data-step="-1" aria-label="Previous truck">‹</button><button class="arr" data-step="1" aria-label="Next truck">›</button></div></div>`;
+	return `<div class="mm-nrow"><span class="mm-idx">TRUCK ${i + 1}/${TRUCKS.length}</span><h2 class="mm-name">${esc(t.name)}</h2></div><p class="mm-tag">${esc(t.blurb)}</p><div class="mm-dice" aria-label="Die faces">${t.faces.map((f, k) => `<span class="mm-die" style="--dt:var(--ui-dtile-${k + 1})">${f.m}${f.c ? `<small class="${f.c > 0 ? "up" : "dn"}">${f.c > 0 ? "+" : "−"}${Math.abs(f.c)}</small>` : ""}</span>`).join("")}</div>`;
 }
-function homeHTML() {
-	const saved = LS.get("trp_host", null);
-	const canResume = saved && saved.phase && saved.phase !== "over" && saved.players && saved.players.length;
-	return `<div class="stage"><div class="logo"><img class="lg" src="${LOGO_ART}" alt="Big Rig Rumble"></div><div id="shown">${showNameHTML(me.truck)}</div></div>
-  ${notice ? `<div class="banner">${esc(notice)}</div>` : ""}
-  <section class="sheet"><div class="ribbon"><span>Choose your truck</span></div><h2 class="rbh">Choose your truck</h2>${carouselHTML(me.truck)}
-  <p class="note" style="margin-top:4px">Each truck brings its own die. Small numbers under a face are coins you gain or pay when you roll it. The standard 1–6 die is always available too.</p>
-  <label class="field" style="margin-top:14px">Driver name<input id="nm" maxlength="12" value="${esc(me.name)}" placeholder="Your name" autocomplete="off"></label></section>
-  <section class="sheet stack">
-    ${canResume ? `<button class="btn go" data-a="resume"><i class="bi">▶️</i>Resume your hosted game</button>` : ""}
-    <button class="btn ${canResume ? "ghost" : "go"}" data-a="hosttv"><i class="bi">📺</i>Host on a big screen</button>
-    <button class="btn ghost" data-a="host"><i class="bi">📱</i>Host on this phone</button>
-    <button class="btn sign" data-a="joinlist"><i class="bi">📲</i>Join Game</button>
-    <button class="btn ghost" data-a="practice"><i class="bi">🎮</i>Minigame practice</button>
-    ${FINE && GFX.ok ? `<button class="btn ghost" data-a="editor"><i class="bi">🛠</i>Map editor</button>` : ""}
-    <div class="volbox">${volHTML()}</div>
-    <div>${statusHTML()}</div>
-    <button class="btn ghost small" data-dbg="open">🐞 Report a bug</button>
-  </section>
-  <details class="sheet how"><summary>How to play</summary><ul>
+/* roster: a rock slab per truck (four dark shapes in turn: [rock, width, selected width]); the selected truck's slab turns into the white rock of the same shape (--rw), about 15% bigger */
+const ROCKS = [
+	[1, 77, 88],
+	[2, 74, 89],
+	[4, 84, 91],
+	[5, 80, 91],
+];
+/* each truck's picture sized and shifted so its drawn part (GFX.thumbBox, props included) fills the rock's flat face, about 50 x 40 px in the middle: --iw = the 240 x 160 picture's width, --ix / --iy = the shift */
+function thumbFit(i) {
+	const b = GFX.thumbBox && GFX.thumbBox[i];
+	if (!b) return "";
+	const s = Math.min(50 / (b[2] - b[0] + 1), 40 / (b[3] - b[1] + 1));
+	return `--iw:${(240 * s).toFixed(1)}px;--ix:${((120 - (b[0] + b[2] + 1) / 2) * s).toFixed(1)}px;--iy:${((80 - (b[1] + b[3] + 1) / 2) * s).toFixed(1)}px`;
+}
+function rosterHTML(sel) {
+	return TRUCKS.map((t, i) => {
+		const [r, w, ws] = ROCKS[i % 4];
+		return `<button class="tc ${i === sel ? "sel" : ""}" data-t="${i}" aria-pressed="${i === sel}" aria-label="${esc(t.name)}" style="--rk:var(--ui-rock-d${r});--rw:var(--ui-rock-w${r});--w:${w}px;--ws:${ws}px;${thumbFit(i)}"><img alt="" src="${thumb(i)}"></button>`;
+	}).join("");
+}
+/* the name plate shrinks long names to fit */
+const npSize = (n) => Math.min(40, Math.floor((262 / Math.max(1, n) - 6) / 0.62));
+function settingsHTML() {
+	return `<div class="mm-pop"><button class="mm-scrim" data-a="setclose" aria-label="Close settings"></button><section class="mm-sheet" role="dialog" aria-label="Settings"><div class="mm-sh"><h2>SETTINGS</h2><button class="mm-x" data-a="setclose" aria-label="Close">✕</button></div>
+  <div class="seg" style="margin-bottom:12px"><button data-lay="a" class="${MM_LAY === "a" ? "on" : ""}">Layout A</button><button data-lay="b" class="${MM_LAY === "b" ? "on" : ""}">Layout B</button></div>
+  <div class="volbox">${volHTML()}</div>
+  <div style="margin-top:10px">${statusHTML()}</div>
+  <button class="btn ghost small" data-dbg="open">🐞 Report a bug</button>
+  <details class="how"><summary>How to play</summary><ul>
+    <li>Each truck brings its own die. Small numbers under a face are coins you gain or pay when you roll it. The standard 1–6 die is always available too.</li>
     <li>On your turn, pick the standard die or your truck's special die and roll.</li>
     <li>Blue tiles pay 3 coins, red tiles cost 3, and purple tiles trigger a surprise.</li>
     <li>Drive onto or past the battery factory with ${PRICE} coins to buy a battery. The factory then moves somewhere new.</li>
@@ -491,7 +570,27 @@ function homeHTML() {
     <li>After everyone moves, all drivers play a minigame at the same time. First place earns 10 coins.</li>
     <li>After the last round, the most batteries wins. Coins break ties.</li>
     <li>No second phone? The host can add players on the same phone and pass it around.</li>
-  </ul></details>`;
+  </ul></details></section></div>`;
+}
+/* DOM order = focus order: roster, plate, the buttons, then the top-right ones */
+function homeHTML() {
+	const saved = LS.get("trp_host", null);
+	const canResume = saved && saved.phase && saved.phase !== "over" && saved.players && saved.players.length;
+	return `<img class="mmg mm-logo" src="${LOGO_ART}" alt="Big Rig Rumble"><div class="mm-gap"></div>
+  ${notice ? `<div class="banner mm-notice">${esc(notice)}</div>` : ""}
+  <div class="mmg mm-info" id="shown">${showNameHTML(me.truck)}</div>
+  <div class="mmg mm-stage"><button class="mm-arr l" data-step="-1" tabindex="-1" aria-label="Previous truck"></button><button class="mm-arr r" data-step="1" tabindex="-1" aria-label="Next truck"></button></div>
+  <div class="mmg mm-roster" id="car">${rosterHTML(me.truck)}</div>
+  <div class="mmg mm-plate"><button class="mm-arr l" data-step="-1" tabindex="-1" aria-label="Previous truck"></button><label class="mm-np"><span>DRIVER NAME</span><input id="nm" maxlength="10" value="${esc(me.name)}" placeholder="DRIVER" autocomplete="off" spellcheck="false" style="font-size:${npSize((me.name || "DRIVER").length)}px"></label><button class="mm-arr r" data-step="1" tabindex="-1" aria-label="Next truck"></button></div>
+  <div class="mmg mm-act${homeOpen ? " op-" + homeOpen : ""}" id="mmact">
+    <div class="mm-hs"><button class="mb mb-y mm-host" data-a="hostmenu" aria-expanded="${homeOpen === "host"}"><span>Host</span></button></div>
+    <div class="mm-row one mm-js"><button class="mb mb-g mm-join" data-a="joinmenu" aria-expanded="${homeOpen === "join"}"><span>Join</span></button></div>
+    <div class="mm-row sm mm-more"><button class="mb mb-d1" data-a="practice"><span>Practice</span></button>${FINE && GFX.ok ? `<button class="mb mb-d2" data-a="editor"><span>Map editor</span></button>` : ""}</div>
+    <div class="mm-opts mm-oh"><div class="mm-row"><button class="mb mb-y" data-a="hosttv"><span>TV + phones</span></button><button class="mb mb-y" data-a="host"><span>Phones only</span></button></div><button class="mb mb-d1 mm-back" data-a="menuback"><span>Back</span></button></div>
+    <div class="mm-opts mm-oj"><div class="mm-row"><button class="mb mb-g" data-a="joinas" data-as="phone"><span>Player</span></button><button class="mb mb-g" data-a="joinas" data-as="screen"><span>Big screen</span></button></div><button class="mb mb-d1 mm-back" data-a="menuback"><span>Back</span></button></div>
+  </div>
+  <div class="mmg mm-top">${canResume ? `<button class="mb mb-y" data-a="resume"><span>Resume</span></button>` : ""}<button class="mb mb-w" data-a="settings"><span>Settings</span></button></div>
+  ${homeSet ? settingsHTML() : ""}`;
 }
 function diagHTML() {
 	if (!room)
