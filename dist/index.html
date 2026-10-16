@@ -998,7 +998,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-16 12:25 f7fcb27";
+const BUILD = "2026-10-16 12:45 429379b";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -38893,10 +38893,10 @@ const TS = {
 	FZ: 24 /* half its length (z), to the goal lines */,
 	CR: 6 /* corner radius */,
 	GW: 5.5 /* half the goal mouth's width */,
-	GH: 3.4 /* goal height */,
+	GH: 4.8 /* goal height (tall enough for a boosted shot that pops the ball up) */,
 	GD: 3.2 /* goal depth behind the line */,
 	BR: 1.45 /* ball radius */,
-	WALL: 4.4 /* wall + glass height */,
+	WALL: 6.2 /* wall + glass height (above the goals) */,
 	KERB: 1.2 /* the solid kerb under the glass */,
 	H: 1 / 120 /* ball physics step */,
 	GRAV: 22,
