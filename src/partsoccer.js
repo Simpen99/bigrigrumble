@@ -362,6 +362,10 @@ Object.assign(MG, {
 		bare: true,
 		noAssist: true,
 		camZoom: 1.1,
+		/* snappier steering than the other stick games (arenaPhys: 32 / 2.6 / 10): about the same top speed, turns in half the time */
+		acc: 60,
+		damp: 5,
+		turn: 16,
 		sun: [13.9, 41, 12.1],
 		lt: { amb: 0.42, sun: 0.7, warm: 0.3, haze: 50 },
 		fx: { aa: 1 },
