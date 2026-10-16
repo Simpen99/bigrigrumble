@@ -40,6 +40,18 @@ const TS = {
 	POP: 14 /* m/s up when the ball is squeezed between two trucks (about 2.9 m up, clear over the roofs) */,
 	ESC: 7 /* m/s sideways for a popped ball, so it lands out of the pile (about 6 m away), and off a roof */,
 	ROOF: 0.6 /* a ball falling onto a truck with its bottom this high rolls off the roof */,
+	/* JUMP (the second button, Rocket League style): a hop, then a second tap in the air flips the truck the way the stick
+	   points (or forward), a burst of FLIPV m/s; a flip into the ball is a power hit (+FLIPK m/s). BOOST in the air is an
+	   aerial: AERV m/s up and AERH m/s forward. AIRC = how much the stick steers in the air */
+	JUMP: 10,
+	TGRAV: 26 /* the trucks' gravity: a hop is about 1.9 m and 0.8 s */,
+	FLIPWIN: 1.4 /* s after the jump the flip can still be used */,
+	FLIPV: 13,
+	FLIPDUR: 0.5 /* s the flip's spin takes */,
+	FLIPK: 11,
+	AERV: 9,
+	AERH: 8,
+	AIRC: 10,
 };
 /* where a circle of radius r centred at (x, z) is pushed back to (walls, goal posts, nets), or null when it fits;
    ball = true: the goal mouth is only open under the crossbar (y = the ball's height). Returns {x, z, nx, nz} with
@@ -151,7 +163,7 @@ function tsBallMesh() {
 		geo,
 		new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.55 }),
 	);
-	m.castShadow = true;
+	/* no sun shadow: the round shadow straight under it (drawBall) shows where it is, a second one off to the side was confusing */
 	return m;
 }
 /* the turf: mown stripes, the lines, both goal floors tinted in the team that defends them */
@@ -272,8 +284,9 @@ Object.assign(MG, {
 		how: "Push the ball into the other team's goal. Most goals wins!",
 		teamHow: (s) =>
 			s === 0 ? "Blue: score in the far goal (up the screen)." : "Red: score in the near goal (down the screen).",
-		tvHint: "Drag to drive · BOOST smashes the ball",
+		tvHint: "Drag to drive · BOOST smashes the ball · JUMP, again in the air to flip",
 		ramLabel: "BOOST",
+		btn2: () => "JUMP",
 		/* where trucks line up for a kickoff: each team on its own half, side by side, facing the ball (j of n team mates) */
 		spotAt(sd, j, n) {
 			return {
@@ -295,7 +308,7 @@ Object.assign(MG, {
 		},
 		initEnt(W, e) {
 			if (e.side === undefined) e.side = W.list.indexOf(e) % 2;
-			e.f = { bl: null, gl: [] };
+			e.f = { bl: null, gl: [], fp: null };
 		},
 		build(W) {
 			const T = TS,
@@ -579,12 +592,18 @@ Object.assign(MG, {
 					e.z = p.z;
 					e.yaw = p.yaw;
 				}
-				e.vx = e.vz = 0;
+				e.vx = e.vz = e.vy = e.y = 0;
+				e.air = false;
 				e.boostT = 0;
+				if (inp) inp.b2 = false;
 				return;
 			}
 			e.spotted = false;
-			arenaPhys(W, e, inp, dt);
+			const jump = !!(inp && inp.b2);
+			if (inp) inp.b2 = false;
+			if (jump && e.al && !e.d) this.jump(W, e, inp);
+			if (e.air) this.airPhys(W, e, inp, dt);
+			else arenaPhys(W, e, inp, dt);
 			const c = tsClamp(e.x, e.z, e.rad || 0.95, false, 0);
 			if (c) {
 				e.x = c.x;
@@ -594,6 +613,86 @@ Object.assign(MG, {
 					e.vx -= 1.5 * vn * c.nx;
 					e.vz -= 1.5 * vn * c.nz;
 				}
+			}
+		},
+		/* JUMP on the ground hops; again in the air (once, within FLIPWIN s) flips the way the stick points, or forward.
+		   The flip's start is shared (e.f.fp) so every device draws the spin; the height travels with the truck's y */
+		jump(W, e, inp) {
+			const T = TS;
+			if (!e.air) {
+				e.air = true;
+				e.vy = T.JUMP;
+				e.y = Math.max(e.y || 0, 0.01);
+				e.flipOk = true;
+				e.jumpT = W.t;
+				if (e.isMe || W.tv) sfx("whoosh");
+				mgLog(W, `jump ${mgName(e)}`);
+				return;
+			}
+			if (!e.flipOk || W.t - e.jumpT > T.FLIPWIN) return;
+			e.flipOk = false;
+			let dx = inp ? inp.x : 0,
+				dz = inp ? inp.y : 0,
+				l = Math.hypot(dx, dz);
+			if (l < 0.3) {
+				dx = Math.cos(e.yaw);
+				dz = -Math.sin(e.yaw);
+				l = 1;
+			}
+			dx /= l;
+			dz /= l;
+			e.vx = e.vx * 0.4 + dx * T.FLIPV;
+			e.vz = e.vz * 0.4 + dz * T.FLIPV;
+			e.vy = Math.max(e.vy * 0.3, 2);
+			e.yaw = Math.atan2(-dz, dx);
+			e.flipT = W.t;
+			e.flipD = [dx, dz];
+			e.f.fp = [Math.round(W.t * 1000) / 1000];
+			if (e.isMe || W.tv) sfx("whoosh");
+			mgLog(W, `flip ${mgName(e)}`);
+		},
+		/* in the air: gravity, a little steering, BOOST = an aerial push up and forward; landing puts it back on the
+		   ground physics */
+		airPhys(W, e, inp, dt) {
+			const T = TS;
+			if (inp && e.al && !e.d) {
+				e.vx += inp.x * T.AIRC * dt;
+				e.vz += inp.y * T.AIRC * dt;
+				if (inp.boost && e.bcd <= 0) {
+					let dx = inp.x,
+						dz = inp.y,
+						l = Math.hypot(dx, dz);
+					if (l < 0.3) {
+						dx = Math.cos(e.yaw);
+						dz = -Math.sin(e.yaw);
+						l = 1;
+					}
+					e.vx += (dx / l) * T.AERH;
+					e.vz += (dz / l) * T.AERH;
+					e.vy = Math.max(e.vy, 0) + T.AERV;
+					e.bcd = e.ramCdT || 2;
+					e.boostT = 0.45;
+					mgLog(W, `aerial ${mgName(e)}`);
+				}
+			}
+			if (inp) inp.boost = false;
+			e.bcd = Math.max(0, e.bcd - dt);
+			e.boostT = Math.max(0, e.boostT - dt);
+			e.vy -= T.TGRAV * dt;
+			e.x += e.vx * dt;
+			e.z += e.vz * dt;
+			e.y += e.vy * dt;
+			const sp = Math.hypot(e.vx, e.vz);
+			if (sp > 23) {
+				e.vx *= 23 / sp;
+				e.vz *= 23 / sp;
+			}
+			if (sp > 0.6 && !(W.t - (e.flipT || -9) < T.FLIPDUR))
+				e.yaw = lerpA(e.yaw, Math.atan2(-e.vz, e.vx), Math.min(1, dt * 4));
+			if (e.y <= 0) {
+				e.y = e.vy = 0;
+				e.air = false;
+				if (e.isMe) sfx("land");
 			}
 		},
 		/* goals so far (the union of everyone's announcements, the earliest per kickoff, in order) */
@@ -756,7 +855,8 @@ Object.assign(MG, {
 		},
 		/* a local truck touching the ball kicks it. Steering into it is control: the ball leaves at about the truck's own
 		   speed (so you can dribble it), aimed partly the way the truck faces, and stays down unless you hit it fast.
-		   BOOST is the shot: much harder, with a chip up */
+		   BOOST is the shot: much harder, with a chip up. A jumping truck hits it at its own height (a truck rising into
+		   the ball lifts it), a flipping one hits it hard the way it flips */
 		rules(W, e) {
 			e.sc = this.final(W, e);
 			const T = TS,
@@ -767,11 +867,13 @@ Object.assign(MG, {
 				dz = b.z - e.z,
 				d = Math.hypot(dx, dz),
 				r = (e.rad || 0.95) + T.BR * 0.92;
-			if (d > r || d < 0.001 || b.y - T.BR > 1.45) return;
+			const ey = e.y || 0;
+			if (d > r || d < 0.001 || b.y - T.BR > ey + 1.45 || b.y + T.BR < ey + 0.2) return;
 			const nx = dx / d,
 				nz = dz / d,
 				ts = Math.max(0, e.vx * nx + e.vz * nz),
 				boost = e.boostT > 0,
+				flip = W.t - (e.flipT || -9) < T.FLIPDUR && e.flipD,
 				hx = Math.cos(e.yaw),
 				hz = -Math.sin(e.yaw),
 				/* the ball in front of the truck goes partly where the truck faces */
@@ -781,8 +883,15 @@ Object.assign(MG, {
 			const ul = Math.hypot(ux, uz) || 1;
 			ux /= ul;
 			uz /= ul;
+			if (flip) {
+				ux = ux * 0.4 + flip[0] * 0.6;
+				uz = uz * 0.4 + flip[1] * 0.6;
+				const fl = Math.hypot(ux, uz) || 1;
+				ux /= fl;
+				uz /= fl;
+			}
 			const ba = b.vx * ux + b.vz * uz,
-				along = Math.max(ba, boost ? ts * 1.1 + T.SHOT : ts * T.TOUCH + 0.6);
+				along = Math.max(ba, boost ? ts * 1.1 + T.SHOT : flip ? ts * 1.1 + T.FLIPK : ts * T.TOUCH + 0.6);
 			let vx = (b.vx - ba * ux) * 0.5 + ux * along,
 				vz = (b.vz - ba * uz) * 0.5 + uz * along;
 			const sp = Math.hypot(vx, vz);
@@ -790,12 +899,17 @@ Object.assign(MG, {
 				vx *= T.MAXV / sp;
 				vz *= T.MAXV / sp;
 			}
-			let vy = Math.max(b.vy, boost ? T.CHIP : Math.min(3, Math.max(0, ts - 8) * 0.6));
+			let vy = Math.max(b.vy, boost ? T.CHIP : flip ? 3 : Math.min(3, Math.max(0, ts - 8) * 0.6));
+			/* in the air: the ball above the truck's middle goes up with it */
+			if (ey > 0.2) {
+				const up = Math.max(0, Math.min(1, (b.y - (ey + 0.8)) / (T.BR + 0.8)));
+				vy = Math.max(vy, (e.vy || 0) * 0.8 + up * along * 0.7);
+			}
 			/* a scrum: another truck right on the far side of the ball. The ball shoots up out of the pile instead of
 			   being squeezed back and forth between them: off to the side of the two trucks (the side the kicker faces),
 			   so it doesn't land back between them. A BOOST keeps its shot and pops it over the other truck */
 			const jam = W.list.find((o) => {
-				if (o === e || o.gone || !o.al || o.falling) return false;
+				if (o === e || o.gone || !o.al || o.falling || Math.abs((o.y || 0) - ey) > 1.2) return false;
 				const ox = o.x - b.x,
 					oz = o.z - b.z;
 				return Math.hypot(ox, oz) < (o.rad || 0.95) + T.BR * 1.02 && ox * vx + oz * vz > 0;
@@ -812,7 +926,7 @@ Object.assign(MG, {
 					vz = vz * 0.3 + pz * T.ESC;
 				}
 				vy = Math.max(vy, T.POP);
-			} else if (b.vy < 0 && b.y - T.BR > T.ROOF) {
+			} else if (b.vy < 0 && b.y - T.BR - ey > T.ROOF) {
 				/* coming down onto a truck: a small hop and rolled off the side of the roof (away from the truck's middle),
 				   instead of sinking into it or bouncing on it */
 				vy = Math.max(vy, -b.vy * 0.25);
@@ -843,7 +957,7 @@ Object.assign(MG, {
 			}
 			mgLog(
 				W,
-				`kick ${mgName(e)} ${boost ? "BOOST " : ""}${jam ? "POP " : b.y - T.BR > T.ROOF ? "ROOF " : ""}${Math.round(Math.min(sp, T.MAXV))} m/s`,
+				`kick ${mgName(e)} ${boost ? "BOOST " : ""}${flip ? "FLIP " : ""}${ey > 0.2 ? "AIR " : ""}${jam ? "POP " : b.y - T.BR - ey > T.ROOF ? "ROOF " : ""}${Math.round(Math.min(sp, T.MAXV))} m/s`,
 			);
 		},
 		/* each player's result: their team's goals * 100 + the other team's (the host compares sides with teamWin) */
@@ -888,8 +1002,8 @@ Object.assign(MG, {
 		cam(W, tgt, pos, far) {
 			const b = W.bDraw || { x: 0, z: 0 };
 			if (W.tv) {
-				const t = new THREE.Vector3(b.x * 0.05, 0, b.z * 0.05 + 5.5);
-				return [t, t.clone().add(new THREE.Vector3(0, 52, 27))];
+				const t = new THREE.Vector3(b.x * 0.05, 0, b.z * 0.12 + 5.5);
+				return [t, t.clone().add(new THREE.Vector3(0, 55, 28.5))];
 			}
 			if (mgSpec(W)) return [tgt, pos];
 			const me = W.me,
@@ -898,6 +1012,21 @@ Object.assign(MG, {
 			return [t, t.clone().add(new THREE.Vector3(0, 23 * zm, 17 * zm))];
 		},
 		render(W, e, dt) {
+			/* a flip: one somersault round the truck's middle (the shared start time e.f.fp, so remote trucks spin too);
+			   the colour disc stays on the ground under a jumping truck */
+			const fp = e.f && e.f.fp,
+				ft = fp ? W.t - fp[0] : 9;
+			if (ft >= 0 && ft < TS.FLIPDUR) {
+				const q = ft / TS.FLIPDUR,
+					a = q * q * (3 - 2 * q) * Math.PI * 2,
+					h = 0.75,
+					sa = Math.sin(a);
+				e.tr.rotation.x = 0;
+				e.tr.rotation.z = -a;
+				e.tr.position.set(-h * sa * Math.cos(e.yaw), h * (1 - Math.cos(a)), h * sa * Math.sin(e.yaw));
+			} else if (e.tr.position.y) e.tr.position.set(0, 0, 0);
+			if (e.disc === undefined) e.disc = e.g.children.find((c) => c.userData.disc) || null;
+			if (e.disc) e.disc.position.y = 0.03 - Math.max(0, e.y || 0);
 			if (W.crowdT !== W.t) {
 				W.crowdT = W.t;
 				W.hype = Math.max(0, (W.hype || 0) - dt * 0.4);
@@ -937,7 +1066,10 @@ Object.assign(MG, {
 				lined = (tx * ux + tz * uz) / td;
 			if (lined > 0.75) {
 				const o = steer(e, px + ux * 2, pz + uz * 2, 1);
-				o.boost = td < 5.5 && e.bcd <= 0 && W.rng() < 0.06;
+				o.boost = !e.air && td < 5.5 && e.bcd <= 0 && W.rng() < 0.06;
+				/* a ball up in the air just ahead: jump for it, and flip into it once close */
+				if (!e.air && b.y - T.BR > 1 && td < 6 && W.rng() < 0.15) o.b2 = true;
+				else if (e.air && e.flipOk && td < 3.6 && W.t - e.jumpT > 0.2) o.b2 = true;
 				return o;
 			}
 			/* swing round the ball to get behind it, keeping clear of it */

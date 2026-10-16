@@ -90,7 +90,7 @@ sizes on the TV and on phones (`camK` in `fbStep`: size follows the camera dista
 - Team game ideas: Paint the Lot: Teams (2v2, cheapest), Getaway (1v3: armoured cash truck, reverse Mash), Tow Rope Tug-of-War (2v2), Relay Delivery (2v2), Wrecking Ball (1v3 on the Mud Bowl), Traffic Cop (1v3). 1v2 needs spaceSplit to allow 3 trucks.
 - Done: Hot Load (`hotload`, partmg3), Paint the Lot (`paint`, partmg3), team mode + Monster Mash (`mash`, partmg3, 1v3), Getaway (`getaway`, partmg3, 1v3 highway chase, 2026-10-14).
 - **Magnet Mike's Crane** (1v3): the solo player works a scrapyard magnet crane and lifts the others out of the arena.
-- **Truck Soccer**: built (`soccer`, partsoccer.js, 2v2, a Rocket League style arena, 2026-10-16). Next ideas: boost pads on the pitch, a jump / flip button, overtime instead of a draw, 2v2 minigame music.
+- **Truck Soccer**: built (`soccer`, partsoccer.js, 2v2, a Rocket League style arena, 2026-10-16). JUMP button added 2026-10-16 (hop, flip in the air, BOOST in the air = aerial). Next ideas: boost pads on the pitch, overtime instead of a draw, 2v2 minigame music.
 - Team mode is in (`spaceSplit` in partgame). 2v2 splits now play Truck Soccer (the only 2v2 game so far). Monster Mash follow-up: boss intro (camera swoop + name card during the countdown). Done: monster versions of all 12 trucks (`buildTruck(i, "monster")`), FIRE/POUND buttons (also on TV controllers), dusk stadium look.
 
 ## Volcano Quarry bridge ideas
