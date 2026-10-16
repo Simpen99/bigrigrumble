@@ -29,6 +29,7 @@ const TS = {
 	AIR: 0.99979 /* air drag per step */,
 	KO: 3.5 /* s from a goal to the next kickoff */,
 	WIN: 3 /* goals to win the match */,
+	STUN: 0.5 /* s a truck can't steer, boost or jump after being BOOSTed into (a tackle) */,
 	WINWAIT: 3 /* s of celebration after the winning goal before the match ends */,
 	HOLD: 1.6 /* s before a kickoff when the trucks are put back on their spots */,
 	GOALWAIT: 1.2 /* s the host waits for the kicker's device to announce a goal before it does */,
@@ -314,7 +315,7 @@ Object.assign(MG, {
 		},
 		initEnt(W, e) {
 			if (e.side === undefined) e.side = W.list.indexOf(e) % 2;
-			e.f = { bl: null, gl: [], fp: null };
+			e.f = { bl: null, gl: [], fp: null, st: 0 };
 		},
 		build(W) {
 			const T = TS,
@@ -631,6 +632,19 @@ Object.assign(MG, {
 			}
 		},
 		drive(W, e, inp, dt) {
+			/* a tackle: rammed by a BOOSTing truck (the engine's ram, on this device or sent over by the rammer's) stuns
+			   for STUN s: no steering, boost or jump, the knock carries it. The stun's end is shared (e.f.st) for the wobble */
+			const lh = e.lastHit;
+			if (lh && lh.t !== e.stunSeen && /^rammed/.test(lh.k)) {
+				e.stunSeen = lh.t;
+				e.f.st = Math.round((W.t + TS.STUN) * 1000) / 1000;
+				fb(W, e, "STUNNED", { tone: "bad" });
+				mgLog(W, `tackle on ${mgName(e)} (${lh.k})`);
+			}
+			if (W.t < (e.f.st || 0)) {
+				if (inp) inp.boost = inp.b2 = false;
+				inp = { x: 0, y: 0, boost: false, b2: false };
+			}
 			const jump = !!(inp && inp.b2);
 			if (inp) inp.b2 = false;
 			if (jump && e.al && !e.d) this.jump(W, e, inp);
@@ -1104,6 +1118,8 @@ Object.assign(MG, {
 				e.tr.rotation.z = -a;
 				e.tr.position.set(-h * sa * Math.cos(e.yaw), h * (1 - Math.cos(a)), h * sa * Math.sin(e.yaw));
 			} else if (e.tr.position.y) e.tr.position.set(0, 0, 0);
+			/* stunned: a quick wobble */
+			if (W.t < ((e.f && e.f.st) || 0) && !(ft >= 0 && ft < TS.FLIPDUR)) e.tr.rotation.x = Math.sin(W.t * 45) * 0.14;
 			if (e.disc === undefined) e.disc = e.g.children.find((c) => c.userData.disc) || null;
 			if (e.disc) e.disc.position.y = 0.03 - Math.max(0, e.y || 0);
 			if (W.crowdT !== W.t) {
