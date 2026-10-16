@@ -38,7 +38,7 @@ const TS = {
 	   m/s with CHIP m/s up; AIM = how much the ball follows the way the truck faces instead of the contact direction */
 	TOUCH: 1.05,
 	SHOT: 13,
-	CHIP: 4.5,
+	CHIP: 9 /* about 1.2 m up at the top, still under the crossbar */,
 	AIM: 0.45,
 	POP: 14 /* m/s up when the ball is squeezed between two trucks (about 2.9 m up, clear over the roofs) */,
 	ESC: 7 /* m/s sideways for a popped ball, so it lands out of the pile (about 6 m away), and off a roof */,
