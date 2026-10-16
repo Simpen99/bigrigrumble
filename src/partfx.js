@@ -1208,6 +1208,26 @@ const LOBBY_MUS = "music/lobby.mp3",
 	MENU_VIEWS = ["home", "join", "waiting", "practice", "lobby"];
 /* fetched at load, so the first tap starts it quickly */
 audLoad(LOBBY_MUS);
+/* minigame music per mode (the user's Suno songs, by def.team; free-for-all later): from the countdown until the game is
+   over, once per screen. Fetched while the ready screen is up. Games with their own song (Getaway, Monster Mash) are
+   1 vs 3, which has none here yet */
+const MODE_MUS = { "2v2": "music/2v2.mp3" };
+function modeMus(W) {
+	const url = MODE_MUS[W.def.team || "ffa"];
+	if (!url || (W.split && typeof TVS !== "undefined" && TVS && TVS.worlds[0].W !== W)) return;
+	if (!W.mmus) {
+		W.mmus = 1;
+		audLoad(url);
+	}
+	if (W.mmus === 1 && W.t > -2.5) {
+		W.mmus = 2;
+		musTrack(url, 0.75);
+	}
+	if (W.mmus === 2 && W.over) {
+		W.mmus = 3;
+		musStop(2.5);
+	}
+}
 function musScene(v) {
 	if (!SFX.ctx) return;
 	/* nothing starts until the audio has been running a moment (iPhone Safari knocks when a song starts the instant the first tap wakes the audio); try again shortly */

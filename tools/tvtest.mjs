@@ -45,7 +45,7 @@ const nPh = Math.max(1, +opt.phones || 2),
 				);
 			},
 		});
-const TV = await mk("TV", 0, { width: 960, height: 540 }, false),
+const TV = await mk("TV", 0, { width: +process.env.TVW || 960, height: +process.env.TVH || 540 }, false),
 	PH = [];
 for (let i = 0; i < nPh; i++) PH.push(await mk("Phone" + (i + 1), (i * 3 + 2) % 12, { width: 844, height: 390 }, true));
 const SC = opt.screen ? await mk("Screen", 0, { width: 640, height: 360 }, false) : null;

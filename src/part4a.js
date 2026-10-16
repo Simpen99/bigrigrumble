@@ -273,6 +273,8 @@ function eliminate(W, e) {
 		mgLog(W, `OUT ${mgName(e)} (${h})`);
 	}
 }
+/* stick driving: the stick pushes the truck (def.acc m/s², default 32), drag eats its speed (def.damp a second, default
+   2.6), its nose swings to where it is going (def.turn, default 10): higher = snappier */
 function arenaPhys(W, e, inp, dt) {
 	const def = W.def;
 	if ((e.falling || e.fly) && def.fallPhys && def.fallPhys(W, e, dt)) return;
@@ -286,8 +288,8 @@ function arenaPhys(W, e, inp, dt) {
 		return;
 	}
 	if (e.al && !e.d && inp) {
-		e.vx += inp.x * 32 * (e.spd || 1) * dt;
-		e.vz += inp.y * 32 * (e.spd || 1) * dt;
+		e.vx += inp.x * (def.acc || 32) * (e.spd || 1) * dt;
+		e.vz += inp.y * (def.acc || 32) * (e.spd || 1) * dt;
 		if (inp.boost && e.bcd <= 0 && !def.aim) {
 			let dx = inp.x,
 				dz = inp.y,
@@ -315,7 +317,7 @@ function arenaPhys(W, e, inp, dt) {
 	e.bcd = Math.max(0, e.bcd - dt);
 	e.boostT = Math.max(0, e.boostT - dt);
 	e.slideT = Math.max(0, (e.slideT || 0) - dt);
-	const damp = Math.exp(-(e.boostT > 0 ? 1.1 : e.slideT > 0 ? 0.9 : 2.6) * dt);
+	const damp = Math.exp(-(e.boostT > 0 ? 1.1 : e.slideT > 0 ? 0.9 : def.damp || 2.6) * dt);
 	e.vx *= damp;
 	e.vz *= damp;
 	const sp = Math.hypot(e.vx, e.vz),
@@ -326,7 +328,7 @@ function arenaPhys(W, e, inp, dt) {
 	}
 	e.x += e.vx * dt;
 	e.z += e.vz * dt;
-	if (sp > 0.6) e.yaw = lerpA(e.yaw, Math.atan2(-e.vz, e.vx), Math.min(1, dt * 10));
+	if (sp > 0.6) e.yaw = lerpA(e.yaw, Math.atan2(-e.vz, e.vx), Math.min(1, dt * (def.turn || 10)));
 	const b = def.bound;
 	if (b.t === "sq") {
 		if (Math.abs(e.x) > b.h) {
@@ -806,6 +808,7 @@ function finishMe() {
 function stepMG(dt) {
 	const def = W.def;
 	W.t = W.startAt ? ((W.paused || Date.now()) - W.startAt) / 1000 : -99;
+	modeMus(W);
 	if (def.ctrl === "stick" && !W.split) {
 		if (def.aim) {
 			const am = kbAxis("arrows");
