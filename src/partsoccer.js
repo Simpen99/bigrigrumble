@@ -21,7 +21,7 @@ const TS = {
 	WALL: 6.2 /* wall + glass height (above the goals) */,
 	KERB: 1.2 /* the solid kerb under the glass */,
 	H: 1 / 120 /* ball physics step */,
-	GRAV: 22,
+	GRAV: 34 /* the ball falls fast, so it is on the ground more than in the air */,
 	FLOOR: 0.55 /* floor bounce */,
 	BOUNCE: 0.7 /* wall bounce */,
 	ROLL: 0.99625 /* rolling slow-down per step (about 0.64 per second) */,
@@ -37,9 +37,9 @@ const TS = {
 	SHOT: 13,
 	CHIP: 4.5,
 	AIM: 0.45,
-	POP: 12 /* m/s up when the ball is squeezed between two trucks (about 3.3 m up, clear over the roofs) */,
-	ESC: 6 /* m/s sideways for a popped ball, so it lands out of the pile (about 6 m away) */,
-	ROOF: 0.6 /* a ball falling onto a truck with its bottom this high bounces off the roof */,
+	POP: 14 /* m/s up when the ball is squeezed between two trucks (about 2.9 m up, clear over the roofs) */,
+	ESC: 7 /* m/s sideways for a popped ball, so it lands out of the pile (about 6 m away), and off a roof */,
+	ROOF: 0.6 /* a ball falling onto a truck with its bottom this high rolls off the roof */,
 };
 /* where a circle of radius r centred at (x, z) is pushed back to (walls, goal posts, nets), or null when it fits;
    ball = true: the goal mouth is only open under the crossbar (y = the ball's height). Returns {x, z, nx, nz} with
@@ -810,8 +810,14 @@ Object.assign(MG, {
 				}
 				vy = Math.max(vy, T.POP);
 			} else if (b.vy < 0 && b.y - T.BR > T.ROOF) {
-				/* coming down onto a truck: off the roof again instead of sinking into it */
-				vy = Math.max(vy, -b.vy * 0.6, T.POP * 0.5);
+				/* coming down onto a truck: a small hop and rolled off the side of the roof (away from the truck's middle),
+				   instead of sinking into it or bouncing on it */
+				vy = Math.max(vy, -b.vy * 0.25);
+				const off = vx * nx + vz * nz;
+				if (off < T.ESC) {
+					vx += nx * (T.ESC - off);
+					vz += nz * (T.ESC - off);
+				}
 			}
 			/* the kick only changes the ball's speed, it starts from where the ball is (a nudge out of the kicking truck,
 			   never a jump: putting it on the far side of the kicker made it blink through the trucks in a scrum) */
@@ -832,7 +838,10 @@ Object.assign(MG, {
 				if (e.isMe || W.tv) W.shake = Math.max(W.shake || 0, boost ? 0.3 : 0.15);
 				sfx("ram");
 			}
-			mgLog(W, `kick ${mgName(e)} ${boost ? "BOOST " : ""}${jam ? "POP " : ""}${Math.round(Math.min(sp, T.MAXV))} m/s`);
+			mgLog(
+				W,
+				`kick ${mgName(e)} ${boost ? "BOOST " : ""}${jam ? "POP " : b.y - T.BR > T.ROOF ? "ROOF " : ""}${Math.round(Math.min(sp, T.MAXV))} m/s`,
+			);
 		},
 		/* each player's result: their team's goals * 100 + the other team's (the host compares sides with teamWin) */
 		final(W, e) {
