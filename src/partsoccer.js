@@ -37,6 +37,7 @@ const TS = {
 	SHOT: 13,
 	CHIP: 4.5,
 	AIM: 0.45,
+	POP: 6 /* m/s up when the ball is squeezed between two trucks */,
 };
 /* where a circle of radius r centred at (x, z) is pushed back to (walls, goal posts, nets), or null when it fits;
    ball = true: the goal mouth is only open under the crossbar (y = the ball's height). Returns {x, z, nx, nz} with
@@ -784,9 +785,25 @@ Object.assign(MG, {
 				vx *= T.MAXV / sp;
 				vz *= T.MAXV / sp;
 			}
-			const vy = Math.max(b.vy, boost ? T.CHIP : Math.min(3, Math.max(0, ts - 8) * 0.6));
-			let x = e.x + nx * (r + 0.05),
-				z = e.z + nz * (r + 0.05);
+			let vy = Math.max(b.vy, boost ? T.CHIP : Math.min(3, Math.max(0, ts - 8) * 0.6));
+			/* a scrum: another truck right on the far side of the ball. The ball squirts up out of the pile instead of
+			   being squeezed back and forth between them */
+			const jam = W.list.some((o) => {
+				if (o === e || o.gone || !o.al || o.falling) return false;
+				const ox = o.x - b.x,
+					oz = o.z - b.z;
+				return Math.hypot(ox, oz) < (o.rad || 0.95) + T.BR * 1.02 && ox * vx + oz * vz > 0;
+			});
+			if (jam) {
+				vx *= 0.45;
+				vz *= 0.45;
+				vy = Math.max(vy, T.POP);
+			}
+			/* the kick only changes the ball's speed, it starts from where the ball is (a nudge out of the kicking truck,
+			   never a jump: putting it on the far side of the kicker made it blink through the trucks in a scrum) */
+			const push = Math.min(0.15, Math.max(0, r - d));
+			let x = b.x + nx * push,
+				z = b.z + nz * push;
 			const c = tsClamp(x, z, T.BR, true, b.y);
 			if (c) {
 				x = c.x;
