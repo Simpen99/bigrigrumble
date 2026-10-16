@@ -69,7 +69,7 @@ const TS = {
 	/* kicks (rules): a plain touch sends the ball at TOUCH x the truck's speed (+0.6 m/s), a BOOST shot at 1.1 x + SHOT
 	   m/s with CHIP m/s up; AIM = how much the ball follows the way the truck faces instead of the contact direction */
 	TOUCH: 1.05,
-	SHOT: 7 /* boosting, the truck is already fast: the shot adds this on top */,
+	SHOT: 8.5 /* boosting, the truck is already fast: the shot adds this on top */,
 	CHIP: 11 /* about 1.8 m up at the top */,
 	AIM: 0.45,
 	POP: 14 /* m/s up when the ball is squeezed between two trucks (about 2.9 m up, clear over the roofs) */,

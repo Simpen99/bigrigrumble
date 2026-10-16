@@ -998,7 +998,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-16 20:17 b281f6e";
+const BUILD = "2026-10-16 20:22 3915e80";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -38970,7 +38970,7 @@ const TS = {
 	/* kicks (rules): a plain touch sends the ball at TOUCH x the truck's speed (+0.6 m/s), a BOOST shot at 1.1 x + SHOT
 	   m/s with CHIP m/s up; AIM = how much the ball follows the way the truck faces instead of the contact direction */
 	TOUCH: 1.05,
-	SHOT: 7 /* boosting, the truck is already fast: the shot adds this on top */,
+	SHOT: 8.5 /* boosting, the truck is already fast: the shot adds this on top */,
 	CHIP: 11 /* about 1.8 m up at the top */,
 	AIM: 0.45,
 	POP: 14 /* m/s up when the ball is squeezed between two trucks (about 2.9 m up, clear over the roofs) */,
