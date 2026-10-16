@@ -806,6 +806,7 @@ function finishMe() {
 function stepMG(dt) {
 	const def = W.def;
 	W.t = W.startAt ? ((W.paused || Date.now()) - W.startAt) / 1000 : -99;
+	modeMus(W);
 	if (def.ctrl === "stick" && !W.split) {
 		if (def.aim) {
 			const am = kbAxis("arrows");
