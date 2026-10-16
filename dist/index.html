@@ -360,10 +360,10 @@ i.bi{font-style:normal}
 .mm-roster{right:calc(78px + var(--sr));top:calc(250px + var(--st));width:444px;height:75px;display:flex;gap:8px;align-items:center;overflow-x:auto;scrollbar-width:none;scroll-snap-type:x proximity;padding:0 2px}
 .mm-roster::-webkit-scrollbar{display:none}
 .mm .tc{flex:none;width:var(--w);height:62px;border:0;border-radius:0;padding:0;background:var(--rk) center/100% 100% no-repeat;display:grid;place-items:center;scroll-snap-align:center;transition:width .15s ease-in-out,height .15s ease-in-out,transform .16s ease-in-out}
-/* the thumbnails are 240 x 160 with the truck in the middle 57% x 72%: at 83 px wide the truck is about 47 x 40, inside the rock's flat face (about 58 x 45), nudged up off the thick bottom bevel */
-.mm .tc img{width:83px;height:auto;max-width:none;margin-top:-4px;transition:width .15s}
+/* roster pictures: each truck fitted into the rock's flat face by its own outline (thumbFit in part3: --iw width, --ix / --iy shift); the selected one 15% bigger */
+.mm .tc img{width:var(--iw,83px);height:auto;max-width:none;transform:translate(var(--ix,0px),var(--iy,-4px));transition:width .15s,transform .15s}
 .mm .tc.sel{width:var(--ws);height:71px;background-image:var(--rw)}
-.mm .tc.sel img{width:96px}
+.mm .tc.sel img{width:calc(var(--iw,83px) * 1.15);transform:translate(calc(var(--ix,0px) * 1.15),calc(var(--iy,-4px) * 1.15))}
 .mm-act{right:calc(120px + var(--sr));top:calc(370px + var(--st));width:360px;display:flex;flex-direction:column;align-items:center;gap:10px}
 .mm-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;width:100%}
 .mm-row.sm{width:80%}
@@ -998,7 +998,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-16 07:05 d3107c3";
+const BUILD = "2026-10-16 07:09 1d2e67b";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -1221,7 +1221,7 @@ const W3 = (x, y) => [(x - 180) / 15, (y - 240) / 15];
 const TILE = PTS.map(([x, y]) => W3(x, y));
 
 /* ---------- 3D engine ---------- */
-const GFX = { ok: false, mode: "show", thumbs: {}, side: {}, top: {}, tok: {}, follow: true };
+const GFX = { ok: false, mode: "show", thumbs: {}, thumbBox: {}, side: {}, top: {}, tok: {}, follow: true };
 const MC = {};
 function M(c, o) {
 	const k = c + (o ? JSON.stringify(o) : "");
@@ -1371,6 +1371,25 @@ function lights(scene, shadow) {
 	scene.add(d);
 	return d;
 }
+/* the drawn part of what the renderer just drew: [x0, y0, x1, y1] in image pixels from the top left (the main menu roster fits each truck, props and all, into its rock) */
+function alphaBox(r, w, h) {
+	const gl = r.getContext(),
+		px = new Uint8Array(w * h * 4);
+	gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, px);
+	let x0 = w,
+		y0 = h,
+		x1 = -1,
+		y1 = -1;
+	for (let y = 0; y < h; y++)
+		for (let x = 0; x < w; x++)
+			if (px[(y * w + x) * 4 + 3] > 20) {
+				if (x < x0) x0 = x;
+				if (x > x1) x1 = x;
+				if (y < y0) y0 = y;
+				if (y > y1) y1 = y;
+			}
+	return x1 < 0 ? null : [x0, h - 1 - y1, x1, h - 1 - y0];
+}
 function makeThumbs() {
 	let r;
 	try {
@@ -1398,6 +1417,7 @@ function makeThumbs() {
 		r.setSize(240, 160);
 		r.render(sc, cp);
 		GFX.thumbs[i] = r.domElement.toDataURL("image/png");
+		GFX.thumbBox[i] = alphaBox(r, 240, 160);
 		const s = new Image();
 		r.setSize(270, 160);
 		r.render(sc, co);
@@ -10937,10 +10957,17 @@ const ROCKS = [
 	[4, 84, 91],
 	[5, 80, 91],
 ];
+/* each truck's picture sized and shifted so its drawn part (GFX.thumbBox, props included) fills the rock's flat face, about 50 x 40 px a little above the middle: --iw = the 240 x 160 picture's width, --ix / --iy = the shift */
+function thumbFit(i) {
+	const b = GFX.thumbBox && GFX.thumbBox[i];
+	if (!b) return "";
+	const s = Math.min(50 / (b[2] - b[0] + 1), 40 / (b[3] - b[1] + 1));
+	return `--iw:${(240 * s).toFixed(1)}px;--ix:${((120 - (b[0] + b[2] + 1) / 2) * s).toFixed(1)}px;--iy:${((80 - (b[1] + b[3] + 1) / 2) * s - 4).toFixed(1)}px`;
+}
 function rosterHTML(sel) {
 	return TRUCKS.map((t, i) => {
 		const [r, w, ws] = ROCKS[i % 4];
-		return `<button class="tc ${i === sel ? "sel" : ""}" data-t="${i}" aria-pressed="${i === sel}" aria-label="${esc(t.name)}" style="--rk:var(--ui-rock-d${r});--rw:var(--ui-rock-w${r});--w:${w}px;--ws:${ws}px"><img alt="" src="${thumb(i)}"></button>`;
+		return `<button class="tc ${i === sel ? "sel" : ""}" data-t="${i}" aria-pressed="${i === sel}" aria-label="${esc(t.name)}" style="--rk:var(--ui-rock-d${r});--rw:var(--ui-rock-w${r});--w:${w}px;--ws:${ws}px;${thumbFit(i)}"><img alt="" src="${thumb(i)}"></button>`;
 	}).join("");
 }
 /* the name plate shrinks long names to fit */

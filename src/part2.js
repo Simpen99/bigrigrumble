@@ -222,7 +222,7 @@ const W3 = (x, y) => [(x - 180) / 15, (y - 240) / 15];
 const TILE = PTS.map(([x, y]) => W3(x, y));
 
 /* ---------- 3D engine ---------- */
-const GFX = { ok: false, mode: "show", thumbs: {}, side: {}, top: {}, tok: {}, follow: true };
+const GFX = { ok: false, mode: "show", thumbs: {}, thumbBox: {}, side: {}, top: {}, tok: {}, follow: true };
 const MC = {};
 function M(c, o) {
 	const k = c + (o ? JSON.stringify(o) : "");
@@ -372,6 +372,25 @@ function lights(scene, shadow) {
 	scene.add(d);
 	return d;
 }
+/* the drawn part of what the renderer just drew: [x0, y0, x1, y1] in image pixels from the top left (the main menu roster fits each truck, props and all, into its rock) */
+function alphaBox(r, w, h) {
+	const gl = r.getContext(),
+		px = new Uint8Array(w * h * 4);
+	gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, px);
+	let x0 = w,
+		y0 = h,
+		x1 = -1,
+		y1 = -1;
+	for (let y = 0; y < h; y++)
+		for (let x = 0; x < w; x++)
+			if (px[(y * w + x) * 4 + 3] > 20) {
+				if (x < x0) x0 = x;
+				if (x > x1) x1 = x;
+				if (y < y0) y0 = y;
+				if (y > y1) y1 = y;
+			}
+	return x1 < 0 ? null : [x0, h - 1 - y1, x1, h - 1 - y0];
+}
 function makeThumbs() {
 	let r;
 	try {
@@ -399,6 +418,7 @@ function makeThumbs() {
 		r.setSize(240, 160);
 		r.render(sc, cp);
 		GFX.thumbs[i] = r.domElement.toDataURL("image/png");
+		GFX.thumbBox[i] = alphaBox(r, 240, 160);
 		const s = new Image();
 		r.setSize(270, 160);
 		r.render(sc, co);
