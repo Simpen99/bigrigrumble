@@ -998,7 +998,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-16 14:25 17a6539";
+const BUILD = "2026-10-16 15:48 c8e66f7";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -38930,6 +38930,8 @@ const TS = {
 	AERV: 9,
 	AERH: 8,
 	AIRC: 10,
+	TVD: [45, 24] /* the TV camera's height and distance out to the side */,
+	TVX: 0.5 /* the TV camera's aim, metres towards the near side */,
 };
 /* where a circle of radius r centred at (x, z) is pushed back to (walls, goal posts, nets), or null when it fits;
    ball = true: the goal mouth is only open under the crossbar (y = the ball's height). Returns {x, z, nx, nz} with
@@ -39160,8 +39162,7 @@ Object.assign(MG, {
 		fmtV: (v) => `${Math.floor(v / 100)}-${v % 100}`,
 		ramK: 0.75 /* bumps between trucks a bit softer than Mud Brawl's rams */,
 		how: "Push the ball into the other team's goal. Most goals wins!",
-		teamHow: (s) =>
-			s === 0 ? "Blue: score in the far goal (up the screen)." : "Red: score in the near goal (down the screen).",
+		teamHow: (s) => (s === 0 ? "Blue: score in the red goal." : "Red: score in the blue goal."),
 		tvHint: "Drag to drive · BOOST smashes the ball · JUMP, again in the air to flip",
 		ramLabel: "BOOST",
 		btn2: () => "JUMP",
@@ -39412,7 +39413,8 @@ Object.assign(MG, {
 				s.add(g);
 				s.add(roundShadow(2.2, 0.3, x, z, 0.02));
 			});
-			/* the scoreboard over the far goal, facing the cameras */
+			/* the scoreboard over the far goal, facing the cameras (on the TV, which looks from the side: over the far
+			   stand) */
 			const sb = new THREE.Group(),
 				cv = document.createElement("canvas");
 			cv.width = 512;
@@ -39424,8 +39426,14 @@ Object.assign(MG, {
 			scr.position.z = 0.02;
 			sb.add(scr);
 			[-1, 1].forEach((sx) => sb.add(B(0.5, 8, 0.5, "#5A6272", sx * 5, -6, -0.6)));
-			sb.position.set(0, 10.5, -(T.FZ + T.GD + 8.4));
-			sb.rotation.x = 0.12;
+			if (W.tv) {
+				sb.rotation.order = "YXZ";
+				sb.rotation.set(0.12, Math.PI / 2, 0);
+				sb.position.set(-(T.FX + 14), 13, 0);
+			} else {
+				sb.position.set(0, 10.5, -(T.FZ + T.GD + 8.4));
+				sb.rotation.x = 0.12;
+			}
 			sb.traverse((o) => (o.userData.dyn = true));
 			s.add(sb);
 			W.sbd = { cv, tex, key: "" };
@@ -39477,6 +39485,17 @@ Object.assign(MG, {
 				return;
 			}
 			e.spotted = false;
+			/* the TV looks at the pitch from the side (cam): a player's stick turns with it (screen right = -z, screen up =
+			   -x); the button flags are handed back so they still fire once */
+			const raw = W.tv && e.rem && inp;
+			if (raw) inp = Object.assign({}, raw, { x: raw.y, y: -raw.x });
+			this.drive(W, e, inp, dt);
+			if (raw) {
+				raw.boost = inp.boost;
+				raw.b2 = inp.b2;
+			}
+		},
+		drive(W, e, inp, dt) {
 			const jump = !!(inp && inp.b2);
 			if (inp) inp.b2 = false;
 			if (jump && e.al && !e.d) this.jump(W, e, inp);
@@ -39879,9 +39898,10 @@ Object.assign(MG, {
 		/* the camera: phones follow your truck and lean towards the ball; the TV shows the whole pitch, drifting with the ball */
 		cam(W, tgt, pos, far) {
 			const b = W.bDraw || { x: 0, z: 0 };
+			/* the TV looks from the side, so the long pitch fills the wide screen (blue's goal on the left) */
 			if (W.tv) {
-				const t = new THREE.Vector3(b.x * 0.05, 0, b.z * 0.12 + 5.5);
-				return [t, t.clone().add(new THREE.Vector3(0, 55, 28.5))];
+				const t = new THREE.Vector3(b.x * 0.05 + TS.TVX, 0, b.z * 0.08);
+				return [t, t.clone().add(new THREE.Vector3(TS.TVD[1], TS.TVD[0], 0))];
 			}
 			if (mgSpec(W)) return [tgt, pos];
 			const me = W.me,
