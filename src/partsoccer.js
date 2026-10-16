@@ -37,7 +37,9 @@ const TS = {
 	SHOT: 13,
 	CHIP: 4.5,
 	AIM: 0.45,
-	POP: 6 /* m/s up when the ball is squeezed between two trucks */,
+	POP: 12 /* m/s up when the ball is squeezed between two trucks (about 3.3 m up, clear over the roofs) */,
+	ESC: 6 /* m/s sideways for a popped ball, so it lands out of the pile (about 6 m away) */,
+	ROOF: 0.6 /* a ball falling onto a truck with its bottom this high bounces off the roof */,
 };
 /* where a circle of radius r centred at (x, z) is pushed back to (walls, goal posts, nets), or null when it fits;
    ball = true: the goal mouth is only open under the crossbar (y = the ball's height). Returns {x, z, nx, nz} with
@@ -786,18 +788,30 @@ Object.assign(MG, {
 				vz *= T.MAXV / sp;
 			}
 			let vy = Math.max(b.vy, boost ? T.CHIP : Math.min(3, Math.max(0, ts - 8) * 0.6));
-			/* a scrum: another truck right on the far side of the ball. The ball squirts up out of the pile instead of
-			   being squeezed back and forth between them */
-			const jam = W.list.some((o) => {
+			/* a scrum: another truck right on the far side of the ball. The ball shoots up out of the pile instead of
+			   being squeezed back and forth between them: off to the side of the two trucks (the side the kicker faces),
+			   so it doesn't land back between them. A BOOST keeps its shot and pops it over the other truck */
+			const jam = W.list.find((o) => {
 				if (o === e || o.gone || !o.al || o.falling) return false;
 				const ox = o.x - b.x,
 					oz = o.z - b.z;
 				return Math.hypot(ox, oz) < (o.rad || 0.95) + T.BR * 1.02 && ox * vx + oz * vz > 0;
 			});
 			if (jam) {
-				vx *= 0.45;
-				vz *= 0.45;
+				if (!boost) {
+					const jx = jam.x - e.x,
+						jz = jam.z - e.z,
+						jl = Math.hypot(jx, jz) || 1,
+						s = -jz * hx + jx * hz < 0 ? -1 : 1,
+						px = (-jz / jl) * s,
+						pz = (jx / jl) * s;
+					vx = vx * 0.3 + px * T.ESC;
+					vz = vz * 0.3 + pz * T.ESC;
+				}
 				vy = Math.max(vy, T.POP);
+			} else if (b.vy < 0 && b.y - T.BR > T.ROOF) {
+				/* coming down onto a truck: off the roof again instead of sinking into it */
+				vy = Math.max(vy, -b.vy * 0.6, T.POP * 0.5);
 			}
 			/* the kick only changes the ball's speed, it starts from where the ball is (a nudge out of the kicking truck,
 			   never a jump: putting it on the far side of the kicker made it blink through the trucks in a scrum) */
@@ -818,7 +832,7 @@ Object.assign(MG, {
 				if (e.isMe || W.tv) W.shake = Math.max(W.shake || 0, boost ? 0.3 : 0.15);
 				sfx("ram");
 			}
-			mgLog(W, `kick ${mgName(e)} ${boost ? "BOOST " : ""}${Math.round(Math.min(sp, T.MAXV))} m/s`);
+			mgLog(W, `kick ${mgName(e)} ${boost ? "BOOST " : ""}${jam ? "POP " : ""}${Math.round(Math.min(sp, T.MAXV))} m/s`);
 		},
 		/* each player's result: their team's goals * 100 + the other team's (the host compares sides with teamWin) */
 		final(W, e) {
