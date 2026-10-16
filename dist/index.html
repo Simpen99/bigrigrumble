@@ -998,7 +998,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-16 16:01 bb5cd34";
+const BUILD = "2026-10-16 16:29 e3465ee";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -38899,7 +38899,8 @@ Object.assign(MG, {
 });
 /* ---------- Truck Soccer (2 vs 2, a Rocket League style arena) ----------
    A walled pitch with rounded corners and a goal sunk into each end wall; one big ball. Push it into the other team's
-   goal; BOOST (the dash button) smashes it harder and lifts it. Most goals after dur s wins; a draw pays both teams.
+   goal; BOOST (the dash button) smashes it harder and lifts it. First to WIN goals wins (the match ends WINWAIT s after
+   that goal); if nobody gets there in dur s, the team ahead wins, a draw pays both teams.
    Side 0 (blue) defends the +z goal (the near end) and attacks -z; side 1 (red) the other way.
    Sync: the ball flies along a path that is a pure function of its last kick (fixed 1/120 s steps, only + - * / and
    sqrt, so every device computes the same numbers): floor, walls, goal frames and nets, nothing else. A device only
@@ -38926,6 +38927,8 @@ const TS = {
 	ROLL: 0.99625 /* rolling slow-down per step (about 0.64 per second) */,
 	AIR: 0.99979 /* air drag per step */,
 	KO: 3.5 /* s from a goal to the next kickoff */,
+	WIN: 3 /* goals to win the match */,
+	WINWAIT: 3 /* s of celebration after the winning goal before the match ends */,
 	HOLD: 1.6 /* s before a kickoff when the trucks are put back on their spots */,
 	GOALWAIT: 1.2 /* s the host waits for the kicker's device to announce a goal before it does */,
 	KICKCD: 0.1 /* s between two kicks by the same truck */,
@@ -39169,7 +39172,7 @@ Object.assign(MG, {
 		team: "2v2",
 		hi: true,
 		unit: "goals",
-		dur: 90,
+		dur: 240 /* only a safety limit: the match is first to TS.WIN goals */,
 		bound: { t: "none" },
 		water: false,
 		bare: true,
@@ -39182,7 +39185,7 @@ Object.assign(MG, {
 		fmt: (W, e) => (e.side === 1 ? "🔴 Red team" : "🔵 Blue team"),
 		fmtV: (v) => `${Math.floor(v / 100)}-${v % 100}`,
 		ramK: 0.75 /* bumps between trucks a bit softer than Mud Brawl's rams */,
-		how: "Push the ball into the other team's goal. Most goals wins!",
+		how: "Push the ball into the other team's goal. First team to 3 goals wins!",
 		teamHow: (s) => (s === 0 ? "Blue: score in the red goal." : "Red: score in the blue goal."),
 		tvHint: "Drag to drive · BOOST smashes the ball · JUMP, again in the air to flip",
 		ramLabel: "BOOST",
@@ -39647,9 +39650,39 @@ Object.assign(MG, {
 				goals = this.goalList(W);
 			if (goals.length > W.goals.length) goals.slice(W.goals.length).forEach((g) => this.scored(W, g));
 			W.goals = goals;
+			this.board(W);
+			/* the winning goal: no more kickoffs, the ball goes, the trucks drive about for WINWAIT s, then it's over
+			   (the goal's time is shared, so every device ends together) */
+			const sc0 = goals.filter((q) => q[1] === 0).length,
+				sc1 = goals.length - sc0;
+			if (Math.max(sc0, sc1) >= T.WIN) {
+				const gt = goals[goals.length - 1][2];
+				W.koT = Infinity;
+				if (W.bsim) this.drawBall(W, dt);
+				if (W.t - gt > 0.35 && W.ball.visible) {
+					W.ball.visible = W.ballSh.visible = false;
+					if (W.bsim && !W.bsim.boom) {
+						W.bsim.boom = true;
+						burst(W.sc, W.bDraw.x, W.bDraw.y, W.bDraw.z, {
+							n: 18,
+							shape: "ico",
+							cols: ["#F4F6F9", "#2A2F3A", "#FFC83D"],
+							spd: 6,
+							up: 5,
+							grav: 10,
+							life: 1,
+							size: 1,
+						});
+					}
+				}
+				if (W.t - gt >= T.WINWAIT)
+					W.list.forEach((e) => {
+						if (e.local && !e.gone && !e.d) e.d = true;
+					});
+				return;
+			}
 			W.ballK = goals.length;
 			W.koT = goals.length ? goals[goals.length - 1][2] + T.KO : 0;
-			this.board(W);
 			const L = this.launch(W);
 			let S = W.bsim;
 			if (!S || S.id !== L.id) {
@@ -39912,9 +39945,8 @@ Object.assign(MG, {
 		clock(W) {
 			const g = W.goals || [],
 				a = g.filter((q) => q[1] === 0).length,
-				b = g.filter((q) => q[1] === 1).length,
-				left = Math.max(0, Math.ceil(this.dur - Math.max(0, W.t)));
-			return `🔵 ${a}-${b} 🔴 · ${left}`;
+				b = g.filter((q) => q[1] === 1).length;
+			return `🔵 ${a}-${b} 🔴`;
 		},
 		/* the camera: phones follow your truck and lean towards the ball; the TV shows the whole pitch, drifting with the ball */
 		cam(W, tgt, pos, far) {
