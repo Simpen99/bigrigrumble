@@ -60,6 +60,7 @@ three.js r128 (UMD from cdnjs) + ConvexHull/ConvexGeometry (jsdelivr), no build 
 ## Testing
 Use the scripts in `tools/` (see `tools/README.md`; `cd tools && npm i` once, then `sh build.sh` before running):
 - `node tools/check.mjs <models>`: automatic model checks (z-fighting, overhanging panels, floating and buried parts), problem parts in magenta. **Run it on every new or changed model and fix what it finds.**
+- `node tools/clip.mjs garage|<expr> [--solid 0]`: props pushing into each other or the ground (each top-level child of the given groups is one prop; `garage` = the main menu room). Run it on any scene you dress with props. Note `crateModel` is built round its middle (0.8 tall).
 - `node tools/rig.mjs <models>`: a model from front, back, side and 3/4 above; look at it before shipping.
 - `node tools/sheet.mjs <games>|all [--landscape]`: minigames at iPhone size on one contact sheet.
 - `node tools/run.mjs <games>|all`: play minigames to the end and report page errors.

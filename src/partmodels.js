@@ -3442,12 +3442,14 @@ function garageRoom(s) {
 		g.add(m);
 		return m;
 	};
+	/* crateModel is built round its middle, 0.8 tall: this stands one on y */
+	const crate = (g, v, x, y, z, ry, sc) => put(g, crateModel(v), x, y + 0.4 * sc, z, ry, sc);
 	/* left corner: pegboard and workbench along the left wall, the tool chest by the back wall, a crate up front */
 	const left = new THREE.Group();
 	put(left, garPegboard(), -W + 0.12, 3.1, -2.6, Math.PI / 2);
 	put(left, garWorkbench(), -W + 0.9, 0, -2.6, Math.PI / 2);
 	put(left, garToolChest(), -6.7, 0, BZ + 1.05, 0.2);
-	put(left, crateModel(2), -6.9, 0, 3.4, 0.5, 1.15);
+	crate(left, 2, -6.9, 0, 3.4, 0.5, 1.15);
 	put(left, garNut(0.18), -5.2, 0, 2.8, 0.4);
 	put(left, garJerryCan("#E5484D"), -7.6, 0, 1.4, 1.2);
 	s.add(kitGroup(bakeKit(left), 0));
@@ -3459,17 +3461,20 @@ function garageRoom(s) {
 		put(back, m, x, y, bz + 0.16);
 		back.add(B(0.06, 0.06, 0.2, GAR.DARK, x, 4.42, bz + 0.12));
 	};
-	tool(garHammer(), -4.55, 3.95);
-	tool(garWrench(1.15), -4.0, 3.8);
+	/* each tool hangs with its top just under its peg (pegs at 4.42) */
+	tool(garHammer(), -4.55, 3.85);
+	[
+		[1.15, -4.0],
+		[1.05, -2.9],
+		[0.95, -2.45],
+		[0.85, -2.0],
+	].forEach(([l, x]) => tool(garWrench(l), x, 4.36 - l / 2));
 	tool(garPliers("#E5484D"), -3.45, 3.85);
-	tool(garWrench(1.05), -2.9, 3.85);
-	tool(garWrench(0.95), -2.45, 3.92);
-	tool(garWrench(0.85), -2.0, 3.98);
 	tool(garPliers("#2E323A"), -1.55, 3.85);
 	put(back, garExtinguisher(), -0.55, 2.1, BZ + 0.45);
-	put(back, crateModel(0), -4.3, 0, BZ + 1.0, 0.1, 1.25);
-	put(back, crateModel(1), -2.9, 0, BZ + 0.9, -0.15, 1.05);
-	put(back, crateModel(0), -4.25, 1.0, BZ + 1.0, 0.35, 0.9);
+	crate(back, 0, -4.3, 0, BZ + 1.0, 0.1, 1.25);
+	crate(back, 1, -2.9, 0, BZ + 0.9, -0.15, 1.05);
+	crate(back, 0, -4.25, 1.0, BZ + 1.0, 0.35, 0.9);
 	s.add(kitGroup(bakeKit(back), 0));
 	/* right: wall shelves of cans over a low steel shelf of bins and crates, a tyre stack, a tall rack down the right
 	   wall, a big tyre leaning up front, a spanner and a bolt on the floor */
@@ -3488,40 +3493,39 @@ function garageRoom(s) {
 	put(right, garJug("#2F7DE1"), sx + 1.0, top, z, 0.2);
 	put(right, garSpray("#F4F6F9"), sx + 1.55, top, z, -0.4);
 	put(right, garBin(0.8, 0.32, 0.55), sx - 1.2, mid, z, 0.05);
-	for (let k = 0; k < 4; k++) put(right, garBolt(1.3), sx - 0.3 + k * 0.22, mid, z + (k % 2) * 0.15, 0.4 + k);
-	put(right, garCarton(0.7, 0.5, 0.5), sx + 1.2, mid, z, 0.15);
-	put(right, garNut(0.14), sx + 0.6, mid, z + 0.1);
-	put(right, garRack(4.2, 1.9, 0.95, [0.18, 0.95, 1.8]), sx, 0, BZ + 0.15);
-	put(right, garBin(0.95, 0.34, 0.75), sx - 1.3, 1.83, BZ + 0.62);
-	put(right, garBin(0.95, 0.34, 0.75), sx + 0.1, 1.83, BZ + 0.62);
-	put(right, garGear(0.32), sx + 1.3, 1.83, BZ + 0.62);
-	put(right, crateModel(0), sx - 1.1, 0.21, BZ + 0.62, 0.05, 0.75);
-	put(right, crateModel(0), sx, 0.21, BZ + 0.62, -0.05, 0.75);
-	put(right, garBin(0.95, 0.4, 0.75), sx + 1.3, 0.98, BZ + 0.62);
+	for (let k = 0; k < 3; k++) put(right, garBolt(1.3), sx - 0.5 + k * 0.45, mid, z + (k % 2) * 0.12, 0.4);
+	put(right, garCarton(0.7, 0.5, 0.5), sx + 1.25, mid, z, 0.15);
+	put(right, garNut(0.14), sx + 0.75, mid, z + 0.1);
+	put(right, garRack(4.2, 1.9, 0.95, [0.18, 0.95, 1.8]), sx, 0, BZ + 0.2);
+	put(right, garBin(0.95, 0.34, 0.75), sx - 1.3, 1.83, BZ + 0.67);
+	put(right, garBin(0.95, 0.34, 0.75), sx + 0.1, 1.83, BZ + 0.67);
+	put(right, garGear(0.3), sx + 1.3, 1.83, BZ + 0.67);
+	crate(right, 0, sx - 1.1, 0.205, BZ + 0.67, 0.05, 0.75);
+	crate(right, 0, sx, 0.205, BZ + 0.67, -0.05, 0.75);
+	put(right, garBin(0.95, 0.4, 0.75), sx + 1.3, 0.98, BZ + 0.67);
 	put(right, garTyres(0.82, 4), 7.0, 0, BZ + 1.1);
-	const rk = put(right, garRack(4.2, 4.6, 1.0, [0.2, 1.3, 2.4, 3.5, 4.5]), W - 0.15, 0, -2.0, -Math.PI / 2),
+	const rk = put(right, garRack(4.2, 4.6, 1.0, [0.2, 1.3, 2.4, 3.5, 4.5]), W - 0.2, 0, -2.0, -Math.PI / 2),
 		on = (m, lx, y, lz, ry = 0) => {
 			const v = new THREE.Vector3(lx, y, lz).applyAxisAngle(new THREE.Vector3(0, 1, 0), rk.rotation.y).add(rk.position);
 			put(right, m, v.x, v.y, v.z, ry + rk.rotation.y);
 		};
-	on(garDisc(0.42), -1.2, 0.23, 0.5);
-	on(garDisc(0.42), -1.2, 0.47, 0.5, 0.5);
+	on(garDisc(0.38), -1.2, 0.23, 0.52);
+	on(garDisc(0.38), -1.2, 0.47, 0.52, 0.5);
 	on(garCarton(0.8, 0.6, 0.7), 0.6, 0.23, 0.5);
-	on(garGear(0.42), -0.9, 1.33, 0.5);
+	on(garGear(0.3), -1.0, 1.33, 0.52);
 	on(garJerryCan("#E5484D"), 0.5, 1.33, 0.5, 0.2);
 	on(garJug("#FFC83D"), 1.3, 1.33, 0.5);
-	on(garDisc(0.36), 0.0, 2.43, 0.5);
-	on(garGear(0.3), 1.1, 2.43, 0.5);
+	on(garDisc(0.36), 0.0, 2.43, 0.52);
+	on(garGear(0.3), 1.1, 2.43, 0.52);
 	on(garCarton(0.7, 0.55, 0.6), -1.1, 2.43, 0.5, 0.2);
 	on(garJerryCan("#4A6F9E"), -1.0, 3.53, 0.5);
 	on(garCarton(0.9, 0.7, 0.7), 0.7, 3.53, 0.5, -0.1);
 	const big = new THREE.Group(),
 		bt = garTyre(1.25, true);
 	bt.rotation.x = Math.PI / 2;
-	bt.position.y = 1.25;
+	bt.position.y = 1.25 + 0.03;
 	big.add(bt);
-	big.rotation.z = -0.22;
-	put(right, big, 7.3, 0.12, 4.2, -0.75);
+	put(right, big, 6.8, 0, 4.2, -0.75);
 	const wr = garWrench(1.5);
 	wr.rotation.set(-Math.PI / 2, 0, 0.6);
 	wr.position.set(5.6, 0.06, 6.8);
@@ -3543,9 +3547,9 @@ function garageRoom(s) {
 	cs(0.65, 0.45, 0.4, -7.6, 1.4, 1.2);
 	cs(1.45, 1.45, 0.45, -4.3, BZ + 1.0, 0.1);
 	cs(1.2, 1.2, 0.45, -2.9, BZ + 0.9, -0.15);
-	cs(4.4, 1.2, 0.45, sx, BZ + 0.62);
-	cs(4.4, 1.2, 0.45, W - 0.65, -2.0, Math.PI / 2);
-	cs(2.4, 1.1, 0.45, 7.3, 4.2, -0.75);
+	cs(4.4, 1.2, 0.45, sx, BZ + 0.67);
+	cs(4.4, 1.2, 0.45, W - 0.7, -2.0, Math.PI / 2);
+	cs(2.4, 1.1, 0.45, 6.8, 4.2, -0.75);
 	s.add(roundShadow(1.9, 0.5, 7.0, BZ + 1.1, 0.02), roundShadow(8.2, 0.5, 0, 0, 0.02));
 	/* the two lamps over the turntable */
 	return [
