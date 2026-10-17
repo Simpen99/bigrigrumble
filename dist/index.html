@@ -998,7 +998,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-17 21:27 70d86ad";
+const BUILD = "2026-10-17 21:43 deb9fe9";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -2047,14 +2047,14 @@ function frame(t) {
 function gfxInit() {
 	if (typeof THREE === "undefined") return;
 	try {
-		/* phones: no logarithmic depth buffer (it turns off early depth rejection on mobile GPUs and its precision fallback made specks shimmer through the lava) */
+		/* no logarithmic depth buffer: it turns off early depth rejection on mobile GPUs, its precision fallback made specks shimmer through the lava on phones, and it writes depth per pixel, so the GPU's multisampling left every line where two parts cut into each other jagged (a truck's hatch shelf in its body) */
 		const touch = !(typeof matchMedia === "function" && matchMedia("(pointer: fine)").matches);
 		GFX.touch = touch;
 		const r = new THREE.WebGLRenderer({
 			canvas: $("#gl"),
 			antialias: true,
 			powerPreference: "high-performance",
-			logarithmicDepthBuffer: !touch,
+			logarithmicDepthBuffer: false,
 		});
 		r.setPixelRatio(Math.min(devicePixelRatio || 1, 2.5));
 		r.shadowMap.enabled = true;

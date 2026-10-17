@@ -1048,14 +1048,14 @@ function frame(t) {
 function gfxInit() {
 	if (typeof THREE === "undefined") return;
 	try {
-		/* phones: no logarithmic depth buffer (it turns off early depth rejection on mobile GPUs and its precision fallback made specks shimmer through the lava) */
+		/* no logarithmic depth buffer: it turns off early depth rejection on mobile GPUs, its precision fallback made specks shimmer through the lava on phones, and it writes depth per pixel, so the GPU's multisampling left every line where two parts cut into each other jagged (a truck's hatch shelf in its body) */
 		const touch = !(typeof matchMedia === "function" && matchMedia("(pointer: fine)").matches);
 		GFX.touch = touch;
 		const r = new THREE.WebGLRenderer({
 			canvas: $("#gl"),
 			antialias: true,
 			powerPreference: "high-performance",
-			logarithmicDepthBuffer: !touch,
+			logarithmicDepthBuffer: false,
 		});
 		r.setPixelRatio(Math.min(devicePixelRatio || 1, 2.5));
 		r.shadowMap.enabled = true;
