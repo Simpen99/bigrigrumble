@@ -551,8 +551,16 @@ function mountains(scene) {
 function buildShowroom() {
 	const s = new THREE.Scene();
 	/* the sky and haze are only seen through the roller door: the valley fades into the distance */
-	s.fog = new THREE.Fog("#DCEEF7", 110, 420);
-	applySky(s, "def");
+	s.fog = new THREE.Fog("#DCEEF7", 150, 420);
+	s.background = canvasTex(4, 256, (x, w, h) => {
+		const gr = x.createLinearGradient(0, 0, 0, h);
+		gr.addColorStop(0, "#6FB1E8");
+		gr.addColorStop(0.32, "#A9D6F2");
+		gr.addColorStop(0.6, "#E4F1F4");
+		gr.addColorStop(1, "#F4EEDC");
+		x.fillStyle = gr;
+		x.fillRect(0, 0, w, h);
+	});
 	const hemi = new THREE.HemisphereLight("#FFEBD2", "#4E3E30", 0.42);
 	s.add(hemi);
 	GFX.showHemi = hemi;

@@ -998,7 +998,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-17 19:22 a76f637";
+const BUILD = "2026-10-17 19:30 3f8a576";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -1550,8 +1550,16 @@ function mountains(scene) {
 function buildShowroom() {
 	const s = new THREE.Scene();
 	/* the sky and haze are only seen through the roller door: the valley fades into the distance */
-	s.fog = new THREE.Fog("#DCEEF7", 110, 420);
-	applySky(s, "def");
+	s.fog = new THREE.Fog("#DCEEF7", 150, 420);
+	s.background = canvasTex(4, 256, (x, w, h) => {
+		const gr = x.createLinearGradient(0, 0, 0, h);
+		gr.addColorStop(0, "#6FB1E8");
+		gr.addColorStop(0.32, "#A9D6F2");
+		gr.addColorStop(0.6, "#E4F1F4");
+		gr.addColorStop(1, "#F4EEDC");
+		x.fillStyle = gr;
+		x.fillRect(0, 0, w, h);
+	});
 	const hemi = new THREE.HemisphereLight("#FFEBD2", "#4E3E30", 0.42);
 	s.add(hemi);
 	GFX.showHemi = hemi;
@@ -44668,10 +44676,13 @@ function garLamp(drop) {
 	return g;
 }
 /* everything in g as one mesh lit by a fixed sun baked into its vertex colours (MeshBasicMaterial: the garage's lamps
-   and spot don't touch it, the fog still does): the valley outside the door. L = direction to the sun, amb = shade */
-function garSunlit(g, L, amb = 0.55) {
+   and spot don't touch it, the fog still does): the valley outside the door. Per face: colour x (sky x amb + sun x
+   sunK x facing x lit), then towards haze by distance. opt: L = direction to the sun, amb, sunK, sun / sky / haze
+   colours, hazeK(centre) = 0..1, lit(centre, normal, mesh) = 1 in sunlight, 0 in a cast shadow */
+function garSunlit(g, opt) {
 	g.updateMatrixWorld(true);
-	const P = [],
+	const { L, amb, sunK, sun, sky, haze, hazeK, lit } = opt,
+		P = [],
 		C = [],
 		V = THREE.Vector3,
 		a = new V(),
@@ -44679,8 +44690,10 @@ function garSunlit(g, L, amb = 0.55) {
 		c = new V(),
 		n = new V(),
 		e = new V(),
+		m = new V(),
 		col = new THREE.Color(),
-		vcol = new THREE.Color();
+		vcol = new THREE.Color(),
+		k = new THREE.Color();
 	g.traverse((o) => {
 		if (!o.isMesh || o.userData.shadow || o.material.transparent) return;
 		const geo = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry,
@@ -44692,12 +44705,18 @@ function garSunlit(g, L, amb = 0.55) {
 			b.fromBufferAttribute(p, i + 1).applyMatrix4(o.matrixWorld);
 			c.fromBufferAttribute(p, i + 2).applyMatrix4(o.matrixWorld);
 			n.subVectors(b, a).cross(e.subVectors(c, a)).normalize();
-			const k = amb + (1 - amb) * Math.max(0, n.dot(L));
+			m.copy(a).add(b).add(c).divideScalar(3);
+			const f = Math.max(0, n.dot(L)),
+				s = f > 0 && lit ? lit(m, n, o) : 1,
+				hz = hazeK ? hazeK(m) : 0;
+			const w = sunK * f * s;
+			k.setRGB(sky.r * amb + sun.r * w, sky.g * amb + sun.g * w, sky.b * amb + sun.b * w);
 			[a, b, c].forEach((q, j) => {
 				P.push(q.x, q.y, q.z);
 				col.copy(base);
 				if (vc) col.multiply(vcol.fromBufferAttribute(vc, i + j));
-				C.push(col.r * k, col.g * k, col.b * k);
+				col.multiply(k).lerp(haze, hz);
+				C.push(col.r, col.g, col.b);
 			});
 		}
 	});
@@ -44708,10 +44727,12 @@ function garSunlit(g, L, amb = 0.55) {
 }
 /* the valley out of the door: the garage stands high on a hill, a dirt track runs out of the door and down into
    rolling green land with trees, grey mountains far off. The menu camera is about 5 m up and looks slightly down, so
-   all the door shows is below eye level: the land is shaped so the camera sees it fall away at a steady angle (from
-   about 14 degrees down just outside the door to 7 far off), the mountains rise to about 4 degrees down and the sky
+   all the door shows is below eye level: the land drops away past the apron like a cliff edge (out
+   of sight: it stays under the 17 degree line from the camera), then the valley floor from about 90 m out shows
+   from the door sill up to 7.5 degrees down far off (the bumps grow with distance), the mountains rise to about 4 degrees down and the sky
    fills the rest. Distances are measured from the door (squashed sideways), so layout A's camera, looking out at an
-   angle, sees the same */
+   angle, sees the same. Lit like a late-morning landscape painting: a low warm sun from the left so every hill has a
+   bright side and a cool shadow side, hills and trees casting shadows across the land, blue haze with distance */
 function garValley(s) {
 	const { BZ, DW } = GAR,
 		g = new THREE.Group(),
@@ -44719,17 +44740,22 @@ function garValley(s) {
 		CZ = 19.5,
 		tan = (deg) => Math.tan((deg * Math.PI) / 180),
 		dist = (x, z) => Math.hypot(x * 0.8, BZ - z),
+		sm = (a, b, x) => {
+			const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
+			return t * t * (3 - 2 * t);
+		},
 		track = (d) => 6 * Math.sin(d * 0.035) * Math.min(1, d / 40),
 		hgt = (x, z) => {
 			const d = dist(x, z);
 			if (d < 2) return -0.06;
-			const y = EYE - (d + CZ) * tan(7 + 8 * Math.exp(-d / 40));
-			return Math.min(-0.06, y + noise(x * 0.6, z * 0.6) * Math.min(3, (d - 2) * 0.12));
-		};
+			const y = EYE - (d + CZ) * tan(7.5 + 9.5 * (1 - sm(55, 190, d)));
+			return Math.min(-0.06, y + noise(x * 0.6, z * 0.6) * Math.min(4.5, (d - 2) * 0.04));
+		},
+		L = new THREE.Vector3(-0.6, 0.55, 0.45).normalize();
 	/* the concrete apron in front of the door */
 	g.add(B(DW * 2 + 3, 0.3, 2, "#8A8F98", 0, -0.15, BZ - 1));
 	/* the land: big faceted cells, grass in two greens, the track in dirt */
-	{
+	const land = (() => {
 		const geo = new THREE.PlaneGeometry(440, 230, 88, 58).toNonIndexed();
 		geo.rotateX(-Math.PI / 2).translate(-60, 0, BZ - 0.5 - 115);
 		const p = geo.attributes.position,
@@ -44741,23 +44767,30 @@ function garValley(s) {
 				z = (p.getZ(i) + p.getZ(i + 1) + p.getZ(i + 2)) / 3,
 				d = BZ - z,
 				r = garR(x, z);
-			col.set(d < 120 && Math.abs(x - track(d)) < 2.2 + d * 0.012 ? "#C9B48A" : r < 0.5 ? "#9CCB5E" : "#86BC52");
-			col.offsetHSL(0, 0, (r - 0.5) * 0.06);
+			col.set(d < 170 && Math.abs(x - track(d)) < 1.4 + d * 0.01 ? "#BFA577" : r < 0.5 ? "#A3C95C" : "#8DBB52");
+			col.offsetHSL(0, 0, (r - 0.5) * 0.05);
 			for (let k = 0; k < 3; k++) C.push(col.r, col.g, col.b);
 		}
 		geo.setAttribute("color", new THREE.Float32BufferAttribute(C, 3));
-		g.add(new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true })));
-	}
-	/* trees scattered over the slopes (seeded, so the view is the same every time), clear of the track */
+		return new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true }));
+	})();
+	g.add(land);
+	/* trees scattered over the slopes (seeded, so the view is the same every time), clear of the track; their crowns
+	   (centre, radius) are kept for the shadows */
+	const crowns = [];
 	for (let k = 0; k < 190; k++) {
 		const a = (garR(k, 1) - 0.62) * 1.5,
-			d = 70 + garR(k, 2) * 115,
+			d = 88 + garR(k, 2) * 100,
 			x = (Math.sin(a) * d) / 0.8,
-			z = BZ - Math.cos(a) * d;
+			z = BZ - Math.cos(a) * d,
+			sc = 1.6 + garR(k, 3) * 1.1;
 		if (Math.abs(x - track(BZ - z)) < 5) continue;
-		const t = tree(x, z, 1.6 + garR(k, 3) * 1.1, k % 3 ? 0 : 1 + (k % 2));
-		t.position.y = hgt(x, z) - 0.2;
+		const t = tree(x, z, sc, k % 3 ? 0 : 1 + (k % 2)),
+			y = hgt(x, z) - 0.2;
+		t.position.y = y;
+		t.userData.tree = crowns.length;
 		g.add(t);
+		crowns.push([x, y + 1.25 * sc, z, 0.8 * sc]);
 	}
 	/* mountains: a ragged grey ridge on an arc far off, the taller ones snow-capped */
 	for (let k = 0; k < 17; k++) {
@@ -44771,10 +44804,56 @@ function garValley(s) {
 			r = h * (0.9 + garR(k, 8) * 0.5),
 			m = Cy(0, r, h, 6 + (k % 2), k % 2 ? "#8E9BAA" : "#7D8C9C", x, y0 + h / 2, z);
 		m.rotation.y = garR(k, 9) * 2;
+		m.userData.peak = 1;
 		g.add(m);
-		if (k % 3 !== 1) g.add(Cy(0, r * 0.3, h * 0.3, 6 + (k % 2), "#F4F6F9", x, y0 + h * 0.85 + 0.05, z));
+		if (k % 3 !== 1) {
+			const cap = Cy(0, r * 0.3, h * 0.3, 6 + (k % 2), "#F4F6F9", x, y0 + h * 0.85 + 0.05, z);
+			cap.rotation.y = m.rotation.y;
+			cap.userData.peak = 1;
+			g.add(cap);
+		}
 	}
-	s.add(garSunlit(g, new THREE.Vector3(0.35, 0.85, 0.4).normalize(), 0.58));
+	/* cast shadows: a face is in shadow when the land rises into its line to the sun, or a tree crown (other than its
+	   own tree's) sits in it */
+	const treeOf = (o) => {
+			for (let q = o; q; q = q.parent) if (q.userData.tree !== undefined) return q.userData.tree;
+			return -1;
+		},
+		lit = (p, n, o) => {
+			if (o.userData.peak) return 1;
+			const own = treeOf(o);
+			for (let t = 1.5; t < 150; t += 2.5) {
+				const y = p.y + L.y * t;
+				if (y > 12) break;
+				if (hgt(p.x + L.x * t, p.z + L.z * t) > y + 0.25) return 0;
+			}
+			for (let i = 0; i < crowns.length; i++) {
+				if (i === own) continue;
+				const c = crowns[i],
+					wx = c[0] - p.x,
+					wy = c[1] - p.y,
+					wz = c[2] - p.z;
+				if (Math.abs(wx) > 25 || Math.abs(wz) > 25) continue;
+				const tp = wx * L.x + wy * L.y + wz * L.z;
+				if (tp > 0 && wx * wx + wy * wy + wz * wz - tp * tp < c[3] * c[3]) return 0;
+			}
+			return 1;
+		};
+	s.add(
+		garSunlit(g, {
+			L,
+			amb: 0.52,
+			sunK: 0.9,
+			sun: new THREE.Color(1.12, 1.0, 0.8),
+			sky: new THREE.Color(0.66, 0.78, 0.98),
+			haze: new THREE.Color("#B4CDE0"),
+			hazeK: (p) => {
+				const d = dist(p.x, p.z);
+				return Math.min(1, Math.max(0, (d - 20) / 200)) * 0.6;
+			},
+			lit,
+		}),
+	);
 }
 /* daylight through the door: a warm patch on the floor inside it and soft shafts slanting down from its top */
 function garDaylight(s) {
