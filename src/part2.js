@@ -574,11 +574,13 @@ function buildShowroom() {
 		d.castShadow = true;
 		GFX.showSun = d;
 		s.add(d, d.target);
+		/* the shadow map covers 85% of the cone (still every prop by the walls): sharper shadow edges; 4096 on a PC */
 		c.near = 1;
 		c.far = 30;
-		d.shadow.mapSize.set(2048, 2048);
-		d.shadow.bias = -0.0004;
-		d.shadow.normalBias = 0.03;
+		d.shadow.focus = 0.85;
+		d.shadow.mapSize.setScalar(GFX.touch ? 2048 : 4096);
+		d.shadow.bias = -0.0003;
+		d.shadow.normalBias = 0.02;
 	}
 	const lamps = garageRoom(s);
 	/* daylight from the open door: a soft cool-white light from outside, catching the backs and tops of things */
