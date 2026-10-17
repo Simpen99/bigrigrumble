@@ -2937,3 +2937,593 @@ function paintCanModel(col, open) {
 	g.userData.paint = open ? top : null;
 	return g;
 }
+
+/* ---------- main menu garage (the showroom round the truck turntable, part2 buildShowroom) ----------
+   a cosy mechanic's workshop facing the menu camera (+z): faceted ochre plaster walls between wooden posts, a beamed
+   ceiling, a dark concrete floor; tools on a pegboard and a rack, a workbench, a rolling tool chest, shelves of cans and
+   parts, stacked tyres. Each corner is baked into one kit, so the whole room is a few draw calls.
+   GAR: half width W, back wall z BZ, front end FZ (behind the furthest portrait camera), ceiling height H */
+const GAR = { W: 8.5, BZ: -6.5, FZ: 46, H: 7.2, STEEL: "#A9B0BC", DARK: "#3D424C", WOOD: "#7A4A2A" };
+const garR = (a, b) => {
+	const n = Math.sin(a * 12.9898 + b * 78.233) * 43758.5453;
+	return n - Math.floor(n);
+};
+/* a wall of big flat facets: a grid of step-sized cells, inner corners nudged in and out by up to amp */
+function garFacets(w, h, step, amp, col) {
+	const g = new THREE.PlaneGeometry(w, h, Math.max(1, Math.round(w / step)), Math.max(1, Math.round(h / step))),
+		P = g.attributes.position;
+	for (let i = 0; i < P.count; i++) {
+		const x = P.getX(i),
+			y = P.getY(i);
+		if (Math.abs(Math.abs(x) - w / 2) < 1e-3 || Math.abs(Math.abs(y) - h / 2) < 1e-3) continue;
+		P.setXYZ(
+			i,
+			x + (garR(x, y + 3) - 0.5) * step * 0.35,
+			y + (garR(x + 5, y) - 0.5) * step * 0.35,
+			(garR(x, y) - 0.5) * amp,
+		);
+	}
+	return mesh(g.toNonIndexed(), col);
+}
+/* a flat outline extruded depth thick, centred on z = 0 */
+function garEx(shape, depth, col) {
+	const geo = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: false, curveSegments: 5 });
+	geo.translate(0, 0, -depth / 2);
+	return mesh(geo, col);
+}
+/* combination spanner L long, upright in the x-y plane: open jaw at the top, ring at the bottom, a thinner shank */
+function garWrench(L, col = GAR.STEEL) {
+	const g = new THREE.Group(),
+		r = L * 0.12,
+		t = 0.1,
+		V = THREE.Vector2,
+		hw = r * 0.5,
+		hs = new THREE.Shape([
+			new V(-hw, -L / 2 + r),
+			new V(hw, -L / 2 + r),
+			new V(hw * 0.75, L / 2 - r),
+			new V(-hw * 0.75, L / 2 - r),
+		]);
+	g.add(garEx(hs, t * 0.45, col));
+	const jaw = [],
+		cy = L / 2 - r * 0.6,
+		a0 = Math.PI / 2 + 0.6,
+		a1 = Math.PI * 2.5 - 0.6;
+	for (let k = 0; k <= 8; k++) {
+		const a = a0 + ((a1 - a0) * k) / 8;
+		jaw.push(new V(Math.cos(a) * r, cy + Math.sin(a) * r));
+	}
+	for (let k = 8; k >= 0; k--) {
+		const a = a0 + ((a1 - a0) * k) / 8;
+		jaw.push(new V(Math.cos(a) * r * 0.5, cy + 0.15 * r + Math.sin(a) * r * 0.5));
+	}
+	g.add(garEx(new THREE.Shape(jaw), t, col));
+	const ring = new THREE.Shape();
+	ring.absarc(0, -L / 2 + r * 0.7, r * 0.85, 0, Math.PI * 2, false);
+	const hole = new THREE.Path();
+	hole.absarc(0, -L / 2 + r * 0.7, r * 0.45, 0, Math.PI * 2, true);
+	ring.holes.push(hole);
+	g.add(garEx(ring, t, col));
+	return g;
+}
+/* pliers upright in the x-y plane, jaws up: coated handles splayed apart, steel jaws, a pivot */
+function garPliers(grip) {
+	const g = new THREE.Group();
+	[-1, 1].forEach((s) => {
+		const h = B(0.13, 0.7, s < 0 ? 0.09 : 0.14, grip, s * 0.11, -0.4, 0);
+		h.rotation.z = s * 0.14;
+		const j = B(0.08, 0.42, 0.07, GAR.STEEL, s * 0.05, 0.22, 0);
+		j.rotation.z = -s * 0.05;
+		g.add(h, j, B(0.1, 0.12, 0.08, GAR.STEEL, s * 0.07, -0.06, 0));
+	});
+	const pv = Cy(0.07, 0.07, 0.14, 8, "#7A8190", 0, 0.02, 0);
+	pv.rotation.x = Math.PI / 2;
+	g.add(pv);
+	return g;
+}
+/* claw hammer upright in the x-y plane, head at the top */
+function garHammer(grip = "#E5484D") {
+	const g = new THREE.Group();
+	g.add(B(0.09, 0.8, 0.07, "#B07A45", 0, 0, 0), B(0.13, 0.34, 0.12, grip, 0, -0.24, 0));
+	g.add(B(0.2, 0.17, 0.15, "#7A8190", -0.04, 0.42, 0), B(0.14, 0.13, 0.13, "#7A8190", -0.2, 0.42, 0));
+	const cl = B(0.2, 0.08, 0.12, "#7A8190", 0.16, 0.45, 0);
+	cl.rotation.z = -0.35;
+	g.add(cl);
+	return g;
+}
+/* screwdriver hanging tip down: chunky coloured handle, steel ferrule and shaft */
+function garScrewdriver(col) {
+	const g = new THREE.Group();
+	g.add(Cy(0.075, 0.085, 0.32, 8, col, 0, 0.16, 0), Cy(0.05, 0.05, 0.06, 8, "#F4F6F9", 0, -0.03, 0));
+	g.add(Cy(0.03, 0.03, 0.4, 6, GAR.STEEL, 0, -0.26, 0), B(0.08, 0.05, 0.03, GAR.STEEL, 0, -0.47, 0));
+	return g;
+}
+/* jerry can: chamfered body with the X pressed into both sides, a triple handle and a spout */
+function garJerryCan(col) {
+	const g = new THREE.Group(),
+		dk = "#" + new THREE.Color(col).multiplyScalar(0.8).getHexString();
+	g.add(mesh(chamferBox(0.5, 0.62, 0.28, 0.05), col).translateY(0.31));
+	[-1, 1].forEach((s) =>
+		[-0.6, 0.6].forEach((a) => {
+			const x = B(0.05, 0.58, a < 0 ? 0.03 : 0.08, dk, 0, 0.31, s * 0.155);
+			x.rotation.z = a;
+			g.add(x);
+		}),
+	);
+	[-0.15, 0, 0.15].forEach((x) => g.add(B(0.05, 0.1, 0.06, col, x, 0.66, 0)));
+	g.add(B(0.38, 0.05, 0.08, col, 0, 0.72, 0));
+	const sp = Cy(0.055, 0.065, 0.12, 8, dk, 0.19, 0.66, 0);
+	sp.rotation.z = -0.5;
+	g.add(sp);
+	return g;
+}
+/* trigger spray bottle */
+function garSpray(col, head = "#E5484D") {
+	const g = new THREE.Group();
+	g.add(Cy(0.13, 0.15, 0.42, 8, col, 0, 0.21, 0), Cy(0.06, 0.1, 0.1, 8, col, 0, 0.47, 0));
+	g.add(B(0.12, 0.13, 0.26, head, 0, 0.58, 0.04), B(0.07, 0.07, 0.08, head, 0, 0.6, 0.2));
+	const tr = B(0.05, 0.16, 0.06, head, 0, 0.45, 0.15);
+	tr.rotation.x = 0.35;
+	g.add(tr);
+	return g;
+}
+/* oil jug: chamfered bottle with a label band, a cap and a grip */
+function garJug(col, cap = "#E5484D") {
+	const g = new THREE.Group();
+	g.add(mesh(chamferBox(0.36, 0.5, 0.24, 0.05), col).translateY(0.25));
+	g.add(B(0.4, 0.2, 0.28, "#F4F6F9", 0, 0.24, 0), Cy(0.06, 0.06, 0.08, 8, cap, 0.09, 0.54, 0));
+	g.add(B(0.06, 0.16, 0.12, col, -0.09, 0.55, 0));
+	return g;
+}
+/* cardboard box with a taped seam over the top */
+function garCarton(w, h, d) {
+	const g = new THREE.Group();
+	g.add(B(w, h, d, "#C9955A", 0, h / 2, 0), B(w + 0.05, 0.03, 0.16, "#E3C08A", 0, h + 0.015, 0));
+	g.add(B(0.16, h * 0.5, 0.03, "#E3C08A", 0, h * 0.75, d / 2 + 0.015));
+	return g;
+}
+/* hex bolt lying on its side, and a nut (a real hole) */
+function garBolt(s = 1) {
+	const g = new THREE.Group(),
+		h = Cy(0.08 * s, 0.08 * s, 0.06 * s, 6, GAR.STEEL, -0.16 * s, 0.08 * s, 0),
+		sh = Cy(0.035 * s, 0.035 * s, 0.3 * s, 6, "#8E96A3", 0.02 * s, 0.08 * s, 0);
+	h.rotation.z = sh.rotation.z = Math.PI / 2;
+	g.add(h, sh);
+	return g;
+}
+function garNut(r) {
+	const s = new THREE.Shape();
+	for (let k = 0; k < 6; k++) {
+		const a = (k / 6) * Math.PI * 2;
+		s[k ? "lineTo" : "moveTo"](Math.cos(a) * r, Math.sin(a) * r);
+	}
+	const hl = new THREE.Path();
+	hl.absarc(0, 0, r * 0.48, 0, Math.PI * 2, true);
+	s.holes.push(hl);
+	const m = garEx(s, r * 0.55, GAR.STEEL);
+	m.rotation.x = -Math.PI / 2;
+	m.position.y = r * 0.275;
+	const g = new THREE.Group();
+	g.add(m);
+	return g;
+}
+/* gear on its side: a disc with chunky teeth and a hub */
+function garGear(r) {
+	const g = new THREE.Group(),
+		n = Math.max(8, Math.round(r * 22));
+	g.add(Cy(r, r, 0.14, n, "#8E96A3", 0, 0.07, 0), Cy(r * 0.35, r * 0.35, 0.2, 8, GAR.DARK, 0, 0.1, 0));
+	for (let k = 0; k < n; k++) {
+		const a = ((k + 0.5) / n) * Math.PI * 2,
+			t = B(0.1, 0.14, (Math.PI * r) / n, "#8E96A3", Math.cos(a) * (r + 0.04), 0.07, Math.sin(a) * (r + 0.04));
+		t.rotation.y = -a;
+		g.add(t);
+	}
+	return g;
+}
+/* brake disc lying flat: the disc, its hat and the bolt holes */
+function garDisc(r) {
+	const g = new THREE.Group();
+	g.add(Cy(r, r, 0.07, 14, GAR.STEEL, 0, 0.035, 0), Cy(r * 0.5, r * 0.52, 0.16, 10, "#7A8190", 0, 0.12, 0));
+	for (let k = 0; k < 5; k++) {
+		const a = (k / 5) * Math.PI * 2;
+		g.add(Cy(0.04, 0.04, 0.03, 6, GAR.DARK, Math.cos(a) * r * 0.32, 0.215, Math.sin(a) * r * 0.32));
+	}
+	return g;
+}
+/* tyre lying flat (axis up), outer radius R: a lathed carcass with rounded shoulders, tread blocks round the outside,
+   optionally a pale ring on both sidewalls */
+function garTyre(R, band) {
+	const g = new THREE.Group(),
+		V = THREE.Vector2,
+		ri = R * 0.55,
+		h = R * 0.31,
+		c = R * 0.12,
+		pts = [
+			new V(ri, -h * 0.8),
+			new V(ri + c * 0.5, -h),
+			new V(R - c, -h),
+			new V(R, -h + c),
+			new V(R, h - c),
+			new V(R - c, h),
+			new V(ri + c * 0.5, h),
+			new V(ri, h * 0.8),
+			new V(ri, -h * 0.8),
+		];
+	g.add(mesh(new THREE.LatheGeometry(pts, 14), "#2E323A"));
+	for (let k = 0; k < 14; k++) {
+		const a = ((k + 0.5) / 14) * Math.PI * 2,
+			t = B(0.07, h * 1.5, R * 0.24, "#262A31", Math.cos(a) * (R - 0.01), 0, Math.sin(a) * (R - 0.01));
+		t.rotation.y = -a;
+		g.add(t);
+	}
+	if (band)
+		[-1, 1].forEach((s) => {
+			const b = mesh(new THREE.RingGeometry(R * 0.68, R * 0.8, 14), "#C9CED8");
+			b.rotation.x = -s * (Math.PI / 2);
+			b.position.y = s * (h + 0.025);
+			g.add(b);
+		});
+	return g;
+}
+/* a stack of n tyres */
+function garTyres(R, n) {
+	const g = new THREE.Group();
+	for (let k = 0; k < n; k++) {
+		const t = garTyre(R);
+		t.position.set((garR(k, R) - 0.5) * 0.12, R * 0.31 + k * R * 0.64, (garR(R, k) - 0.5) * 0.12);
+		t.rotation.y = k * 0.7;
+		g.add(t);
+	}
+	return g;
+}
+/* open-topped steel parts bin with a label and a few bolts in it */
+function garBin(w, h, d, col = "#5A6272") {
+	const g = new THREE.Group(),
+		t = 0.04;
+	g.add(B(w - 2 * t, t, d - 2 * t, col, 0, t / 2, 0));
+	[-1, 1].forEach((s) => {
+		g.add(B(w, h, t, col, 0, h / 2, (s * (d - t)) / 2));
+		g.add(B(t, h, d - t * 2, col, (s * (w - t)) / 2, h / 2, 0));
+	});
+	g.add(B(w * 0.5, h * 0.5, 0.03, "#F4F6F9", 0, h * 0.55, d / 2 + 0.015));
+	for (let k = 0; k < 4; k++) {
+		const b = garBolt(0.8);
+		b.position.set((garR(k, w) - 0.5) * (w - 0.35), h - 0.12, (garR(w, k) - 0.5) * (d - 0.2));
+		b.rotation.set(0, garR(k, k) * 3, 0.4);
+		g.add(b);
+	}
+	return g;
+}
+/* fire extinguisher on a wall bracket (back to -z): red bottle with a white label band, valve, lever and hose */
+function garExtinguisher() {
+	const g = new THREE.Group();
+	g.add(Cy(0.22, 0.22, 0.8, 10, "#E5484D", 0, 0.4, 0), Cy(0.1, 0.22, 0.14, 10, "#E5484D", 0, 0.87, 0));
+	g.add(Cy(0.25, 0.25, 0.24, 10, "#F4F6F9", 0, 0.45, 0), Cy(0.07, 0.07, 0.16, 8, "#2E323A", 0, 1.0, 0));
+	const lv = B(0.36, 0.05, 0.08, "#2E323A", 0.1, 1.1, 0);
+	lv.rotation.z = 0.25;
+	g.add(lv, B(0.3, 0.05, 0.05, "#2E323A", 0.08, 1.02, 0));
+	strut(g, [0.06, 1.0, 0.03], [0.32, 0.8, 0.12], 0.07, "#2E323A", 1);
+	strut(g, [0.32, 0.8, 0.12], [0.3, 0.3, 0.22], 0.07, "#2E323A", 2);
+	g.add(B(0.56, 0.08, 0.06, GAR.DARK, 0, 0.6, -0.25), B(0.08, 0.36, 0.06, GAR.DARK, 0, 0.6, -0.27));
+	return g;
+}
+/* pegboard (front +z, 3.6 x 2.3) in a wooden frame with its tools hung on it */
+function garPegboard() {
+	const g = new THREE.Group(),
+		w = 3.6,
+		h = 2.3;
+	g.add(B(w, h, 0.07, "#8E8676", 0, 0, 0));
+	for (let i = 0; i < 17; i++)
+		for (let j = 0; j < 11; j++) g.add(B(0.05, 0.05, 0.03, "#5A5348", -1.6 + i * 0.2, -1 + j * 0.2, 0.045));
+	[-1, 1].forEach((s) => {
+		g.add(B(w + 0.24, 0.12, 0.14, GAR.WOOD, 0, (s * (h + 0.12)) / 2, 0.01));
+		g.add(B(0.12, h, 0.14, GAR.WOOD, (s * (w + 0.12)) / 2, 0, 0.01));
+	});
+	const hang = (m, x, y, rz = 0) => {
+		m.position.set(x, y, 0.14);
+		m.rotation.z = rz;
+		g.add(m);
+	};
+	hang(garWrench(1.25), -1.4, -0.05, 0.06);
+	hang(garHammer(), -0.85, 0.1, -0.12);
+	hang(garWrench(0.9), -0.4, 0.15);
+	["#E5484D", "#FFC83D", "#2F7DE1", "#1FA35C"].forEach((c, k) => hang(garScrewdriver(c), 0.05 + k * 0.24, 0.45));
+	hang(garPliers("#E5484D"), 1.15, 0.15, 0.1);
+	hang(garWrench(0.75), 1.5, 0.3, -0.05);
+	return g;
+}
+/* workbench, front +z (4.2 long, top at 1.32): plank top, legs, apron and a bottom shelf, a vice and tools on it */
+function garWorkbench() {
+	const g = new THREE.Group(),
+		w = 4.2,
+		d = 1.4,
+		top = 1.32,
+		pw = "#B07A45";
+	g.add(plankBox(w, 0.16, d, pw, 0, top - 0.08, 0), plankBox(w - 0.3, 0.14, d - 0.2, pw, 0, 0.42, 0));
+	[-1, 1].forEach((sx) =>
+		[-1, 1].forEach((sz) =>
+			g.add(plankBox(0.18, top - 0.16, 0.18, "#8E5A33", sx * (w / 2 - 0.2), (top - 0.16) / 2, sz * (d / 2 - 0.17))),
+		),
+	);
+	g.add(plankBox(w - 0.4, 0.2, 0.08, "#8E5A33", 0, top - 0.26, d / 2 - 0.08));
+	/* vice bolted to the right end */
+	g.add(B(0.4, 0.22, 0.42, "#4A6F9E", 1.6, top + 0.11, 0.2), B(0.42, 0.3, 0.14, "#4A6F9E", 1.6, top + 0.37, 0.05));
+	g.add(B(0.42, 0.3, 0.14, "#4A6F9E", 1.6, top + 0.37, 0.4));
+	const sc = Cy(0.04, 0.04, 0.5, 6, GAR.STEEL, 1.6, top + 0.3, 0.65);
+	sc.rotation.x = Math.PI / 2;
+	g.add(sc, B(0.4, 0.05, 0.05, GAR.STEEL, 1.6, top + 0.3, 0.92));
+	const flat = (m, x, z, ry) => {
+		m.rotation.set(-Math.PI / 2, 0, ry);
+		m.position.set(x, top + 0.06, z);
+		g.add(m);
+	};
+	flat(garWrench(0.95), -1.2, 0.1, 1.2);
+	flat(garHammer("#FF8A1F"), -0.3, 0.2, -1.9);
+	flat(garScrewdriver("#FFC83D"), 0.5, 0.35, 1.3);
+	const j = garJug("#F4F6F9", "#2F7DE1");
+	j.position.set(0.7, top, -0.35);
+	g.add(j);
+	const n = garNut(0.12);
+	n.position.set(-1.7, top, 0.4);
+	g.add(n);
+	return g;
+}
+/* rolling tool chest, front +z: a cabinet of drawers with yellow pulls on casters, an open top box with tools in it */
+function garToolChest() {
+	const g = new THREE.Group(),
+		col = "#6B7280",
+		w = 1.7,
+		d = 0.95,
+		y0 = 0.22,
+		hb = 1.6;
+	g.add(mesh(chamferBox(w, hb, d, 0.06), col).translateY(y0 + hb / 2));
+	const rows = [0.2, 0.2, 0.26, 0.32, 0.42];
+	let y = y0 + hb - 0.06;
+	rows.forEach((rh) => {
+		y -= rh;
+		g.add(B(w - 0.14, rh - 0.05, 0.05, "#7A8190", 0, y + rh / 2, d / 2 + 0.025));
+		g.add(B(0.5, 0.05, 0.05, "#FFC83D", 0, y + rh - 0.09, d / 2 + 0.075));
+	});
+	[-1, 1].forEach((sx) =>
+		[-1, 1].forEach((sz) => {
+			const c = Cy(0.1, 0.1, 0.08, 8, "#2E323A", sx * (w / 2 - 0.15), 0.1, sz * (d / 2 - 0.15));
+			c.rotation.x = Math.PI / 2;
+			g.add(c, B(0.14, 0.08, 0.14, GAR.DARK, sx * (w / 2 - 0.15), 0.2, sz * (d / 2 - 0.15)));
+		}),
+	);
+	[-0.25, 0.25].forEach((z) => strut(g, [w / 2 - 0.02, y0 + 1.3, z], [w / 2 + 0.12, y0 + 1.3, z], 0.06, GAR.STEEL, 1));
+	strut(g, [w / 2 + 0.12, y0 + 1.3, -0.28], [w / 2 + 0.12, y0 + 1.3, 0.28], 0.07, GAR.STEEL, 2);
+	/* the open top box: floor, four walls, the lid swung back, tools standing up inside */
+	const tb = y0 + hb,
+		bh = 0.42,
+		t = 0.05,
+		bw = w - 0.08,
+		bd = d - 0.08;
+	g.add(B(bw - 2 * t, t, bd - 2 * t, col, 0, tb + t / 2, 0));
+	[-1, 1].forEach((s) => {
+		g.add(B(bw, bh, t, col, 0, tb + bh / 2, (s * (bd - t)) / 2));
+		g.add(B(t, bh, bd - 2 * t, col, (s * (bw - t)) / 2, tb + bh / 2, 0));
+	});
+	g.add(B(0.5, 0.05, 0.05, "#FFC83D", 0, tb + bh - 0.12, bd / 2 + 0.025));
+	const lid = new THREE.Group();
+	lid.add(B(bw, 0.07, bd, col, 0, 0.035, bd / 2));
+	lid.add(B(bw - 0.1, 0.12, 0.05, col, 0, -0.03, bd - 0.06));
+	lid.position.set(0, tb + bh, -bd / 2);
+	lid.rotation.x = -1.95;
+	g.add(lid);
+	[
+		[garScrewdriver("#E5484D"), -0.5, 0.1, 3.14],
+		[garScrewdriver("#2F7DE1"), -0.3, -0.15, 2.9],
+		[garHammer("#E5484D"), 0.25, 0, 0],
+		[garWrench(0.7), 0.6, 0.15, 0.2],
+	].forEach(([m, x, z, rz]) => {
+		m.position.set(x, tb + 0.42, z);
+		m.rotation.set(0, 0.3, rz);
+		g.add(m);
+	});
+	return g;
+}
+/* wall shelf, front +z: a plank on two iron brackets (bracket backs at z = 0) */
+function garShelf(w, d) {
+	const g = new THREE.Group();
+	g.add(plankBox(w, 0.12, d, "#9C6438", 0, 0, d / 2 + 0.06));
+	[-1, 1].forEach((s) => {
+		const x = s * (w / 2 - 0.4);
+		g.add(B(0.08, 0.6, 0.06, "#2E323A", x, -0.36, 0.09), B(0.055, 0.06, d - 0.1, "#2E323A", x, -0.09, d / 2 + 0.06));
+		strut(g, [x, -0.6, 0.12], [x, -0.12, d - 0.05], 0.07, "#2E323A");
+	});
+	return g;
+}
+/* steel shelving unit, front +z, back at z = 0: angle posts, levels with a lip, X braces down the back */
+function garRack(w, h, d, levels) {
+	const g = new THREE.Group(),
+		pc = "#3D424C",
+		sc = "#5A6272";
+	[-1, 1].forEach((sx) => [0.06, d - 0.06].forEach((z) => g.add(B(0.1, h, 0.1, pc, sx * (w / 2 - 0.05), h / 2, z))));
+	levels.forEach((y) => {
+		g.add(B(w - 0.06, 0.05, d - 0.06, sc, 0, y, d / 2));
+		g.add(B(w - 0.12, 0.1, 0.05, pc, 0, y + 0.02, d - 0.03), B(w - 0.12, 0.1, 0.05, pc, 0, y + 0.02, 0.03));
+	});
+	strut(g, [-w / 2 + 0.1, levels[0], 0.06], [w / 2 - 0.1, h - 0.1, 0.06], 0.05, pc);
+	strut(g, [w / 2 - 0.1, levels[0], 0.06], [-w / 2 + 0.1, h - 0.1, 0.06], 0.06, pc, 1);
+	return g;
+}
+/* hanging dome lamp: cord up to the ceiling, dark shade, the bulb and a glowing underside (not baked: it glows) */
+function garLamp(drop) {
+	const g = new THREE.Group(),
+		V = THREE.Vector2,
+		sh = mesh(
+			new THREE.LatheGeometry([new V(0.1, 0.32), new V(0.3, 0.26), new V(0.62, 0.02), new V(0.7, -0.08)], 12),
+			"#2F3640",
+			{ side: THREE.DoubleSide },
+		);
+	g.add(sh, Cy(0.12, 0.12, 0.12, 8, "#2F3640", 0, 0.36, 0), Cy(0.03, 0.03, drop, 6, "#23272F", 0, 0.42 + drop / 2, 0));
+	const glow = new THREE.Mesh(new THREE.CircleGeometry(0.6, 12), new THREE.MeshBasicMaterial({ color: "#FFE2A8" }));
+	glow.rotation.x = Math.PI / 2;
+	glow.position.y = 0.05;
+	const bulb = new THREE.Mesh(
+		new THREE.IcosahedronGeometry(0.17, 1),
+		new THREE.MeshBasicMaterial({ color: "#FFF4D6" }),
+	);
+	bulb.position.y = 0.02;
+	g.add(glow, bulb);
+	g.userData.dyn = true;
+	return g;
+}
+/* the room: the shell (no baked occlusion: walls this size would eat the atlas) and three baked corners; returns the lamps */
+function garageRoom(s) {
+	const { W, BZ, FZ, H } = GAR,
+		L = FZ - BZ,
+		shell = new THREE.Group(),
+		wall = "#A9835A",
+		post = GAR.WOOD,
+		beam = "#5E3820";
+	/* concrete floor: big soft tint patches, nothing busy */
+	{
+		const f = new THREE.PlaneGeometry(W * 2, L, Math.round(W), Math.round(L / 2)).toNonIndexed(),
+			n = f.attributes.position.count,
+			C = new Float32Array(n * 3);
+		for (let i = 0; i < n; i += 6) {
+			const v = 1 + (garR(i, 7) - 0.5) * 0.07;
+			for (let j = i; j < i + 6 && j < n; j++) C[j * 3] = C[j * 3 + 1] = C[j * 3 + 2] = v;
+		}
+		f.setAttribute("color", new THREE.BufferAttribute(C, 3));
+		f.rotateX(-Math.PI / 2).translate(0, 0, BZ + L / 2);
+		const m = new THREE.Mesh(f, M("#4F535C", { vertexColors: true }));
+		m.receiveShadow = true;
+		shell.add(m);
+	}
+	/* walls: back, left, right; a skirting board and a top plate along each */
+	const bw = garFacets(W * 2, H, 1.7, 0.12, wall);
+	bw.position.set(0, H / 2, BZ);
+	shell.add(bw);
+	[-1, 1].forEach((s) => {
+		const sw = garFacets(L, H, 1.7, 0.12, wall);
+		sw.rotation.y = -s * (Math.PI / 2);
+		sw.position.set(s * W, H / 2, BZ + L / 2);
+		shell.add(sw, B(0.14, 0.3, L, beam, s * (W - 0.12), 0.15, BZ + L / 2));
+		shell.add(B(0.5, 0.5, L, beam, s * (W - 0.25), H - 0.25, BZ + L / 2));
+		for (let z = BZ + 7.5; z < FZ; z += 6) shell.add(B(0.4, H, 0.4, post, s * (W - 0.2), H / 2, z));
+	});
+	shell.add(B(W * 2, 0.3, 0.14, beam, 0, 0.15, BZ + 0.12), B(W * 2, 0.5, 0.5, beam, 0, H - 0.25, BZ + 0.25));
+	/* posts along the back wall, knee braces up to the top beam from the inner ones */
+	[-W + 0.2, -5.35, 0.6, 5.9, W - 0.2].forEach((x) => shell.add(B(0.4, H, 0.4, post, x, H / 2, BZ + 0.25)));
+	[-5.35, 5.9].forEach((x) =>
+		[-1, 1].forEach((s) =>
+			strut(shell, [x + s * 0.2, H - 1.5, BZ + 0.3], [x + s * 1.3, H - 0.45, BZ + 0.3], 0.22, post),
+		),
+	);
+	/* ceiling boards, rafters front to back, tie beams across */
+	{
+		const c = mesh(new THREE.PlaneGeometry(W * 2, L, 8, 8), "#4A2E1C");
+		c.rotation.x = Math.PI / 2;
+		c.position.set(0, H, BZ + L / 2);
+		shell.add(c);
+	}
+	for (let x = -6.4; x <= 6.5; x += 3.2) shell.add(B(0.32, 0.4, L, beam, x, H - 0.2, BZ + L / 2));
+	for (let z = BZ + 4.5; z < FZ; z += 5) shell.add(B(W * 2, 0.42, 0.34, post, 0, H - 0.62, z));
+	s.add(kitGroup(bakeKit(shell, { ao: false }), 0));
+	const put = (g, m, x, y, z, ry = 0, sc = 1) => {
+		m.position.set(x, y, z);
+		m.rotation.y = ry;
+		m.scale.setScalar(sc);
+		g.add(m);
+		return m;
+	};
+	/* left corner: pegboard and workbench along the left wall, the tool chest by the back wall, a crate up front */
+	const left = new THREE.Group();
+	put(left, garPegboard(), -W + 0.12, 3.1, -2.6, Math.PI / 2);
+	put(left, garWorkbench(), -W + 0.9, 0, -2.6, Math.PI / 2);
+	put(left, garToolChest(), -6.7, 0, BZ + 1.05, 0.2);
+	put(left, crateModel(2), -6.9, 0, 3.4, 0.5, 1.15);
+	put(left, garNut(0.18), -5.2, 0, 2.8, 0.4);
+	put(left, garJerryCan("#E5484D"), -7.6, 0, 1.4, 1.2);
+	s.add(kitGroup(bakeKit(left), 0));
+	/* back wall: a rack of spanners and pliers, the extinguisher, crates stacked behind the turntable */
+	const back = new THREE.Group(),
+		bz = BZ + 0.18;
+	back.add(plankBox(3.4, 0.24, 0.12, "#9C6438", -3.2, 4.55, bz));
+	const tool = (m, x, y) => {
+		put(back, m, x, y, bz + 0.16);
+		back.add(B(0.06, 0.06, 0.2, GAR.DARK, x, 4.42, bz + 0.12));
+	};
+	tool(garHammer(), -4.55, 3.95);
+	tool(garWrench(1.15), -4.0, 3.8);
+	tool(garPliers("#E5484D"), -3.45, 3.85);
+	tool(garWrench(1.05), -2.9, 3.85);
+	tool(garWrench(0.95), -2.45, 3.92);
+	tool(garWrench(0.85), -2.0, 3.98);
+	tool(garPliers("#2E323A"), -1.55, 3.85);
+	put(back, garExtinguisher(), -0.55, 2.1, BZ + 0.45);
+	put(back, crateModel(0), -4.3, 0, BZ + 1.0, 0.1, 1.25);
+	put(back, crateModel(1), -2.9, 0, BZ + 0.9, -0.15, 1.05);
+	put(back, crateModel(0), -4.25, 1.0, BZ + 1.0, 0.35, 0.9);
+	s.add(kitGroup(bakeKit(back), 0));
+	/* right: wall shelves of cans over a low steel shelf of bins and crates, a tyre stack, a tall rack down the right
+	   wall, a big tyre leaning up front, a spanner and a bolt on the floor */
+	const right = new THREE.Group(),
+		sx = 3.3,
+		sz = BZ + 0.1,
+		top = 4.61,
+		mid = 3.36,
+		z = sz + 0.5;
+	put(right, garShelf(4.4, 0.75), sx, 4.55, sz);
+	put(right, garShelf(4.4, 0.75), sx, 3.3, sz);
+	put(right, garJerryCan("#FFC83D"), sx - 1.6, top, z, 0.1);
+	put(right, garJerryCan("#4A6F9E"), sx - 1.0, top, z, -0.1);
+	put(right, garSpray("#FFC83D"), sx - 0.45, top, z, 0.3);
+	put(right, garCarton(0.75, 0.55, 0.55), sx + 0.3, top, z, -0.1);
+	put(right, garJug("#2F7DE1"), sx + 1.0, top, z, 0.2);
+	put(right, garSpray("#F4F6F9"), sx + 1.55, top, z, -0.4);
+	put(right, garBin(0.8, 0.32, 0.55), sx - 1.2, mid, z, 0.05);
+	for (let k = 0; k < 4; k++) put(right, garBolt(1.3), sx - 0.3 + k * 0.22, mid, z + (k % 2) * 0.15, 0.4 + k);
+	put(right, garCarton(0.7, 0.5, 0.5), sx + 1.2, mid, z, 0.15);
+	put(right, garNut(0.14), sx + 0.6, mid, z + 0.1);
+	put(right, garRack(4.2, 1.9, 0.95, [0.18, 0.95, 1.8]), sx, 0, BZ + 0.15);
+	put(right, garBin(0.95, 0.34, 0.75), sx - 1.3, 1.83, BZ + 0.62);
+	put(right, garBin(0.95, 0.34, 0.75), sx + 0.1, 1.83, BZ + 0.62);
+	put(right, garGear(0.32), sx + 1.3, 1.83, BZ + 0.62);
+	put(right, crateModel(0), sx - 1.1, 0.21, BZ + 0.62, 0.05, 0.75);
+	put(right, crateModel(0), sx, 0.21, BZ + 0.62, -0.05, 0.75);
+	put(right, garBin(0.95, 0.4, 0.75), sx + 1.3, 0.98, BZ + 0.62);
+	put(right, garTyres(0.82, 4), 7.0, 0, BZ + 1.1);
+	const rk = put(right, garRack(4.2, 4.6, 1.0, [0.2, 1.3, 2.4, 3.5, 4.5]), W - 0.15, 0, -2.0, -Math.PI / 2),
+		on = (m, lx, y, lz, ry = 0) => {
+			const v = new THREE.Vector3(lx, y, lz).applyAxisAngle(new THREE.Vector3(0, 1, 0), rk.rotation.y).add(rk.position);
+			put(right, m, v.x, v.y, v.z, ry + rk.rotation.y);
+		};
+	on(garDisc(0.42), -1.2, 0.23, 0.5);
+	on(garDisc(0.42), -1.2, 0.47, 0.5, 0.5);
+	on(garCarton(0.8, 0.6, 0.7), 0.6, 0.23, 0.5);
+	on(garGear(0.42), -0.9, 1.33, 0.5);
+	on(garJerryCan("#E5484D"), 0.5, 1.33, 0.5, 0.2);
+	on(garJug("#FFC83D"), 1.3, 1.33, 0.5);
+	on(garDisc(0.36), 0.0, 2.43, 0.5);
+	on(garGear(0.3), 1.1, 2.43, 0.5);
+	on(garCarton(0.7, 0.55, 0.6), -1.1, 2.43, 0.5, 0.2);
+	on(garJerryCan("#4A6F9E"), -1.0, 3.53, 0.5);
+	on(garCarton(0.9, 0.7, 0.7), 0.7, 3.53, 0.5, -0.1);
+	const big = new THREE.Group(),
+		bt = garTyre(1.25, true);
+	bt.rotation.x = Math.PI / 2;
+	bt.position.y = 1.25;
+	big.add(bt);
+	big.rotation.z = -0.22;
+	put(right, big, 7.3, 0.12, 4.2, -0.75);
+	const wr = garWrench(1.5);
+	wr.rotation.set(-Math.PI / 2, 0, 0.6);
+	wr.position.set(5.6, 0.06, 6.8);
+	right.add(wr);
+	put(right, garBolt(1.5), 4.9, 0, 4.6, 0.8);
+	s.add(kitGroup(bakeKit(right), 0));
+	/* the two lamps over the turntable */
+	return [
+		[-4.4, 4.6, -2.4],
+		[4.8, 4.6, -2.8],
+	].map(([x, y, lz]) => {
+		const l = garLamp(H - y - 0.42);
+		l.position.set(x, y, lz);
+		s.add(l);
+		return l;
+	});
+}

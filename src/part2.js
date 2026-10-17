@@ -546,56 +546,49 @@ function mountains(scene) {
 		}
 	}
 }
+/* the main menu showroom: the truck turntable in a cosy workshop garage (garageRoom, partmodels), lit warm by two
+   hanging lamps; a high light through the roof only for the truck's shadow (the room itself casts none) */
 function buildShowroom() {
 	const s = new THREE.Scene();
-	s.background = new THREE.Color("#9FD4F5");
-	s.fog = new THREE.Fog("#9FD4F5", 30, 80);
+	s.background = new THREE.Color("#2B2119");
+	s.fog = new THREE.Fog("#2B2119", 40, 95);
+	const hemi = new THREE.HemisphereLight("#FFEBD2", "#4E3E30", 0.72);
+	s.add(hemi);
+	GFX.showHemi = hemi;
 	{
-		const d = lights(s, true),
+		const d = new THREE.DirectionalLight("#FFE2B8", 0.8),
 			c = d.shadow.camera;
+		d.position.set(3, 18, 8);
+		d.castShadow = true;
 		GFX.showSun = d;
-		GFX.showHemi = s.children.find((o) => o.isHemisphereLight);
+		s.add(d);
 		c.left = -7;
 		c.right = 7;
 		c.top = 7;
 		c.bottom = -7;
-		c.near = 10;
-		c.far = 55;
+		c.near = 8;
+		c.far = 40;
 		c.updateProjectionMatrix();
 		d.shadow.mapSize.set(2048, 2048);
 		d.shadow.bias = -0.0003;
 		d.shadow.normalBias = 0.02;
 	}
-	ground(s, 120, 120, 9, 9, "#7CC66A");
-	mountains(s);
-	const tt = Cy(3.3, 3.5, 0.3, 24, "#3A4150", 0, 0.15, 0);
-	s.add(tt);
+	const lamps = garageRoom(s);
+	s.traverse((o) => {
+		if (o.isMesh) o.castShadow = false;
+	});
+	lamps.forEach((l) => {
+		const p = new THREE.PointLight("#FFD29A", 0.6, 20, 1.2);
+		p.position.set(l.position.x, l.position.y - 0.3, l.position.z);
+		s.add(p);
+	});
+	s.add(Cy(3.3, 3.5, 0.3, 24, "#3A4150", 0, 0.15, 0));
 	s.add(Cy(3.35, 3.35, 0.06, 24, "#FFC83D", 0, 0.32, 0));
 	s.add(Cy(3.1, 3.1, 0.07, 24, "#4A5263", 0, 0.34, 0));
-	[
-		[-6, -4, 1.3],
-		[6.5, -5, 1.1],
-		[-7, 2, 1],
-		[7, 1.5, 1.4],
-		[-4, -8, 1.2],
-		[4, -9, 1.6],
-		[0, -11, 1.3],
-		[-10, -2, 1.5],
-		[10, -3, 1.2],
-	].forEach(([x, z, k]) => s.add(tree(x, z, k)));
-	s.add(rock(4.5, 3, 0.5), rock(-5, 3.5, 0.4));
-	const clouds = [];
-	for (let i = 0; i < 5; i++) {
-		const c = cloud();
-		c.position.set(-30 + i * 14, 14 + Math.random() * 4, -25 - Math.random() * 10);
-		s.add(c);
-		clouds.push(c);
-	}
 	const hold = new THREE.Group();
 	hold.position.y = 0.34;
 	s.add(hold);
-	applySky(s, "def");
-	GFX.show = { scene: s, hold, clouds, key: "" };
+	GFX.show = { scene: s, hold, clouds: [], key: "", lt: [0.8, 0.72] };
 }
 function setShowroom(trucks) {
 	const S = GFX.show;
@@ -978,8 +971,8 @@ function frame(t) {
 		{
 			const dim = ["lobby", "home", "join", "practice"].includes(view),
 				kk = Math.min(1, dt * 3);
-			if (GFX.showSun) GFX.showSun.intensity += ((dim ? 0.72 : 1.05) - GFX.showSun.intensity) * kk;
-			if (GFX.showHemi) GFX.showHemi.intensity += ((dim ? 0.6 : 0.78) - GFX.showHemi.intensity) * kk;
+			if (GFX.showSun) GFX.showSun.intensity += (S.lt[0] * (dim ? 0.69 : 1) - GFX.showSun.intensity) * kk;
+			if (GFX.showHemi) GFX.showHemi.intensity += (S.lt[1] * (dim ? 0.77 : 1) - GFX.showHemi.intensity) * kk;
 		}
 		S.hold.rotation.y = S.single ? time * 0.45 : Math.sin(time * 0.3) * 0.15;
 		S.hold.children.forEach((g) => {
@@ -1013,7 +1006,8 @@ function frame(t) {
 					: mid
 						? 13 * GFX.menuK
 						: 10.5;
-		cam.position.set(0, 1.2 + d * 0.3, d);
+		/* no higher than 5.4: the garage ceiling is at 7.2 (portrait cameras stand far back and look up into the rafters) */
+		cam.position.set(0, Math.min(5.4, 1.2 + d * 0.3), d);
 		cam.lookAt(0, 0.9, 0);
 		cam.setViewOffset(
 			w,
