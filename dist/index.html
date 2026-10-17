@@ -998,7 +998,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-17 19:30 3f8a576";
+const BUILD = "2026-10-17 19:36 1e9dced";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -44881,33 +44881,52 @@ function garDaylight(s) {
 			s.add(m);
 			return m;
 		},
-		patch = canvasTex(32, 128, (x, w, h) => {
-			const gr = x.createLinearGradient(0, 0, 0, h);
-			gr.addColorStop(0, "rgba(255,226,180,0)");
-			gr.addColorStop(0.55, "rgba(255,226,180,0.55)");
-			gr.addColorStop(1, "rgba(255,232,196,1)");
-			x.fillStyle = gr;
-			x.fillRect(0, 0, w, h);
-		}),
-		shaft = canvasTex(128, 64, (x, w, h) => {
-			for (let i = 0; i < w; i += 4) {
-				x.fillStyle = `rgba(255,236,205,${(0.25 + garR(i, 3) * 0.75).toFixed(2)})`;
-				x.fillRect(i, 0, 4, h);
-			}
+		/* a mask: fade(x, stops along y as [where, alpha]) multiplies what is drawn by a gradient (vertical or across) */
+		fade = (x, w, h, across, stops) => {
+			const gr = across ? x.createLinearGradient(0, 0, w, 0) : x.createLinearGradient(0, 0, 0, h);
+			stops.forEach(([t, a]) => gr.addColorStop(t, `rgba(0,0,0,${a})`));
 			x.globalCompositeOperation = "destination-in";
-			const gr = x.createLinearGradient(0, 0, 0, h);
-			gr.addColorStop(0, "rgba(0,0,0,0)");
-			gr.addColorStop(0.7, "rgba(0,0,0,0.8)");
-			gr.addColorStop(1, "rgba(0,0,0,1)");
 			x.fillStyle = gr;
 			x.fillRect(0, 0, w, h);
-			const sd = x.createLinearGradient(0, 0, w, 0);
-			sd.addColorStop(0, "rgba(0,0,0,0)");
-			sd.addColorStop(0.15, "rgba(0,0,0,1)");
-			sd.addColorStop(0.85, "rgba(0,0,0,1)");
-			sd.addColorStop(1, "rgba(0,0,0,0)");
-			x.fillStyle = sd;
+			x.globalCompositeOperation = "source-over";
+		},
+		/* the canvas top is the door end of both quads */
+		patch = canvasTex(64, 128, (x, w, h) => {
+			x.fillStyle = "rgb(255,230,188)";
 			x.fillRect(0, 0, w, h);
+			fade(x, w, h, false, [
+				[0, 0.85],
+				[0.2, 1],
+				[1, 0],
+			]);
+			fade(x, w, h, true, [
+				[0, 0],
+				[0.15, 1],
+				[0.85, 1],
+				[1, 0],
+			]);
+		}),
+		/* the shafts: a smooth, gently varying glow across (no stripes), faded out at both ends and both sides */
+		shaft = canvasTex(256, 64, (x, w, h) => {
+			const gr = x.createLinearGradient(0, 0, w, 0);
+			for (let i = 0; i <= 12; i++) {
+				const v = 0.55 + 0.45 * Math.sin(i * 1.7 + 0.6) * Math.sin(i * 0.9 + 2.1);
+				gr.addColorStop(i / 12, `rgba(255,236,205,${v.toFixed(2)})`);
+			}
+			x.fillStyle = gr;
+			x.fillRect(0, 0, w, h);
+			fade(x, w, h, false, [
+				[0, 0],
+				[0.3, 1],
+				[0.7, 0.7],
+				[1, 0],
+			]);
+			fade(x, w, h, true, [
+				[0, 0],
+				[0.25, 1],
+				[0.75, 1],
+				[1, 0],
+			]);
 		});
 	/* the floor patch, the door's width at the door, wider and fading further in */
 	quad(
@@ -44922,8 +44941,8 @@ function garDaylight(s) {
 	);
 	/* two shafts from the door's top edge down to the patch, one a little inside the other */
 	[
-		[0, 0.07],
-		[0.5, 0.05],
+		[0, 0.06],
+		[0.6, 0.04],
 	].forEach(([o, op]) =>
 		quad(
 			[
