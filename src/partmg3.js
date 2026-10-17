@@ -9465,7 +9465,8 @@ Object.assign(MG, {
 				].forEach(([x, z], i) => {
 					const c = kitGroup(kit, 0);
 					c.scale.setScalar(0.85);
-					c.position.set(lie ? x : x * 0.3, lie ? 0 : i * 0.7 - 0.4, lie ? z : z * 0.3);
+					/* crateModel is built round its middle (0.8 tall): on the road it stands on its base */
+					c.position.set(lie ? x : x * 0.3, lie ? 0.4 * 0.85 : i * 0.7 - 0.4, lie ? z : z * 0.3);
 					c.rotation.y = i * 0.8;
 					add(c);
 				});
