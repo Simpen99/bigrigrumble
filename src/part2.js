@@ -546,56 +546,61 @@ function mountains(scene) {
 		}
 	}
 }
+/* the main menu showroom: the truck turntable in a cosy workshop garage (garageRoom, partmodels) with its roller door
+   open onto a valley, lit warm by a spot over the turntable and two hanging lamps, daylight from the door */
 function buildShowroom() {
 	const s = new THREE.Scene();
-	s.background = new THREE.Color("#9FD4F5");
-	s.fog = new THREE.Fog("#9FD4F5", 30, 80);
+	/* the sky and haze are only seen through the roller door: the valley fades into the distance */
+	s.fog = new THREE.Fog("#DDE5E0", 150, 420);
+	s.background = canvasTex(4, 256, (x, w, h) => {
+		const gr = x.createLinearGradient(0, 0, 0, h);
+		gr.addColorStop(0, "#6FB1E8");
+		gr.addColorStop(0.32, "#A9D6F2");
+		gr.addColorStop(0.6, "#E4F1F4");
+		gr.addColorStop(1, "#F4EEDC");
+		x.fillStyle = gr;
+		x.fillRect(0, 0, w, h);
+	});
+	const hemi = new THREE.HemisphereLight("#FFE6C2", "#6A4E36", 0.42);
+	s.add(hemi);
+	GFX.showHemi = hemi;
 	{
-		const d = lights(s, true),
+		/* the key light: a wide spot under the tie beams over the turntable, so the lamps light a warm pool and
+		   everything throws its shadow outward from the middle, down the walls and across the floor */
+		const d = new THREE.SpotLight("#FFD9A8", 1.5, 0, 1.3, 0.55, 1),
 			c = d.shadow.camera;
+		d.position.set(0, 6.2, 1.5);
+		d.target.position.set(0, 0, -1.8);
+		d.castShadow = true;
 		GFX.showSun = d;
-		GFX.showHemi = s.children.find((o) => o.isHemisphereLight);
-		c.left = -7;
-		c.right = 7;
-		c.top = 7;
-		c.bottom = -7;
-		c.near = 10;
-		c.far = 55;
-		c.updateProjectionMatrix();
-		d.shadow.mapSize.set(2048, 2048);
+		s.add(d, d.target);
+		/* the shadow map covers 85% of the cone (still every prop by the walls): sharper shadow edges; 4096 on a PC */
+		c.near = 1;
+		c.far = 30;
+		d.shadow.focus = 0.85;
+		d.shadow.mapSize.setScalar(GFX.touch ? 2048 : 4096);
 		d.shadow.bias = -0.0003;
 		d.shadow.normalBias = 0.02;
 	}
-	ground(s, 120, 120, 9, 9, "#7CC66A");
-	mountains(s);
-	const tt = Cy(3.3, 3.5, 0.3, 24, "#3A4150", 0, 0.15, 0);
-	s.add(tt);
+	const lamps = garageRoom(s);
+	/* daylight from the open door: a soft cool-white light from outside, catching the backs and tops of things */
+	{
+		const dl = new THREE.DirectionalLight("#FFF1DC", 0.3);
+		dl.position.set(0, 8, -30);
+		s.add(dl);
+	}
+	lamps.forEach((l) => {
+		const p = new THREE.PointLight("#FFD29A", 0.7, 14, 1.4);
+		p.position.set(l.position.x, l.position.y - 0.3, l.position.z);
+		s.add(p);
+	});
+	s.add(Cy(3.3, 3.5, 0.3, 24, "#3A4150", 0, 0.15, 0));
 	s.add(Cy(3.35, 3.35, 0.06, 24, "#FFC83D", 0, 0.32, 0));
 	s.add(Cy(3.1, 3.1, 0.07, 24, "#4A5263", 0, 0.34, 0));
-	[
-		[-6, -4, 1.3],
-		[6.5, -5, 1.1],
-		[-7, 2, 1],
-		[7, 1.5, 1.4],
-		[-4, -8, 1.2],
-		[4, -9, 1.6],
-		[0, -11, 1.3],
-		[-10, -2, 1.5],
-		[10, -3, 1.2],
-	].forEach(([x, z, k]) => s.add(tree(x, z, k)));
-	s.add(rock(4.5, 3, 0.5), rock(-5, 3.5, 0.4));
-	const clouds = [];
-	for (let i = 0; i < 5; i++) {
-		const c = cloud();
-		c.position.set(-30 + i * 14, 14 + Math.random() * 4, -25 - Math.random() * 10);
-		s.add(c);
-		clouds.push(c);
-	}
 	const hold = new THREE.Group();
 	hold.position.y = 0.34;
 	s.add(hold);
-	applySky(s, "def");
-	GFX.show = { scene: s, hold, clouds, key: "" };
+	GFX.show = { scene: s, hold, clouds: [], key: "", lt: [1.5, 0.42] };
 }
 function setShowroom(trucks) {
 	const S = GFX.show;
@@ -978,8 +983,8 @@ function frame(t) {
 		{
 			const dim = ["lobby", "home", "join", "practice"].includes(view),
 				kk = Math.min(1, dt * 3);
-			if (GFX.showSun) GFX.showSun.intensity += ((dim ? 0.72 : 1.05) - GFX.showSun.intensity) * kk;
-			if (GFX.showHemi) GFX.showHemi.intensity += ((dim ? 0.6 : 0.78) - GFX.showHemi.intensity) * kk;
+			if (GFX.showSun) GFX.showSun.intensity += (S.lt[0] * (dim ? 0.69 : 1) - GFX.showSun.intensity) * kk;
+			if (GFX.showHemi) GFX.showHemi.intensity += (S.lt[1] * (dim ? 0.77 : 1) - GFX.showHemi.intensity) * kk;
 		}
 		S.hold.rotation.y = S.single ? time * 0.45 : Math.sin(time * 0.3) * 0.15;
 		S.hold.children.forEach((g) => {
@@ -1013,7 +1018,12 @@ function frame(t) {
 					: mid
 						? 13 * GFX.menuK
 						: 10.5;
-		cam.position.set(0, 1.2 + d * 0.3, d);
+		/* no higher than 5.4: the garage ceiling is at 7.2 (portrait cameras stand far back and look up into the rafters) */
+		/* layout A (truck left of the menu): the camera swings round the turntable to the right by GFX.menuYaw, so it looks
+		   across into the left of the garage and the room squares up to the screen like layout B; the truck keeps its spot
+		   (never closer than 1.2 to the right wall) */
+		const ya = mid && MM_LAY !== "b" ? Math.min(GFX.menuYaw ?? 0.6, Math.asin(Math.min(1, (GAR.W - 1.2) / d))) : 0;
+		cam.position.set(Math.sin(ya) * d, Math.min(5.4, 1.2 + d * 0.3), Math.cos(ya) * d);
 		cam.lookAt(0, 0.9, 0);
 		cam.setViewOffset(
 			w,
@@ -1026,20 +1036,26 @@ function frame(t) {
 		cam.updateProjectionMatrix();
 		cam.updateMatrixWorld();
 		swayStep(S.scene);
+		/* the mountains out of the garage door are further than the camera usually sees */
+		const far0 = cam.far;
+		cam.far = 420;
+		cam.updateProjectionMatrix();
 		renderMG(S.scene, cam);
+		cam.far = far0;
+		cam.updateProjectionMatrix();
 	}
 }
 function gfxInit() {
 	if (typeof THREE === "undefined") return;
 	try {
-		/* phones: no logarithmic depth buffer (it turns off early depth rejection on mobile GPUs and its precision fallback made specks shimmer through the lava) */
+		/* no logarithmic depth buffer: it turns off early depth rejection on mobile GPUs, its precision fallback made specks shimmer through the lava on phones, and it writes depth per pixel, so the GPU's multisampling left every line where two parts cut into each other jagged (a truck's hatch shelf in its body) */
 		const touch = !(typeof matchMedia === "function" && matchMedia("(pointer: fine)").matches);
 		GFX.touch = touch;
 		const r = new THREE.WebGLRenderer({
 			canvas: $("#gl"),
 			antialias: true,
 			powerPreference: "high-performance",
-			logarithmicDepthBuffer: !touch,
+			logarithmicDepthBuffer: false,
 		});
 		r.setPixelRatio(Math.min(devicePixelRatio || 1, 2.5));
 		r.shadowMap.enabled = true;
