@@ -546,39 +546,34 @@ function mountains(scene) {
 		}
 	}
 }
-/* the main menu showroom: the truck turntable in a cosy workshop garage (garageRoom, partmodels), lit warm by two
-   hanging lamps; a high light through the roof only for the truck's shadow (the room itself casts none) */
+/* the main menu showroom: the truck turntable in a cosy workshop garage (garageRoom, partmodels), lit warm by a spot
+   over the turntable and two hanging lamps */
 function buildShowroom() {
 	const s = new THREE.Scene();
 	s.background = new THREE.Color("#2B2119");
 	s.fog = new THREE.Fog("#2B2119", 40, 95);
-	const hemi = new THREE.HemisphereLight("#FFEBD2", "#4E3E30", 0.72);
+	const hemi = new THREE.HemisphereLight("#FFEBD2", "#4E3E30", 0.42);
 	s.add(hemi);
 	GFX.showHemi = hemi;
 	{
-		const d = new THREE.DirectionalLight("#FFE2B8", 0.8),
+		/* the key light: a wide spot under the tie beams over the turntable, so the lamps light a warm pool and
+		   everything throws its shadow outward from the middle, down the walls and across the floor */
+		const d = new THREE.SpotLight("#FFD9A8", 1.5, 0, 1.3, 0.55, 1),
 			c = d.shadow.camera;
-		d.position.set(3, 18, 8);
+		d.position.set(0, 6.2, 1.5);
+		d.target.position.set(0, 0, -1.8);
 		d.castShadow = true;
 		GFX.showSun = d;
-		s.add(d);
-		c.left = -7;
-		c.right = 7;
-		c.top = 7;
-		c.bottom = -7;
-		c.near = 8;
-		c.far = 40;
-		c.updateProjectionMatrix();
+		s.add(d, d.target);
+		c.near = 1;
+		c.far = 30;
 		d.shadow.mapSize.set(2048, 2048);
-		d.shadow.bias = -0.0003;
-		d.shadow.normalBias = 0.02;
+		d.shadow.bias = -0.0004;
+		d.shadow.normalBias = 0.03;
 	}
 	const lamps = garageRoom(s);
-	s.traverse((o) => {
-		if (o.isMesh) o.castShadow = false;
-	});
 	lamps.forEach((l) => {
-		const p = new THREE.PointLight("#FFD29A", 0.6, 20, 1.2);
+		const p = new THREE.PointLight("#FFD29A", 0.7, 14, 1.4);
 		p.position.set(l.position.x, l.position.y - 0.3, l.position.z);
 		s.add(p);
 	});
@@ -588,7 +583,7 @@ function buildShowroom() {
 	const hold = new THREE.Group();
 	hold.position.y = 0.34;
 	s.add(hold);
-	GFX.show = { scene: s, hold, clouds: [], key: "", lt: [0.8, 0.72] };
+	GFX.show = { scene: s, hold, clouds: [], key: "", lt: [1.5, 0.42] };
 }
 function setShowroom(trucks) {
 	const S = GFX.show;

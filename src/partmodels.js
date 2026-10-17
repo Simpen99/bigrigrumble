@@ -2948,8 +2948,9 @@ const garR = (a, b) => {
 	const n = Math.sin(a * 12.9898 + b * 78.233) * 43758.5453;
 	return n - Math.floor(n);
 };
-/* a wall of big flat facets: a grid of step-sized cells, inner corners nudged in and out by up to amp */
-function garFacets(w, h, step, amp, col) {
+/* a wall of big flat facets: a grid of step-sized cells, inner corners nudged in and out by up to amp; fall = how much
+   darker it gets towards the top (the lamps hang low, the light falls off up into the rafters) */
+function garFacets(w, h, step, amp, col, fall = 0) {
 	const g = new THREE.PlaneGeometry(w, h, Math.max(1, Math.round(w / step)), Math.max(1, Math.round(h / step))),
 		P = g.attributes.position;
 	for (let i = 0; i < P.count; i++) {
@@ -2963,7 +2964,15 @@ function garFacets(w, h, step, amp, col) {
 			(garR(x, y) - 0.5) * amp,
 		);
 	}
-	return mesh(g.toNonIndexed(), col);
+	const m = mesh(g.toNonIndexed(), col),
+		Q = m.geometry.attributes.position,
+		C = m.geometry.attributes.color;
+	for (let i = 0; i < Q.count; i++) {
+		const u = Math.min(1, Math.max(0, (Q.getY(i) + h / 2) / h - 0.3) / 0.7),
+			k = 1 - fall * u * u;
+		C.setXYZ(i, C.getX(i) * k, C.getY(i) * k, C.getZ(i) * k);
+	}
+	return m;
 }
 /* a flat outline extruded depth thick, centred on z = 0 */
 function garEx(shape, depth, col) {
@@ -3394,11 +3403,11 @@ function garageRoom(s) {
 		shell.add(m);
 	}
 	/* walls: back, left, right; a skirting board and a top plate along each */
-	const bw = garFacets(W * 2, H, 1.7, 0.12, wall);
+	const bw = garFacets(W * 2, H, 1.7, 0.12, wall, 0.45);
 	bw.position.set(0, H / 2, BZ);
 	shell.add(bw);
 	[-1, 1].forEach((s) => {
-		const sw = garFacets(L, H, 1.7, 0.12, wall);
+		const sw = garFacets(L, H, 1.7, 0.12, wall, 0.45);
 		sw.rotation.y = -s * (Math.PI / 2);
 		sw.position.set(s * W, H / 2, BZ + L / 2);
 		shell.add(sw, B(0.14, 0.3, L, beam, s * (W - 0.12), 0.15, BZ + L / 2));
@@ -3422,7 +3431,10 @@ function garageRoom(s) {
 	}
 	for (let x = -6.4; x <= 6.5; x += 3.2) shell.add(B(0.32, 0.4, L, beam, x, H - 0.2, BZ + L / 2));
 	for (let z = BZ + 4.5; z < FZ; z += 5) shell.add(B(W * 2, 0.42, 0.34, post, 0, H - 0.62, z));
-	s.add(kitGroup(bakeKit(shell, { ao: false }), 0));
+	/* the shell takes shadows but casts none (beams and posts would only stripe the room) */
+	const sk = kitGroup(bakeKit(shell, { ao: false }), 0);
+	sk.traverse((o) => (o.castShadow = false));
+	s.add(sk);
 	const put = (g, m, x, y, z, ry = 0, sc = 1) => {
 		m.position.set(x, y, z);
 		m.rotation.y = ry;
@@ -3516,12 +3528,32 @@ function garageRoom(s) {
 	right.add(wr);
 	put(right, garBolt(1.5), 4.9, 0, 4.6, 0.8);
 	s.add(kitGroup(bakeKit(right), 0));
+	/* soft contact shadows: under everything standing on the floor, along the foot of each wall, round the turntable */
+	const cs = (w, d, op, x, lz, ry = 0) => {
+		const m = contactShadow(w, d, op, 0, 0, 0.02);
+		m.position.set(x, 0, lz);
+		m.rotation.y = ry;
+		s.add(m);
+	};
+	cs(W * 2, 1.6, 0.4, 0, BZ + 0.1);
+	[-1, 1].forEach((k) => cs(1.6, 26, 0.4, k * (W - 0.1), BZ + 13));
+	cs(4.5, 1.7, 0.45, -W + 0.9, -2.6, Math.PI / 2);
+	cs(1.9, 1.2, 0.5, -6.7, BZ + 1.05, 0.2);
+	cs(1.3, 1.3, 0.45, -6.9, 3.4, 0.5);
+	cs(0.65, 0.45, 0.4, -7.6, 1.4, 1.2);
+	cs(1.45, 1.45, 0.45, -4.3, BZ + 1.0, 0.1);
+	cs(1.2, 1.2, 0.45, -2.9, BZ + 0.9, -0.15);
+	cs(4.4, 1.2, 0.45, sx, BZ + 0.62);
+	cs(4.4, 1.2, 0.45, W - 0.65, -2.0, Math.PI / 2);
+	cs(2.4, 1.1, 0.45, 7.3, 4.2, -0.75);
+	s.add(roundShadow(1.9, 0.5, 7.0, BZ + 1.1, 0.02), roundShadow(8.2, 0.5, 0, 0, 0.02));
 	/* the two lamps over the turntable */
 	return [
 		[-4.4, 4.6, -2.4],
 		[4.8, 4.6, -2.8],
 	].map(([x, y, lz]) => {
 		const l = garLamp(H - y - 0.42);
+		l.traverse((o) => (o.castShadow = false));
 		l.position.set(x, y, lz);
 		s.add(l);
 		return l;
