@@ -2942,15 +2942,17 @@ function paintCanModel(col, open) {
    a cosy mechanic's workshop facing the menu camera (+z): faceted ochre plaster walls between wooden posts, a beamed
    ceiling, a dark concrete floor; tools on a pegboard and a rack, a workbench, a rolling tool chest, shelves of cans and
    parts, stacked tyres. Each corner is baked into one kit, so the whole room is a few draw calls.
-   GAR: half width W, back wall z BZ, front end FZ (behind the furthest portrait camera), ceiling height H */
-const GAR = { W: 8.5, BZ: -6.5, FZ: 46, H: 7.2, STEEL: "#A9B0BC", DARK: "#3D424C", WOOD: "#7A4A2A" };
+   GAR: half width W, back wall z BZ, front end FZ (behind the furthest portrait camera), ceiling height H, the roller
+   door in the back wall DW either side of the middle and DH tall */
+const GAR = { W: 8.5, BZ: -6.5, FZ: 46, H: 8, DW: 4.4, DH: 6.9, STEEL: "#A9B0BC", DARK: "#3D424C", WOOD: "#7A4A2A" };
 const garR = (a, b) => {
 	const n = Math.sin(a * 12.9898 + b * 78.233) * 43758.5453;
 	return n - Math.floor(n);
 };
 /* a wall of big flat facets: a grid of step-sized cells, inner corners nudged in and out by up to amp; fall = how much
-   darker it gets towards the top (the lamps hang low, the light falls off up into the rafters) */
-function garFacets(w, h, step, amp, col, fall = 0) {
+   darker it gets towards the ceiling (the lamps hang low, the light falls off up into the rafters); yb = how high its
+   bottom edge is (a piece over a door) */
+function garFacets(w, h, step, amp, col, fall = 0, yb = 0) {
 	const g = new THREE.PlaneGeometry(w, h, Math.max(1, Math.round(w / step)), Math.max(1, Math.round(h / step))),
 		P = g.attributes.position;
 	for (let i = 0; i < P.count; i++) {
@@ -2968,7 +2970,7 @@ function garFacets(w, h, step, amp, col, fall = 0) {
 		Q = m.geometry.attributes.position,
 		C = m.geometry.attributes.color;
 	for (let i = 0; i < Q.count; i++) {
-		const u = Math.min(1, Math.max(0, (Q.getY(i) + h / 2) / h - 0.3) / 0.7),
+		const u = Math.min(1, Math.max(0, (Q.getY(i) + h / 2 + yb) / GAR.H - 0.3) / 0.7),
 			k = 1 - fall * u * u;
 		C.setXYZ(i, C.getX(i) * k, C.getY(i) * k, C.getZ(i) * k);
 	}
@@ -3379,9 +3381,201 @@ function garLamp(drop) {
 	g.userData.dyn = true;
 	return g;
 }
-/* the room: the shell (no baked occlusion: walls this size would eat the atlas) and three baked corners; returns the lamps */
+/* everything in g as one mesh lit by a fixed sun baked into its vertex colours (MeshBasicMaterial: the garage's lamps
+   and spot don't touch it, the fog still does): the valley outside the door. L = direction to the sun, amb = shade */
+function garSunlit(g, L, amb = 0.55) {
+	g.updateMatrixWorld(true);
+	const P = [],
+		C = [],
+		V = THREE.Vector3,
+		a = new V(),
+		b = new V(),
+		c = new V(),
+		n = new V(),
+		e = new V(),
+		col = new THREE.Color(),
+		vcol = new THREE.Color();
+	g.traverse((o) => {
+		if (!o.isMesh || o.userData.shadow || o.material.transparent) return;
+		const geo = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry,
+			p = geo.attributes.position,
+			vc = o.material.vertexColors ? geo.attributes.color : null,
+			base = o.material.color || new THREE.Color(1, 1, 1);
+		for (let i = 0; i + 2 < p.count; i += 3) {
+			a.fromBufferAttribute(p, i).applyMatrix4(o.matrixWorld);
+			b.fromBufferAttribute(p, i + 1).applyMatrix4(o.matrixWorld);
+			c.fromBufferAttribute(p, i + 2).applyMatrix4(o.matrixWorld);
+			n.subVectors(b, a).cross(e.subVectors(c, a)).normalize();
+			const k = amb + (1 - amb) * Math.max(0, n.dot(L));
+			[a, b, c].forEach((q, j) => {
+				P.push(q.x, q.y, q.z);
+				col.copy(base);
+				if (vc) col.multiply(vcol.fromBufferAttribute(vc, i + j));
+				C.push(col.r * k, col.g * k, col.b * k);
+			});
+		}
+	});
+	const geo = new THREE.BufferGeometry();
+	geo.setAttribute("position", new THREE.Float32BufferAttribute(P, 3));
+	geo.setAttribute("color", new THREE.Float32BufferAttribute(C, 3));
+	return new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ vertexColors: true }));
+}
+/* the valley out of the door: the garage stands high on a hill, a dirt track runs out of the door and down into
+   rolling green land with trees, grey mountains far off. The menu camera is about 5 m up and looks slightly down, so
+   all the door shows is below eye level: the land is shaped so the camera sees it fall away at a steady angle (from
+   about 14 degrees down just outside the door to 7 far off), the mountains rise to about 4 degrees down and the sky
+   fills the rest. Distances are measured from the door (squashed sideways), so layout A's camera, looking out at an
+   angle, sees the same */
+function garValley(s) {
+	const { BZ, DW } = GAR,
+		g = new THREE.Group(),
+		EYE = 5.1,
+		CZ = 19.5,
+		tan = (deg) => Math.tan((deg * Math.PI) / 180),
+		dist = (x, z) => Math.hypot(x * 0.8, BZ - z),
+		track = (d) => 6 * Math.sin(d * 0.035) * Math.min(1, d / 40),
+		hgt = (x, z) => {
+			const d = dist(x, z);
+			if (d < 2) return -0.06;
+			const y = EYE - (d + CZ) * tan(7 + 8 * Math.exp(-d / 40));
+			return Math.min(-0.06, y + noise(x * 0.6, z * 0.6) * Math.min(3, (d - 2) * 0.12));
+		};
+	/* the concrete apron in front of the door */
+	g.add(B(DW * 2 + 3, 0.3, 2, "#8A8F98", 0, -0.15, BZ - 1));
+	/* the land: big faceted cells, grass in two greens, the track in dirt */
+	{
+		const geo = new THREE.PlaneGeometry(440, 230, 88, 58).toNonIndexed();
+		geo.rotateX(-Math.PI / 2).translate(-60, 0, BZ - 0.5 - 115);
+		const p = geo.attributes.position,
+			C = [],
+			col = new THREE.Color();
+		for (let i = 0; i < p.count; i++) p.setY(i, hgt(p.getX(i), p.getZ(i)));
+		for (let i = 0; i < p.count; i += 3) {
+			const x = (p.getX(i) + p.getX(i + 1) + p.getX(i + 2)) / 3,
+				z = (p.getZ(i) + p.getZ(i + 1) + p.getZ(i + 2)) / 3,
+				d = BZ - z,
+				r = garR(x, z);
+			col.set(d < 120 && Math.abs(x - track(d)) < 2.2 + d * 0.012 ? "#C9B48A" : r < 0.5 ? "#9CCB5E" : "#86BC52");
+			col.offsetHSL(0, 0, (r - 0.5) * 0.06);
+			for (let k = 0; k < 3; k++) C.push(col.r, col.g, col.b);
+		}
+		geo.setAttribute("color", new THREE.Float32BufferAttribute(C, 3));
+		g.add(new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true })));
+	}
+	/* trees scattered over the slopes (seeded, so the view is the same every time), clear of the track */
+	for (let k = 0; k < 190; k++) {
+		const a = (garR(k, 1) - 0.62) * 1.5,
+			d = 70 + garR(k, 2) * 115,
+			x = (Math.sin(a) * d) / 0.8,
+			z = BZ - Math.cos(a) * d;
+		if (Math.abs(x - track(BZ - z)) < 5) continue;
+		const t = tree(x, z, 1.6 + garR(k, 3) * 1.1, k % 3 ? 0 : 1 + (k % 2));
+		t.position.y = hgt(x, z) - 0.2;
+		g.add(t);
+	}
+	/* mountains: a ragged grey ridge on an arc far off, the taller ones snow-capped */
+	for (let k = 0; k < 17; k++) {
+		const a = -0.85 + k * 0.075 + (garR(k, 5) - 0.5) * 0.04,
+			d = 195 + garR(k, 6) * 30,
+			x = (Math.sin(a) * d) / 0.8,
+			z = BZ - Math.cos(a) * d,
+			y0 = hgt(x, z) - 3,
+			top = EYE - (d + CZ) * tan(3.6 + garR(k, 7) * 1.8),
+			h = top - y0,
+			r = h * (0.9 + garR(k, 8) * 0.5),
+			m = Cy(0, r, h, 6 + (k % 2), k % 2 ? "#8E9BAA" : "#7D8C9C", x, y0 + h / 2, z);
+		m.rotation.y = garR(k, 9) * 2;
+		g.add(m);
+		if (k % 3 !== 1) g.add(Cy(0, r * 0.3, h * 0.3, 6 + (k % 2), "#F4F6F9", x, y0 + h * 0.85 + 0.05, z));
+	}
+	s.add(garSunlit(g, new THREE.Vector3(0.35, 0.85, 0.4).normalize(), 0.58));
+}
+/* daylight through the door: a warm patch on the floor inside it and soft shafts slanting down from its top */
+function garDaylight(s) {
+	const { BZ, DW, DH } = GAR,
+		IN = 7,
+		quad = (P, tex, op) => {
+			const geo = new THREE.BufferGeometry();
+			geo.setAttribute("position", new THREE.Float32BufferAttribute(P.flat(), 3));
+			geo.setAttribute("uv", new THREE.Float32BufferAttribute([0, 1, 1, 1, 0, 0, 1, 0], 2));
+			geo.setIndex([0, 2, 1, 1, 2, 3]);
+			const m = new THREE.Mesh(
+				geo,
+				new THREE.MeshBasicMaterial({
+					map: tex,
+					transparent: true,
+					opacity: op,
+					blending: THREE.AdditiveBlending,
+					depthWrite: false,
+					side: THREE.DoubleSide,
+					fog: false,
+				}),
+			);
+			m.renderOrder = 2;
+			m.userData.dyn = true;
+			s.add(m);
+			return m;
+		},
+		patch = canvasTex(32, 128, (x, w, h) => {
+			const gr = x.createLinearGradient(0, 0, 0, h);
+			gr.addColorStop(0, "rgba(255,226,180,0)");
+			gr.addColorStop(0.55, "rgba(255,226,180,0.55)");
+			gr.addColorStop(1, "rgba(255,232,196,1)");
+			x.fillStyle = gr;
+			x.fillRect(0, 0, w, h);
+		}),
+		shaft = canvasTex(128, 64, (x, w, h) => {
+			for (let i = 0; i < w; i += 4) {
+				x.fillStyle = `rgba(255,236,205,${(0.25 + garR(i, 3) * 0.75).toFixed(2)})`;
+				x.fillRect(i, 0, 4, h);
+			}
+			x.globalCompositeOperation = "destination-in";
+			const gr = x.createLinearGradient(0, 0, 0, h);
+			gr.addColorStop(0, "rgba(0,0,0,0)");
+			gr.addColorStop(0.7, "rgba(0,0,0,0.8)");
+			gr.addColorStop(1, "rgba(0,0,0,1)");
+			x.fillStyle = gr;
+			x.fillRect(0, 0, w, h);
+			const sd = x.createLinearGradient(0, 0, w, 0);
+			sd.addColorStop(0, "rgba(0,0,0,0)");
+			sd.addColorStop(0.15, "rgba(0,0,0,1)");
+			sd.addColorStop(0.85, "rgba(0,0,0,1)");
+			sd.addColorStop(1, "rgba(0,0,0,0)");
+			x.fillStyle = sd;
+			x.fillRect(0, 0, w, h);
+		});
+	/* the floor patch, the door's width at the door, wider and fading further in */
+	quad(
+		[
+			[-DW, 0.035, BZ + 0.3],
+			[DW, 0.035, BZ + 0.3],
+			[-DW - 1.8, 0.035, BZ + IN],
+			[DW + 1.8, 0.035, BZ + IN],
+		],
+		patch,
+		0.3,
+	);
+	/* two shafts from the door's top edge down to the patch, one a little inside the other */
+	[
+		[0, 0.07],
+		[0.5, 0.05],
+	].forEach(([o, op]) =>
+		quad(
+			[
+				[-DW + 0.3 + o, DH - 0.4, BZ + 0.2],
+				[DW - 0.3 - o, DH - 0.4, BZ + 0.2],
+				[-DW - 1.5 + o, 0.04, BZ + IN - 0.5 - o],
+				[DW + 1.5 - o, 0.04, BZ + IN - 0.5 - o],
+			],
+			shaft,
+			op,
+		),
+	);
+}
+/* the room: the shell (no baked occlusion: walls this size would eat the atlas) with the big roller door in the back
+   wall, three baked corners, the valley outside and the daylight coming in; returns the lamps */
 function garageRoom(s) {
-	const { W, BZ, FZ, H } = GAR,
+	const { W, BZ, FZ, H, DW, DH } = GAR,
 		L = FZ - BZ,
 		shell = new THREE.Group(),
 		wall = "#A9835A",
@@ -3402,10 +3596,18 @@ function garageRoom(s) {
 		m.receiveShadow = true;
 		shell.add(m);
 	}
-	/* walls: back, left, right; a skirting board and a top plate along each */
-	const bw = garFacets(W * 2, H, 1.7, 0.12, wall, 0.45);
-	bw.position.set(0, H / 2, BZ);
-	shell.add(bw);
+	/* back wall in three pieces round the door opening (2 DW wide, DH tall); side walls; skirting and top plates */
+	{
+		const sw = W - DW;
+		[-1, 1].forEach((s) => {
+			const p = garFacets(sw, H, 1.7, 0.12, wall, 0.45);
+			p.position.set(s * (DW + sw / 2), H / 2, BZ);
+			shell.add(p, B(sw, 0.3, 0.14, beam, s * (DW + sw / 2), 0.15, BZ + 0.12));
+		});
+		const top = garFacets(DW * 2, H - DH, 1.7, 0.12, wall, 0.45, DH);
+		top.position.set(0, DH + (H - DH) / 2, BZ);
+		shell.add(top);
+	}
 	[-1, 1].forEach((s) => {
 		const sw = garFacets(L, H, 1.7, 0.12, wall, 0.45);
 		sw.rotation.y = -s * (Math.PI / 2);
@@ -3414,14 +3616,25 @@ function garageRoom(s) {
 		shell.add(B(0.5, 0.5, L, beam, s * (W - 0.25), H - 0.25, BZ + L / 2));
 		for (let z = BZ + 7.5; z < FZ; z += 6) shell.add(B(0.4, H, 0.4, post, s * (W - 0.2), H / 2, z));
 	});
-	shell.add(B(W * 2, 0.3, 0.14, beam, 0, 0.15, BZ + 0.12), B(W * 2, 0.5, 0.5, beam, 0, H - 0.25, BZ + 0.25));
-	/* posts along the back wall, knee braces up to the top beam from the inner ones */
-	[-W + 0.2, -5.35, 0.6, 5.9, W - 0.2].forEach((x) => shell.add(B(0.4, H, 0.4, post, x, H / 2, BZ + 0.25)));
-	[-5.35, 5.9].forEach((x) =>
-		[-1, 1].forEach((s) =>
-			strut(shell, [x + s * 0.2, H - 1.5, BZ + 0.3], [x + s * 1.3, H - 0.45, BZ + 0.3], 0.22, post),
-		),
-	);
+	shell.add(B(W * 2, 0.5, 0.5, beam, 0, H - 0.25, BZ + 0.25));
+	/* corner posts; the door frame: posts, a header, steel guide rails, the roller housing with the door's bottom slat
+	   (hazard yellow) peeking out, a yellow line across the threshold; knee braces from the frame posts outward */
+	[-W + 0.2, W - 0.2].forEach((x) => shell.add(B(0.4, H, 0.4, post, x, H / 2, BZ + 0.25)));
+	[-1, 1].forEach((s) => {
+		shell.add(B(0.45, DH, 0.5, post, s * (DW + 0.225), DH / 2, BZ + 0.25));
+		shell.add(B(0.14, DH - 0.4, 0.16, "#5A6272", s * (DW + 0.06), (DH - 0.4) / 2, BZ + 0.58));
+		strut(shell, [s * (DW + 0.45), H - 1.5, BZ + 0.3], [s * (DW + 1.6), H - 0.45, BZ + 0.3], 0.22, post);
+	});
+	shell.add(B(DW * 2 + 0.9, 0.45, 0.5, post, 0, DH + 0.225, BZ + 0.25));
+	shell.add(B(DW * 2 + 0.4, 0.9, 0.95, "#6B7280", 0, DH + 0.18, BZ + 0.98));
+	[-1, 1].forEach((s) => shell.add(B(0.06, 0.96, 1.0, "#5A6272", s * (DW + 0.23), DH + 0.18, BZ + 0.98)));
+	shell.add(B(DW * 2 - 0.1, 0.16, 0.1, "#FFC83D", 0, DH - 0.35, BZ + 0.98));
+	for (let k = 0; k < 9; k++) {
+		const st = B(0.3, 0.17, 0.15, "#2E323A", -DW + 0.5 + k * ((DW * 2 - 1) / 8), DH - 0.35, BZ + 0.98);
+		st.rotation.z = 0.6;
+		shell.add(st);
+	}
+	shell.add(B(DW * 2, 0.03, 0.22, "#FFC83D", 0, 0.015, BZ + 0.75));
 	/* ceiling boards, rafters front to back, tie beams across */
 	{
 		const c = mesh(new THREE.PlaneGeometry(W * 2, L, 8, 8), "#4A2E1C");
@@ -3444,65 +3657,57 @@ function garageRoom(s) {
 	};
 	/* crateModel is built round its middle, 0.8 tall: this stands one on y */
 	const crate = (g, v, x, y, z, ry, sc) => put(g, crateModel(v), x, y + 0.4 * sc, z, ry, sc);
-	/* left corner: pegboard and workbench along the left wall, the tool chest by the back wall, a crate up front */
-	const left = new THREE.Group();
+	/* left: pegboard and workbench along the left wall, the tool chest in the back corner under a rack of spanners
+	   and pliers, crates stacked up front with a jerry can and a loose nut */
+	const left = new THREE.Group(),
+		bz = BZ + 0.18;
 	put(left, garPegboard(), -W + 0.12, 3.1, -2.6, Math.PI / 2);
 	put(left, garWorkbench(), -W + 0.9, 0, -2.6, Math.PI / 2);
 	put(left, garToolChest(), -6.7, 0, BZ + 1.05, 0.2);
-	crate(left, 2, -6.9, 0, 3.4, 0.5, 1.15);
-	put(left, garNut(0.18), -5.2, 0, 2.8, 0.4);
-	put(left, garJerryCan("#E5484D"), -7.6, 0, 1.4, 1.2);
-	s.add(kitGroup(bakeKit(left), 0));
-	/* back wall: a rack of spanners and pliers, the extinguisher, crates stacked behind the turntable */
-	const back = new THREE.Group(),
-		bz = BZ + 0.18;
-	back.add(plankBox(3.4, 0.24, 0.12, "#9C6438", -3.2, 4.55, bz));
+	left.add(plankBox(2.9, 0.24, 0.12, "#9C6438", -6.55, 4.55, bz));
 	const tool = (m, x, y) => {
-		put(back, m, x, y, bz + 0.16);
-		back.add(B(0.06, 0.06, 0.2, GAR.DARK, x, 4.42, bz + 0.12));
+		put(left, m, x, y, bz + 0.16);
+		left.add(B(0.06, 0.06, 0.2, GAR.DARK, x, 4.42, bz + 0.12));
 	};
 	/* each tool hangs with its top just under its peg (pegs at 4.42) */
-	tool(garHammer(), -4.55, 3.85);
+	tool(garHammer(), -7.75, 3.85);
+	tool(garPliers("#E5484D"), -6.8, 3.85);
 	[
-		[1.15, -4.0],
-		[1.05, -2.9],
-		[0.95, -2.45],
-		[0.85, -2.0],
+		[1.15, -7.25],
+		[1.0, -6.3],
+		[0.85, -5.85],
 	].forEach(([l, x]) => tool(garWrench(l), x, 4.36 - l / 2));
-	tool(garPliers("#E5484D"), -3.45, 3.85);
-	tool(garPliers("#2E323A"), -1.55, 3.85);
-	put(back, garExtinguisher(), -0.55, 2.1, BZ + 0.45);
-	crate(back, 0, -4.3, 0, BZ + 1.0, 0.1, 1.25);
-	crate(back, 1, -2.9, 0, BZ + 0.9, -0.15, 1.05);
-	crate(back, 0, -4.25, 1.0, BZ + 1.0, 0.35, 0.9);
+	tool(garPliers("#2E323A"), -5.4, 3.85);
+	crate(left, 0, -7.25, 0, 0.9, 0.1, 1.25);
+	crate(left, 0, -7.2, 1.0, 0.9, 0.35, 0.9);
+	crate(left, 2, -6.9, 0, 3.4, 0.5, 1.15);
+	put(left, garJerryCan("#E5484D"), -5.9, 0, 1.6, 1.2);
+	put(left, garNut(0.18), -5.0, 0, 2.9, 0.4);
+	s.add(kitGroup(bakeKit(left), 0));
+	/* back: the extinguisher on the wall left of the door, a dark crate in the right corner by the door */
+	const back = new THREE.Group();
+	put(back, garExtinguisher(), -DW - 0.8, 1.6, BZ + 0.45);
+	crate(back, 1, DW + 0.95, 0, BZ + 0.85, -0.15, 1.05);
 	s.add(kitGroup(bakeKit(back), 0));
-	/* right: wall shelves of cans over a low steel shelf of bins and crates, a tyre stack, a tall rack down the right
-	   wall, a big tyre standing at its end, a spanner and a bolt on the floor */
+	/* right: wall shelves of cans and parts over a tyre stack in the back corner, a tall rack down the right wall, a
+	   big tyre standing at its end, a spanner and a bolt on the floor */
 	const right = new THREE.Group(),
-		sx = 3.3,
+		sx = 6.6,
 		sz = BZ + 0.1,
 		top = 4.61,
 		mid = 3.36,
 		z = sz + 0.5;
-	put(right, garShelf(4.4, 0.75), sx, 4.55, sz);
-	put(right, garShelf(4.4, 0.75), sx, 3.3, sz);
-	put(right, garJerryCan("#FFC83D"), sx - 1.6, top, z, 0.1);
-	put(right, garJerryCan("#4A6F9E"), sx - 1.0, top, z, -0.1);
-	put(right, garSpray("#FFC83D"), sx - 0.45, top, z, 0.3);
-	put(right, garCarton(0.75, 0.55, 0.55), sx + 0.3, top, z, -0.1);
-	put(right, garJug("#2F7DE1"), sx + 1.0, top, z, 0.2);
-	put(right, garSpray("#F4F6F9"), sx + 1.55, top, z, -0.4);
-	put(right, garBin(0.8, 0.32, 0.55), sx - 1.2, mid, z, 0.05);
-	for (let k = 0; k < 3; k++) put(right, garBolt(1.3), sx - 0.5 + k * 0.45, mid, z + (k % 2) * 0.12, 0.4);
-	put(right, garCarton(0.7, 0.5, 0.5), sx + 1.25, mid, z, 0.15);
-	put(right, garNut(0.14), sx + 0.75, mid, z + 0.1);
-	put(right, garRack(4.2, 1.9, 0.95, [0.18, 0.95, 1.8]), sx, 0, BZ + 0.2);
-	put(right, garBin(0.95, 0.34, 0.75), sx - 1.3, 1.83, BZ + 0.67);
-	put(right, garBin(0.95, 0.34, 0.75), sx + 0.1, 1.83, BZ + 0.67);
-	put(right, garGear(0.3), sx + 1.3, 1.83, BZ + 0.67);
-	crate(right, 0, sx - 1.1, 0.205, BZ + 0.67, 0.05, 0.75);
-	crate(right, 0, sx, 0.205, BZ + 0.67, -0.05, 0.75);
-	put(right, garBin(0.95, 0.4, 0.75), sx + 1.3, 0.98, BZ + 0.67);
+	put(right, garShelf(2.9, 0.75), sx, 4.55, sz);
+	put(right, garShelf(2.9, 0.75), sx, 3.3, sz);
+	put(right, garJerryCan("#FFC83D"), sx - 1.15, top, z, 0.1);
+	put(right, garJerryCan("#4A6F9E"), sx - 0.6, top, z, -0.1);
+	put(right, garSpray("#FFC83D"), sx - 0.1, top, z, 0.3);
+	put(right, garCarton(0.7, 0.55, 0.55), sx + 0.5, top, z, -0.1);
+	put(right, garJug("#2F7DE1"), sx + 1.2, top, z, 0.2);
+	put(right, garBin(0.8, 0.32, 0.55), sx - 1.0, mid, z, 0.05);
+	for (let k = 0; k < 2; k++) put(right, garBolt(1.3), sx - 0.2 + k * 0.45, mid, z + k * 0.12, 0.4);
+	put(right, garNut(0.14), sx + 0.6, mid, z + 0.1);
+	put(right, garSpray("#F4F6F9"), sx + 1.15, mid, z, -0.4);
 	put(right, garTyres(0.82, 4), 7.0, 0, BZ + 1.1);
 	const rk = put(right, garRack(4.2, 4.6, 1.0, [0.2, 1.3, 2.4, 3.5, 4.5]), W - 0.2, 0, -2.0, -Math.PI / 2),
 		on = (m, lx, y, lz, ry = 0) => {
@@ -3532,29 +3737,33 @@ function garageRoom(s) {
 	right.add(wr);
 	put(right, garBolt(1.5), 4.9, 0, 4.6, 0.8);
 	s.add(kitGroup(bakeKit(right), 0));
-	/* soft contact shadows: under everything standing on the floor, along the foot of each wall, round the turntable */
+	/* soft contact shadows: under everything standing on the floor, along the foot of each wall (not across the
+	   doorway), round the turntable */
 	const cs = (w, d, op, x, lz, ry = 0) => {
 		const m = contactShadow(w, d, op, 0, 0, 0.02);
 		m.position.set(x, 0, lz);
 		m.rotation.y = ry;
 		s.add(m);
 	};
-	cs(W * 2, 1.6, 0.4, 0, BZ + 0.1);
-	[-1, 1].forEach((k) => cs(1.6, 26, 0.4, k * (W - 0.1), BZ + 13));
+	[-1, 1].forEach((k) => {
+		cs(W - DW - 0.3, 1.6, 0.4, k * (DW + (W - DW) / 2 + 0.15), BZ + 0.1);
+		cs(1.6, 26, 0.4, k * (W - 0.1), BZ + 13);
+	});
 	cs(4.5, 1.7, 0.45, -W + 0.9, -2.6, Math.PI / 2);
 	cs(1.9, 1.2, 0.5, -6.7, BZ + 1.05, 0.2);
+	cs(1.45, 1.45, 0.45, -7.25, 0.9, 0.1);
 	cs(1.3, 1.3, 0.45, -6.9, 3.4, 0.5);
-	cs(0.65, 0.45, 0.4, -7.6, 1.4, 1.2);
-	cs(1.45, 1.45, 0.45, -4.3, BZ + 1.0, 0.1);
-	cs(1.2, 1.2, 0.45, -2.9, BZ + 0.9, -0.15);
-	cs(4.4, 1.2, 0.45, sx, BZ + 0.67);
+	cs(0.65, 0.45, 0.4, -5.9, 1.6, 1.2);
+	cs(1.2, 1.2, 0.45, DW + 0.95, BZ + 0.85, -0.15);
 	cs(4.4, 1.2, 0.45, W - 0.7, -2.0, Math.PI / 2);
 	cs(2.2, 1.0, 0.45, 7.0, 1.4, -1.2);
 	s.add(roundShadow(1.9, 0.5, 7.0, BZ + 1.1, 0.02), roundShadow(8.2, 0.5, 0, 0, 0.02));
+	garValley(s);
+	garDaylight(s);
 	/* the two lamps over the turntable */
 	return [
-		[-4.4, 4.6, -2.4],
-		[4.8, 4.6, -2.8],
+		[-4.4, 4.9, -2.4],
+		[4.8, 4.9, -2.8],
 	].map(([x, y, lz]) => {
 		const l = garLamp(H - y - 0.42);
 		l.traverse((o) => (o.castShadow = false));

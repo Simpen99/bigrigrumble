@@ -546,12 +546,13 @@ function mountains(scene) {
 		}
 	}
 }
-/* the main menu showroom: the truck turntable in a cosy workshop garage (garageRoom, partmodels), lit warm by a spot
-   over the turntable and two hanging lamps */
+/* the main menu showroom: the truck turntable in a cosy workshop garage (garageRoom, partmodels) with its roller door
+   open onto a valley, lit warm by a spot over the turntable and two hanging lamps, daylight from the door */
 function buildShowroom() {
 	const s = new THREE.Scene();
-	s.background = new THREE.Color("#2B2119");
-	s.fog = new THREE.Fog("#2B2119", 40, 95);
+	/* the sky and haze are only seen through the roller door: the valley fades into the distance */
+	s.fog = new THREE.Fog("#DCEEF7", 110, 420);
+	applySky(s, "def");
 	const hemi = new THREE.HemisphereLight("#FFEBD2", "#4E3E30", 0.42);
 	s.add(hemi);
 	GFX.showHemi = hemi;
@@ -572,6 +573,12 @@ function buildShowroom() {
 		d.shadow.normalBias = 0.03;
 	}
 	const lamps = garageRoom(s);
+	/* daylight from the open door: a soft cool-white light from outside, catching the backs and tops of things */
+	{
+		const dl = new THREE.DirectionalLight("#FFF1DC", 0.3);
+		dl.position.set(0, 8, -30);
+		s.add(dl);
+	}
 	lamps.forEach((l) => {
 		const p = new THREE.PointLight("#FFD29A", 0.7, 14, 1.4);
 		p.position.set(l.position.x, l.position.y - 0.3, l.position.z);
@@ -1019,7 +1026,13 @@ function frame(t) {
 		cam.updateProjectionMatrix();
 		cam.updateMatrixWorld();
 		swayStep(S.scene);
+		/* the mountains out of the garage door are further than the camera usually sees */
+		const far0 = cam.far;
+		cam.far = 420;
+		cam.updateProjectionMatrix();
 		renderMG(S.scene, cam);
+		cam.far = far0;
+		cam.updateProjectionMatrix();
 	}
 }
 function gfxInit() {
