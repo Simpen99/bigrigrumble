@@ -1309,9 +1309,11 @@ GFX.fx = {
 setTimeout(() => {
 	if (GFX.ok) loadPost().catch(() => {});
 }, 1200);
+/* whether a frame needs the post chain. Anti-aliasing alone doesn't: the canvas has the GPU's own multisampling
+   (sharper than FXAA, and no extra full-screen pass); with other effects on the chain ends in FXAA (F.aa) */
 function fxAny() {
 	const F = GFX.fx;
-	return F.ao.on || F.bloom.on || F.tilt.on || F.vig.on || F.col.on || F.aa.on;
+	return F.ao.on || F.bloom.on || F.tilt.on || F.vig.on || F.col.on;
 }
 /* planck.js (2D rigid-body physics, a Box2D port) for Crate Drop's towers, loaded only when that game comes up */
 let PLANCK_P = null;
