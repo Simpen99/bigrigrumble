@@ -1,6 +1,7 @@
 /* main menu screenshots: the start page at iPhone landscape, iPhone portrait and PC size, on one contact sheet
    node tools/menu.mjs [--truck N] [--layout b] [--view lobby]
    prints each screen's draw calls and triangles (one frame)
+   --js "<code>" runs before the shots (e.g. --js "GFX.menuYaw = 0.6")
    --truck picks the truck shown, --layout b = landscape layout B, --view opens another menu view (e.g. "lobby") */
 import { launch, openGame, args, OUT } from "./lib.mjs";
 import fs from "fs";
@@ -27,14 +28,15 @@ for (const [name, width, height, mobile] of SIZES) {
 			}, opt.layout || ""),
 	});
 	await p.evaluate(
-		({ truck, v }) => {
+		({ truck, v, js }) => {
+			if (js) (0, eval)(js);
 			if (truck !== undefined && typeof me !== "undefined") {
 				me.truck = +truck;
 				if (typeof render === "function") render();
 			}
 			if (v && typeof go === "function") go(v);
 		},
-		{ truck: opt.truck, v: opt.view },
+		{ truck: opt.truck, v: opt.view, js: opt.js },
 	);
 	await p.waitForTimeout(3500);
 	const info = await p.evaluate(

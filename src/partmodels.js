@@ -3477,7 +3477,7 @@ function garageRoom(s) {
 	crate(back, 0, -4.25, 1.0, BZ + 1.0, 0.35, 0.9);
 	s.add(kitGroup(bakeKit(back), 0));
 	/* right: wall shelves of cans over a low steel shelf of bins and crates, a tyre stack, a tall rack down the right
-	   wall, a big tyre leaning up front, a spanner and a bolt on the floor */
+	   wall, a big tyre standing at its end, a spanner and a bolt on the floor */
 	const right = new THREE.Group(),
 		sx = 3.3,
 		sz = BZ + 0.1,
@@ -3521,11 +3521,11 @@ function garageRoom(s) {
 	on(garJerryCan("#4A6F9E"), -1.0, 3.53, 0.5);
 	on(garCarton(0.9, 0.7, 0.7), 0.7, 3.53, 0.5, -0.1);
 	const big = new THREE.Group(),
-		bt = garTyre(1.25, true);
+		bt = garTyre(1.1, true);
 	bt.rotation.x = Math.PI / 2;
-	bt.position.y = 1.25 + 0.03;
+	bt.position.y = 1.1 + 0.03;
 	big.add(bt);
-	put(right, big, 6.8, 0, 4.2, -0.75);
+	put(right, big, 7.0, 0, 1.4, -1.2);
 	const wr = garWrench(1.5);
 	wr.rotation.set(-Math.PI / 2, 0, 0.6);
 	wr.position.set(5.6, 0.06, 6.8);
@@ -3549,7 +3549,7 @@ function garageRoom(s) {
 	cs(1.2, 1.2, 0.45, -2.9, BZ + 0.9, -0.15);
 	cs(4.4, 1.2, 0.45, sx, BZ + 0.67);
 	cs(4.4, 1.2, 0.45, W - 0.7, -2.0, Math.PI / 2);
-	cs(2.4, 1.1, 0.45, 6.8, 4.2, -0.75);
+	cs(2.2, 1.0, 0.45, 7.0, 1.4, -1.2);
 	s.add(roundShadow(1.9, 0.5, 7.0, BZ + 1.1, 0.02), roundShadow(8.2, 0.5, 0, 0, 0.02));
 	/* the two lamps over the turntable */
 	return [

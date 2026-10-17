@@ -1002,7 +1002,11 @@ function frame(t) {
 						? 13 * GFX.menuK
 						: 10.5;
 		/* no higher than 5.4: the garage ceiling is at 7.2 (portrait cameras stand far back and look up into the rafters) */
-		cam.position.set(0, Math.min(5.4, 1.2 + d * 0.3), d);
+		/* layout A (truck left of the menu): the camera swings round the turntable to the right by GFX.menuYaw, so it looks
+		   across into the left of the garage and the room squares up to the screen like layout B; the truck keeps its spot
+		   (never closer than 1.2 to the right wall) */
+		const ya = mid && MM_LAY !== "b" ? Math.min(GFX.menuYaw ?? 0.6, Math.asin(Math.min(1, (GAR.W - 1.2) / d))) : 0;
+		cam.position.set(Math.sin(ya) * d, Math.min(5.4, 1.2 + d * 0.3), Math.cos(ya) * d);
 		cam.lookAt(0, 0.9, 0);
 		cam.setViewOffset(
 			w,
