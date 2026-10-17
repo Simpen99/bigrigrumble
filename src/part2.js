@@ -912,8 +912,10 @@ let lastT = 0;
 function frame(t) {
 	requestAnimationFrame(frame);
 	if (!GFX.ok) return;
+	/* frame time from the rAF timestamps alone: mixing them with performance.now() (taken later in the frame) made
+	   every step a few ms short when the GPU was busy, so the board ran in slow motion */
 	const dt = Math.min(0.05, (t - lastT) / 1000 || 0);
-	lastT = performance.now();
+	lastT = t;
 	if (document.hidden) return;
 	/* small FPS readout in the corner (averaged over half a second) */
 	{

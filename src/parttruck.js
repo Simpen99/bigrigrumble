@@ -735,6 +735,7 @@ function buildTruck(i, mode) {
 /* Ramp Jump's suspension kick: the body rises by ext (world units, the truck scaled 0.8 in minigames) while the
    wheels stay on the ground below it, shock rods showing */
 function springSet(tr, ext) {
+	ext = Math.max(0, ext || 0);
 	const sp = tr.userData.springs;
 	tr.position.y = ext;
 	if (!sp) return;
