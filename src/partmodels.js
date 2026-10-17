@@ -601,10 +601,10 @@ var SHADOW_MAT = {};
 function shadowFade(size) {
 	return Math.min(0.35, 0.12 + 0.03 * size);
 }
-function shadowMat(op, k) {
-	const key = op + "|" + (k === undefined ? "sq" : k);
+function shadowMat(op, k, col) {
+	const key = op + "|" + (k === undefined ? "sq" : k) + (col || "");
 	if (SHADOW_MAT[key]) return SHADOW_MAT[key];
-	const tk = k === undefined ? "tex" : "tex" + k;
+	const tk = (k === undefined ? "tex" : "tex" + k) + (col ? "w" : "");
 	if (!SHADOW_MAT[tk]) {
 		const n = 64,
 			c = document.createElement("canvas");
@@ -623,12 +623,13 @@ function shadowMat(op, k) {
 					t = Math.max(0, Math.min(1, 1 - (r - k) / (1 - k)));
 				}
 				im.data[(j * n + i) * 4 + 3] = Math.round(t * t * 255);
+				if (col) im.data[(j * n + i) * 4] = im.data[(j * n + i) * 4 + 1] = im.data[(j * n + i) * 4 + 2] = 255;
 			}
 		x.putImageData(im, 0, 0);
 		SHADOW_MAT[tk] = new THREE.CanvasTexture(c);
 	}
 	return (SHADOW_MAT[key] = new THREE.MeshBasicMaterial({
-		color: "#000000",
+		color: col || "#000000",
 		map: SHADOW_MAT[tk],
 		transparent: true,
 		opacity: op,
@@ -673,8 +674,8 @@ function shadowGeo(w, d, m, cx = 0, cz = 0, y = 0.03) {
 	return g;
 }
 /* a contact shadow mesh: w x d footprint (round props: roundShadow) */
-function contactShadow(w, d, op = 0.3, x = 0, z = 0, y = 0.03, m) {
-	const sh = new THREE.Mesh(shadowGeo(w, d, m || shadowFade(Math.min(w, d)), x, z, y), shadowMat(op));
+function contactShadow(w, d, op = 0.3, x = 0, z = 0, y = 0.03, m, col) {
+	const sh = new THREE.Mesh(shadowGeo(w, d, m || shadowFade(Math.min(w, d)), x, z, y), shadowMat(op, undefined, col));
 	sh.renderOrder = 1;
 	sh.userData.shadow = true;
 	return sh;
@@ -687,9 +688,9 @@ function roundShadowGeo(dia, x = 0, z = 0, y = 0.03) {
 	g.userData.k = Math.round(((dia / 2 - f * 0.1) / R) * 20) / 20;
 	return g;
 }
-function roundShadow(dia, op = 0.3, x = 0, z = 0, y = 0.03) {
+function roundShadow(dia, op = 0.3, x = 0, z = 0, y = 0.03, col) {
 	const g = roundShadowGeo(dia, x, z, y),
-		sh = new THREE.Mesh(g, shadowMat(op, g.userData.k));
+		sh = new THREE.Mesh(g, shadowMat(op, g.userData.k, col));
 	sh.renderOrder = 1;
 	sh.userData.shadow = true;
 	return sh;
@@ -3437,8 +3438,8 @@ function garSunlit(g, opt) {
    of sight: it stays under the 17 degree line from the camera), then the valley floor from about 90 m out shows
    from the door sill up to 7.5 degrees down far off (the bumps grow with distance), the mountains rise to about 4 degrees down and the sky
    fills the rest. Distances are measured from the door (squashed sideways), so layout A's camera, looking out at an
-   angle, sees the same. Lit like a late-morning landscape painting: a low warm sun from the left so every hill has a
-   bright side and a cool shadow side, hills and trees casting shadows across the land, blue haze with distance */
+   angle, sees the same. Lit like a late-morning landscape painting: a low golden sun from the left so every hill has a
+   bright side and a shadow side, hills and trees casting shadows across the land, a pale warm haze with distance */
 function garValley(s) {
 	const { BZ, DW } = GAR,
 		g = new THREE.Group(),
@@ -3550,9 +3551,9 @@ function garValley(s) {
 			L,
 			amb: 0.52,
 			sunK: 0.9,
-			sun: new THREE.Color(1.12, 1.0, 0.8),
-			sky: new THREE.Color(0.66, 0.78, 0.98),
-			haze: new THREE.Color("#B4CDE0"),
+			sun: new THREE.Color(1.15, 1.0, 0.74),
+			sky: new THREE.Color(0.8, 0.8, 0.78),
+			haze: new THREE.Color("#D2DCD8"),
 			hazeK: (p) => {
 				const d = dist(p.x, p.z);
 				return Math.min(1, Math.max(0, (d - 20) / 200)) * 0.6;
@@ -3671,7 +3672,7 @@ function garageRoom(s) {
 		wall = "#A9835A",
 		post = GAR.WOOD,
 		beam = "#5E3820";
-	/* concrete floor: big soft tint patches, nothing busy */
+	/* warm grey concrete floor: big soft tint patches, nothing busy */
 	{
 		const f = new THREE.PlaneGeometry(W * 2, L, Math.round(W), Math.round(L / 2)).toNonIndexed(),
 			n = f.attributes.position.count,
@@ -3682,7 +3683,7 @@ function garageRoom(s) {
 		}
 		f.setAttribute("color", new THREE.BufferAttribute(C, 3));
 		f.rotateX(-Math.PI / 2).translate(0, 0, BZ + L / 2);
-		const m = new THREE.Mesh(f, M("#4F535C", { vertexColors: true }));
+		const m = new THREE.Mesh(f, M("#5C564E", { vertexColors: true }));
 		m.receiveShadow = true;
 		shell.add(m);
 	}
@@ -3827,14 +3828,15 @@ function garageRoom(s) {
 	right.add(wr);
 	put(right, garBolt(1.5), 4.9, 0, 4.6, 0.8);
 	s.add(kitGroup(bakeKit(right), 0));
-	/* soft contact shadows: under everything standing on the floor, along the foot of each wall (not across the
-	   doorway), round the turntable */
-	const cs = (w, d, op, x, lz, ry = 0) => {
-		const m = contactShadow(w, d, op, 0, 0, 0.02);
-		m.position.set(x, 0, lz);
-		m.rotation.y = ry;
-		s.add(m);
-	};
+	/* soft contact shadows in a dark warm brown (the room's light fills them): under everything standing on the
+	   floor, along the foot of each wall (not across the doorway), round the turntable */
+	const SH = "#3A2A1E",
+		cs = (w, d, op, x, lz, ry = 0) => {
+			const m = contactShadow(w, d, op, 0, 0, 0.02, undefined, SH);
+			m.position.set(x, 0, lz);
+			m.rotation.y = ry;
+			s.add(m);
+		};
 	[-1, 1].forEach((k) => {
 		cs(W - DW - 0.3, 1.6, 0.4, k * (DW + (W - DW) / 2 + 0.15), BZ + 0.1);
 		cs(1.6, 26, 0.4, k * (W - 0.1), BZ + 13);
@@ -3847,7 +3849,7 @@ function garageRoom(s) {
 	cs(1.2, 1.2, 0.45, DW + 0.95, BZ + 0.85, -0.15);
 	cs(4.4, 1.2, 0.45, W - 0.7, -2.0, Math.PI / 2);
 	cs(2.2, 1.0, 0.45, 7.0, 1.4, -1.2);
-	s.add(roundShadow(1.9, 0.5, 7.0, BZ + 1.1, 0.02), roundShadow(8.2, 0.5, 0, 0, 0.02));
+	s.add(roundShadow(1.9, 0.5, 7.0, BZ + 1.1, 0.02, SH), roundShadow(8.2, 0.5, 0, 0, 0.02, SH));
 	garValley(s);
 	garDaylight(s);
 	/* the two lamps over the turntable */
