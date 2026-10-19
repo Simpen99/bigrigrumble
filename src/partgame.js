@@ -1210,7 +1210,8 @@ function rollGeysers() {
 		HG.gyT[i] = c[rnd(c.length)];
 	});
 }
-/* rising lava throws loose shards out of the volcano onto dry spaces, more each level (6, then 10); they last until the lava drains */
+/* rising lava throws loose shards out of the volcano onto dry spaces, more each level (6, then 10); they stay until a truck
+   picks them up or the lava floods their space */
 function scatterShards(r) {
 	HG.loose = HG.loose || {};
 	const want = lavaLv(r) >= 2 ? 10 : 6;
@@ -1239,7 +1240,11 @@ function lavaRound() {
 		scatterShards(r);
 		parts.push("Lava bursts throw loose shards onto the ledges: drive over them to grab one.");
 	}
-	if (lv < was) HG.loose = {};
+	/* loose shards stay on the board when the lava drains; rising lava swallows the ones on spaces it floods */
+	if (lv > was && HG.loose)
+		Object.keys(HG.loose).forEach((i) => {
+			if (flooded(+i, r)) delete HG.loose[i];
+		});
 	if (lv > was) {
 		title = "🌋 Lava rises!";
 		const moved = [];
@@ -1330,12 +1335,15 @@ function eruption(done) {
 }
 /* team minigames (Mario Party style): each truck's side is the colour of the space it stands on (blue or red, any other
    space is a coin flip). 4+ trucks split 1 vs 3 (1 vs N) or 2 vs 2 (any even-ish split) pick a game from that pool;
-   everyone on one colour (or board team mode, or fewer than 4 trucks) plays free-for-all.
+   everyone on one colour (or board team mode, or fewer than 4 trucks) plays free-for-all. The colours alone split the
+   field ~80% of rounds, so a split only goes ahead `TEAM_P` of the time and never right after a team game
+   (`HG.lastTeam`): ~70% of rounds free-for-all, ~19% 1 vs 3, ~11% 2 vs 2 (simulated end-of-round boards).
    Returns {mode, tm: {key: side}, tc: [side colours]}, side 0 = the solo truck in a 1 vs N game. */
-const SIDE_COL = ["#2F7DE1", "#E5484D"];
+const SIDE_COL = ["#2F7DE1", "#E5484D"],
+	TEAM_P = 0.55;
 function spaceSplit() {
 	const ps = HG.players;
-	if (HG.teams || ps.length < 4) return null;
+	if (HG.teams || ps.length < 4 || HG.lastTeam || Math.random() >= TEAM_P) return null;
 	const tm = {};
 	ps.forEach((p) => {
 		const n = MAP.nodes[p.pos],
@@ -1410,6 +1418,7 @@ function startMinigame(duel, forceG, split) {
 		g = pool[rnd(pool.length)];
 		HG.used.push(g);
 		HG.lastMg = g;
+		HG.lastTeam = !!split;
 		if (split) {
 			/* the reveal: a "1 vs 3!" sticker over the board, then the minigame */
 			HG.phase = "teams";

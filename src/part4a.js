@@ -358,7 +358,8 @@ function arenaPhys(W, e, inp, dt) {
 		if (def.deathY === undefined) eliminate(W, e);
 	}
 }
-/* per-truck tuning a game can set (Monster Mash's giant): e.rad (collision radius, 0.95), e.mass (1: heavier trucks
+/* per-truck tuning a game can set (Monster Mash's giant): e.rad (collision radius, 0.95; or e.hb = [half x, half z], a
+   box, used when both trucks have one), e.mass (1: heavier trucks
    get pushed and knocked less), e.ramM (ram strength), e.spd (speed), e.ramCdT (ram cooldown, 2 s) */
 const RAMK = 17;
 function collide(W, a) {
@@ -379,14 +380,21 @@ function collide(W, a) {
 		const dx = a.x - b.x,
 			dz = a.z - b.z,
 			d = Math.hypot(dx, dz);
-		const rr = (a.rad || 0.95) + (b.rad || 0.95);
-		if (d > rr || d < 0.001) continue;
+		let nx, nz, ov;
+		if (a.hb && b.hb) {
+			/* both with a box hitbox (e.hb = [half x, half z], Getaway): pushed apart along the shallower overlap */
+			const ox = a.hb[0] + b.hb[0] - Math.abs(dx),
+				oz = a.hb[1] + b.hb[1] - Math.abs(dz);
+			if (ox <= 0 || oz <= 0) continue;
+			[nx, nz, ov] = ox < oz ? [dx >= 0 ? 1 : -1, 0, ox] : [0, dz >= 0 ? 1 : -1, oz];
+		} else {
+			const rr = (a.rad || 0.95) + (b.rad || 0.95);
+			if (d > rr || d < 0.001) continue;
+			[nx, nz, ov] = [dx / d, dz / d, rr - d];
+		}
 		const ma = a.mass || 1,
 			mb = b.mass || 1,
-			nx = dx / d,
-			nz = dz / d,
-			share = b.local ? mb / (ma + mb) : Math.min(1, (2 * mb) / (ma + mb)),
-			ov = rr - d;
+			share = b.local ? mb / (ma + mb) : Math.min(1, (2 * mb) / (ma + mb));
 		a.x += nx * ov * share;
 		a.z += nz * ov * share;
 		const rv = (b.vx - a.vx) * nx + (b.vz - a.vz) * nz,

@@ -5793,6 +5793,11 @@ const MM = {
 	WARN: 3 /* a slice cracks and glows this long before it sinks */,
 	LIVES: 3 /* falls into the mud before a survivor is out */,
 	TV: 12 /* tyre speed */,
+	TYW: 1.75 /* a tyre (flying face first) hits a truck within TYW across its path and TYL along it */,
+	TYL: 1.2,
+	TYN: 3 /* TYN tyre hits within TYWIN s stun a survivor for TYSTUN s */,
+	TYWIN: 4,
+	TYSTUN: 2,
 	CLAW: 1.1 /* seconds close before the magnet grabs */,
 	WIND: 0.6 /* ground pound: wind-up after the button */,
 	JUMP: 0.7 /* then the jump before the slam */,
@@ -5817,7 +5822,8 @@ function truckTop(tr) {
 		flat = hits.filter((h) => h[1] > top - 0.12);
 	return { x: (flat[0][0] + flat[flat.length - 1][0]) / 2, y: top };
 }
-/* chunky monster tyre, axle along x (rolls along z): tread, sidewalls, silver hub, yellow cap, tread blocks */
+/* chunky monster tyre, axle along x (rolls along z; Monster Mash turns it a quarter to fly face first): tread, sidewalls,
+   silver hub, yellow cap, tread blocks */
 function mmTyreKit() {
 	const g = new THREE.Group(),
 		cy = (r, w, col) => {
@@ -6092,9 +6098,12 @@ Object.assign(MG, {
 			const n = W.mg.tm ? Object.values(W.mg.tm).filter((x) => x === 1).length : Math.max(1, W.plist.length - 1);
 			W.HP = W.hp = MM.hpMax(n);
 			W.ph = 1;
-			/* TNT crates on a schedule from the seed, more often with fewer survivors */
+			/* TNT crates on a schedule from the seed, more often with fewer survivors; until the stage starts crumbling
+			   they drop out on its outer band (each crate also has a spot there, `ox` / `oz`: the choice is made just
+			   before it drops, in `tick`) */
 			const every = Math.min(6, Math.max(2, 9 / n)),
 				rr = mulberry((W.mg.seed || 1) + 907),
+				ro = mulberry((W.mg.seed || 1) + 911),
 				cm = new THREE.MeshStandardMaterial({ map: hlCrateTex(), roughness: 0.9 });
 			W.mm.crates = [];
 			for (let k = 0; 2.5 + k * every < this.dur; k++) {
@@ -6113,8 +6122,25 @@ Object.assign(MG, {
 				g.position.set(Math.cos(a) * r, 0, Math.sin(a) * r);
 				g.visible = false;
 				s.add(g);
-				const ts = 2.5 + k * every;
-				W.mm.crates.push({ id: k + 1, ts, te: ts + 14, x: g.position.x, z: g.position.z, g, box, sh, mark });
+				const ts = 2.5 + k * every,
+					oa = ro() * Math.PI * 2,
+					or = MM.RC + 1 + ro() * (MM.R - MM.RC - 2.2),
+					ox = Math.cos(oa) * or,
+					oz = Math.sin(oa) * or;
+				W.mm.crates.push({
+					id: k + 1,
+					ts,
+					te: ts + 14,
+					x: g.position.x,
+					z: g.position.z,
+					ox,
+					oz,
+					sec: this.secAt(ox, oz),
+					g,
+					box,
+					sh,
+					mark,
+				});
 			}
 			this.lights(W);
 			this.stage(W);
@@ -6443,6 +6469,21 @@ Object.assign(MG, {
 						this.crumble(W, why);
 						return false;
 					});
+				/* TNT crates: out on the outer band while no slice has cracked yet (its own slice still whole), else where
+				   they always drop; one on a slice that starts cracking goes down with it */
+				mm.crates.forEach((c) => {
+					if (c.out === undefined && W.t >= c.ts - 0.6) {
+						c.out = mm.crN === 0 && !this.gone(W, c.sec, true);
+						mgLog(W, `TNT crate ${c.id} drops ${c.out ? "on the outer band" : "inside"}`);
+						if (c.out) {
+							c.x = c.ox;
+							c.z = c.oz;
+							c.g.position.set(c.x, 0, c.z);
+						}
+					}
+					const q = c.out && mm.sec[c.sec];
+					if (q && q.warnT !== undefined) c.te = Math.min(c.te, q.warnT + MM.WARN);
+				});
 				/* a slice going down under a truck: that's what knocked it in */
 				W.list.forEach((o) => {
 					if (o.local && o.al && !o.falling && o.side !== 0 && !this.inside(W, o.x, o.z, o))
@@ -6712,15 +6753,28 @@ Object.assign(MG, {
 			e.tA = W.t;
 			const safe = W.t < (e.inv || 0) || W.t < (e.cutInv || 0);
 			e.sc = Math.floor(W.t * 10);
-			for (const t of W.tyLive || [])
-				if (t.hit && !safe && !e.tyHit[t.id] && Math.hypot(e.x - t.x, e.z - t.z) < 1.4) {
-					e.tyHit[t.id] = 1;
-					if (W.t - (e.tyT || -9) > 0.3) {
-						e.tyT = W.t;
-						this.knock(W, e, t.dx, t.dz, 13, 0.7, "tyre");
-						e.reelT = 0.35;
+			for (const t of W.tyLive || []) {
+				if (!t.hit || safe || e.tyHit[t.id]) continue;
+				const rx = e.x - t.x,
+					rz = e.z - t.z;
+				if (Math.abs(rx * t.dx + rz * t.dz) > MM.TYL || Math.abs(rx * -t.dz + rz * t.dx) > MM.TYW) continue;
+				e.tyHit[t.id] = 1;
+				if (W.t - (e.tyT || -9) > 0.3) {
+					e.tyT = W.t;
+					this.knock(W, e, t.dx, t.dz, 13, 0.7, "tyre");
+					e.reelT = 0.35;
+					/* the third tyre within TYWIN s: dizzy for TYSTUN s (no tanking the shots for the team) */
+					e.tyH = (e.tyH || []).filter((q) => W.t - q < MM.TYWIN).concat([W.t]);
+					if (e.tyH.length >= MM.TYN) {
+						e.tyH = [];
+						e.stunT = Math.max(e.stunT || 0, MM.TYSTUN);
+						e.f.stn = Math.round((W.t + MM.TYSTUN) * 100) / 100;
+						fb(W, e, "DIZZY!", { tone: "bad" });
+						mgLog(W, `${mgName(e)} stunned by ${MM.TYN} tyres`);
+						if (e.isMe || Math.hypot(e.x - W.me.x, e.z - W.me.z) < 6) sfx("stun");
 					}
 				}
+			}
 			const g = W.gpLive;
 			if (g && g.r > 0 && !safe && !e.gpHit[g.id]) {
 				const dx = e.x - g.x,
@@ -7036,7 +7090,8 @@ Object.assign(MG, {
 				}
 				sl.o.visible = y > this.MUD - 1;
 				sl.o.position.set(t.x, y, t.z);
-				sl.o.rotation.y = Math.atan2(t.dx, t.dz);
+				/* turned a quarter: it flies face first (as wide as it is tall), spinning on its axle */
+				sl.o.rotation.y = Math.atan2(t.dx, t.dz) + Math.PI / 2;
 				sl.t.rotation.x = t.s / 0.6;
 			});
 			mm.ty.forEach((q) => {
@@ -7400,7 +7455,7 @@ Object.assign(MG, {
 					rz = e.z - t.z,
 					ahead = rx * t.dx + rz * t.dz,
 					side = rx * -t.dz + rz * t.dx;
-				if (ahead > 0 && ahead < 4.5 && Math.abs(side) < 1.8) {
+				if (ahead > 0 && ahead < 4.5 && Math.abs(side) < MM.TYW + 0.4) {
 					if (e.tyNote[t.id] === undefined) e.tyNote[t.id] = Math.random() < 0.5;
 					if (!e.tyNote[t.id]) continue;
 					const sg = side >= 0 ? 1 : -1;
@@ -7491,6 +7546,9 @@ Object.assign(MG, {
 		WORKS: [1450, 1750],
 		CARV: 9,
 		CARCOL: MG.hop.CARCOL,
+		/* traffic cars at CARS of Rush Hour's size; traffic waves (a car in every lane) met round these shares of the run */
+		CARS: 0.85,
+		WAVES: [0.22, 0.52, 0.82],
 		/* driving: cruise V0, the stick adds up to UP (truck) / UPC (cops) or takes off DN; lateral push LATA */
 		V0: 16,
 		UP: 5.5,
@@ -7521,6 +7579,9 @@ Object.assign(MG, {
 		/* Crusher's JUMP: JMPT s in the air at JMPV m/s over its top speed */
 		JMPT: 1.2,
 		JMPV: 15,
+		/* a harpoon that catches a car instead: the cop vaults over it at VLV m/s faster than the traffic, VLTH m high */
+		VLV: 22,
+		VLTH: 3.2,
 		AB: {
 			monster: { lbl: "JUMP", cd: 9 },
 			icecream: { lbl: "SCOOPS", cd: 10, lob: "ice", r: 2.4 },
@@ -7582,8 +7643,11 @@ Object.assign(MG, {
 		lx(l) {
 			return (l - (this.LANES - 1) / 2) * this.LW;
 		},
+		/* a car's z: up the road at CARV; a car squeezed over by a narrowing road (only a wave's cars ever are) drops back
+		   5.5 m a lane it moves over, so it queues behind the car in the lane it merges into */
 		carZ(W, c, t = W.t) {
-			return c.z0 - this.CARV * Math.max(0, t);
+			const z = c.z0 - this.CARV * Math.max(0, t);
+			return c.wave ? z + (Math.abs(this.carX(W, c, z) - this.lx(c.l)) / this.LW) * 5.5 : z;
 		},
 		/* a car's x at z: its lane, squeezed in where the road narrows (it merges over along the bridge's tapers and the
 		   roadworks, never drives inside a guardrail or barrier) */
@@ -7605,27 +7669,46 @@ Object.assign(MG, {
 			/* traffic from the seed: rows of 1-3 cars, always at least three lanes free; a row the pack meets in the
 			   roadworks (it overtakes a car that started at z0 somewhere round 1.35-2.45 z0) stays out of the shut lanes */
 			W.cars = [];
+			/* each car type's half width / half length on the road (the models scaled by CARS), for the hit tests */
+			W.carHB = {};
 			const kits = {},
-				[w0, w1] = this.WORKS;
+				/* traffic waves: WAVES times a run a row fills every lane (a rolling roadblock the cash truck has to ram
+				   through), the pack meeting them round these shares of the road (a car at z0 is met near 1.8 z0); where
+				   the road is narrower the cars in the shut lanes queue up behind the others (carZ) */
+				waves = this.WAVES.map((f) => ((f + (W.rng() - 0.5) * 0.12) * this.TL) / 1.8);
 			for (let z = -55; z > -this.TL + 25; z -= 15 + W.rng() * 12) {
 				const meets = ([a, b], m0, m1) => -z * 2.45 > a - m0 && -z * 1.35 < b + m1,
 					shut = meets(this.WORKS, 50, 10),
 					narrow = meets(this.BRIDGE, this.TB + 10, this.TA + 5),
-					lanes = (shut ? [2, 3, 4, 5] : narrow ? [1, 2, 3, 4] : [0, 1, 2, 3, 4, 5]).sort(() => W.rng() - 0.5),
-					nc = Math.min(shut || narrow ? 2 : 3, 1 + Math.floor(W.rng() * 2.4));
+					wave = waves.length && -z >= waves[0],
+					lanes = (wave || !(shut || narrow) ? [0, 1, 2, 3, 4, 5] : shut ? [2, 3, 4, 5] : [1, 2, 3, 4]).sort(
+						() => W.rng() - 0.5,
+					),
+					nc = wave ? lanes.length : Math.min(shut || narrow ? 2 : 3, 1 + Math.floor(W.rng() * 2.4));
+				if (wave) waves.shift();
 				for (let k = 0; k < nc; k++) {
 					const c = {
 							id: W.cars.length,
 							l: lanes[k],
-							z0: z - W.rng() * 4,
+							z0: z - W.rng() * (wave ? 1.2 : 4),
 							c: this.CARCOL[Math.floor(W.rng() * this.CARCOL.length)],
 						},
-						ty = CAR_TYPES[c.id % 4],
-						kit = kits[ty + c.c] || (kits[ty + c.c] = bakeKit(carModel(ty, c.c))),
-						g = kitGroup(kit);
+						ty = CAR_TYPES[c.id % 4];
+					if (!kits[ty + c.c]) {
+						const m = carModel(ty, c.c);
+						if (!W.carHB[ty]) {
+							const sz = new THREE.Box3().setFromObject(m).getSize(new THREE.Vector3());
+							W.carHB[ty] = [(sz.x / 2) * this.CARS, (sz.z / 2) * this.CARS];
+						}
+						kits[ty + c.c] = bakeKit(m);
+					}
+					const g = kitGroup(kits[ty + c.c]);
+					g.scale.setScalar(this.CARS);
 					g.position.set(this.lx(c.l), 0, c.z0);
 					s.add(g);
 					c.g = g;
+					c.hb = W.carHB[ty];
+					if (wave) c.wave = this.WAVES.length - waves.length;
 					W.cars.push(c);
 				}
 			}
@@ -8137,6 +8220,19 @@ Object.assign(MG, {
 			} else {
 				e.f = {};
 			}
+			this.hitBox(e);
+		},
+		/* the hitbox: the truck's own body as a box (e.hb = [half width, half length] on the road, which the engine's
+		   collide uses instead of the round e.rad), measured before the light bar or bag nets go on */
+		hitBox(e) {
+			const tr = e.tr,
+				par = tr.parent;
+			if (par) par.remove(tr);
+			tr.updateMatrixWorld(true);
+			const sz = new THREE.Box3().setFromObject(tr).getSize(new THREE.Vector3());
+			if (par) par.add(tr);
+			/* the model points along +x: its z is the truck's width */
+			e.hb = [(sz.z / 2) * 0.95, (sz.x / 2) * 0.95];
 		},
 		/* driving: cruise up the road; the stick steers and sets the speed; the button rams (cops) or drops oil (truck) */
 		phys(W, e, inp, dt) {
@@ -8210,16 +8306,26 @@ Object.assign(MG, {
 				e.vx = (T.vx || 0) + (dx / d) * sp;
 				fv = -((T.vz || 0) + (dz / d) * sp);
 				e.boostT = Math.max(e.boostT, 0.15);
-				if (d < (e.rad || 0.95) + (T.rad || 1.6) + 0.35 && !e.reelHitT) e.reelHitT = W.t;
+				if (Math.abs(dx) < e.hb[0] + T.hb[0] + 0.35 && Math.abs(dz) < e.hb[1] + T.hb[1] + 0.35 && !e.reelHitT)
+					e.reelHitT = W.t;
 				if (e.reelHitT && W.t - e.reelHitT > 0.12) {
 					e.f.hr = e.f.hp[0];
 					e.reelOn = false;
 					e.slideT = 0.6;
 				}
 			} else e.reelHitT = 0;
+			/* the harpoon vault: slung up and over the car it caught, lined up with it on the way up, landing past it */
+			const vt = e.vault,
+				vk = vt ? (W.t - vt.t) / vt.dur : -1,
+				vault = vk >= 0 && vk < 1;
+			if (vault) {
+				fv = Math.max(fv, this.CARV + this.VLV);
+				if (vk < 0.5) e.vx = (this.carX(W, vt.car, this.carZ(W, vt.car)) - e.x) * 5;
+			} else if (vk >= 1) e.vault = null;
 			/* JUMP (Crusher): a long leap up the road, over the traffic */
-			const air = !solo && W.t < (e.jumpT ?? -9) + this.JMPT;
-			if (air) fv = Math.max(fv, top + this.JMPV);
+			const jump = !solo && W.t < (e.jumpT ?? -9) + this.JMPT,
+				air = jump || vault;
+			if (jump) fv = Math.max(fv, top + this.JMPV);
 			/* spun out on oil: speed bleeds off, the truck slews */
 			const spin = W.t < (e.spinT || 0);
 			if (spin) {
@@ -8227,7 +8333,7 @@ Object.assign(MG, {
 				e.vx += Math.sin(W.t * 9 + e.i) * 20 * dt;
 			}
 			e.vx *= Math.exp(-(ice ? 0.35 : e.slideT > 0 || spin ? 1.2 : 3.4) * dt);
-			const mx = e.reelOn ? 32 : e.boostT > 0 || W.t < (e.blastT || 0) ? 20 : ice ? 12 : 9;
+			const mx = e.reelOn ? 32 : e.boostT > 0 || W.t < (e.blastT || 0) || vault ? 20 : ice ? 12 : 9;
 			e.vx = Math.max(-mx, Math.min(mx, e.vx));
 			fv = Math.max(0, Math.min(e.reelOn ? 60 : top + (air ? this.JMPV : e.boostT > 0 ? 12 : 0), fv));
 			e.vz = -fv;
@@ -8235,7 +8341,7 @@ Object.assign(MG, {
 			e.z += e.vz * dt;
 			/* guardrails (and the roadworks' barriers) */
 			const [lo, hi] = this.edges(e.z),
-				rr = (e.rad || 0.95) * 0.85;
+				rr = e.hb[0];
 			if (e.x > hi - rr || e.x < lo + rr) {
 				e.x = e.x > hi - rr ? hi - rr : lo + rr;
 				e.vx *= -0.4;
@@ -8249,11 +8355,15 @@ Object.assign(MG, {
 		},
 		/* bumping into a car: thrown out beside it, down to below the traffic's speed for a moment */
 		traffic(W, e) {
-			const r = e.rad || 0.95;
+			const [hw, hl] = e.hb || [0.6, 0.9];
 			for (const c of W.cars) {
 				const cz = this.carZ(W, c);
 				if (cz > e.z + 5) continue;
-				if (cz < e.z - 5) break;
+				if (cz < e.z - 5) {
+					/* (a wave car queued behind its row can be later in the list: look 12 m further) */
+					if (cz < e.z - 17) break;
+					continue;
+				}
 				if (c.kT !== undefined) {
 					/* a car the cash truck sent flying: it wrecks any cop in its way while it's still low over the road */
 					const kp = this.carPos(W, c);
@@ -8261,8 +8371,8 @@ Object.assign(MG, {
 						e.side === 1 &&
 						W.t - c.kT < 1.6 &&
 						kp.y < 1.6 &&
-						Math.abs(e.x - kp.x) < 1.2 + r &&
-						Math.abs(e.z - kp.z) < 2.2 + r &&
+						Math.abs(e.x - kp.x) < c.hb[0] + hw + 0.3 &&
+						Math.abs(e.z - kp.z) < c.hb[1] + hl &&
 						W.t - (e.hitC[c.id] ?? -9) > 1.5
 					) {
 						e.hitC[c.id] = W.t;
@@ -8284,7 +8394,7 @@ Object.assign(MG, {
 				}
 				const cx = this.carX(W, c, cz),
 					dx = e.x - cx;
-				if (Math.abs(dx) > 1 + r || Math.abs(e.z - cz) > 2.2 + r * 0.7) continue;
+				if (Math.abs(dx) > c.hb[0] + hw || Math.abs(e.z - cz) > c.hb[1] + hl) continue;
 				let sd = dx >= 0 ? 1 : -1;
 				/* the cash truck just shoves cars off the road (shared as e.f.tk, so every screen sees it fly) */
 				if (e.side === 0) {
@@ -8294,6 +8404,10 @@ Object.assign(MG, {
 					/* a little bump back: some speed lost, nudged away from the car */
 					e.vz *= 0.82;
 					e.vx += sd * 2.5;
+					if (c.wave && e.waveLog !== c.wave) {
+						e.waveLog = c.wave;
+						mgLog(W, `${mgName(e)} rams through traffic wave ${c.wave} at ${Math.round(-e.z)} m`);
+					}
 					if (e.isMe) W.shake = Math.max(W.shake || 0, 0.25);
 					this.carFx(W, c, e);
 					continue;
@@ -8301,11 +8415,10 @@ Object.assign(MG, {
 				/* thrown out beside the car, never through a guardrail or barrier: no room there, the other side */
 				{
 					const [lo, hi] = this.edges(e.z),
-						rr = r * 0.85,
-						nx = cx + sd * (1.05 + r);
-					if (nx > hi - rr || nx < lo + rr) sd = -sd;
+						nx = cx + sd * (c.hb[0] + hw + 0.1);
+					if (nx > hi - hw || nx < lo + hw) sd = -sd;
 				}
-				e.x = cx + sd * (1.05 + r);
+				e.x = cx + sd * (c.hb[0] + hw + 0.1);
 				e.vx = sd * 5;
 				e.vz = -(this.CARV - 3);
 				e.slideT = 0.5;
@@ -8388,15 +8501,38 @@ Object.assign(MG, {
 				rg = power ? 26 : this.HPR,
 				cone = power ? 0.65 : this.HPA;
 			let hit = 0;
-			if (T && !(T.f && T.f.esc)) {
-				const d = Math.hypot(T.x - e.x, T.z - e.z),
-					a = Math.atan2(-(T.z - e.z), T.x - e.x);
-				hit = d < rg && Math.abs(wrapA(a - aim)) < cone ? 1 : 0;
+			const inCone = (x, z) =>
+				Math.hypot(x - e.x, z - e.z) < rg && Math.abs(wrapA(Math.atan2(-(z - e.z), x - e.x) - aim)) < cone;
+			if (T && !(T.f && T.f.esc)) hit = inCone(T.x, T.z) ? 1 : 0;
+			/* missed the truck: the nearest car ahead in the cone catches it instead, and the cop vaults over it */
+			let car = null;
+			if (!hit) {
+				let best = 1e9;
+				for (const c of W.cars) {
+					if (c.kT !== undefined) continue;
+					const cz = this.carZ(W, c);
+					if (cz > e.z + 1) continue;
+					if (cz < e.z - rg - 12) break;
+					const cx = this.carX(W, c, cz),
+						d = Math.hypot(cx - e.x, cz - e.z);
+					if (d < best && d > 2 && inCone(cx, cz)) {
+						best = d;
+						car = c;
+					}
+				}
 			}
 			if (power) e.winchT = 0;
 			const rd = (v) => Math.round(v * 100) / 100;
 			e.f.hp = [e.hpN, rd(W.t), hit, rd(aim), power ? 1 : 0];
-			mgLog(W, `${mgName(e)} fires the harpoon (${hit ? "hooked" : "missed"})`);
+			if (car) {
+				/* the vault: from the moment the head bites (0.2 s) the cop is in the air VLT s, slung forward over the car */
+				const d = Math.hypot(this.carX(W, car, this.carZ(W, car)) - e.x, this.carZ(W, car) - e.z),
+					dur = rd(Math.max(0.7, Math.min(1.3, (d + 7) / this.VLV)));
+				e.f.hp.push(car.id);
+				e.vault = { t: W.t + 0.2, dur, car };
+				e.f.vt = [rd(W.t + 0.2), dur];
+			}
+			mgLog(W, `${mgName(e)} fires the harpoon (${hit ? "hooked" : car ? "vaults a car" : "missed"})`);
 			if (e.isMe) sfx("cannon");
 		},
 		/* a cop's second button: its truck's trick */
@@ -8408,11 +8544,12 @@ Object.assign(MG, {
 			const rd = (v) => Math.round(v * 100) / 100,
 				T = this.solo(W);
 			if (A.lob) {
-				/* lobbed to land in front of the cash truck (where it'll be in ZL s), or up the road ahead if it's far */
+				/* lobbed to land in front of the cash truck (where it'll be in ZL s), however far back the cop is (up the
+				   road ahead of the cop only if there's no cash truck) */
 				let tx = e.x,
 					tz = e.z - 18;
-				if (T && Math.hypot(T.x - e.x, T.z - e.z) < 40) {
-					tz = T.z + (T.vz || -18) * this.ZL;
+				if (T) {
+					tz = T.z + Math.min(T.vz || -18, -12) * this.ZL;
 					tx = T.x + (T.vx || 0) * this.ZL * 0.4;
 				}
 				const [lo, hi] = this.edges(tz);
@@ -8650,7 +8787,7 @@ Object.assign(MG, {
 			this.truckLights(W, e);
 			/* grinding along the guardrail: sparks (and a grind for your own truck) */
 			const [lo, hi] = this.edges(e.z),
-				rr = (e.rad || 0.95) * 0.85;
+				rr = e.hb ? e.hb[0] : 0.6;
 			if (W.t > 0 && !e.gone && Math.hypot(e.vx || 0, e.vz || 0) > 5) {
 				if (e.x > hi - rr - 0.03) this.sparks(W, e, hi + 0.1, e.z, e.isMe && !W.tv);
 				else if (e.x < lo + rr + 0.03) this.sparks(W, e, lo - 0.1, e.z, e.isMe && !W.tv);
@@ -8739,33 +8876,36 @@ Object.assign(MG, {
 					});
 				}
 			} else {
-				if (!e.bar) {
-					const top = truckTop(e.tr),
-						sc = e.tr.scale.x,
-						g = new THREE.Group(),
-						red = B(0.32, 0.2, 0.7, "#E5484D", 0, 0, -0.38, { emissive: "#FF2A2A", emissiveIntensity: 1 }),
-						blue = B(0.32, 0.2, 0.7, "#2F7DE1", 0, 0, 0.38, { emissive: "#2A6BFF", emissiveIntensity: 1 }),
-						gun = new THREE.Group(),
-						tip = Cy(0, 0.1, 0.26, 6, "#FFC83D", 0.5, 0, 0);
-					g.add(B(0.4, 0.12, 1.6, "#23272F", 0, -0.12, 0), red, blue);
-					/* the harpoon gun beside the light bar: a mount, a barrel, the yellow harpoon head in its muzzle */
-					const bar = Cy(0.07, 0.08, 0.62, 8, "#3D424C", 0.12, 0, 0);
-					bar.rotation.z = -Math.PI / 2;
-					tip.rotation.z = -Math.PI / 2;
-					gun.add(B(0.2, 0.14, 0.2, "#5A6272", 0, -0.1, 0), bar, tip);
-					gun.position.set(0.28, 0.02, 0);
-					g.add(gun);
-					g.position.set(top.x / sc, (top.y + 0.18) / sc, 0);
-					g.scale.setScalar(1 / sc);
-					e.tr.add(g);
-					e.bar = { g, red, blue, gun, tip };
-				}
+				if (!e.bar) e.bar = this.copBar(e.tr);
 				this.harpoonFx(W, e);
 				this.trickFx(W, e, dt);
 				const ph = Math.floor(W.t * 6 + e.i) % 2;
 				e.bar.red.material.emissiveIntensity = ph ? 1.6 : 0.1;
 				e.bar.blue.material.emissiveIntensity = ph ? 0.1 : 1.6;
 			}
+		},
+		/* a cop's light bar on its roof (red and blue, kept inside the roof's width) with the harpoon gun beside it, in
+		   world-size units whatever the truck's scale */
+		copBar(tr) {
+			const top = truckTop(tr),
+				sc = tr.scale.x,
+				g = new THREE.Group(),
+				red = B(0.26, 0.14, 0.36, "#E5484D", 0, -0.03, -0.2, { emissive: "#FF2A2A", emissiveIntensity: 1 }),
+				blue = B(0.26, 0.14, 0.36, "#2F7DE1", 0, -0.03, 0.2, { emissive: "#2A6BFF", emissiveIntensity: 1 }),
+				gun = new THREE.Group(),
+				tip = Cy(0, 0.1, 0.26, 6, "#FFC83D", 0.5, 0, 0);
+			g.add(B(0.3, 0.1, 0.86, "#23272F", 0, -0.13, 0), red, blue);
+			/* the harpoon gun: a mount, a barrel, the yellow harpoon head in its muzzle */
+			const bar = Cy(0.07, 0.08, 0.62, 8, "#3D424C", 0.12, 0, 0);
+			bar.rotation.z = -Math.PI / 2;
+			tip.rotation.z = -Math.PI / 2;
+			gun.add(B(0.2, 0.14, 0.2, "#5A6272", 0, -0.1, 0), bar, tip);
+			gun.position.set(0.28, 0.02, 0);
+			g.add(gun);
+			g.position.set(top.x / sc, (top.y + 0.18) / sc, 0);
+			g.scale.setScalar(1 / sc);
+			tr.add(g);
+			return { g, red, blue, gun, tip };
 		},
 		/* the cash in cargo nets on the steel fenders over its tyres: 5 bags a side (3 on the rear fender, 2 on the front),
 		   each sack under a dark net that goes slack once its bag is knocked off */
@@ -8887,6 +9027,26 @@ Object.assign(MG, {
 					if (c.isMe || W.tv) sfx("crush");
 				}
 			}
+			/* the harpoon vault: up over the car nose first, down past it, dust as it lands */
+			if (f.vt) {
+				const k = (W.t - f.vt[0]) / f.vt[1];
+				if (k >= 0 && k < 1) {
+					c.g.position.y += Math.sin(k * Math.PI) * this.VLTH;
+					c.tr.rotation.z += Math.sin(k * Math.PI * 2) * 0.3;
+				} else if (k >= 1 && c.vtSeen !== f.vt[0]) {
+					c.vtSeen = f.vt[0];
+					burst(W.sc, c.x, 0.4, c.z, {
+						n: 12,
+						shape: "ico",
+						cols: ["#9DA0A6", "#C9CED8"],
+						spd: 3.5,
+						up: 2.5,
+						grav: 12,
+						life: 0.5,
+						size: 1,
+					});
+				}
+			}
 			if (f.nt && W.t < f.nt[0] && Math.random() < dt * 30) {
 				const a = c.yaw + Math.PI;
 				burst(W.sc, c.x + Math.cos(a) * 1.3, 0.7, c.z - Math.sin(a) * 1.3, {
@@ -8977,6 +9137,15 @@ Object.assign(MG, {
 					.addScaledVector(v.off, (1 - k) * (1 - k))
 					.addScaledVector(side, Math.sin(k * Math.PI * 2) * 1.6 * (1 - k));
 				b.y -= Math.sin(k * Math.PI) * 0.9;
+			} else if (h[5] !== undefined) {
+				/* caught a car: the line holds onto its roof until the cop is over it */
+				const car = W.cars.find((q) => q.id === h[5]),
+					vt = c.f.vt,
+					hold = vt ? vt[0] - h[1] + vt[1] * 0.55 : 0.8;
+				if (!car || age >= hold) return done();
+				const cp = this.carPos(W, car),
+					tb = new THREE.Vector3(cp.x, cp.y + 1.3 * this.CARS, cp.z);
+				b = age < 0.2 ? a.clone().lerp(tb, age / 0.2) : tb;
 			} else {
 				/* a miss: out up to 12 m ahead, then reeled back */
 				const out = age < 0.25 ? age / 0.25 : Math.max(0, 1 - (age - 0.25) / 0.35);
@@ -8991,7 +9160,7 @@ Object.assign(MG, {
 			v.line.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.clone().normalize());
 			v.head.position.copy(b);
 			v.head.quaternion.copy(v.line.quaternion);
-			if (h[2] && age >= 0.2 && age < 0.25 && !v.clank) {
+			if ((h[2] || h[5] !== undefined) && age >= 0.2 && age < 0.25 && !v.clank) {
 				v.clank = h[0];
 				if (W.tv || c.isMe || T.isMe) sfx("crush");
 			}
@@ -9148,11 +9317,13 @@ Object.assign(MG, {
 		glowTex(W) {
 			return (
 				W.glowTex ||
+				/* opaque, white fading to black (every pool using it is additive, so black adds nothing): a see-through
+				   white-to-clear canvas gets its faint pixels un-premultiplied wrongly on phones (as the lava haze did) */
 				(W.glowTex = canvasTex(128, 128, (x, w, h) => {
 					const g = x.createRadialGradient(w / 2, h / 2, 2, w / 2, h / 2, w / 2);
-					g.addColorStop(0, "rgba(255,255,255,1)");
-					g.addColorStop(0.45, "rgba(255,255,255,0.55)");
-					g.addColorStop(1, "rgba(255,255,255,0)");
+					g.addColorStop(0, "#FFFFFF");
+					g.addColorStop(0.45, "#8C8C8C");
+					g.addColorStop(1, "#000000");
 					x.fillStyle = g;
 					x.fillRect(0, 0, w, h);
 				}))
@@ -9301,7 +9472,9 @@ Object.assign(MG, {
 					v.mark.visible = k < 1;
 					v.lie.visible = k >= 1 && !smashed;
 					if (k < 1) {
-						v.fly.position.set(sx + (x - sx) * k, 1.6 + Math.sin(k * Math.PI) * 6, sz + (z - sz) * k);
+						/* a long throw from far back arcs higher */
+						const hgt = 6 + Math.min(14, Math.hypot(x - sx, z - sz) * 0.1);
+						v.fly.position.set(sx + (x - sx) * k, 1.6 + Math.sin(k * Math.PI) * hgt, sz + (z - sz) * k);
 						v.fly.rotation.set(k * 7, k * 4, 0);
 						v.mark.material.opacity = 0.35 + 0.35 * Math.sin(W.t * 20);
 					} else if (!v.landed) {
@@ -9534,10 +9707,10 @@ Object.assign(MG, {
 				W.list.forEach((a, i) =>
 					W.list.slice(i + 1).forEach((b) => {
 						if (a.gone || b.gone) return;
+						if (!a.hb || !b.hb) return;
 						const dx = b.x - a.x,
-							dz = b.z - a.z,
-							rr = (a.rad || 0.95) + (b.rad || 0.95);
-						if (Math.hypot(dx, dz) < rr + 0.12 && Math.abs(dz) < rr * 0.8)
+							dz = b.z - a.z;
+						if (Math.abs(dx) < a.hb[0] + b.hb[0] + 0.12 && Math.abs(dz) < (a.hb[1] + b.hb[1]) * 0.8)
 							this.sparks(W, a, (a.x + b.x) / 2, (a.z + b.z) / 2, (a.isMe || b.isMe) && !W.tv);
 					}),
 				);
@@ -9706,12 +9879,15 @@ Object.assign(MG, {
 					Math.random() < 0.06 * e.sk
 				)
 					o.b2 = true;
+				/* like a person: it notices a harpoon only now and then (44-65% by skill), and a beat late (0.3-0.6 s after it
+				   bites), so a cop close behind usually lands the hit before the swerve snaps the line */
 				const hk = this.hooks(W, e)[0];
 				if (hk) {
 					const key = hk.c.k + ":" + hk.id;
 					e.snapTry = e.snapTry || {};
-					if (e.snapTry[key] === undefined) e.snapTry[key] = Math.random() < 0.35 + 0.5 * e.sk;
-					if (e.snapTry[key]) tx = e.x + (e.x > hk.c.x ? 9 : -9);
+					if (e.snapTry[key] === undefined)
+						e.snapTry[key] = Math.random() < 0.3 + 0.35 * e.sk ? W.t + 0.3 + Math.random() * 0.3 * (1.4 - e.sk) : -1;
+					if (e.snapTry[key] >= 0 && W.t >= e.snapTry[key]) tx = e.x + (e.x > hk.c.x ? 9 : -9);
 				}
 			} else {
 				/* a beat late and a little off: re-aim every 0.3-0.8 s with a miss of up to a lane, and ease off to about the
@@ -9737,12 +9913,26 @@ Object.assign(MG, {
 					o.x = Math.max(-1, Math.min(1, ang * 1.3 + (Math.random() - 0.5) * 0.5));
 					return o;
 				}
+				/* stuck behind a car with the truck out of reach: now and then it harpoons the car and vaults over it */
+				if (
+					W.t >= (e.hpCd || 0) &&
+					dT > this.HPR &&
+					Math.random() < 0.04 * e.sk &&
+					W.cars.some((c) => {
+						const cz = this.carZ(W, c);
+						return c.kT === undefined && cz < e.z - 5 && cz > e.z - 13 && Math.abs(this.carX(W, c, cz) - e.x) < 1.5;
+					})
+				) {
+					o.boost = true;
+					o.x = 0;
+					return o;
+				}
 				/* its truck's trick, when it fits */
 				if (W.t >= (e.abCd || 0) && Math.random() < 0.03 * e.sk) {
 					const A = this.abOf(e),
 						k = A.kind;
 					if (
-						(A.lob && dT < 36) ||
+						(A.lob && dT < 90) ||
 						((k === "pickup" || k === "food") && dz > 16) ||
 						(k === "monster" && dz > 14 && dz < 42) ||
 						(k === "fire" && dT < 12) ||
