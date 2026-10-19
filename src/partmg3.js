@@ -7560,7 +7560,7 @@ Object.assign(MG, {
 		DN: 6,
 		LATA: 34,
 		/* cash: BAGS on the truck, IMM s safe after losing one; oil: cooldown OILCD, lasts OILT, radius OILR */
-		BAGS: 20,
+		BAGS: 10 /* was 20: the truck escaped every test game, the cops knock off 7-9 a game */,
 		IMM: 4,
 		/* every button (oil, slam, harpoon, tricks) wakes up ARM s after the start */
 		ARM: 4,
@@ -7578,6 +7578,7 @@ Object.assign(MG, {
 		/* spike strip: a cop at least SSA m ahead of the cash truck drops one with its main button, SSB m behind itself,
 		   SSW wide across the road, lying SST s; driving over it costs the truck a bag (once a strip) */
 		SSA: 4,
+		LEAD: 12,
 		SSB: 3,
 		SSW: 7.6,
 		SST: 7,
@@ -8217,7 +8218,7 @@ Object.assign(MG, {
 			e.oilCd = e.swCd = e.hpCd = e.abCd = this.ARM;
 			if (e.side === 0) {
 				e.bags = this.BAGS;
-				/* bags 0-9 hang in the right-hand nets, 10-19 in the left (top tier first, rear first): e.bm = the ones still on */
+				/* the first half of the bags hang in the right-hand nets, the rest in the left (top tier first if there is one, rear first): e.bm = the ones still on */
 				e.bm = (1 << this.BAGS) - 1;
 				e.lbN = 0;
 				e.snapA = {};
@@ -8258,6 +8259,10 @@ Object.assign(MG, {
 				   from 27 m), so the pack stays together (and on the TV); vaulting cars is the quick way back */
 				lag = T ? e.z - T.z - 30 : 0,
 				cu = lag > 0 ? Math.min(8, lag * 0.3) : 0,
+				/* and the other way: a cop more than LEAD m ahead of the truck loses top speed the further it gets (up to 9
+				   m/s), so it hangs about 15-25 m ahead (spike range, still on screen with the truck) instead of racing off */
+				ld = T ? T.z - e.z - this.LEAD : 0,
+				ldk = ld > 0 ? Math.min(9, ld * 0.5) : 0,
 				hooks = solo ? this.hooks(W, e) : [],
 				/* the cash truck: slowed a moment after a hit, by a hook on it, in cement / gravel / trash; a cop: on nitro */
 				nitro = !solo && W.t < (e.nitroT || 0),
@@ -8271,7 +8276,7 @@ Object.assign(MG, {
 					: W.t < (e.shredT || 0)
 						? 7
 						: 0,
-				top = this.V0 + (solo ? this.UP : this.UPC) + cu - slow + (nitro ? (e.f.nt && e.f.nt[1] ? 14 : 12) : 0),
+				top = this.V0 + (solo ? this.UP : this.UPC) + cu - ldk - slow + (nitro ? (e.f.nt && e.f.nt[1] ? 14 : 12) : 0),
 				low = this.V0 - this.DN,
 				on = inp && !e.d;
 			let fv = -e.vz;
@@ -9036,11 +9041,17 @@ Object.assign(MG, {
 					for (let i = 0; i < k && spots.length < 5; i++) spots.push([f.x + (i - (k - 1) / 2) * step, f.y, f.z]);
 				});
 				while (spots.length < 5) spots.push([-0.6 + spots.length * 0.4, 1.2, sd * 1.1]);
-				/* a second tier on top of the first (it goes first) */
-				const tiers = spots
-					.map(([x, y, z]) => [x + 0.05, y + 0.33, z - sd * 0.04, 1])
-					.concat(spots.map((p) => [...p, 0]));
-				tiers.slice(0, this.BAGS / 2).forEach(([x, y, z, top], i) => {
+				/* more than 5 a side: a second tier on top of the first (it goes first) */
+				const per = this.BAGS / 2,
+					low = spots.map((p) => [...p, 0]),
+					tiers =
+						per > low.length
+							? spots
+									.slice(0, per - low.length)
+									.map(([x, y, z]) => [x + 0.05, y + 0.33, z - sd * 0.04, 1])
+									.concat(low)
+							: low.slice(0, per);
+				tiers.forEach(([x, y, z, top], i) => {
 					const bag = kitGroup(kit, 0),
 						net = new THREE.Mesh(geo, mat),
 						q = { bag, net, x, y: y + 0.19, z: z - sd * 0.03, sd, top, on: null };
@@ -10104,6 +10115,8 @@ Object.assign(MG, {
 						return W.t >= e[key];
 					},
 					hpOk = think("hpAt", e.hpCd || 0, 1, 2),
+					/* dropping spikes needs no aim: a short think (0.3-0.8 s) */
+					ssOk = think("ssAt", e.hpCd || 0, 0.3, 0.5),
 					/* one harpoon at a time: it waits while another cop's is out (or was fired in the last 1.5 s) */
 					busy = W.list.some((c) => c !== e && c.side === 1 && !c.gone && c.f && c.f.hp && W.t - c.f.hp[1] < 1.5),
 					sd = e.x >= T.x ? 1 : -1,
@@ -10119,7 +10132,7 @@ Object.assign(MG, {
 					   strip lands 12-27 m in front of the truck: 0.55-1.2 s, so a sharp driver can still swerve round it) */
 					wx = T.x;
 					o.y = dz > -15 ? -1 : dz < -30 ? 1 : 0.2;
-					if (hpOk && dz < -15 && Math.abs(e.x - T.x) < 1.8) {
+					if (ssOk && dz < -15 && Math.abs(e.x - T.x) < 1.8) {
 						o.boost = true;
 						return o;
 					}
