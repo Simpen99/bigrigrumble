@@ -7556,7 +7556,7 @@ Object.assign(MG, {
 		/* driving: cruise V0, the stick adds up to UP (truck) / UPC (cops) or takes off DN; lateral push LATA */
 		V0: 16,
 		UP: 5.5,
-		UPC: 5.5 /* cops as fast as the cash truck (21.5 m/s top; were 20) */,
+		UPC: 7.5 /* cops 2 m/s faster than the cash truck (23.5 vs 21.5 m/s top), so they can get past it to lay spikes */,
 		DN: 6,
 		LATA: 34,
 		/* cash: BAGS on the truck, IMM s safe after losing one; oil: cooldown OILCD, lasts OILT, radius OILR */
@@ -9878,7 +9878,13 @@ Object.assign(MG, {
 				W.list.forEach((c) => {
 					if (c.side === 1 && !c.gone && c.z < T.z && c.z > T.z - 7 && Math.abs(c.x - T.x) < c.hb[0] + T.hb[0])
 						W.blockT = (W.blockT || 0) + fdt;
-					if (c.side === 1 && !c.gone) W.maxAhead = Math.max(W.maxAhead || 0, T.z - c.z);
+					if (c.side === 1 && !c.gone) {
+						W.maxAhead = Math.max(W.maxAhead || 0, T.z - c.z);
+						/* where each cop spends its time: far behind (30+ m), behind, alongside, ahead */
+						const dz = c.z - T.z,
+							q = ((W.copT = W.copT || {})[mgName(c)] = W.copT[mgName(c)] || [0, 0, 0, 0]);
+						q[dz > 30 ? 0 : dz > T.hb[1] + c.hb[1] ? 1 : dz > -T.hb[1] - c.hb[1] ? 2 : 3] += fdt;
+					}
 				});
 			/* trucks grinding side by side: sparks between them */
 			if (W.t > 0)
@@ -10103,15 +10109,17 @@ Object.assign(MG, {
 					sd = e.x >= T.x ? 1 : -1,
 					gap = e.hb[0] + T.hb[0] + 2.2,
 					[lo, hi] = this.edges(e.z),
-					/* the first CPU cop is the runner: its job is to get past the truck and lay spikes */
-					runner = W.list.find((c) => c.side === 1 && !c.gone && c.p && c.p.bot) === e;
+					/* roles: the cop closest behind the truck (human or CPU) is the hunter that goes for the harpoon; every
+					   other CPU cop is a runner whose job is to get past the truck and lay spikes */
+					hunter = W.list.filter((c) => c.side === 1 && !c.gone && c.z > T.z).sort((a, b) => a.z - b.z)[0],
+					runner = hunter !== e;
 				let wx = e.aimX;
 				if (this.ahead(W, e, T) && W.t >= (e.hpCd || 0)) {
-					/* ahead of it with spikes ready: get into its lane 12-25 m ahead and drop the strip once lined up (far
-					   enough ahead that a sharp driver can still swerve round it) */
+					/* ahead of it with spikes ready: get into its lane 15-30 m ahead and drop the strip once lined up (the
+					   strip lands 12-27 m in front of the truck: 0.55-1.2 s, so a sharp driver can still swerve round it) */
 					wx = T.x;
-					o.y = dz > -12 ? -1 : dz < -25 ? 1 : 0.2;
-					if (hpOk && dz < -12 && Math.abs(e.x - T.x) < 1.8) {
+					o.y = dz > -15 ? -1 : dz < -30 ? 1 : 0.2;
+					if (hpOk && dz < -15 && Math.abs(e.x - T.x) < 1.8) {
 						o.boost = true;
 						return o;
 					}
@@ -10180,7 +10188,11 @@ Object.assign(MG, {
 		watchSum(W) {
 			const T = this.solo(W);
 			return T
-				? `cash truck: ${T.f.bg} bags${T.f.esc ? ", escaped" : ""}, at ${Math.round(-T.z)} m; cops in front of it ${Math.round(W.blockT || 0)} s, a cop got up to ${Math.round(W.maxAhead || 0)} m ahead`
+				? `cash truck: ${T.f.bg} bags${T.f.esc ? ", escaped" : ""}, at ${Math.round(-T.z)} m; cops in front of it ${Math.round(W.blockT || 0)} s, a cop got up to ${Math.round(W.maxAhead || 0)} m ahead; s far behind / behind / alongside / ahead: ${Object.entries(
+						W.copT || {},
+					)
+						.map(([k, q]) => `${k} ${q.map(Math.round).join("/")}`)
+						.join(", ")}`
 				: "";
 		},
 		/* tools/nettest.mjs: the bags and the escape must agree */
