@@ -999,7 +999,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-19 14:41 b9fb655";
+const BUILD = "2026-10-19 17:16 2759672";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -34970,8 +34970,7 @@ const MM = {
 	WARN: 3 /* a slice cracks and glows this long before it sinks */,
 	LIVES: 3 /* falls into the mud before a survivor is out */,
 	TV: 12 /* tyre speed */,
-	TYW: 1.75 /* a tyre (flying face first) hits a truck within TYW across its path and TYL along it */,
-	TYL: 1.2,
+	TYR: 1.65 /* a tyre (sliding flat, spinning) hits a truck within TYR of its middle */,
 	TYN: 3 /* TYN tyre hits within TYWIN s stun a survivor for TYSTUN s */,
 	TYWIN: 4,
 	TYSTUN: 2,
@@ -34999,7 +34998,7 @@ function truckTop(tr) {
 		flat = hits.filter((h) => h[1] > top - 0.12);
 	return { x: (flat[0][0] + flat[flat.length - 1][0]) / 2, y: top };
 }
-/* chunky monster tyre, axle along x (rolls along z; Monster Mash turns it a quarter to fly face first): tread, sidewalls,
+/* chunky monster tyre, axle along x (rolls along z; Monster Mash lays it flat to slide spinning): tread, sidewalls,
    silver hub, yellow cap, tread blocks */
 function mmTyreKit() {
 	const g = new THREE.Group(),
@@ -35934,7 +35933,7 @@ Object.assign(MG, {
 				if (!t.hit || safe || e.tyHit[t.id]) continue;
 				const rx = e.x - t.x,
 					rz = e.z - t.z;
-				if (Math.abs(rx * t.dx + rz * t.dz) > MM.TYL || Math.abs(rx * -t.dz + rz * t.dx) > MM.TYW) continue;
+				if (Math.hypot(rx, rz) > MM.TYR) continue;
 				e.tyHit[t.id] = 1;
 				if (W.t - (e.tyT || -9) > 0.3) {
 					e.tyT = W.t;
@@ -36246,11 +36245,11 @@ Object.assign(MG, {
 				let y;
 				if (t.s < 3.6) {
 					const k = (t.s - 1.4) / 2.2;
-					y = 0.6 + (t.h - 0.6) * (1 - k * k);
-				} else if (t.on) y = 0.6 + Math.abs(Math.sin(t.s * 0.9)) * 0.35;
+					y = 0.36 + (t.h - 0.36) * (1 - k * k);
+				} else if (t.on) y = 0.36 + Math.abs(Math.sin(t.s * 0.9)) * 0.35;
 				else {
 					const tf = (t.s - t.sx) / MM.TV;
-					y = 0.6 - 15 * tf * tf;
+					y = 0.36 - 15 * tf * tf;
 					if (y < this.MUD + 0.4 && !sl.spl) {
 						sl.spl = true;
 						burst(W.sc, t.x, this.MUD + 0.3, t.z, {
@@ -36267,9 +36266,9 @@ Object.assign(MG, {
 				}
 				sl.o.visible = y > this.MUD - 1;
 				sl.o.position.set(t.x, y, t.z);
-				/* turned a quarter: it flies face first (as wide as it is tall), spinning on its axle */
-				sl.o.rotation.y = Math.atan2(t.dx, t.dz) + Math.PI / 2;
-				sl.t.rotation.x = t.s / 0.6;
+				/* lying flat (axle up): it slides and skips across the stage spinning, as wide as it is round */
+				sl.o.rotation.y = t.s * 0.8;
+				sl.t.rotation.set(0, 0, Math.PI / 2);
 			});
 			mm.ty.forEach((q) => {
 				if (!used.has(q)) {
@@ -36632,7 +36631,7 @@ Object.assign(MG, {
 					rz = e.z - t.z,
 					ahead = rx * t.dx + rz * t.dz,
 					side = rx * -t.dz + rz * t.dx;
-				if (ahead > 0 && ahead < 4.5 && Math.abs(side) < MM.TYW + 0.4) {
+				if (ahead > 0 && ahead < 4.5 && Math.abs(side) < MM.TYR + 0.4) {
 					if (e.tyNote[t.id] === undefined) e.tyNote[t.id] = Math.random() < 0.5;
 					if (!e.tyNote[t.id]) continue;
 					const sg = side >= 0 ? 1 : -1;
@@ -36726,6 +36725,11 @@ Object.assign(MG, {
 		/* traffic cars at CARS of Rush Hour's size; traffic waves (a car in every lane) met round these shares of the run */
 		CARS: 0.85,
 		WAVES: [0.22, 0.52, 0.82],
+		/* the cash truck ramming a car: left with CARHIT of its speed, CARSLOW m/s off its top speed for CART s (was 0.82
+		   once, nothing after: back to full speed in ~0.4 s) */
+		CARHIT: 0.6,
+		CARSLOW: 6,
+		CART: 1.5,
 		/* driving: cruise V0, the stick adds up to UP (truck) / UPC (cops) or takes off DN; lateral push LATA */
 		V0: 16,
 		UP: 5.5,
@@ -37427,6 +37431,7 @@ Object.assign(MG, {
 						(W.t < (e.cemT || 0) ? 9 : 0) +
 						(W.t < (e.gravT || 0) ? 5 : 0) +
 						(W.t < (e.trashT || 0) ? 4 : 0) +
+						(W.t < (e.carT || 0) ? this.CARSLOW : 0) +
 						Math.min(2, hooks.length) * 2
 					: 0,
 				top = this.V0 + (solo ? this.UP : this.UPC) + cu - slow + (nitro ? (e.f.nt && e.f.nt[1] ? 14 : 12) : 0),
@@ -37578,8 +37583,11 @@ Object.assign(MG, {
 					c.kT = W.t;
 					c.kd = -sd;
 					e.f.tk = (e.f.tk || []).concat([[c.id, Math.round(W.t * 100) / 100, -sd]]).slice(-8);
-					/* a little bump back: some speed lost, nudged away from the car */
-					e.vz *= 0.82;
+					/* the crunch costs it: CARHIT of its speed gone, then CARSLOW m/s off its top speed and half the
+					   acceleration for CART s (cops catch up), nudged away from the car */
+					if (e.vz < -8) e.vz = Math.min(-8, e.vz * this.CARHIT);
+					e.carT = W.t + this.CART;
+					e.crT = Math.max(e.crT || 0, e.carT);
 					e.vx += sd * 2.5;
 					if (c.wave && e.waveLog !== c.wave) {
 						e.waveLog = c.wave;
@@ -37690,9 +37698,11 @@ Object.assign(MG, {
 					const cz = this.carZ(W, c);
 					if (cz > e.z + 1) continue;
 					if (cz < e.z - rg - 12) break;
+					/* any part of the car in the cone counts, not just its middle: reach and aim widened by its size */
 					const cx = this.carX(W, c, cz),
-						d = Math.hypot(cx - e.x, cz - e.z);
-					if (d < best && d > 2 && inCone(cx, cz)) {
+						d = Math.hypot(cx - e.x, cz - e.z),
+						off = Math.abs(wrapA(Math.atan2(-(cz - e.z), cx - e.x) - aim));
+					if (d < best && d > 1 && d < rg + c.hb[1] && off < cone + Math.atan2(c.hb[0] + 0.4, d)) {
 						best = d;
 						car = c;
 					}
@@ -39016,11 +39026,12 @@ Object.assign(MG, {
 							(c) =>
 								c.side === 1 &&
 								((c.f && c.f.zn) || []).some(
-									([, kind, zx, zz, t]) =>
+									([id, kind, zx, zz, t]) =>
 										W.t - t < this.ZL + this.ZT &&
 										zz < e.z &&
 										zz > e.z - far &&
-										Math.abs(zx - x) < this.lobR(kind) + 1.6,
+										Math.abs(zx - x) < this.lobR(kind) + 1.6 &&
+										W.t >= this.lobSeen(e, c.k + ":" + id, t),
 								),
 						)) ||
 					(e.side === 1 &&
@@ -39121,6 +39132,16 @@ Object.assign(MG, {
 			o.x = Math.max(-1, Math.min(1, (tx - e.x) * 0.45));
 			if (o.b2 && e.side === 0 && W.t < (e.swCd || 0)) o.b2 = false;
 			return o;
+		},
+		/* when the CPU cash truck sees a lob coming (thrown at t): like a person it spots one in flight only now and then
+		   (35-65% by skill) and a beat late (0.45-0.85 s after the throw, landing at ZL = 1 s); the rest once they're
+		   lying on the road */
+		lobSeen(e, key, t) {
+			e.lobSn = e.lobSn || {};
+			if (e.lobSn[key] === undefined)
+				e.lobSn[key] =
+					Math.random() < 0.35 + 0.3 * e.sk ? t + 0.45 + Math.random() * 0.4 * (1.4 - e.sk) : t + this.ZL + 0.3;
+			return e.lobSn[key];
 		},
 		watchSum(W) {
 			const T = this.solo(W);
