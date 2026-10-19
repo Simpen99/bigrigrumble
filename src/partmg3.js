@@ -7547,12 +7547,12 @@ Object.assign(MG, {
 		CARCOL: MG.hop.CARCOL,
 		/* traffic cars at CARS of Rush Hour's size; traffic waves (a car in every lane) met round these shares of the run */
 		CARS: 0.85,
-		WAVES: [0.22, 0.52, 0.82],
-		/* the cash truck ramming a car: left with CARHIT of its speed, CARSLOW m/s off its top speed for CART s (was 0.82
-		   once, nothing after: back to full speed in ~0.4 s) */
-		CARHIT: 0.6,
-		CARSLOW: 6,
-		CART: 1.5,
+		WAVES: [0.13, 0.3, 0.48, 0.66, 0.84],
+		/* the cash truck ramming a car: left with CARHIT of its speed, CARSLOW m/s off its top speed for CART s, about 7 m lost
+		   a car (was 0.82 once, nothing after: back to full speed in ~0.4 s, under 1 m) */
+		CARHIT: 0.65,
+		CARSLOW: 4,
+		CART: 1.2,
 		/* driving: cruise V0, the stick adds up to UP (truck) / UPC (cops) or takes off DN; lateral push LATA */
 		V0: 16,
 		UP: 5.5,
@@ -7679,7 +7679,7 @@ Object.assign(MG, {
 				/* traffic waves: WAVES times a run a row fills every lane (a rolling roadblock the cash truck has to ram
 				   through), the pack meeting them round these shares of the road (a car at z0 is met near 1.8 z0); where
 				   the road is narrower the cars in the shut lanes queue up behind the others (carZ) */
-				waves = this.WAVES.map((f) => ((f + (W.rng() - 0.5) * 0.12) * this.TL) / 1.8);
+				waves = this.WAVES.map((f) => ((f + (W.rng() - 0.5) * 0.08) * this.TL) / 1.8);
 			for (let z = -55; z > -this.TL + 25; z -= 15 + W.rng() * 12) {
 				const meets = ([a, b], m0, m1) => -z * 2.45 > a - m0 && -z * 1.35 < b + m1,
 					shut = meets(this.WORKS, 50, 10),
@@ -9712,6 +9712,12 @@ Object.assign(MG, {
 			this.streakStep(W, fdt);
 			this.heliStep(W, fdt);
 			this.nearMiss(W);
+			/* for tools/watch.mjs: seconds cops spent right in front of the cash truck, in its lane */
+			if (T && W.t > 0)
+				W.list.forEach((c) => {
+					if (c.side === 1 && !c.gone && c.z < T.z && c.z > T.z - 7 && Math.abs(c.x - T.x) < c.hb[0] + T.hb[0])
+						W.blockT = (W.blockT || 0) + fdt;
+				});
 			/* trucks grinding side by side: sparks between them */
 			if (W.t > 0)
 				W.list.forEach((a, i) =>
@@ -9908,8 +9914,16 @@ Object.assign(MG, {
 					e.aimX = T.x + (Math.random() - 0.5) * 2.4 * (1.3 - e.sk);
 				}
 				const dz = e.z - T.z;
-				tx = blocked(e.aimX, 22) ? clear(e.aimX) : e.aimX;
-				o.y = dz > 6 ? -1 : dz > 1.5 ? -0.65 : dz < -3 ? 0.7 : 0;
+				/* level with it or ahead: pull out of its lane (to the side it's already on) and drop back behind it, instead
+				   of sitting in front of it and getting shoved up the road */
+				const front = dz < 2,
+					sd = e.x >= T.x ? 1 : -1,
+					gap = e.hb[0] + T.hb[0] + 2.2,
+					[lo, hi] = this.edges(e.z),
+					want = T.x + sd * gap,
+					wx = !front ? e.aimX : want > hi - 1 || want < lo + 1 ? T.x - sd * gap : want;
+				tx = blocked(wx, 22) ? clear(wx) : wx;
+				o.y = dz > 6 ? -1 : dz > 1.5 ? -0.65 : dz < -1 ? 1 : 0.5;
 				/* the harpoon when the truck is in reach and in front (aimed with the steering, a bit sloppily) */
 				const dT = Math.hypot(T.x - e.x, T.z - e.z),
 					ang = Math.atan2(T.x - e.x, Math.max(0.1, dz));
@@ -9968,7 +9982,9 @@ Object.assign(MG, {
 		},
 		watchSum(W) {
 			const T = this.solo(W);
-			return T ? `cash truck: ${T.f.bg} bags${T.f.esc ? ", escaped" : ""}, at ${Math.round(-T.z)} m` : "";
+			return T
+				? `cash truck: ${T.f.bg} bags${T.f.esc ? ", escaped" : ""}, at ${Math.round(-T.z)} m; cops in front of it ${Math.round(W.blockT || 0)} s`
+				: "";
 		},
 		/* tools/nettest.mjs: the bags and the escape must agree */
 		syncSnap(W) {
