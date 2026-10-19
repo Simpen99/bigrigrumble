@@ -692,7 +692,7 @@ function buildTruck(i, mode) {
 		beef.scale.set(BX, BY, BZ);
 		[...g.children].forEach((o) => beef.add(o));
 		g.add(beef);
-		liftWheels(g, monAx, wheelsL, R, DY, (W * BZ) / 2 + 0.36);
+		liftWheels(g, monAx, wheelsL, R, DY, (W * BZ) / 2 + 0.36, 0.55);
 		armourize(g, W * BZ, wheelsL, t.kind, mount && { x: mount.x * BX, y: mount.y * BY + DY }, R);
 	}
 	{
@@ -752,9 +752,10 @@ function springSet(tr, ext) {
 /* monster mode (Monster Mash's boss): the truck's own body, paint a shade darker, lifted on long shocks over huge
    treaded tyres with spiked hubs, a toothed bull bar, red glowing eyes under angry brows, and exhaust stacks with flames */
 const MON = { R: 0.62, DY: 0.7, EYE: { emissive: "#FF2A1A", emissiveIntensity: 0.9 } };
-/* the body lifted DY on long shocks over big treaded tyres (radius R, ZW out from the middle) with spiked hubs: Monster
-   Mash's monster and the armoured cash truck. Returns the lift group (the body is in it) */
-function liftWheels(g, xs, wheelsL, R, DY, ZW) {
+/* the body lifted DY on long shocks over big treaded tyres (radius R, ZW out from the middle) with spiked hubs (spikes SPK
+   long: the cash truck's are long Ben-Hur spikes on a collar): Monster Mash's monster and the armoured cash truck. Returns
+   the lift group (the body is in it) */
+function liftWheels(g, xs, wheelsL, R, DY, ZW, SPK = 0.3) {
 	const D = "#353A46",
 		CH = "#C9CED8",
 		lift = new THREE.Group(),
@@ -810,9 +811,15 @@ function liftWheels(g, xs, wheelsL, R, DY, ZW) {
 				b.castShadow = true;
 				wg.add(b);
 			}
-			const sp = Cy(0, 0.1, 0.3, 6, CH, 0, 0, sd * 0.42);
+			const big = SPK > 0.3,
+				sp = Cy(0, big ? 0.13 : 0.1, SPK, 6, CH, 0, 0, sd * (0.27 + SPK / 2));
 			sp.rotation.x = (sd * Math.PI) / 2;
 			wg.add(sp);
+			if (big) {
+				const col = Cy(0.17, 0.17, 0.1, 8, "#5A6272", 0, 0, sd * 0.31);
+				col.rotation.x = Math.PI / 2;
+				wg.add(col);
+			}
 			for (let i = 0; i < 5; i++) {
 				const a = (i / 5) * Math.PI * 2,
 					bt = Cy(0.04, 0.04, 0.06, 6, "#E3E6EB", Math.cos(a) * 0.24, Math.sin(a) * 0.24, sd * 0.28);
