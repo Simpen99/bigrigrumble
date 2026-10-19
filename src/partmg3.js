@@ -7626,6 +7626,8 @@ Object.assign(MG, {
 		lobR(kind) {
 			return (Object.values(this.AB).find((a) => a.lob === kind) || { r: 2.2 }).r;
 		},
+		/* Blaze's hose: soaked tyres lose their grip this long */
+		HOSET: 2.2,
 		OILCD: 7,
 		OILT: 8,
 		OILR: 1.9,
@@ -8707,11 +8709,26 @@ Object.assign(MG, {
 						sfx("crush");
 					}
 				});
-				/* the hose: while it sprays and the truck is in reach, it's shoved away from the cop */
+				/* the hose: the blast catches the truck once if it's in reach while it sprays: knocked sideways, and soaked
+				   tyres lose their grip for HOSET s (the ice cream's slide: steering hardly bites, it drifts) */
 				const wj = c.f.wj;
-				if (wj && W.t - wj[1] < 1.3 && W.t >= wj[1] && Math.hypot(e.x - c.x, e.z - c.z) < 16) {
-					e.vx += (e.x >= c.x ? 1 : -1) * 16 * dt;
-					e.vz *= Math.exp(-0.5 * dt);
+				if (
+					wj &&
+					W.t - wj[1] < 1.3 &&
+					W.t >= wj[1] &&
+					!e.zHit[c.k + ":w" + wj[0]] &&
+					Math.hypot(e.x - c.x, e.z - c.z) < 16
+				) {
+					e.zHit[c.k + ":w" + wj[0]] = 1;
+					e.vx += (e.x >= c.x ? 1 : -1) * 9;
+					e.iceT = Math.max(e.iceT || 0, W.t + this.HOSET);
+					e.f.wt = Math.round(W.t * 100) / 100;
+					fb(W, e, "SOAKED!", { tone: "bad" });
+					mgLog(W, `${mgName(e)} soaked by ${mgName(c)}'s hose`);
+					if (e.isMe) {
+						W.shake = 0.3;
+						sfx("splash");
+					}
 				}
 			}
 		},
@@ -8925,6 +8942,18 @@ Object.assign(MG, {
 			}
 			if (e.side === 0) {
 				if (!e.slots) this.bagNets(W, e);
+				/* soaked by Blaze's hose (e.f.wt): water streams off it while its tyres have no grip */
+				if (f.wt !== undefined && W.t >= f.wt && W.t < f.wt + this.HOSET && Math.random() < dt * 30)
+					burst(W.sc, e.x + (Math.random() - 0.5) * 2, 1.6 + Math.random(), e.z + (Math.random() - 0.5) * 2.4, {
+						n: 2,
+						shape: "ico",
+						cols: ["#9FD8F0", "#D9EEF5", "#5AA9FF"],
+						spd: 1,
+						up: 0.5,
+						grav: 9,
+						life: 0.45,
+						size: 0.7,
+					});
 				const n = e.local ? e.bags : (f.bg ?? this.BAGS),
 					bm = e.local ? e.bm : (f.bm ?? (1 << this.BAGS) - 1);
 				e.slots.forEach((q, i) => {
