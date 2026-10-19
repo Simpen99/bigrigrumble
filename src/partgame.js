@@ -1371,14 +1371,16 @@ function forcedSplit(g) {
 		hum = ps.find((p) => p.key === me.key) || ps.find((p) => !p.bot),
 		order = ps.slice().sort(() => Math.random() - 0.5);
 	if (mode === "1v3") {
-		/* TEST_SIDE (tools/watch.mjs --side, nettest.mjs --solo) puts the host's truck on side 0 or 1, or names the solo player's key */
-		const others = order.filter((p) => p !== hum),
+		/* TEST_SIDE (tools/watch.mjs --side, nettest.mjs --solo) puts the host's truck on side 0 or 1, or names the solo player's key;
+		   otherwise practice uses the side picked in the practice menu (practiceSide) */
+		const side = TEST_SIDE !== null ? TEST_SIDE : HG.practice && practiceSide >= 0 ? practiceSide : null,
+			others = order.filter((p) => p !== hum),
 			solo =
-				typeof TEST_SIDE === "string" && ps.some((p) => p.key === TEST_SIDE)
-					? ps.find((p) => p.key === TEST_SIDE)
-					: TEST_SIDE === 0 && hum
+				typeof side === "string" && ps.some((p) => p.key === side)
+					? ps.find((p) => p.key === side)
+					: side === 0 && hum
 						? hum
-						: TEST_SIDE === 1
+						: side === 1
 							? others[0]
 							: hum && Math.random() < 0.5
 								? hum
@@ -2101,6 +2103,9 @@ document.addEventListener("click", (e) => {
 
 /* ---------- minigame practice menu ---------- */
 let practiceCpu = LS.get("trp_pcpu", 3);
+/* practice 1 vs 3 games: the side you play (-1 random, 0 the solo truck: Getaway's cash truck, Monster Mash's monster,
+   1 the team) */
+let practiceSide = LS.get("trp_pside", -1);
 function practiceHTML() {
 	const list = (kind) =>
 		Object.keys(MG)
@@ -2112,6 +2117,14 @@ function practiceHTML() {
 			.join("");
 	return `<div class="stage short"><div class="brand"><i></i>Minigame practice</div></div>
   <section class="sheet"><h2>CPU opponents</h2><div class="seg">${[0, 1, 2, 3].map((n) => `<button data-pcpu="${n}" class="${practiceCpu === n ? "on" : ""}">${n}</button>`).join("")}</div>
+  <h2 style="margin-top:14px">1 vs 3 games: play as</h2><div class="seg">${[
+		[-1, "Random"],
+		[0, "Solo"],
+		[1, "Team"],
+	]
+		.map(([v, t]) => `<button data-pside="${v}" class="${practiceSide === v ? "on" : ""}">${t}</button>`)
+		.join("")}</div>
+  <p class="note">Solo = the cash truck in Getaway, the monster in Monster Mash. Team = a cop or a survivor (needs a CPU opponent).</p>
   <p class="note">Practice runs only on this device. Nothing is shared with other players, and it doesn't touch a saved hosted game.</p></section>
   <section class="sheet"><h2>Truck specials</h2><div class="pgrid">${list("special")}</div></section>
   <section class="sheet"><h2>Arena battles</h2><div class="pgrid">${list("arena")}</div></section>
@@ -2179,6 +2192,13 @@ document.addEventListener("click", (e) => {
 	if (d.pcpu !== undefined) {
 		practiceCpu = +d.pcpu;
 		LS.set("trp_pcpu", practiceCpu);
+		render.last = null;
+		render();
+		return;
+	}
+	if (d.pside !== undefined) {
+		practiceSide = +d.pside;
+		LS.set("trp_pside", practiceSide);
 		render.last = null;
 		render();
 		return;
