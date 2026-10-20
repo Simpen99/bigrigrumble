@@ -107,7 +107,9 @@ function buildTruck(i, mode) {
 	const hose = mode === "hose",
 		mon = mode === "monster",
 		armour = mode === "armour",
-		springs = mode === "springs";
+		springs = mode === "springs",
+		/* mode "cop" (Getaway's cops): no roof ornaments or amber beacons, the police light bar goes on the cab */
+		cop = mode === "cop";
 	const B = (w, h, d, c, x, y, z, o) => {
 		let sq = null;
 		if (o && o.sq) {
@@ -196,6 +198,7 @@ function buildTruck(i, mode) {
 		);
 	};
 	const beacon = (x, y, col, rate = 7) => {
+		if (cop) return;
 		const base = Cy(0.09, 0.11, 0.08, 8, D, x, y, 0),
 			cap = uniq(Cy(0.08, 0.09, 0.12, 8, col, x, y + 0.1, 0, { emissive: col, emissiveIntensity: 0.4 }));
 		const refl = B(0.02, 0.08, 0.21, "#FFFFFF", 0, 0, 0),
@@ -715,6 +718,7 @@ function buildTruck(i, mode) {
 	g.userData.wheels = wheelsL;
 	g.userData.ph = ph;
 	g.userData.roof = roof; // roof ornaments a minigame can take off
+	if (cop) roof.forEach((o) => o.parent && o.parent.remove(o));
 	if (hose) {
 		roof.forEach((o) => o.parent && o.parent.remove(o));
 		g.userData.mount = mount;

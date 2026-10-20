@@ -7535,6 +7535,8 @@ Object.assign(MG, {
 		dusk: true,
 		lt: { amb: 0.5, sun: 0.62, warm: 0.85, haze: 60 },
 		bound: { t: "none" },
+		/* cops: no roof ornaments or amber beacons, the light bar on the cab (the cash truck is rebuilt as "armour") */
+		truckMode: "cop",
 		/* the road: LANES lanes LW wide, ROADL long, the tunnel TL up it; traffic at CARV */
 		LANES: 6,
 		LW: 3.6,
@@ -7574,8 +7576,8 @@ Object.assign(MG, {
 		   then the cop is reeled in until HPT s (unless the truck swerves it off); reaching the truck = a hit (a bag off) */
 		HPCD: 4.5,
 		HPCDV: 2.5 /* after vaulting a car the harpoon reloads in HPCDV s instead */,
-		HPR: 16,
-		HPRT: 9 /* the cash truck itself only within HPRT m, and only from behind it */,
+		HPR: 12.5 /* reach to a car (was 16) */,
+		HPRT: 12.5 /* reach to the cash truck (was 9), and only from behind it */,
 		/* spike strip: a cop at least SSA m ahead of the cash truck drops one with its main button, right under itself (SSB m back),
 		   SSW wide across the road, lying SST s; driving over it costs the truck a bag (once a strip) */
 		SSA: 4,
@@ -7620,11 +7622,20 @@ Object.assign(MG, {
 		BSIDE: 7,
 		BV: 6,
 		BDLY: 0.2,
+		/* Rusty's WRECKING BALL: a wrecked car on its crane cable swung round it for WBT s, out to WBR m at WBW rad/s, WBY m
+		   up; it smashes traffic it meets and spins the cash truck out (WBS s) */
+		WBT: 4,
+		WBR: 5.5,
+		WBW: 2.6,
+		WBY: 1.3,
+		WBS: 1.4,
 		/* Crusher's JUMP: JMPT s in the air at JMPV m/s over its top speed */
 		JMPT: 1.2,
 		JMPV: 15,
-		/* a harpoon that catches a car instead: the cop vaults over it at VLV m/s faster than the traffic, VLTH m high */
-		VLV: 22,
+		/* a harpoon that catches a car instead: the cop vaults over it at VLV m/s faster than the traffic, landing VLX m past
+		   it, VLTH m high (speed and distance 20% up from 22 / 7) */
+		VLV: 26.4,
+		VLX: 8.4,
 		VLTH: 3.2,
 		AB: {
 			monster: { lbl: "JUMP", cd: 9 },
@@ -7634,7 +7645,7 @@ Object.assign(MG, {
 			mixer: { lbl: "CEMENT", cd: 10, lob: "cement", r: 2.4 },
 			dump: { lbl: "GRAVEL", cd: 10, lob: "gravel", r: 2.1, obj: 1 },
 			pickup: { lbl: "NITRO", cd: 8 },
-			tow: { lbl: "WINCH", cd: 10 },
+			tow: { lbl: "WRECK", cd: 11 },
 			garbage: { lbl: "BINS", cd: 11 },
 			tanker: { lbl: "FUEL", cd: 10, lob: "fuel", r: 2.4 },
 			mail: { lbl: "PARCELS", cd: 10, lob: "parcel", r: 2.6, obj: 1 },
@@ -8342,7 +8353,6 @@ Object.assign(MG, {
 				e.vx += sd * 3 * dt;
 				const key = c.k + ":" + id;
 				e.snapA[key] = away > 5.5 ? (e.snapA[key] || 0) + dt : Math.max(0, (e.snapA[key] || 0) - dt * 0.5);
-				/* a winch line (Rusty's) can't be snapped */
 				if (e.snapA[key] > 0.25 && !(c.f.hp && c.f.hp[4])) {
 					e.f.hs = (e.f.hs || []).concat([[c.k, id]]).slice(-6);
 					mgLog(W, `${mgName(e)} snaps ${mgName(c)}'s harpoon`);
@@ -8595,13 +8605,12 @@ Object.assign(MG, {
 				return;
 			}
 			e.hpN = (e.hpN || 0) + 1;
-			/* aimed up the road, swung by the stick: it hooks the cash truck only from behind it and close (HPRT m), any
-			   car ahead within HPR m (a wider, longer reach with Rusty's winch) */
-			const power = W.t < (e.winchT || 0),
-				aim = Math.atan2(1, ((inp && inp.x) || 0) * 0.7),
-				rg = power ? 26 : this.HPR,
-				rt = power ? this.HPRT + 5 : this.HPRT,
-				cone = power ? 0.65 : this.HPA;
+			/* aimed up the road, swung by the stick: it hooks the cash truck only from behind it (within HPRT m), any car
+			   ahead within HPR m */
+			const aim = Math.atan2(1, ((inp && inp.x) || 0) * 0.7),
+				rg = this.HPR,
+				rt = this.HPRT,
+				cone = this.HPA;
 			let hit = 0;
 			const inCone = (x, z, r = rg) =>
 				Math.hypot(x - e.x, z - e.z) < r && Math.abs(wrapA(Math.atan2(-(z - e.z), x - e.x) - aim)) < cone;
@@ -8625,12 +8634,11 @@ Object.assign(MG, {
 					}
 				}
 			}
-			if (power) e.winchT = 0;
-			e.f.hp = [e.hpN, rd(W.t), hit, rd(aim), power ? 1 : 0];
+			e.f.hp = [e.hpN, rd(W.t), hit, rd(aim), 0];
 			if (car) {
 				/* the vault: from the moment the head bites (0.2 s) the cop is in the air VLT s, slung forward over the car */
 				const d = Math.hypot(this.carX(W, car, this.carZ(W, car)) - e.x, this.carZ(W, car) - e.z),
-					dur = rd(Math.max(0.7, Math.min(1.3, (d + 7) / this.VLV)));
+					dur = rd(Math.max(0.7, Math.min(1.3, (d + this.VLX) / this.VLV)));
 				e.f.hp.push(car.id);
 				e.hpCd = W.t + this.HPCDV;
 				e.vault = { t: W.t + 0.2, dur, car };
@@ -8691,8 +8699,8 @@ Object.assign(MG, {
 				e.f.jp = rd(W.t);
 			} else if (A.kind === "fire") e.f.wj = [e.abN, rd(W.t)];
 			else if (A.kind === "tow") {
-				e.winchT = W.t + 8;
-				e.hpCd = Math.min(e.hpCd || 0, W.t);
+				/* the wrecking ball: [id, swung at, start angle (behind it), turning direction (towards the truck first)] */
+				e.f.wb = [e.abN, rd(W.t), rd(Math.PI * 1.5), T && T.x < e.x ? 1 : -1];
 			}
 			mgLog(W, `${mgName(e)}: ${A.lbl}`);
 			if (e.isMe) sfx(A.lob ? "cannon" : "go");
@@ -8744,6 +8752,22 @@ Object.assign(MG, {
 					e.spicyT = W.t + this.SPT;
 					mgLog(W, `${mgName(e)} gets ${mgName(c)}'s hot sauce`);
 					if (e.isMe) sfx("splash");
+				}
+				/* Rusty's wrecking ball: the swinging car hits the truck once a swing: it spins out */
+				const wb = c.f.wb,
+					wp = this.wbPos(W, c);
+				if (wp && wp.a > 0.3 && !e.zHit[c.k + ":wb" + wb[0]] && Math.hypot(e.x - wp.x, e.z - wp.z) < e.hb[0] + 1.3) {
+					e.zHit[c.k + ":wb" + wb[0]] = 1;
+					const d = Math.hypot(e.x - c.x, e.z - c.z) || 1;
+					e.spinT = W.t + this.WBS;
+					e.vz *= 0.7;
+					e.vx += ((e.x - c.x) / d) * 9;
+					e.slideT = 0.8;
+					mgLog(W, `${mgName(e)} spun out by ${mgName(c)}'s wrecking ball`);
+					if (e.isMe) {
+						W.shake = 0.6;
+						sfx("crush");
+					}
 				}
 				/* Garbo's bins: bumping one while it rolls costs speed and sends it flying (shared as e.f.bh) */
 				const rb = c.f.rb;
@@ -8884,6 +8908,19 @@ Object.assign(MG, {
 						}
 					}
 				}
+				/* the wrecking ball smashes traffic in its way */
+				const wp = this.wbPos(W, e);
+				if (wp && wp.a > 0.3)
+					for (const c of W.cars) {
+						if (c.kT !== undefined) continue;
+						const cz = this.carZ(W, c);
+						if (Math.abs(cz - wp.z) > c.hb[1] + 1 || Math.abs(this.carX(W, c, cz) - wp.x) > c.hb[0] + 1) continue;
+						const kd = this.carX(W, c, cz) >= e.x ? 1 : -1;
+						c.kT = W.t;
+						c.kd = kd;
+						e.f.wk = (e.f.wk || []).concat([[c.id, Math.round(W.t * 100) / 100, kd]]).slice(-8);
+						this.carFx(W, c, e);
+					}
 				/* the cash truck's spear: hanging in front of it too long gets this cop speared and reeled into its nose
 				   (decided here, shared as e.f.wy = when; e.f.wa = how long it has been in front, for the warning sign) */
 				if (!tf.esc && W.t >= 0) {
@@ -9126,7 +9163,23 @@ Object.assign(MG, {
 		/* a cop's light bar on its roof (red and blue, kept inside the roof's width) with the harpoon gun beside it, in
 		   world-size units whatever the truck's scale */
 		copBar(tr) {
-			const top = truckTop(tr),
+			/* on the cab: the highest flat bit of the front third, measured with the truck on its own (in its own
+			   coordinates, wherever it is on the road) */
+			const par = tr.parent;
+			if (par) par.remove(tr);
+			tr.updateMatrixWorld(true);
+			const box = new THREE.Box3().setFromObject(tr),
+				rc = new THREE.Raycaster(),
+				hits = [];
+			for (let x = box.max.x - (box.max.x - box.min.x) * 0.33; x < box.max.x - 0.1; x += 0.05) {
+				rc.set(new THREE.Vector3(x, box.max.y + 1, 0), new THREE.Vector3(0, -1, 0));
+				const h = rc.intersectObject(tr, true)[0];
+				if (h) hits.push([x, h.point.y]);
+			}
+			if (par) par.add(tr);
+			const hy = hits.length ? Math.max(...hits.map((h) => h[1])) : box.max.y,
+				flat = hits.filter((h) => h[1] > hy - 0.05),
+				top = { x: flat.length ? (flat[0][0] + flat[flat.length - 1][0]) / 2 : 0, y: hy },
 				sc = tr.scale.x,
 				g = new THREE.Group(),
 				red = B(0.26, 0.14, 0.36, "#E5484D", 0, -0.03, -0.2, { emissive: "#FF2A2A", emissiveIntensity: 1 }),
@@ -9307,7 +9360,18 @@ Object.assign(MG, {
 			}
 			this.hoseFx(W, c, dt);
 			this.spicyFx(W, c, dt);
+			this.wreckFx(W, c, dt);
 			this.binFx(W, c, dt);
+		},
+		/* where Rusty's wrecking ball is (round cop c as it is now), or null when it isn't swinging: the cable pays out over
+		   the first 0.4 s, then it whirls round */
+		wbPos(W, c) {
+			const wb = c.f && c.f.wb,
+				a = wb ? W.t - wb[1] : 99;
+			if (!wb || a < 0 || a > this.WBT || c.gone) return null;
+			const r = this.WBR * Math.min(1, 0.35 + a / 0.4),
+				ang = wb[2] + wb[3] * this.WBW * a;
+			return { x: c.x + Math.cos(ang) * r, z: c.z - Math.sin(ang) * r, ang, a };
 		},
 		/* where bin i of a BINS throw is: flying from the cop to its start at the road's edge, then rolling across; null
 		   once it has rolled off the road */
@@ -9385,6 +9449,44 @@ Object.assign(MG, {
 				else v.o.rotation.set(0, 0, -rb[3] * b.roll);
 				v.lie.rotation.x = b.fly ? 0 : Math.PI / 2;
 			}
+		},
+		/* Rusty's wrecking ball on every screen: a crushed car on a cable from its crane, whirling round it */
+		wreckFx(W, c, dt) {
+			const wp = this.wbPos(W, c);
+			W.wbV = W.wbV || {};
+			let v = W.wbV[c.k];
+			if (!v && !wp) return;
+			if (!v) {
+				W.wbKit = W.wbKit || bakeKit(crushedCarModel("sedan", "#7C8593"), { ao: false, ground: false });
+				const car = kitGroup(W.wbKit, 0);
+				car.scale.setScalar(0.75);
+				v = W.wbV[c.k] = {
+					car,
+					line: mesh(new THREE.CylinderGeometry(0.05, 0.05, 1, 5), "#3D424C"),
+				};
+				W.sc.add(car, v.line);
+			}
+			v.car.visible = v.line.visible = !!wp;
+			if (!wp) return;
+			v.car.position.set(wp.x, this.WBY - 0.4 + Math.sin(wp.a * 9) * 0.15, wp.z);
+			v.car.rotation.set(0.25, wp.ang + Math.PI / 2, Math.sin(wp.a * 5) * 0.3);
+			const back = new THREE.Vector3(-Math.cos(c.yaw), 0, Math.sin(c.yaw)),
+				p0 = new THREE.Vector3(c.x, 2.1, c.z).addScaledVector(back, 0.7),
+				p1 = new THREE.Vector3(wp.x, this.WBY + 0.3, wp.z),
+				d = p1.clone().sub(p0);
+			v.line.position.copy(p0).addScaledVector(d, 0.5);
+			v.line.scale.y = Math.max(0.01, d.length());
+			v.line.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.clone().normalize());
+			if (Math.random() < dt * 6)
+				burst(W.sc, wp.x, 0.4, wp.z, {
+					n: 1,
+					shape: "ico",
+					cols: ["#9DA0A6", "#C9CED8"],
+					spd: 1,
+					up: 1,
+					life: 0.4,
+					size: 0.9,
+				});
 		},
 		/* Taco Tina's hot sauce on every screen: a red bottle arcs onto the cash truck, then flames burst out of its back
 		   while its steering is swapped */
@@ -10239,7 +10341,19 @@ Object.assign(MG, {
 				}
 			}
 			const T = this.solo(W);
-			/* cars the cash truck hit (here or on its device) fly off the road: sideways, up, spinning, into the field */
+			/* cars the cash truck hit (here or on its device) or a wrecking ball smashed fly off the road: sideways, up,
+			   spinning, into the field */
+			W.list.forEach((q) => {
+				if (q.side !== 1 || !q.f || !q.f.wk) return;
+				q.f.wk.forEach(([id, t, d]) => {
+					const c = W.cars.find((x) => x.id === id);
+					if (c && c.kT === undefined) {
+						c.kT = t;
+						c.kd = d;
+						this.carFx(W, c, q);
+					}
+				});
+			});
 			((T && T.f && T.f.tk) || []).forEach(([id, t, d]) => {
 				const c = W.cars.find((q) => q.id === id);
 				if (c && c.kT === undefined) {
@@ -10547,7 +10661,7 @@ Object.assign(MG, {
 				if (think("vtAt", e.hpCd || 0, 0.2, 0.5) && (dz > 12 || (runner && dz > -this.SSA - 2))) {
 					const car = W.cars.find((c) => {
 						const cz = this.carZ(W, c);
-						return c.kT === undefined && cz < e.z - 4 && cz > e.z - 16 && Math.abs(this.carX(W, c, cz) - e.x) < 4.5;
+						return c.kT === undefined && cz < e.z - 4 && cz > e.z - 13 && Math.abs(this.carX(W, c, cz) - e.x) < 4.5;
 					});
 					if (car) {
 						const cz = this.carZ(W, car);
@@ -10567,7 +10681,7 @@ Object.assign(MG, {
 						(k === "garbage" && dz > 0 && dT < 50) ||
 						(k === "monster" && dz > 14 && dz < 42) ||
 						(k === "fire" && dT < 40) ||
-						(k === "tow" && dz > 0 && dT < 18 && W.t < (e.hpCd || 0) - 1)
+						(k === "tow" && Math.abs(dz) < 5 && dT < 8)
 					)
 						o.b2 = true;
 				}
