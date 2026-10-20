@@ -911,7 +911,9 @@ body.mglive #fxs,body.mgres #fxs{display:none}
   /* the button fills the whole right side; two buttons split it along the diagonal (top left to bottom right): the main one
      below it, the second one above */
   .tvc .ram{left:58%;right:0;top:0;bottom:0;width:auto;height:auto;border-radius:0;font-size:32px!important;background:linear-gradient(160deg,#F0686C,#C7343A)!important;box-shadow:inset 4px 0 0 rgba(0,0,0,.22)!important}
-  .tvc .ram .ramcd{border-radius:0}
+  /* the cooldown on these big rectangles: a dark shade from the top that drains away as the button recharges (the round
+     buttons keep their clock-style sweep) */
+  .tvc .ram .ramcd{border-radius:0;background:linear-gradient(to bottom,rgba(16,22,31,.72) calc(var(--cd,0) * 100%),transparent 0)}
   .tvc .ram.held{transform:none;filter:brightness(.8)}
   .tvc .ram:has(~ .ram2){clip-path:polygon(0 0,0 100%,100% 100%)}
   .tvc .ram:has(~ .ram2) span{position:absolute;left:30%;top:70%;transform:translate(-50%,-50%)}
@@ -922,7 +924,6 @@ body.mglive #fxs,body.mgres #fxs{display:none}
   .tvc .ram.ram2:has(~ .ram3){clip-path:none;left:79%;top:0;bottom:50%;box-shadow:inset 3px 0 0 rgba(0,0,0,.22),inset 0 -3px 0 rgba(0,0,0,.25)!important}
   .tvc .ram:has(~ .ram3) span,.tvc .ram.ram2:has(~ .ram3) span{left:50%;top:50%}
   .tvc .ram.ram3{left:58%;right:21%;top:0;bottom:50%;width:auto;height:auto;border-radius:0;background:linear-gradient(160deg,#7FD6FF,#2F7DE1)!important;box-shadow:inset 4px 0 0 rgba(0,0,0,.22),inset 0 -3px 0 rgba(0,0,0,.25)!important;font-size:24px!important}
-  .tvc .ram.ram3 .ramcd{border-radius:0}
   .tvcctl.swc{left:0}
   .tvc .slpad{right:42%;border-right:2px dashed rgba(255,255,255,.12)}
   .tvc .tvserve{background:linear-gradient(160deg,#FF8FC0,#E0458A)!important}
@@ -1007,7 +1008,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-20 22:51 6cb3842";
+const BUILD = "2026-10-20 22:51 ce6814c";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
