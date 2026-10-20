@@ -7609,14 +7609,16 @@ Object.assign(MG, {
 		   SPT s (flames out of the exhaust) */
 		SPF: 0.6,
 		SPT: 2.2,
-		/* Garbo's BINS: BN wheelie bins flung (BF s) to the edge of the road BLEAD s ahead of the cash truck, BGAP m apart,
-		   then rolling across it at BV m/s, BDLY s after each other: moving obstacles; hitting one costs speed */
+		/* Garbo's BINS: BN wheelie bins flung (BF s) onto the road BLEAD s ahead of the cash truck, BGAP m apart and BSIDE m
+		   to one side of its lane, then rolling across it at BV m/s, BDLY s after each other: timed so they cross its lane as
+		   it gets there (flung from the road's far edge they rolled past behind the truck); hitting one costs speed */
 		BN: 4,
 		BF: 0.8,
-		BLEAD: 2.4,
+		BLEAD: 2,
 		BGAP: 4,
+		BSIDE: 7,
 		BV: 6,
-		BDLY: 0.35,
+		BDLY: 0.2,
 		/* Crusher's JUMP: JMPT s in the air at JMPV m/s over its top speed */
 		JMPT: 1.2,
 		JMPV: 15,
@@ -8669,16 +8671,22 @@ Object.assign(MG, {
 				/* the hot-sauce bottle: [id, thrown at, from x, from z] */
 				e.f.sp = [e.abN, rd(W.t), rd(e.x), rd(e.z)];
 			} else if (A.kind === "garbage") {
-				/* the bins: [id, thrown at, row z, roll direction, from x, from z] */
-				if (T)
+				/* the bins: [id, thrown at, row z, roll direction, from x, from z, start x] */
+				if (T) {
+					const z0 = T.z + Math.min(T.vz || -18, -12) * this.BLEAD,
+						/* rolling in from the side with more road (from up against the edge they cross its lane too early) */
+						dir = Math.abs(T.x) < 2 ? (Math.random() < 0.5 ? 1 : -1) : T.x > 0 ? 1 : -1,
+						[lo, hi] = this.edges(z0);
 					e.f.rb = [
 						e.abN,
 						rd(W.t),
-						rd(T.z + Math.min(T.vz || -18, -12) * this.BLEAD),
-						Math.random() < 0.5 ? 1 : -1,
+						rd(z0),
+						dir,
 						rd(e.x),
 						rd(e.z),
+						rd(Math.max(lo + 0.6, Math.min(hi - 0.6, T.x - dir * this.BSIDE))),
 					];
+				}
 			} else if (A.kind === "monster") {
 				e.jumpT = W.t;
 				e.f.jp = rd(W.t);
@@ -8760,7 +8768,9 @@ Object.assign(MG, {
 						if (Math.abs(e.x - b.x) > e.hb[0] + 0.55 || Math.abs(e.z - b.z) > e.hb[1] + 0.55) continue;
 						e.zHit[key] = 1;
 						e.f.bh = (e.f.bh || []).concat([key]).slice(-12);
-						if (e.vz < -8) e.vz = Math.min(-8, e.vz * 0.75);
+						/* only the first bin of a throw costs speed, the others just knock it about */
+						if (!e.zHit[c.k + ":bt" + rb[0]] && e.vz < -8) e.vz = Math.min(-8, e.vz * 0.75);
+						e.zHit[c.k + ":bt" + rb[0]] = 1;
 						e.vx += (e.x >= b.x ? 1 : -1) * 4;
 						e.slideT = 0.4;
 						fb(W, e, "BONK!", { tone: "bad" });
@@ -9320,10 +9330,10 @@ Object.assign(MG, {
 		/* where bin i of a BINS throw is: flying from the cop to its start at the road's edge, then rolling across; null
 		   once it has rolled off the road */
 		binPos(W, rb, i) {
-			const [, t, z0, dir, sx, sz] = rb,
+			const [, t, z0, dir, sx, sz, xs] = rb,
 				z = z0 - i * this.BGAP,
 				[lo, hi] = this.edges(z),
-				x0 = dir > 0 ? lo + 0.6 : hi - 0.6,
+				x0 = xs !== undefined ? xs : dir > 0 ? lo + 0.6 : hi - 0.6,
 				fl = this.BF + i * this.BDLY,
 				a = W.t - t;
 			if (a < 0) return null;
