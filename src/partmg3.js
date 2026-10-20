@@ -7573,6 +7573,7 @@ Object.assign(MG, {
 		/* harpoon (the cops' main button): cooldown HPCD, reach HPR m within HPA rad of where it's aimed; the head flies 0.2 s,
 		   then the cop is reeled in until HPT s (unless the truck swerves it off); reaching the truck = a hit (a bag off) */
 		HPCD: 4.5,
+		HPCDV: 2.5 /* after vaulting a car the harpoon reloads in HPCDV s instead */,
 		HPR: 16,
 		HPRT: 9 /* the cash truck itself only within HPRT m, and only from behind it */,
 		/* spike strip: a cop at least SSA m ahead of the cash truck drops one with its main button, right under itself (SSB m back),
@@ -8344,7 +8345,6 @@ Object.assign(MG, {
 				/* a winch line (Rusty's) can't be snapped */
 				if (e.snapA[key] > 0.25 && !(c.f.hp && c.f.hp[4])) {
 					e.f.hs = (e.f.hs || []).concat([[c.k, id]]).slice(-6);
-					fb(W, e, "SNAP!", { tone: "good" });
 					mgLog(W, `${mgName(e)} snaps ${mgName(c)}'s harpoon`);
 					if (e.isMe) sfx("crack");
 				}
@@ -8469,7 +8469,6 @@ Object.assign(MG, {
 						e.spinT = W.t + 1;
 						e.slideT = 0.8;
 						e.crT = W.t + 1.4;
-						fb(W, e, "WHAM!", { tone: "bad" });
 						this.letGo(W, e, "flying car");
 						mgLog(W, `${mgName(e)} hit by a flying car`);
 						e.lastHit = { k: "flying car", t: W.t };
@@ -8516,7 +8515,6 @@ Object.assign(MG, {
 				e.crT = W.t + 1.2;
 				if (W.t - (e.hitC[c.id] ?? -9) > 1.5) {
 					e.hitC[c.id] = W.t;
-					fb(W, e, "CRASH!", { tone: "bad" });
 					mgLog(W, `${mgName(e)} hits traffic`);
 					e.lastHit = { k: "traffic", t: W.t };
 					if (e.isMe) {
@@ -8634,6 +8632,7 @@ Object.assign(MG, {
 				const d = Math.hypot(this.carX(W, car, this.carZ(W, car)) - e.x, this.carZ(W, car) - e.z),
 					dur = rd(Math.max(0.7, Math.min(1.3, (d + 7) / this.VLV)));
 				e.f.hp.push(car.id);
+				e.hpCd = W.t + this.HPCDV;
 				e.vault = { t: W.t + 0.2, dur, car };
 				e.f.vt = [rd(W.t + 0.2), dur];
 			}
@@ -8715,16 +8714,6 @@ Object.assign(MG, {
 					e.zHit[key] = 1;
 					const A = Object.values(this.AB).find((q) => q.lob === kind);
 					if (A && A.obj) e.f.zh = (e.f.zh || []).concat([key]).slice(-12);
-					const say = {
-						ice: "SLIPPY!",
-						cement: "STUCK!",
-						gravel: "BUMPY!",
-						fuel: "SPIN OUT!",
-						trash: "STINKY!",
-						parcel: "BONK!",
-						crate: "BONK!",
-						nails: "BLOWOUT!",
-					}[kind];
 					if (kind === "ice") e.iceT = W.t + 2.2;
 					else if (kind === "cement") e.cemT = W.t + 2;
 					else if (kind === "gravel") e.gravT = W.t + 1.5;
@@ -8742,7 +8731,6 @@ Object.assign(MG, {
 						e.vz *= 0.82;
 						e.slideT = 0.5;
 					}
-					fb(W, e, say, { tone: "bad" });
 					mgLog(W, `${mgName(e)} hits ${mgName(c)}'s ${kind}`);
 					if (e.isMe) {
 						W.shake = 0.35;
@@ -8754,7 +8742,6 @@ Object.assign(MG, {
 				if (sp && W.t >= sp[1] + this.SPF && W.t < sp[1] + this.SPF + 0.5 && !e.zHit[c.k + ":p" + sp[0]]) {
 					e.zHit[c.k + ":p" + sp[0]] = 1;
 					e.spicyT = W.t + this.SPT;
-					fb(W, e, "TOO SPICY!", { tone: "bad" });
 					mgLog(W, `${mgName(e)} gets ${mgName(c)}'s hot sauce`);
 					if (e.isMe) sfx("splash");
 				}
@@ -8773,7 +8760,6 @@ Object.assign(MG, {
 						e.zHit[c.k + ":bt" + rb[0]] = 1;
 						e.vx += (e.x >= b.x ? 1 : -1) * 4;
 						e.slideT = 0.4;
-						fb(W, e, "BONK!", { tone: "bad" });
 						mgLog(W, `${mgName(e)} hits one of ${mgName(c)}'s bins`);
 						if (e.isMe) {
 							W.shake = 0.3;
@@ -8787,7 +8773,6 @@ Object.assign(MG, {
 					if (Math.abs(e.z - z) > e.hb[1] + 0.45 || Math.abs(e.x - x) > this.SSW / 2 + e.hb[0] - 0.2) return;
 					e.zHit[key] = 1;
 					if (W.t < (e.immT || 0) || e.esc) return;
-					fb(W, e, "SPIKED!", { tone: "bad" });
 					mgLog(W, `${mgName(e)} drives over ${mgName(c)}'s spike strip`);
 					this.onRammed(W, e, c);
 					if (e.isMe) {
@@ -8803,7 +8788,6 @@ Object.assign(MG, {
 					e.vx += (e.x >= c.x ? 1 : -1) * 9;
 					e.iceT = Math.max(e.iceT || 0, W.t + this.HOSET);
 					e.f.wt = Math.round(W.t * 100) / 100;
-					fb(W, e, "SOAKED!", { tone: "bad" });
 					mgLog(W, `${mgName(e)} soaked by ${mgName(c)}'s hose`);
 					if (e.isMe) {
 						W.shake = 0.3;
@@ -8891,7 +8875,6 @@ Object.assign(MG, {
 						e.slideT = 0.8;
 						e.spinT = W.t + 0.5;
 						e.crT = W.t + 1;
-						fb(W, e, "BLASTED!", { tone: "bad" });
 						this.letGo(W, e, "shockwave");
 						mgLog(W, `${mgName(e)} blasted by the slam`);
 						e.lastHit = { k: "slam", t: W.t };
@@ -8925,7 +8908,6 @@ Object.assign(MG, {
 					e.oilHit[id] = 1;
 					e.spinT = W.t + 1.1;
 					e.vz *= 0.6;
-					fb(W, e, "SPIN OUT!", { tone: "bad" });
 					this.letGo(W, e, "oil");
 					mgLog(W, `${mgName(e)} spins out on oil`);
 					if (e.isMe) {
@@ -10532,11 +10514,11 @@ Object.assign(MG, {
 				/* hanging in front too long gets it speared: 0.6 s before the spear it gives up and drops back */
 				const calm = (e.whA || 0) < this.WHA - 0.6;
 				if (this.ahead(W, e, T) && W.t >= (e.hpCd || 0) && calm) {
-					/* ahead of it with spikes ready: get into its lane 15-30 m ahead and drop the strip once lined up (the
-					   strip lands 15-30 m in front of the truck: 0.7-1.3 s, so a sharp driver can still swerve round it) */
+					/* ahead of it with spikes ready: get into its lane 10-25 m ahead and drop the strip once lined up (the
+					   strip lands 10-25 m in front of the truck: about 0.5-1.1 s to swerve round it) */
 					wx = T.x;
-					o.y = dz > -15 ? -1 : dz < -30 ? 1 : 0.2;
-					if (ssOk && dz < -15 && Math.abs(e.x - T.x) < 1.8) {
+					o.y = dz > -10 ? -1 : dz < -25 ? 1 : 0.2;
+					if (ssOk && dz < -10 && Math.abs(e.x - T.x) < 1.8) {
 						o.boost = true;
 						return o;
 					}
@@ -10560,11 +10542,12 @@ Object.assign(MG, {
 					o.x = Math.max(-1, Math.min(1, ang * 1.3 + (Math.random() - 0.5) * 0.4));
 					return o;
 				}
-				/* far behind (or stuck behind a car), or the runner: harpoon a car ahead and vault it to catch up / get past */
-				if (hpOk && (dz > 12 || (runner && dz > -3))) {
+				/* far behind (or stuck behind a car), or the runner until it's past: harpoon a car ahead and vault it (a short
+				   think: a car needs no careful aim) */
+				if (think("vtAt", e.hpCd || 0, 0.2, 0.5) && (dz > 12 || (runner && dz > -this.SSA - 2))) {
 					const car = W.cars.find((c) => {
 						const cz = this.carZ(W, c);
-						return c.kT === undefined && cz < e.z - 5 && cz > e.z - 14 && Math.abs(this.carX(W, c, cz) - e.x) < 3.5;
+						return c.kT === undefined && cz < e.z - 4 && cz > e.z - 16 && Math.abs(this.carX(W, c, cz) - e.x) < 4.5;
 					});
 					if (car) {
 						const cz = this.carZ(W, car);
