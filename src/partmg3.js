@@ -7576,7 +7576,7 @@ Object.assign(MG, {
 		SWR: 9,
 		/* harpoon (the cops' main button): cooldown HPCD, reach HPR m within HPA rad of where it's aimed; the head flies 0.2 s,
 		   then the cop is reeled in until HPT s (unless the truck swerves it off); reaching the truck = a hit (a bag off) */
-		HPCD: 4.5,
+		HPCD: 4,
 		HPCDV: 2.5 /* after vaulting a car the harpoon reloads in HPCDV s instead */,
 		HPR: 14 /* reach to a car (was 16, then 12.5) */,
 		HPRT: 14 /* reach to the cash truck (was 9, then 12.5), and only from behind it */,
