@@ -7562,7 +7562,7 @@ Object.assign(MG, {
 		DN: 6,
 		LATA: 34,
 		/* cash: BAGS on the truck, IMM s safe after losing one; oil: cooldown OILCD, lasts OILT, radius OILR */
-		BAGS: 10 /* was 20: the truck escaped every test game, the cops knock off 7-9 a game */,
+		BAGS: 15 /* was 20 (the truck escaped every test game), then 10 */,
 		IMM: 4,
 		/* every button (oil, slam, harpoon, tricks) wakes up ARM s after the start */
 		ARM: 4,
@@ -8870,7 +8870,7 @@ Object.assign(MG, {
 		onRammed(W, e, by) {
 			if (e.side !== 0 || !by || by.side !== 1 || e.esc || e.bags <= 0 || W.t < (e.immT || 0)) return;
 			const lz = (by.x - e.x) * Math.sin(e.yaw) + (by.z - e.z) * Math.cos(e.yaw),
-				half = this.BAGS / 2,
+				half = Math.ceil(this.BAGS / 2),
 				all = Array.from({ length: this.BAGS }, (_, i) => i),
 				order = lz >= 0 ? all : all.slice(half).concat(all.slice(0, half)),
 				slot = order.find((i) => e.bm & (1 << i));
@@ -9268,7 +9268,10 @@ Object.assign(MG, {
 				});
 				while (spots.length < 5) spots.push([-0.6 + spots.length * 0.4, 1.2, sd * 1.1]);
 				/* more than 5 a side: a second tier on top of the first (it goes first) */
-				const per = this.BAGS / 2,
+				const per =
+						sd > 0
+							? Math.ceil(this.BAGS / 2)
+							: Math.floor(this.BAGS / 2) /* an odd count: the extra one on the right */,
 					low = spots.map((p) => [...p, 0]),
 					tiers =
 						per > low.length
