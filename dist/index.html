@@ -999,7 +999,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-20 12:19 3154a89";
+const BUILD = "2026-10-20 12:22 68c7a11";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -36745,11 +36745,11 @@ Object.assign(MG, {
 		/* traffic cars at CARS of Rush Hour's size; traffic waves (a car in every lane) met round these shares of the run */
 		CARS: 0.85,
 		WAVES: [0.13, 0.3, 0.48, 0.66, 0.84],
-		/* the cash truck ramming a car: left with CARHIT of its speed, CARSLOW m/s off its top speed for CART s: about 5 m
-		   lost a car (tried 0.6 / 6 / 1.5 s = ~11 m, 0.65 / 4 / 1.2 s = ~7 m, 0.93 / 0 / 0 = ~0.1 m) */
-		CARHIT: 0.7,
-		CARSLOW: 3,
-		CART: 1.2,
+		/* the cash truck ramming a car: left with CARHIT of its speed, CARSLOW m/s off its top speed for CART s: no slowdown
+		   now, just a nudge sideways (tried ~11 m, ~7 m, ~5 m and ~0.1 m lost a car) */
+		CARHIT: 1,
+		CARSLOW: 0,
+		CART: 0,
 		/* driving: cruise V0, the stick adds up to UP (truck) / UPC (cops) or takes off DN; lateral push LATA */
 		V0: 16,
 		UP: 6.5 /* the cash truck: 22.5 m/s top (was 21.5) */,
