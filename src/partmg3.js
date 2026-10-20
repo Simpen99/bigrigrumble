@@ -7555,8 +7555,8 @@ Object.assign(MG, {
 		CART: 1.2,
 		/* driving: cruise V0, the stick adds up to UP (truck) / UPC (cops) or takes off DN; lateral push LATA */
 		V0: 16,
-		UP: 5.5,
-		UPC: 7.5 /* cops 2 m/s faster than the cash truck (23.5 vs 21.5 m/s top), so they can get past it to lay spikes */,
+		UP: 6.5 /* the cash truck: 22.5 m/s top (was 21.5) */,
+		UPC: 7.5 /* cops 1 m/s faster than the cash truck (23.5 vs 22.5 m/s top), so they can get past it to lay spikes */,
 		DN: 6,
 		LATA: 34,
 		/* cash: BAGS on the truck, IMM s safe after losing one; oil: cooldown OILCD, lasts OILT, radius OILR */
