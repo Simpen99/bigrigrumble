@@ -7730,7 +7730,6 @@ Object.assign(MG, {
 			e.spN = (e.spN || 0) + 1;
 			e.f.sr = [e.spN, Math.round(W.t * 100) / 100, c.k];
 			mgLog(W, `${mgName(e)} claws ${mgName(c)}`);
-			if (e.isMe) sfx("cannon");
 		},
 		ramCd(W) {
 			const e = W.me,
@@ -7742,9 +7741,12 @@ Object.assign(MG, {
 			const e = W.me;
 			return !this.dazed(W, e) && W.t >= ((e.side === 0 ? e.oilCd : e.hpCd) || 0);
 		},
+		/* the sound packs it plays (sfxPack: a random take each time) */
+		PACKS: ["hit", "whip", "whimsy", "coin", "crunchy", "spike", "splash", "jump", "jumpboost", "speed"],
 		kits() {
 			MG.hop.kits.call(MG.hop);
 			audLoad("music/pursuit.mp3");
+			this.PACKS.forEach(sfxPackLoad);
 		},
 		lx(l) {
 			return (l - (this.LANES - 1) / 2) * this.LW;
@@ -8497,7 +8499,6 @@ Object.assign(MG, {
 				if (e.isMe) {
 					W.shake = 0.7;
 					buzz(140);
-					sfx("crush");
 				}
 				return false;
 			}
@@ -8578,7 +8579,7 @@ Object.assign(MG, {
 						e.lastHit = { k: "flying car", t: W.t };
 						if (e.isMe) {
 							W.shake = 0.6;
-							sfx("crush");
+							sfxPack("hit");
 						}
 					}
 					continue;
@@ -8663,7 +8664,7 @@ Object.assign(MG, {
 				life: 0.8,
 				size: 0.7,
 			});
-			if (by && (by.isMe || W.split || W.tv)) sfx("crush");
+			if (by && (by.isMe || W.split || W.tv)) sfxPack("hit");
 		},
 		/* the cash truck's oil slick, a few metres behind it */
 		oil(W, e) {
@@ -8673,7 +8674,7 @@ Object.assign(MG, {
 			const r = (v) => Math.round(v * 100) / 100;
 			e.f.oil = e.f.oil.concat([[e.oilN, r(e.x), r(e.z + 3.2), r(W.t)]]).slice(-4);
 			mgLog(W, `${mgName(e)} drops oil`);
-			if (e.isMe) sfx("splash");
+			if (e.isMe) sfxPack("splash");
 		},
 		/* the cash truck's slam: a hop, then a shockwave ring round it (shared as e.f.sw = [id, time pressed]) */
 		slam(W, e) {
@@ -8706,7 +8707,7 @@ Object.assign(MG, {
 					x = Math.max(lo + this.SSW / 2 - 0.3, Math.min(hi - this.SSW / 2 + 0.3, e.x));
 				e.f.ss = (e.f.ss || []).concat([[e.ssN, rd(x), rd(z), rd(W.t)]]).slice(-3);
 				mgLog(W, `${mgName(e)} drops a spike strip ${Math.round(T.z - e.z - this.SSB)} m ahead of the truck`);
-				if (e.isMe) sfx("crush");
+				if (e.isMe) sfx("land");
 				return;
 			}
 			e.hpN = (e.hpN || 0) + 1;
@@ -8750,7 +8751,7 @@ Object.assign(MG, {
 				e.f.vt = [rd(W.t + 0.2), dur];
 			}
 			mgLog(W, `${mgName(e)} fires the harpoon (${hit ? "hooked" : car ? "vaults a car" : "missed"})`);
-			if (e.isMe) sfx("cannon");
+			if (e.isMe) sfxPack("whip");
 		},
 		/* far enough ahead of the cash truck that the main button drops spikes */
 		ahead(W, e, T) {
@@ -8822,7 +8823,7 @@ Object.assign(MG, {
 				mgLog(W, `${mgName(e)} swings ${pick >= 0 ? "a traffic car" : "its own wreck"}`);
 			}
 			mgLog(W, `${mgName(e)}: ${A.lbl}`);
-			if (e.isMe) sfx(A.lob ? "cannon" : "go");
+			if (e.isMe && A.kind !== "pickup" && A.kind !== "monster") sfx(A.lob ? "cannon" : "go");
 		},
 		/* on the cash truck's device: the cops' hazards in its way (once each), and Blaze's hose */
 		hazards(W, e, dt) {
@@ -8861,7 +8862,8 @@ Object.assign(MG, {
 					mgLog(W, `${mgName(e)} hits ${mgName(c)}'s ${kind}`);
 					if (e.isMe) {
 						W.shake = 0.35;
-						sfx(A && A.obj ? "crush" : "splash");
+						/* nails: the blown tyre's own sound (render) */
+						if (kind !== "nails") sfxPack(A && A.obj ? "spike" : "splash");
 					}
 				});
 				/* Taco Tina's hot sauce: always lands, SPF s after the throw; left and right swap for SPT s */
@@ -8870,7 +8872,7 @@ Object.assign(MG, {
 					e.zHit[c.k + ":p" + sp[0]] = 1;
 					e.spicyT = W.t + this.SPT;
 					mgLog(W, `${mgName(e)} gets ${mgName(c)}'s hot sauce`);
-					if (e.isMe) sfx("splash");
+					if (e.isMe) sfxPack("splash");
 				}
 				/* Rusty's wrecking ball: the swinging car hits the truck once a swing: it spins out */
 				const wb = c.f.wb,
@@ -8885,7 +8887,7 @@ Object.assign(MG, {
 					mgLog(W, `${mgName(e)} spun out by ${mgName(c)}'s wrecking ball`);
 					if (e.isMe) {
 						W.shake = 0.6;
-						sfx("crush");
+						sfxPack("hit");
 					}
 				}
 				/* Garbo's bins: bumping one while it rolls costs speed and sends it flying (shared as e.f.bh) */
@@ -8906,7 +8908,7 @@ Object.assign(MG, {
 						mgLog(W, `${mgName(e)} hits one of ${mgName(c)}'s bins`);
 						if (e.isMe) {
 							W.shake = 0.3;
-							sfx("crush");
+							sfxPack("hit");
 						}
 					}
 				/* spike strips: driving over one costs a bag (credited to the cop who dropped it), unless the shield is up */
@@ -8920,7 +8922,7 @@ Object.assign(MG, {
 					this.onRammed(W, e, c);
 					if (e.isMe) {
 						W.shake = 0.4;
-						sfx("crush");
+						sfxPack("spike");
 					}
 				});
 				/* the hose: the blast reaches the truck from any distance (like the lobs) once the jet is out: knocked sideways, and soaked
@@ -8934,7 +8936,7 @@ Object.assign(MG, {
 					mgLog(W, `${mgName(e)} soaked by ${mgName(c)}'s hose`);
 					if (e.isMe) {
 						W.shake = 0.3;
-						sfx("splash");
+						sfxPack("splash");
 					}
 				}
 			}
@@ -8999,7 +9001,7 @@ Object.assign(MG, {
 					e.lbSeen = n;
 					e.sc++;
 					fb(W, e, "+1 💰", { tone: "good" });
-					if (e.isMe) sfx("coin");
+					if (e.isMe) sfxPack("coin");
 				});
 				/* the slam's shockwave: once the ring reaches you (or has passed you, if the news came late) you're blasted
 				   away from the truck: thrown sideways, a cop behind it knocked back, a moment of spin, the harpoon lets go */
@@ -9048,7 +9050,6 @@ Object.assign(MG, {
 					this.letGo(W, e, "speared");
 					mgLog(W, `${mgName(e)} clawed and reeled in by the cash truck`);
 					e.lastHit = { k: "spear", t: W.t };
-					if (e.isMe) sfx("cannon");
 				}
 				/* oil slicks */
 				(tf.oil || []).forEach(([id, x, z, t]) => {
@@ -9060,7 +9061,7 @@ Object.assign(MG, {
 					mgLog(W, `${mgName(e)} spins out on oil`);
 					if (e.isMe) {
 						W.shake = 0.3;
-						sfx("skid");
+						sfxPack("whimsy");
 					}
 				});
 			}
@@ -9167,7 +9168,7 @@ Object.assign(MG, {
 							life: 0.7,
 							size: 0.8,
 						});
-						if (W.split || e.isMe || W.tv) sfx("crack");
+						if (W.split || e.isMe || W.tv) sfxPack("spike");
 					}
 					e.tr.rotation.x += sd * 0.07;
 					if (Math.random() < dt * 12) this.sparks(W, e, e.x + sd * e.hb[0], e.z + 0.8, false);
@@ -9216,7 +9217,7 @@ Object.assign(MG, {
 						life: 1.1,
 						size: 0.8,
 					});
-					if (W.split || e.isMe || W.tv) sfx("coin");
+					if (W.split || e.isMe || W.tv) sfxPack("coin");
 				}
 				/* the cash trail: notes flutter out behind it, more the more bags it has lost */
 				if (W.t > 0 && !e.gone) {
@@ -9422,6 +9423,10 @@ Object.assign(MG, {
 			if (f.jp !== undefined) {
 				const k = (W.t - f.jp) / this.JMPT;
 				if (k >= 0 && k < 1) {
+					if (c.jpUp !== f.jp) {
+						c.jpUp = f.jp;
+						if (c.isMe || W.tv) sfxPack("jumpboost");
+					}
 					c.g.position.y += Math.sin(k * Math.PI) * 3.4;
 					c.tr.rotation.z += Math.sin(k * Math.PI) * 0.35;
 				} else if (k >= 1 && c.jpSeen !== f.jp) {
@@ -9436,13 +9441,17 @@ Object.assign(MG, {
 						life: 0.6,
 						size: 1.1,
 					});
-					if (c.isMe || W.tv) sfx("crush");
+					if (c.isMe || W.tv) sfx("land");
 				}
 			}
 			/* the harpoon vault: up over the car nose first, down past it, dust as it lands */
 			if (f.vt) {
 				const k = (W.t - f.vt[0]) / f.vt[1];
 				if (k >= 0 && k < 1) {
+					if (c.vtUp !== f.vt[0]) {
+						c.vtUp = f.vt[0];
+						if (c.isMe || W.tv) sfxPack("jump");
+					}
 					c.g.position.y += Math.sin(k * Math.PI) * this.VLTH;
 					c.tr.rotation.z += Math.sin(k * Math.PI * 2) * 0.3;
 				} else if (k >= 1 && c.vtSeen !== f.vt[0]) {
@@ -9458,6 +9467,10 @@ Object.assign(MG, {
 						size: 1,
 					});
 				}
+			}
+			if (f.nt && W.t < f.nt[0] && c.ntUp !== f.nt[0]) {
+				c.ntUp = f.nt[0];
+				if (c.isMe || W.tv) sfxPack("speed");
 			}
 			if (f.nt && W.t < f.nt[0] && Math.random() < dt * 30) {
 				const a = c.yaw + Math.PI;
@@ -9583,7 +9596,7 @@ Object.assign(MG, {
 					life: 0.8,
 					size: 0.8,
 				});
-				if (W.tv || c.isMe) sfx("crush");
+				if (W.tv || c.isMe) sfxPack("hit");
 			}
 			let v = W.wbV[c.k];
 			if (!v && !wp) return;
@@ -9844,7 +9857,7 @@ Object.assign(MG, {
 			v.head.quaternion.copy(v.line.quaternion);
 			if ((h[2] || h[5] !== undefined) && age >= 0.2 && age < 0.25 && !v.clank) {
 				v.clank = h[0];
-				if (W.tv || c.isMe || T.isMe) sfx("crush");
+				if (h[2] && (W.tv || c.isMe || T.isMe)) sfxPack("hit", 0.6);
 			}
 			if (v.clank && v.clank !== h[0]) v.clank = 0;
 		},
@@ -10368,7 +10381,7 @@ Object.assign(MG, {
 					size: 0.9,
 				});
 				this.sparks(W, c, c.x + (c.x > T.x ? 1 : -1) * c.hb[0], c.z, false);
-				if (W.tv || c.isMe || T.isMe) sfx("crush");
+				if (W.tv || c.isMe || T.isMe) sfxPack("hit");
 			}
 			/* the claw bites */
 			if (T && a >= this.WHF && a < this.WHF + 0.5 && c.wyHit !== wy) {
@@ -10382,7 +10395,6 @@ Object.assign(MG, {
 					life: 0.5,
 					size: 0.7,
 				});
-				if (W.tv || c.isMe || T.isMe) sfx("crush");
 			}
 			if (!v && !on) return;
 			if (!v) {
@@ -10398,7 +10410,7 @@ Object.assign(MG, {
 			if (v.cry !== wy) {
 				v.cry = wy;
 				fb(W, c, "GET OVER HERE!", { tone: "bad" });
-				if (W.tv || c.isMe || T.isMe) sfx("cannon");
+				if (W.tv || c.isMe || T.isMe) sfxPack("whip");
 			}
 			/* from the truck's bull bar to the cop's tail: the claw flies open, then closes on it */
 			const fw = new THREE.Vector3(Math.cos(T.yaw), 0, -Math.sin(T.yaw)),
@@ -10645,8 +10657,7 @@ Object.assign(MG, {
 						W.swSeen = ring.id;
 						const near = W.tv || Math.hypot(W.me.x - T.x, W.me.z - T.z) < 20;
 						if (near) {
-							sfx("crush");
-							sfx("thunder");
+							sfxPack("crunchy");
 							W.shake = Math.max(W.shake, 0.45);
 						}
 						for (let i = 0; i < 16; i++) {
@@ -10680,7 +10691,7 @@ Object.assign(MG, {
 					size: 1.2,
 				});
 				c.g.visible = false;
-				if (W.tv || Math.abs(W.me.z - c.g.position.z) < 30) sfx("splash");
+				if (W.tv || Math.abs(W.me.z - c.g.position.z) < 30) sfxPack("splash");
 			});
 			if (W.wLamp) W.wLamp.emissiveIntensity = Math.floor(W.t * 2.5) % 2 ? 1.8 : 0.15;
 			if (W.wArrow) W.wArrow.material.emissiveIntensity = Math.floor(W.t * 2) % 2 ? 1.1 : 0.25;

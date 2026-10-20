@@ -872,6 +872,56 @@ function sfxFile(url, vol = 1) {
 		})
 		.catch(() => {});
 }
+/* a sound pack: sfx/<name>.mp3 holds several takes of one sound with silence between them (packed and levelled by
+   tools/sfxcut.mjs); each play picks a random take (never the same one twice running) a touch higher or lower. The takes
+   are found from the silences when the file is first decoded (sfxTakes: [start, end] s), so a file straight from a
+   sound pack works too. sfxPackLoad(name) fetches and decodes it early */
+function sfxTakes(buf) {
+	const d = buf.getChannelData(0),
+		sr = buf.sampleRate,
+		gap = Math.round(sr * 0.12),
+		out = [];
+	let s = -1,
+		q = 0;
+	for (let i = 0; i < d.length; i++) {
+		if (Math.abs(d[i]) > 0.002) {
+			if (s < 0) s = i;
+			q = 0;
+		} else if (s >= 0 && ++q > gap) {
+			out.push([s / sr, (i - q) / sr]);
+			s = -1;
+		}
+	}
+	if (s >= 0) out.push([s / sr, d.length / sr]);
+	return out.filter(([a, b]) => b - a > 0.03);
+}
+function sfxPackLoad(name) {
+	if (SFX.ctx) audBuf(`sfx/${name}.mp3`).catch(() => {});
+}
+function sfxPack(name, vol = 1) {
+	if (!SFX.on || !SFX.ctx || SFX.ctx.state !== "running") return;
+	const url = `sfx/${name}.mp3`;
+	audBuf(url)
+		.then((buf) => {
+			const a = AUD[url],
+				tk = a.takes || (a.takes = sfxTakes(buf));
+			if (!tk.length) return;
+			let n = Math.floor(Math.random() * tk.length);
+			if (tk.length > 1 && n === a.last) n = (n + 1 + Math.floor(Math.random() * (tk.length - 1))) % tk.length;
+			a.last = n;
+			const c = SFX.ctx,
+				s = c.createBufferSource(),
+				g = c.createGain(),
+				[t0, t1] = tk[n];
+			g.gain.value = vol;
+			s.buffer = buf;
+			s.playbackRate.value = 0.96 + Math.random() * 0.08;
+			s.connect(g);
+			g.connect(SFX.fx);
+			s.start(0, Math.max(0, t0 - 0.005), t1 - t0 + 0.06);
+		})
+		.catch(() => {});
+}
 /* a song from a file (Getaway's chase song, the lobby song), looped through the music bus like the synth songs (fading in
    over fadeIn s): musStop fades it, and musScene leaves it playing during the minigame (MUS.track) */
 function musTrack(url, vol = 0.7, fadeIn = 0, resume = false) {
