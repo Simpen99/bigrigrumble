@@ -7576,8 +7576,8 @@ Object.assign(MG, {
 		   then the cop is reeled in until HPT s (unless the truck swerves it off); reaching the truck = a hit (a bag off) */
 		HPCD: 4.5,
 		HPCDV: 2.5 /* after vaulting a car the harpoon reloads in HPCDV s instead */,
-		HPR: 12.5 /* reach to a car (was 16) */,
-		HPRT: 12.5 /* reach to the cash truck (was 9), and only from behind it */,
+		HPR: 14 /* reach to a car (was 16, then 12.5) */,
+		HPRT: 14 /* reach to the cash truck (was 9, then 12.5), and only from behind it */,
 		/* spike strip: a cop at least SSA m ahead of the cash truck drops one with its main button, right under itself (SSB m back),
 		   SSW wide across the road, lying SST s; driving over it costs the truck a bag (once a strip) */
 		SSA: 4,
@@ -10732,7 +10732,7 @@ Object.assign(MG, {
 				if (think("vtAt", e.hpCd || 0, 0.2, 0.5) && (dz > 12 || (runner && dz > -this.SSA - 2))) {
 					const car = W.cars.find((c) => {
 						const cz = this.carZ(W, c);
-						return c.kT === undefined && cz < e.z - 4 && cz > e.z - 13 && Math.abs(this.carX(W, c, cz) - e.x) < 4.5;
+						return c.kT === undefined && cz < e.z - 4 && cz > e.z - 14.5 && Math.abs(this.carX(W, c, cz) - e.x) < 4.5;
 					});
 					if (car) {
 						const cz = this.carZ(W, car);
