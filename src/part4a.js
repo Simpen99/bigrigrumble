@@ -374,7 +374,8 @@ function collide(W, a) {
 			b.falling ||
 			b.fly ||
 			(!b.local && !b.seen) ||
-			Math.abs((a.y || 0) - (b.y || 0)) > 1.6
+			Math.abs((a.y || 0) - (b.y || 0)) > 1.6 ||
+			(W.def.noCollide && W.def.noCollide(W, a, b))
 		)
 			continue;
 		const dx = a.x - b.x,
