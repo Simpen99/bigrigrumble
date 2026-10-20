@@ -8514,16 +8514,27 @@ Object.assign(MG, {
 					this.carFx(W, c, e);
 					continue;
 				}
-				/* thrown out beside the car, never through a guardrail or barrier: no room there, the other side */
+				/* scraping along a car's side (more overlap along the road than across it): just pushed out beside it with a
+				   light nudge, no speed lost, so squeezing between two cars and touching one doesn't ping-pong you between
+				   them */
+				const ox = c.hb[0] + hw - Math.abs(dx),
+					oz = c.hb[1] + hl - Math.abs(e.z - cz);
+				if (ox < oz * 0.6) {
+					e.x = cx + sd * (c.hb[0] + hw + 0.02);
+					e.vx = sd * Math.min(1.2, Math.max(0, sd * e.vx) + 0.6);
+					continue;
+				}
+				/* driving into its back: thrown out beside the car (never through a guardrail or barrier: no room there, the
+				   other side) and slowed */
 				{
 					const [lo, hi] = this.edges(e.z),
 						nx = cx + sd * (c.hb[0] + hw + 0.1);
 					if (nx > hi - hw || nx < lo + hw) sd = -sd;
 				}
 				e.x = cx + sd * (c.hb[0] + hw + 0.1);
-				e.vx = sd * 5;
+				e.vx = sd * 3;
 				e.vz = -(this.CARV - 3);
-				e.slideT = 0.5;
+				e.slideT = 0.3;
 				e.crT = W.t + 1.2;
 				if (W.t - (e.hitC[c.id] ?? -9) > 1.5) {
 					e.hitC[c.id] = W.t;
