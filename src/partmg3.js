@@ -7568,7 +7568,7 @@ Object.assign(MG, {
 		ARM: 4,
 		/* slam (the truck's second button): cooldown SWCD; it hops SWHOP s, slams, and a shockwave ring runs out from it at
 		   SWV m/s to SWR m, blasting every cop it reaches */
-		SWCD: 12 /* was 10 */,
+		SWCD: 11 /* was 10, then 12 */,
 		SWHOP: 0.35,
 		SWV: 22,
 		SWR: 9,
@@ -7662,7 +7662,7 @@ Object.assign(MG, {
 		},
 		/* Blaze's hose: soaked tyres lose their grip this long */
 		HOSET: 2.2,
-		OILCD: 9 /* was 7 */,
+		OILCD: 8 /* was 7, then 9 */,
 		OILT: 8,
 		OILR: 1.9,
 		how: "1 vs 3 highway chase! The cash truck has to reach the tunnel with any cash left; the cops harpoon it from close behind or get ahead and drop spikes to knock the money bags off.",
