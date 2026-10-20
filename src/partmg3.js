@@ -7686,7 +7686,12 @@ Object.assign(MG, {
 		btn2Cd(W) {
 			const e = W.me,
 				[t, cd] = e.side === 0 ? [e.swCd, this.SWCD] : [e.abCd, this.abOf(e).cd];
+			if (this.dazed(W, e)) return 1;
 			return Math.min(1, Math.max(0, ((t || 0) - W.t) / cd));
+		},
+		/* a cop spinning out (or in the cash truck's claw) can't use its buttons: they show dark meanwhile */
+		dazed(W, e) {
+			return e.side === 1 && (W.t < (e.spinT || 0) || !!e.yank);
 		},
 		/* the cash truck's third button: the SPEAR (dark while it reloads or while no cop is in front to hit) */
 		btn3(side) {
@@ -7728,11 +7733,12 @@ Object.assign(MG, {
 		ramCd(W) {
 			const e = W.me,
 				[t, cd] = e.side === 0 ? [e.oilCd, this.OILCD] : [e.hpCd, this.HPCD];
+			if (this.dazed(W, e)) return 1;
 			return Math.min(1, Math.max(0, ((t || 0) - W.t) / cd));
 		},
 		ramReady(W) {
 			const e = W.me;
-			return W.t >= ((e.side === 0 ? e.oilCd : e.hpCd) || 0);
+			return !this.dazed(W, e) && W.t >= ((e.side === 0 ? e.oilCd : e.hpCd) || 0);
 		},
 		kits() {
 			MG.hop.kits.call(MG.hop);
@@ -8359,7 +8365,10 @@ Object.assign(MG, {
 				top = this.V0 + (solo ? this.UP : this.UPC) + cu - ldk - slow + (nitro ? (e.f.nt && e.f.nt[1] ? 14 : 12) : 0),
 				low = this.V0 - this.DN,
 				on = inp && !e.d;
-			if (!solo && T && e.yank && this.yankStep(W, e, T, dt)) return;
+			if (!solo && T && e.yank && this.yankStep(W, e, T, dt)) {
+				if (inp) inp.boost = inp.b2 = inp.b3 = false;
+				return;
+			}
 			let fv = -e.vz;
 			const thr = on ? -(inp.y || 0) : 0,
 				want = Math.min(
@@ -8377,11 +8386,12 @@ Object.assign(MG, {
 			e.slideT = Math.max(0, (e.slideT || 0) - dt);
 			e.bcd = Math.max(0, (e.bcd || 0) - dt);
 			e.boostT = Math.max(0, (e.boostT || 0) - dt);
-			if (on && inp.boost) {
+			const dazed = this.dazed(W, e);
+			if (on && inp.boost && !dazed) {
 				if (solo) this.oil(W, e);
 				else this.harpoon(W, e, inp);
 			}
-			if (on && inp.b2) {
+			if (on && inp.b2 && !dazed) {
 				if (solo) this.slam(W, e);
 				else this.ability(W, e);
 			}
