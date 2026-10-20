@@ -7562,7 +7562,7 @@ Object.assign(MG, {
 		DN: 6,
 		LATA: 34,
 		/* cash: BAGS on the truck, IMM s safe after losing one; oil: cooldown OILCD, lasts OILT, radius OILR */
-		BAGS: 10 /* was 20 (the truck escaped every test game), then 10, 15, 12, 15 */,
+		BAGS: 12 /* was 20 (the truck escaped every test game), then 10, 15, 12, 15, 10 */,
 		IMM: 3,
 		/* every button (oil, slam, harpoon, tricks) wakes up ARM s after the start */
 		ARM: 4,
