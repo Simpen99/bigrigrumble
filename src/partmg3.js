@@ -7537,6 +7537,8 @@ Object.assign(MG, {
 		bound: { t: "none" },
 		/* cops: no roof ornaments or amber beacons, the light bar on the cab (the cash truck is rebuilt as "armour") */
 		truckMode: "cop",
+		/* camera shakes at 30% (the chase is busy enough) */
+		shakeK: 0.3,
 		/* the road: LANES lanes LW wide, ROADL long, the tunnel TL up it; traffic at CARV */
 		LANES: 6,
 		LW: 3.6,

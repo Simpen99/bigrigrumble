@@ -1008,7 +1008,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-20 23:28 d992fa9";
+const BUILD = "2026-10-20 23:31 3a44e3c";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -14699,9 +14699,11 @@ function stepMG(dt) {
 	GFX.mgCam.t.lerp(tgt, k);
 	cam.position.copy(GFX.mgCam.p);
 	if (W.shake > 0) {
+		/* a game can tone its shakes down (def.shakeK, 1 = as is) */
+		const sk = 0.5 * (W.def.shakeK ?? 1);
 		W.shake -= dt;
-		cam.position.x += (Math.random() - 0.5) * 0.5;
-		cam.position.y += (Math.random() - 0.5) * 0.5;
+		cam.position.x += (Math.random() - 0.5) * sk;
+		cam.position.y += (Math.random() - 0.5) * sk;
 	}
 	if (W.jit) {
 		cam.position.x += (Math.random() - 0.5) * W.jit;
@@ -36790,6 +36792,8 @@ Object.assign(MG, {
 		bound: { t: "none" },
 		/* cops: no roof ornaments or amber beacons, the light bar on the cab (the cash truck is rebuilt as "armour") */
 		truckMode: "cop",
+		/* camera shakes at 30% (the chase is busy enough) */
+		shakeK: 0.3,
 		/* the road: LANES lanes LW wide, ROADL long, the tunnel TL up it; traffic at CARV */
 		LANES: 6,
 		LW: 3.6,

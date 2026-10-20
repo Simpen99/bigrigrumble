@@ -1035,9 +1035,11 @@ function stepMG(dt) {
 	GFX.mgCam.t.lerp(tgt, k);
 	cam.position.copy(GFX.mgCam.p);
 	if (W.shake > 0) {
+		/* a game can tone its shakes down (def.shakeK, 1 = as is) */
+		const sk = 0.5 * (W.def.shakeK ?? 1);
 		W.shake -= dt;
-		cam.position.x += (Math.random() - 0.5) * 0.5;
-		cam.position.y += (Math.random() - 0.5) * 0.5;
+		cam.position.x += (Math.random() - 0.5) * sk;
+		cam.position.y += (Math.random() - 0.5) * sk;
 	}
 	if (W.jit) {
 		cam.position.x += (Math.random() - 0.5) * W.jit;
