@@ -917,11 +917,11 @@ body.mglive #fxs,body.mgres #fxs{display:none}
   .tvc .ram:has(~ .ram2) span{position:absolute;left:30%;top:70%;transform:translate(-50%,-50%)}
   .tvc .ram.ram2{left:58%;right:0;top:0;bottom:0;width:auto;height:auto;background:linear-gradient(160deg,#FFC24A,#E0700F)!important;clip-path:polygon(18px 0,100% 0,100% calc(100% - 18px));font-size:26px!important}
   .tvc .ram.ram2 span{position:absolute;left:70%;top:30%;transform:translate(-50%,-50%)}
-  /* three buttons: three full-width bands instead (the third on top, the main one at the bottom) */
-  .tvc .ram:not(.ram2):not(.ram3):has(~ .ram3){clip-path:none;top:66.7%}
-  .tvc .ram.ram2:has(~ .ram3){clip-path:none;top:33.3%;bottom:33.3%;box-shadow:inset 4px 0 0 rgba(0,0,0,.22),inset 0 -3px 0 rgba(0,0,0,.25)!important}
+  /* three buttons: the main one fills the bottom half, the second and third share the top half (third on the left) */
+  .tvc .ram:not(.ram2):not(.ram3):has(~ .ram3){clip-path:none;top:50%}
+  .tvc .ram.ram2:has(~ .ram3){clip-path:none;left:79%;top:0;bottom:50%;box-shadow:inset 3px 0 0 rgba(0,0,0,.22),inset 0 -3px 0 rgba(0,0,0,.25)!important}
   .tvc .ram:has(~ .ram3) span,.tvc .ram.ram2:has(~ .ram3) span{left:50%;top:50%}
-  .tvc .ram.ram3{left:58%;right:0;top:0;bottom:66.7%;width:auto;height:auto;border-radius:0;background:linear-gradient(160deg,#7FD6FF,#2F7DE1)!important;box-shadow:inset 4px 0 0 rgba(0,0,0,.22),inset 0 -3px 0 rgba(0,0,0,.25)!important;font-size:26px!important}
+  .tvc .ram.ram3{left:58%;right:21%;top:0;bottom:50%;width:auto;height:auto;border-radius:0;background:linear-gradient(160deg,#7FD6FF,#2F7DE1)!important;box-shadow:inset 4px 0 0 rgba(0,0,0,.22),inset 0 -3px 0 rgba(0,0,0,.25)!important;font-size:24px!important}
   .tvc .ram.ram3 .ramcd{border-radius:0}
   .tvcctl.swc{left:0}
   .tvc .slpad{right:42%;border-right:2px dashed rgba(255,255,255,.12)}
@@ -1007,7 +1007,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-20 22:23 f07a504";
+const BUILD = "2026-10-20 22:39 2f45a82";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
