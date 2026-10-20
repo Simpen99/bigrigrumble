@@ -7568,7 +7568,7 @@ Object.assign(MG, {
 		ARM: 4,
 		/* slam (the truck's second button): cooldown SWCD; it hops SWHOP s, slams, and a shockwave ring runs out from it at
 		   SWV m/s to SWR m, blasting every cop it reaches */
-		SWCD: 10,
+		SWCD: 12 /* was 10 */,
 		SWHOP: 0.35,
 		SWV: 22,
 		SWR: 9,
@@ -7626,7 +7626,8 @@ Object.assign(MG, {
 		   up; it smashes traffic it meets and spins the cash truck out (WBS s) */
 		WBT: 4,
 		WBR: 5.5,
-		WBW: 2.6,
+		WBW: 5 /* was 2.6 */,
+		WBG: 14 /* it grabs the nearest traffic car within WBG m to swing (a crushed car of its own if there's none) */,
 		WBY: 1.3,
 		WBS: 1.4,
 		/* Crusher's JUMP: JMPT s in the air at JMPV m/s over its top speed */
@@ -7661,7 +7662,7 @@ Object.assign(MG, {
 		},
 		/* Blaze's hose: soaked tyres lose their grip this long */
 		HOSET: 2.2,
-		OILCD: 7,
+		OILCD: 9 /* was 7 */,
 		OILT: 8,
 		OILR: 1.9,
 		how: "1 vs 3 highway chase! The cash truck has to reach the tunnel with any cash left; the cops harpoon it from close behind or get ahead and drop spikes to knock the money bags off.",
@@ -8455,6 +8456,7 @@ Object.assign(MG, {
 		traffic(W, e) {
 			const [hw, hl] = e.hb || [0.6, 0.9];
 			for (const c of W.cars) {
+				if (c.held) continue;
 				const cz = this.carZ(W, c);
 				if (cz > e.z + 5) continue;
 				if (cz < e.z - 5) {
@@ -8700,7 +8702,21 @@ Object.assign(MG, {
 			} else if (A.kind === "fire") e.f.wj = [e.abN, rd(W.t)];
 			else if (A.kind === "tow") {
 				/* the wrecking ball: [id, swung at, start angle (behind it), turning direction (towards the truck first)] */
-				e.f.wb = [e.abN, rd(W.t), rd(Math.PI * 1.5), T && T.x < e.x ? 1 : -1];
+				/* ... and the traffic car it grabs (its id, -1 = none near: it swings its own crushed car) */
+				let pick = -1,
+					bd = this.WBG;
+				for (const c of W.cars) {
+					if (c.kT !== undefined) continue;
+					const cz = this.carZ(W, c);
+					if (Math.abs(cz - e.z) > bd) continue;
+					const d = Math.hypot(this.carX(W, c, cz) - e.x, cz - e.z);
+					if (d < bd) {
+						bd = d;
+						pick = c.id;
+					}
+				}
+				e.f.wb = [e.abN, rd(W.t), rd(Math.PI * 1.5), T && T.x < e.x ? 1 : -1, pick];
+				mgLog(W, `${mgName(e)} swings ${pick >= 0 ? "a traffic car" : "its own wreck"}`);
 			}
 			mgLog(W, `${mgName(e)}: ${A.lbl}`);
 			if (e.isMe) sfx(A.lob ? "cannon" : "go");
@@ -9450,10 +9466,27 @@ Object.assign(MG, {
 				v.lie.rotation.x = b.fly ? 0 : Math.PI / 2;
 			}
 		},
-		/* Rusty's wrecking ball on every screen: a crushed car on a cable from its crane, whirling round it */
+		/* Rusty's wrecking ball on every screen: the traffic car it grabbed (lifted off the road over 0.35 s) or a crushed
+		   car of its own, on a cable from its crane, whirling round it; a grabbed car is smashed when it lets go */
 		wreckFx(W, c, dt) {
-			const wp = this.wbPos(W, c);
+			const wp = this.wbPos(W, c),
+				wb = c.f && c.f.wb,
+				held = wb && wb[4] >= 0 ? W.cars.find((x) => x.id === wb[4] && x.held && x.held.by === wb[0]) : null;
 			W.wbV = W.wbV || {};
+			if (held && !wp && !held.smashed && W.t >= held.kT) {
+				held.smashed = 1;
+				held.g.visible = false;
+				burst(W.sc, held.g.position.x, 1, held.g.position.z, {
+					n: 18,
+					shape: "cube",
+					cols: [held.c, "#C9CED8", "#9FD8F0"],
+					spd: 6,
+					up: 5,
+					life: 0.8,
+					size: 0.8,
+				});
+				if (W.tv || c.isMe) sfx("crush");
+			}
 			let v = W.wbV[c.k];
 			if (!v && !wp) return;
 			if (!v) {
@@ -9466,10 +9499,18 @@ Object.assign(MG, {
 				};
 				W.sc.add(car, v.line);
 			}
-			v.car.visible = v.line.visible = !!wp;
+			v.line.visible = !!wp;
+			v.car.visible = !!(wp && !held);
 			if (!wp) return;
-			v.car.position.set(wp.x, this.WBY - 0.4 + Math.sin(wp.a * 9) * 0.15, wp.z);
-			v.car.rotation.set(0.25, wp.ang + Math.PI / 2, Math.sin(wp.a * 5) * 0.3);
+			const ball = held ? held.g : v.car,
+				k = held ? Math.min(1, wp.a / 0.35) : 1,
+				by = this.WBY - 0.4 + Math.sin(wp.a * 9) * 0.15;
+			ball.position.set(
+				held ? held.held.x + (wp.x - held.held.x) * k : wp.x,
+				by * k,
+				held ? held.held.z + (wp.z - held.held.z) * k : wp.z,
+			);
+			ball.rotation.set(0.25 * k, wp.ang + Math.PI / 2, Math.sin(wp.a * 5) * 0.3 * k);
 			const back = new THREE.Vector3(-Math.cos(c.yaw), 0, Math.sin(c.yaw)),
 				p0 = new THREE.Vector3(c.x, 2.1, c.z).addScaledVector(back, 0.7),
 				p1 = new THREE.Vector3(wp.x, this.WBY + 0.3, wp.z),
@@ -10362,7 +10403,19 @@ Object.assign(MG, {
 					this.carFx(W, c, T);
 				}
 			});
+			/* a car grabbed by a wrecking ball leaves the traffic (it counts as knocked from then on, wreckFx swings it) */
+			W.list.forEach((q) => {
+				const wb = q.side === 1 && q.f && q.f.wb;
+				if (!wb || !(wb[4] >= 0)) return;
+				const c = W.cars.find((x) => x.id === wb[4]);
+				if (!c || c.kT !== undefined) return;
+				const z0 = this.carZ(W, c, wb[1]);
+				c.held = { x: this.carX(W, c, z0), z: z0, by: wb[0] };
+				c.kT = wb[1] + this.WBT;
+				c.kd = 1;
+			});
 			W.cars.forEach((c) => {
+				if (c.held) return;
 				if (c.kT === undefined) {
 					const z = this.carZ(W, c);
 					return c.g.position.set(this.carX(W, c, z), 0, z);
