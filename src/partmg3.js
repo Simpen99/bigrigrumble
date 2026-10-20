@@ -7636,19 +7636,21 @@ Object.assign(MG, {
 		VLV: 26.4,
 		VLX: 8.4,
 		VLTH: 3.2,
+		/* cooldowns by how hard a trick hits: self buffs and light knocks 7-8 s, slows and obstacles 11-12 s, the ones that
+		   take the truck's control or spin it out 13-15 s (was 8-11 s for all) */
 		AB: {
-			monster: { lbl: "JUMP", cd: 9 },
-			icecream: { lbl: "SCOOPS", cd: 10, lob: "ice", r: 2.4 },
-			fire: { lbl: "HOSE", cd: 10 },
-			box: { lbl: "NAILS", cd: 10, lob: "nails", r: 2.4 },
-			mixer: { lbl: "CEMENT", cd: 10, lob: "cement", r: 2.4 },
-			dump: { lbl: "GRAVEL", cd: 10, lob: "gravel", r: 2.1, obj: 1 },
-			pickup: { lbl: "NITRO", cd: 8 },
-			tow: { lbl: "WRECK", cd: 11 },
+			pickup: { lbl: "NITRO", cd: 7 },
+			monster: { lbl: "JUMP", cd: 8 },
+			dump: { lbl: "GRAVEL", cd: 8, lob: "gravel", r: 2.1, obj: 1 },
+			mail: { lbl: "PARCELS", cd: 8, lob: "parcel", r: 2.6, obj: 1 },
+			icecream: { lbl: "SCOOPS", cd: 11, lob: "ice", r: 2.4 },
 			garbage: { lbl: "BINS", cd: 11 },
-			tanker: { lbl: "FUEL", cd: 10, lob: "fuel", r: 2.4 },
-			mail: { lbl: "PARCELS", cd: 10, lob: "parcel", r: 2.6, obj: 1 },
-			food: { lbl: "SPICY", cd: 10 },
+			box: { lbl: "NAILS", cd: 12, lob: "nails", r: 2.4 },
+			mixer: { lbl: "CEMENT", cd: 13, lob: "cement", r: 2.4 },
+			food: { lbl: "SPICY", cd: 13 },
+			fire: { lbl: "HOSE", cd: 14 },
+			tanker: { lbl: "FUEL", cd: 14, lob: "fuel", r: 2.4 },
+			tow: { lbl: "WRECK", cd: 15 },
 		},
 		/* a cop's ability (its truck's kind) */
 		abOf(e) {
