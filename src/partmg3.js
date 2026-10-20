@@ -7585,16 +7585,14 @@ Object.assign(MG, {
 		SSB: 0,
 		SSW: 7.6,
 		SST: 7,
-		/* the cash truck's spear ("GET OVER HERE!"): a cop that stays in front of it (clear of its nose, within WHR m, anywhere
-		   across the road) for WHA s gets speared (a warning sign over it from WHW s): the spear flies WHF s, then reels it
-		   into the truck's nose over WHY s, where it crashes and spins out (WHS s); then it's safe for WHCD s */
-		WHA: 8,
-		WHW: 5,
+		/* the cash truck's SPEAR ("GET OVER HERE!", its third button, cooldown SPCD): it hits the nearest cop in front of it
+		   (clear of its nose, within WHR m, anywhere across the road): the spear flies WHF s, then reels it into the truck's
+		   nose over WHY s, where it crashes and spins out (WHS s). It was automatic (a cop WHA s in front) */
+		SPCD: 15,
 		WHR: 30,
 		WHF: 0.3,
 		WHY: 0.55,
 		WHS: 1.6,
-		WHCD: 6,
 		HPA: 0.4,
 		HPT: 0.9,
 		/* each cop's second button is its own truck's trick (by TRUCKS[].kind): lobs land a hazard ZL s later in front of the
@@ -7668,12 +7666,12 @@ Object.assign(MG, {
 		how: "1 vs 3 highway chase! The cash truck has to reach the tunnel with any cash left; the cops harpoon it from close behind or get ahead and drop spikes to knock the money bags off.",
 		teamHow: (s) =>
 			s === 0
-				? "You're the CASH TRUCK: reach the tunnel with cash left. Cops that hang in front of you get speared and reeled into your nose; OIL spins them out, SLAM blasts them away."
-				: "You're a COP: HARPOON the cash truck from close behind, or get ahead of it and the same button drops SPIKES (don't hang in front too long). Harpoon a car to vault over it!",
+				? "You're the CASH TRUCK: reach the tunnel with cash left. SPEAR reels in a cop in front of you; OIL spins them out behind you, SLAM blasts them away."
+				: "You're a COP: HARPOON the cash truck from close behind, or get ahead of it and the same button drops SPIKES. Harpoon a car to vault over it!",
 		stickHint: (fine) =>
 			fine
-				? "WASD or arrows: steer, up = faster, down = brake. Space: harpoon (cops) / oil (cash truck). E: your truck's trick / slam."
-				: "Drag to steer: up = faster, down = brake. Buttons: HARPOON + your truck's trick for cops, OIL + SLAM for the cash truck.",
+				? "WASD or arrows: steer, up = faster, down = brake. Space: harpoon (cops) / oil (cash truck). E: your truck's trick / slam. R: spear (cash truck)."
+				: "Drag to steer: up = faster, down = brake. Buttons: HARPOON + your truck's trick for cops, OIL + SLAM + SPEAR for the cash truck.",
 		ramLabel: (side) => (side === 0 ? "OIL" : "HARPOON"),
 		/* only a cop being reeled in hits the truck (bumping into it does nothing to the bags) */
 		canRam: (e) => e.side === 1 && !!e.reelOn,
@@ -7684,6 +7682,43 @@ Object.assign(MG, {
 			const e = W.me,
 				[t, cd] = e.side === 0 ? [e.swCd, this.SWCD] : [e.abCd, this.abOf(e).cd];
 			return Math.min(1, Math.max(0, ((t || 0) - W.t) / cd));
+		},
+		/* the cash truck's third button: the SPEAR (dark while it reloads or while no cop is in front to hit) */
+		btn3(side) {
+			return side === 0 ? "SPEAR" : null;
+		},
+		btn3Cd(W) {
+			const e = W.me;
+			if (e.side !== 0) return 0;
+			const c = Math.min(1, Math.max(0, ((e.spCd || 0) - W.t) / this.SPCD));
+			return c > 0 ? c : this.spearTarget(W, e) ? 0 : 1;
+		},
+		/* the cop the spear would hit: the nearest one clear in front of the truck's nose within WHR m */
+		spearTarget(W, T) {
+			let best = null,
+				bd = 1e9;
+			for (const c of W.list) {
+				if (c.side !== 1 || c.gone || c.yank) continue;
+				const lead = T.z - c.z;
+				if (lead < T.hb[1] + c.hb[1] + 0.5 || lead > this.WHR) continue;
+				const d = Math.hypot(c.x - T.x, lead);
+				if (d < bd) {
+					bd = d;
+					best = c;
+				}
+			}
+			return best;
+		},
+		/* firing it: shared as e.f.sr = [id, when, the cop's key]; the cop's own device reels it in */
+		spear(W, e) {
+			if (W.t < (e.spCd || 0) || e.d || e.esc) return;
+			const c = this.spearTarget(W, e);
+			if (!c) return;
+			e.spCd = W.t + this.SPCD;
+			e.spN = (e.spN || 0) + 1;
+			e.f.sr = [e.spN, Math.round(W.t * 100) / 100, c.k];
+			mgLog(W, `${mgName(e)} spears ${mgName(c)}`);
+			if (e.isMe) sfx("cannon");
 		},
 		ramCd(W) {
 			const e = W.me,
@@ -8256,7 +8291,7 @@ Object.assign(MG, {
 			e.vx = e.vz = 0;
 			e.oilHit = {};
 			e.hitC = {};
-			e.oilCd = e.swCd = e.hpCd = e.abCd = this.ARM;
+			e.oilCd = e.swCd = e.hpCd = e.abCd = e.spCd = this.ARM;
 			if (e.side === 0) {
 				e.bags = this.BAGS;
 				/* the first half of the bags hang in the right-hand nets, the rest in the left (top tier first if there is one, rear first): e.bm = the ones still on */
@@ -8345,7 +8380,8 @@ Object.assign(MG, {
 				if (solo) this.slam(W, e);
 				else this.ability(W, e);
 			}
-			if (inp) inp.boost = inp.b2 = false;
+			if (on && inp.b3 && solo) this.spear(W, e);
+			if (inp) inp.boost = inp.b2 = inp.b3 = false;
 			/* the harpoon drags the truck towards each cop holding it, and a hard swerve away (moving away fast for 0.3 s)
 			   snaps the line */
 			hooks.forEach(({ c, id }) => {
@@ -8948,23 +8984,15 @@ Object.assign(MG, {
 						e.f.wk = (e.f.wk || []).concat([[c.id, Math.round(W.t * 100) / 100, kd]]).slice(-8);
 						this.carFx(W, c, e);
 					}
-				/* the cash truck's spear: hanging in front of it too long gets this cop speared and reeled into its nose
-				   (decided here, shared as e.f.wy = when; e.f.wa = how long it has been in front, for the warning sign) */
-				if (!tf.esc && W.t >= 0) {
-					const lead = T.z - e.z,
-						front = lead > T.hb[1] + e.hb[1] + 1 && lead < this.WHR && !e.yank && W.t > (e.whCd || 0);
-					e.whA = front ? (e.whA || 0) + dt : Math.max(0, (e.whA || 0) - dt * 2);
-					e.f.wa = Math.round(e.whA * 10) / 10;
-					if (e.whA > this.WHA) {
-						e.whA = e.f.wa = 0;
-						e.whCd = W.t + this.WHCD + this.WHF + this.WHY;
-						e.yank = { t: W.t, sd: e.x >= T.x ? 1 : -1 };
-						e.f.wy = Math.round(W.t * 100) / 100;
-						this.letGo(W, e, "speared");
-						mgLog(W, `${mgName(e)} speared and yanked back by the cash truck`);
-						e.lastHit = { k: "spear", t: W.t };
-						if (e.isMe) sfx("cannon");
-					}
+				/* the cash truck's spear aimed at this cop (tf.sr = [id, when, cop key]): reeled into its nose */
+				const sr = tf.sr;
+				if (sr && sr[2] === e.k && e.srSeen !== sr[0] && W.t - sr[1] < this.WHF + this.WHY) {
+					e.srSeen = sr[0];
+					e.yank = { t: sr[1], sd: e.x >= T.x ? 1 : -1 };
+					this.letGo(W, e, "speared");
+					mgLog(W, `${mgName(e)} speared and reeled in by the cash truck`);
+					e.lastHit = { k: "spear", t: W.t };
+					if (e.isMe) sfx("cannon");
 				}
 				/* oil slicks */
 				(tf.oil || []).forEach(([id, x, z, t]) => {
@@ -10257,26 +10285,18 @@ Object.assign(MG, {
 			}
 			return g;
 		},
-		/* the cash truck's spear on every screen: a warning sign flashing over a cop that has hung in front of it for WHW s
-		   (e.f.wa), then the chain and spear head flying from the truck's nose (WHF s), the cry, the cop reeled in (WHY s)
-		   and the crash */
+		/* the cash truck's spear on every screen (from its shot, T.f.sr): the chain and spear head flying from its nose (WHF
+		   s), the cry, the cop reeled in (WHY s) and the crash */
 		spearFx(W, c) {
-			const f = c.f || {},
-				T = this.solo(W);
-			if (!c.wn) {
-				c.wn = iconSprite("warn", warnSignDraw, 0.8);
-				c.wn.visible = false;
-				W.sc.add(c.wn);
-			}
-			const warn = (f.wa || 0) >= this.WHW && !c.gone && T;
-			c.wn.visible = !!(warn && Math.sin(W.t * 18) > -0.3);
-			if (c.wn.visible) c.wn.position.set(c.x, 3.6, c.z);
+			const T = this.solo(W),
+				sr = T && T.f && T.f.sr,
+				wy = sr && sr[2] === c.k ? sr[1] : undefined;
 			let v = W.wyV && W.wyV[c.k];
-			const a = f.wy !== undefined ? W.t - f.wy : 99,
+			const a = wy !== undefined ? W.t - wy : 99,
 				on = !!(T && a >= 0 && a < this.WHF + this.WHY && !c.gone);
 			/* the crash into the truck's nose */
-			if (T && a >= this.WHF + this.WHY && a < this.WHF + this.WHY + 0.5 && c.wyHit !== f.wy) {
-				c.wyHit = f.wy;
+			if (T && a >= this.WHF + this.WHY && a < this.WHF + this.WHY + 0.5 && c.wyHit !== wy) {
+				c.wyHit = wy;
 				burst(W.sc, c.x, 1, c.z, {
 					n: 18,
 					shape: "cube",
@@ -10299,8 +10319,8 @@ Object.assign(MG, {
 			}
 			v.line.visible = v.head.visible = on;
 			if (!on) return;
-			if (v.cry !== f.wy) {
-				v.cry = f.wy;
+			if (v.cry !== wy) {
+				v.cry = wy;
 				fb(W, c, "GET OVER HERE!", { tone: "bad" });
 				if (W.tv || c.isMe || T.isMe) sfx("cannon");
 			}
@@ -10657,6 +10677,11 @@ Object.assign(MG, {
 					Math.random() < 0.06 * e.sk
 				)
 					o.b2 = true;
+				/* the spear at a cop in front of it, now and then (soonest at one lining up to drop spikes) */
+				if (W.t >= (e.spCd || 0) && Math.random() < 0.03 * e.sk) {
+					const c = this.spearTarget(W, e);
+					if (c && (Math.abs(c.x - e.x) < 3 || e.z - c.z < 15)) o.b3 = true;
+				}
 				/* like a person: it notices a harpoon only now and then (44-65% by skill), and a beat late (0.3-0.6 s after it
 				   bites), so a cop close behind usually lands the hit before the swerve snaps the line */
 				const hk = this.hooks(W, e)[0];
@@ -10699,9 +10724,7 @@ Object.assign(MG, {
 					hunter = W.list.filter((c) => c.side === 1 && !c.gone && c.z > T.z).sort((a, b) => a.z - b.z)[0],
 					runner = hunter !== e;
 				let wx = e.aimX;
-				/* hanging in front too long gets it speared: 0.6 s before the spear it gives up and drops back */
-				const calm = (e.whA || 0) < this.WHA - 0.6;
-				if (this.ahead(W, e, T) && W.t >= (e.hpCd || 0) && calm) {
+				if (this.ahead(W, e, T) && W.t >= (e.hpCd || 0)) {
 					/* ahead of it with spikes ready: get into its lane 10-25 m ahead and drop the strip once lined up (the
 					   strip lands 10-25 m in front of the truck: about 0.5-1.1 s to swerve round it) */
 					wx = T.x;
@@ -10710,7 +10733,7 @@ Object.assign(MG, {
 						o.boost = true;
 						return o;
 					}
-				} else if (runner && calm && (dz > -this.SSA || W.t >= (e.hpCd || 0) - 2)) {
+				} else if (runner && (dz > -this.SSA || W.t >= (e.hpCd || 0) - 2)) {
 					/* the runner: alongside its lane, flat out, vaulting cars to get past it (once ahead, only while its spikes are nearly ready: it doesn't hang in front) */
 					const want = T.x + sd * gap;
 					wx = want > hi - 1 || want < lo + 1 ? T.x - sd * gap : want;

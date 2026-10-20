@@ -1797,14 +1797,16 @@ function wireLightPanel() {
 	});
 }
 /* stick controls: drive pad plus the RAM button, or (def.aim) a drive pad on the left and an aim pad on the right */
-/* the main button's label and the optional second button (def.btn2(side, player) -> label or null), per side in team games */
+/* the main button's label and the optional second and third buttons (def.btn2 / def.btn3(side, player) -> label or null),
+   per side in team games */
 const ramLbl = (def, side) => (typeof def.ramLabel === "function" ? def.ramLabel(side) : def.ramLabel) || "RAM";
-const btn2Lbl = (def, side, p) => (def.btn2 ? def.btn2(side, p) : null);
+const btn2Lbl = (def, side, p) => (def.btn2 ? def.btn2(side, p) : null),
+	btn3Lbl = (def, side, p) => (def.btn3 ? def.btn3(side, p) : null);
 function stickHTML(def, hint, side, p) {
 	const h = hint ? `<span class="tvchint">${hint}</span>` : "";
 	return def.aim
 		? `<div class="m3pad twin" id="m3pad">${h}<div class="knob" id="knob" hidden><i></i></div></div><div class="m3pad aim" id="m3aim">${hint ? `<span class="tvchint">${esc(def.aimHint || "Aim")}</span>` : ""}<div class="knob aim" id="knob2" hidden><i></i></div></div>`
-		: `<div class="m3pad" id="m3pad">${h}<div class="knob" id="knob" hidden><i></i></div></div><button class="ram${ramLbl(def, side).length > 5 ? " lng" : ""}" id="ram"><i class="ramcd"></i><span>${esc(ramLbl(def, side))}</span></button>${btn2Lbl(def, side, p) ? `<button class="ram ram2" id="ram2"><i class="ramcd"></i><span>${esc(btn2Lbl(def, side, p))}</span></button>` : ""}`;
+		: `<div class="m3pad" id="m3pad">${h}<div class="knob" id="knob" hidden><i></i></div></div><button class="ram${ramLbl(def, side).length > 5 ? " lng" : ""}" id="ram"><i class="ramcd"></i><span>${esc(ramLbl(def, side))}</span></button>${btn2Lbl(def, side, p) ? `<button class="ram ram2" id="ram2"><i class="ramcd"></i><span>${esc(btn2Lbl(def, side, p))}</span></button>` : ""}${btn3Lbl(def, side, p) ? `<button class="ram ram3" id="ram3"><i class="ramcd"></i><span>${esc(btn3Lbl(def, side, p))}</span></button>` : ""}`;
 }
 function wireControls(def) {
 	wireLightPanel();
@@ -1833,6 +1835,12 @@ function wireControls(def) {
 				r2.addEventListener("pointerdown", (e) => {
 					e.preventDefault();
 					if (W) W.inp.b2 = true;
+				});
+			const r3 = $("#ram3");
+			if (r3)
+				r3.addEventListener("pointerdown", (e) => {
+					e.preventDefault();
+					if (W) W.inp.b3 = true;
 				});
 		}
 	} else wireTap(def);
@@ -2377,6 +2385,11 @@ function hud3(dt) {
 		r2.style.setProperty("--cd", W.def.btn2Cd(W).toFixed(3));
 		r2.classList.toggle("cd", W.def.btn2Cd(W) > 0);
 	}
+	const r3 = $("#ram3");
+	if (r3 && W.def.btn3Cd) {
+		r3.style.setProperty("--cd", W.def.btn3Cd(W).toFixed(3));
+		r3.classList.toggle("cd", W.def.btn3Cd(W) > 0);
+	}
 }
 // times are stored in ms but shown as seconds with 2 decimals
 const fmtScore = (def, v) =>
@@ -2736,6 +2749,11 @@ function tvRecv() {
 			e.lastB2 = r.b2 || 0;
 			i.b2 = true;
 		}
+		if (e.lastB3 === undefined) e.lastB3 = r.b3 || 0;
+		else if ((r.b3 || 0) !== e.lastB3) {
+			e.lastB3 = r.b3 || 0;
+			i.b3 = true;
+		}
 	}
 }
 function tvSend(force) {
@@ -2772,6 +2790,7 @@ function tvStatus(W, e, order) {
 			null,
 			D.btn2Cd ? Math.round(D.btn2Cd(W) * 100) / 100 : 0,
 			e.buzz || 0,
+			D.btn3Cd ? Math.round(D.btn3Cd(W) * 100) / 100 : 0,
 		];
 	} catch (err) {
 		return ["", 0, 0, 0, "", 0, 0];
@@ -2842,6 +2861,15 @@ function openTvCtl(mg, p) {
 				e.preventDefault();
 				if (TVC) {
 					TVC.b2 = (TVC.b2 || 0) + 1;
+					tvcTick();
+				}
+			});
+		const r3 = $("#ram3");
+		if (r3)
+			r3.addEventListener("pointerdown", (e) => {
+				e.preventDefault();
+				if (TVC) {
+					TVC.b3 = (TVC.b3 || 0) + 1;
 					tvcTick();
 				}
 			});
@@ -3020,7 +3048,7 @@ function tvcTick() {
 	if (!TVC || !G || !G.mg || G.mg.nonce !== TVC.mg.nonce) return;
 	const i = TVC.inp,
 		r = (v) => Math.round(v * 100) / 100,
-		key = [r(i.x), r(i.y), r(i.ax || 0), r(i.ay || 0), TVC.b, TVC.b2 || 0, i.hold ? 1 : 0, TVC.seq].join(),
+		key = [r(i.x), r(i.y), r(i.ax || 0), r(i.ay || 0), TVC.b, TVC.b2 || 0, TVC.b3 || 0, i.hold ? 1 : 0, TVC.seq].join(),
 		now = performance.now();
 	if (RT && (key !== TVC.last || now - TVC.lastT > 600)) {
 		TVC.last = key;
@@ -3035,6 +3063,7 @@ function tvcTick() {
 				ay: r(i.ay || 0),
 				b: TVC.b,
 				b2: TVC.b2 || 0,
+				b3: TVC.b3 || 0,
 				h: i.hold ? 1 : 0,
 				ev: TVC.ev.slice(),
 			},
@@ -3111,6 +3140,11 @@ function tvcTick() {
 	if (r2) {
 		r2.classList.toggle("cd", !!(st && st[8] > 0));
 		r2.style.setProperty("--cd", st ? String(st[8] || 0) : "0");
+	}
+	const r3 = $("#ram3");
+	if (r3) {
+		r3.classList.toggle("cd", !!(st && st[10] > 0));
+		r3.style.setProperty("--cd", st ? String(st[10] || 0) : "0");
 	}
 	if (st && st[9] && st[9] !== TVC.buzz) {
 		if (TVC.buzz !== undefined) buzz(40);
@@ -3274,6 +3308,11 @@ function tvsInput() {
 		else if ((r.b2 || 0) !== s.lastB2) {
 			s.lastB2 = r.b2 || 0;
 			i.b2 = true;
+		}
+		if (s.lastB3 === undefined) s.lastB3 = r.b3 || 0;
+		else if ((r.b3 || 0) !== s.lastB3) {
+			s.lastB3 = r.b3 || 0;
+			i.b3 = true;
 		}
 		if (Array.isArray(r.ev) && s.ctl)
 			for (const ev of r.ev) {

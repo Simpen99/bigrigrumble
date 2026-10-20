@@ -463,6 +463,7 @@ i.bi{font-style:normal}
 .ram .ramcd{position:absolute;inset:0;border-radius:50%;background:conic-gradient(rgba(16,22,31,.72) calc(var(--cd,0) * 360deg),transparent 0);pointer-events:none}.ram span{position:relative}
 .ram.cd{opacity:1!important}
 .ram.ram2{right:132px;bottom:calc(env(safe-area-inset-bottom,0px) + 34px);width:78px;height:78px;font-size:15px!important;background:radial-gradient(circle at 38% 32%,#FFE27A,#FF8A1F 55%,#C25E0B)!important}
+.ram.ram3{right:30px;bottom:calc(env(safe-area-inset-bottom,0px) + 142px);width:78px;height:78px;font-size:15px!important;background:radial-gradient(circle at 38% 32%,#9FE3FF,#2F7DE1 55%,#1D4F95)!important}
 .ram.held{transform:translateY(4px) scale(.93);filter:brightness(.82);box-shadow:0 0 0 5px #151B24,0 0 0 9px #FFC83D,inset 0 6px 12px rgba(0,0,0,.35),0 4px 10px rgba(0,0,0,.35)!important}
 .ram.lng{font-size:16px!important;letter-spacing:0}
 .tapall.kick{transform:translateY(2px)}
@@ -684,6 +685,7 @@ body.ctl .btn{min-height:58px;font-size:18px}
 .tvchint{position:absolute;left:0;right:0;top:38%;text-align:center;color:rgba(255,255,255,.28);font-weight:800;font-size:15px;pointer-events:none}
 .tvc .ram{width:118px;height:118px}
 .tvc .ram.ram2{right:150px;bottom:calc(env(safe-area-inset-bottom,0px) + 40px);width:92px;height:92px}
+.tvc .ram.ram3{right:24px;bottom:calc(env(safe-area-inset-bottom,0px) + 172px);width:92px;height:92px}
 /* TV controller swipe pad (Rush Hour, Sort It Out): the whole screen takes swipes, labels show what each direction does */
 .swpad{position:absolute;left:0;right:0;bottom:0;top:calc(env(safe-area-inset-top,0px) + 200px);touch-action:none;-webkit-user-select:none;user-select:none}
 .swpad .tvchint{top:45%;font-size:17px}
@@ -915,6 +917,12 @@ body.mglive #fxs,body.mgres #fxs{display:none}
   .tvc .ram:has(~ .ram2) span{position:absolute;left:30%;top:70%;transform:translate(-50%,-50%)}
   .tvc .ram.ram2{left:58%;right:0;top:0;bottom:0;width:auto;height:auto;background:linear-gradient(160deg,#FFC24A,#E0700F)!important;clip-path:polygon(18px 0,100% 0,100% calc(100% - 18px));font-size:26px!important}
   .tvc .ram.ram2 span{position:absolute;left:70%;top:30%;transform:translate(-50%,-50%)}
+  /* three buttons: three full-width bands instead (the third on top, the main one at the bottom) */
+  .tvc .ram:not(.ram2):not(.ram3):has(~ .ram3){clip-path:none;top:66.7%}
+  .tvc .ram.ram2:has(~ .ram3){clip-path:none;top:33.3%;bottom:33.3%;box-shadow:inset 4px 0 0 rgba(0,0,0,.22),inset 0 -3px 0 rgba(0,0,0,.25)!important}
+  .tvc .ram:has(~ .ram3) span,.tvc .ram.ram2:has(~ .ram3) span{left:50%;top:50%}
+  .tvc .ram.ram3{left:58%;right:0;top:0;bottom:66.7%;width:auto;height:auto;border-radius:0;background:linear-gradient(160deg,#7FD6FF,#2F7DE1)!important;box-shadow:inset 4px 0 0 rgba(0,0,0,.22),inset 0 -3px 0 rgba(0,0,0,.25)!important;font-size:26px!important}
+  .tvc .ram.ram3 .ramcd{border-radius:0}
   .tvcctl.swc{left:0}
   .tvc .slpad{right:42%;border-right:2px dashed rgba(255,255,255,.12)}
   .tvc .tvserve{background:linear-gradient(160deg,#FF8FC0,#E0458A)!important}
@@ -999,7 +1007,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-20 17:49 9c979d2";
+const BUILD = "2026-10-20 22:23 f07a504";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -8215,6 +8223,7 @@ addEventListener("keydown", (e) => {
 			W.inp.hold = true;
 		}
 		if (k === "e" && W.def.btn2) W.inp.b2 = true;
+		if (k === "r" && W.def.btn3) W.inp.b3 = true;
 	} else if (k === " " || k === "enter" || k === "w" || k === "arrowup") {
 		W.inp.hold = true;
 		if (W.t >= 0 && !W.me.d && W.def.tap) W.def.tap(W, W.me);
@@ -15451,14 +15460,16 @@ function wireLightPanel() {
 	});
 }
 /* stick controls: drive pad plus the RAM button, or (def.aim) a drive pad on the left and an aim pad on the right */
-/* the main button's label and the optional second button (def.btn2(side, player) -> label or null), per side in team games */
+/* the main button's label and the optional second and third buttons (def.btn2 / def.btn3(side, player) -> label or null),
+   per side in team games */
 const ramLbl = (def, side) => (typeof def.ramLabel === "function" ? def.ramLabel(side) : def.ramLabel) || "RAM";
-const btn2Lbl = (def, side, p) => (def.btn2 ? def.btn2(side, p) : null);
+const btn2Lbl = (def, side, p) => (def.btn2 ? def.btn2(side, p) : null),
+	btn3Lbl = (def, side, p) => (def.btn3 ? def.btn3(side, p) : null);
 function stickHTML(def, hint, side, p) {
 	const h = hint ? `<span class="tvchint">${hint}</span>` : "";
 	return def.aim
 		? `<div class="m3pad twin" id="m3pad">${h}<div class="knob" id="knob" hidden><i></i></div></div><div class="m3pad aim" id="m3aim">${hint ? `<span class="tvchint">${esc(def.aimHint || "Aim")}</span>` : ""}<div class="knob aim" id="knob2" hidden><i></i></div></div>`
-		: `<div class="m3pad" id="m3pad">${h}<div class="knob" id="knob" hidden><i></i></div></div><button class="ram${ramLbl(def, side).length > 5 ? " lng" : ""}" id="ram"><i class="ramcd"></i><span>${esc(ramLbl(def, side))}</span></button>${btn2Lbl(def, side, p) ? `<button class="ram ram2" id="ram2"><i class="ramcd"></i><span>${esc(btn2Lbl(def, side, p))}</span></button>` : ""}`;
+		: `<div class="m3pad" id="m3pad">${h}<div class="knob" id="knob" hidden><i></i></div></div><button class="ram${ramLbl(def, side).length > 5 ? " lng" : ""}" id="ram"><i class="ramcd"></i><span>${esc(ramLbl(def, side))}</span></button>${btn2Lbl(def, side, p) ? `<button class="ram ram2" id="ram2"><i class="ramcd"></i><span>${esc(btn2Lbl(def, side, p))}</span></button>` : ""}${btn3Lbl(def, side, p) ? `<button class="ram ram3" id="ram3"><i class="ramcd"></i><span>${esc(btn3Lbl(def, side, p))}</span></button>` : ""}`;
 }
 function wireControls(def) {
 	wireLightPanel();
@@ -15487,6 +15498,12 @@ function wireControls(def) {
 				r2.addEventListener("pointerdown", (e) => {
 					e.preventDefault();
 					if (W) W.inp.b2 = true;
+				});
+			const r3 = $("#ram3");
+			if (r3)
+				r3.addEventListener("pointerdown", (e) => {
+					e.preventDefault();
+					if (W) W.inp.b3 = true;
 				});
 		}
 	} else wireTap(def);
@@ -16031,6 +16048,11 @@ function hud3(dt) {
 		r2.style.setProperty("--cd", W.def.btn2Cd(W).toFixed(3));
 		r2.classList.toggle("cd", W.def.btn2Cd(W) > 0);
 	}
+	const r3 = $("#ram3");
+	if (r3 && W.def.btn3Cd) {
+		r3.style.setProperty("--cd", W.def.btn3Cd(W).toFixed(3));
+		r3.classList.toggle("cd", W.def.btn3Cd(W) > 0);
+	}
 }
 // times are stored in ms but shown as seconds with 2 decimals
 const fmtScore = (def, v) =>
@@ -16390,6 +16412,11 @@ function tvRecv() {
 			e.lastB2 = r.b2 || 0;
 			i.b2 = true;
 		}
+		if (e.lastB3 === undefined) e.lastB3 = r.b3 || 0;
+		else if ((r.b3 || 0) !== e.lastB3) {
+			e.lastB3 = r.b3 || 0;
+			i.b3 = true;
+		}
 	}
 }
 function tvSend(force) {
@@ -16426,6 +16453,7 @@ function tvStatus(W, e, order) {
 			null,
 			D.btn2Cd ? Math.round(D.btn2Cd(W) * 100) / 100 : 0,
 			e.buzz || 0,
+			D.btn3Cd ? Math.round(D.btn3Cd(W) * 100) / 100 : 0,
 		];
 	} catch (err) {
 		return ["", 0, 0, 0, "", 0, 0];
@@ -16496,6 +16524,15 @@ function openTvCtl(mg, p) {
 				e.preventDefault();
 				if (TVC) {
 					TVC.b2 = (TVC.b2 || 0) + 1;
+					tvcTick();
+				}
+			});
+		const r3 = $("#ram3");
+		if (r3)
+			r3.addEventListener("pointerdown", (e) => {
+				e.preventDefault();
+				if (TVC) {
+					TVC.b3 = (TVC.b3 || 0) + 1;
 					tvcTick();
 				}
 			});
@@ -16674,7 +16711,7 @@ function tvcTick() {
 	if (!TVC || !G || !G.mg || G.mg.nonce !== TVC.mg.nonce) return;
 	const i = TVC.inp,
 		r = (v) => Math.round(v * 100) / 100,
-		key = [r(i.x), r(i.y), r(i.ax || 0), r(i.ay || 0), TVC.b, TVC.b2 || 0, i.hold ? 1 : 0, TVC.seq].join(),
+		key = [r(i.x), r(i.y), r(i.ax || 0), r(i.ay || 0), TVC.b, TVC.b2 || 0, TVC.b3 || 0, i.hold ? 1 : 0, TVC.seq].join(),
 		now = performance.now();
 	if (RT && (key !== TVC.last || now - TVC.lastT > 600)) {
 		TVC.last = key;
@@ -16689,6 +16726,7 @@ function tvcTick() {
 				ay: r(i.ay || 0),
 				b: TVC.b,
 				b2: TVC.b2 || 0,
+				b3: TVC.b3 || 0,
 				h: i.hold ? 1 : 0,
 				ev: TVC.ev.slice(),
 			},
@@ -16765,6 +16803,11 @@ function tvcTick() {
 	if (r2) {
 		r2.classList.toggle("cd", !!(st && st[8] > 0));
 		r2.style.setProperty("--cd", st ? String(st[8] || 0) : "0");
+	}
+	const r3 = $("#ram3");
+	if (r3) {
+		r3.classList.toggle("cd", !!(st && st[10] > 0));
+		r3.style.setProperty("--cd", st ? String(st[10] || 0) : "0");
 	}
 	if (st && st[9] && st[9] !== TVC.buzz) {
 		if (TVC.buzz !== undefined) buzz(40);
@@ -16928,6 +16971,11 @@ function tvsInput() {
 		else if ((r.b2 || 0) !== s.lastB2) {
 			s.lastB2 = r.b2 || 0;
 			i.b2 = true;
+		}
+		if (s.lastB3 === undefined) s.lastB3 = r.b3 || 0;
+		else if ((r.b3 || 0) !== s.lastB3) {
+			s.lastB3 = r.b3 || 0;
+			i.b3 = true;
 		}
 		if (Array.isArray(r.ev) && s.ctl)
 			for (const ev of r.ev) {
@@ -36788,16 +36836,14 @@ Object.assign(MG, {
 		SSB: 0,
 		SSW: 7.6,
 		SST: 7,
-		/* the cash truck's spear ("GET OVER HERE!"): a cop that stays in front of it (clear of its nose, within WHR m, anywhere
-		   across the road) for WHA s gets speared (a warning sign over it from WHW s): the spear flies WHF s, then reels it
-		   into the truck's nose over WHY s, where it crashes and spins out (WHS s); then it's safe for WHCD s */
-		WHA: 8,
-		WHW: 5,
+		/* the cash truck's SPEAR ("GET OVER HERE!", its third button, cooldown SPCD): it hits the nearest cop in front of it
+		   (clear of its nose, within WHR m, anywhere across the road): the spear flies WHF s, then reels it into the truck's
+		   nose over WHY s, where it crashes and spins out (WHS s). It was automatic (a cop WHA s in front) */
+		SPCD: 15,
 		WHR: 30,
 		WHF: 0.3,
 		WHY: 0.55,
 		WHS: 1.6,
-		WHCD: 6,
 		HPA: 0.4,
 		HPT: 0.9,
 		/* each cop's second button is its own truck's trick (by TRUCKS[].kind): lobs land a hazard ZL s later in front of the
@@ -36871,12 +36917,12 @@ Object.assign(MG, {
 		how: "1 vs 3 highway chase! The cash truck has to reach the tunnel with any cash left; the cops harpoon it from close behind or get ahead and drop spikes to knock the money bags off.",
 		teamHow: (s) =>
 			s === 0
-				? "You're the CASH TRUCK: reach the tunnel with cash left. Cops that hang in front of you get speared and reeled into your nose; OIL spins them out, SLAM blasts them away."
-				: "You're a COP: HARPOON the cash truck from close behind, or get ahead of it and the same button drops SPIKES (don't hang in front too long). Harpoon a car to vault over it!",
+				? "You're the CASH TRUCK: reach the tunnel with cash left. SPEAR reels in a cop in front of you; OIL spins them out behind you, SLAM blasts them away."
+				: "You're a COP: HARPOON the cash truck from close behind, or get ahead of it and the same button drops SPIKES. Harpoon a car to vault over it!",
 		stickHint: (fine) =>
 			fine
-				? "WASD or arrows: steer, up = faster, down = brake. Space: harpoon (cops) / oil (cash truck). E: your truck's trick / slam."
-				: "Drag to steer: up = faster, down = brake. Buttons: HARPOON + your truck's trick for cops, OIL + SLAM for the cash truck.",
+				? "WASD or arrows: steer, up = faster, down = brake. Space: harpoon (cops) / oil (cash truck). E: your truck's trick / slam. R: spear (cash truck)."
+				: "Drag to steer: up = faster, down = brake. Buttons: HARPOON + your truck's trick for cops, OIL + SLAM + SPEAR for the cash truck.",
 		ramLabel: (side) => (side === 0 ? "OIL" : "HARPOON"),
 		/* only a cop being reeled in hits the truck (bumping into it does nothing to the bags) */
 		canRam: (e) => e.side === 1 && !!e.reelOn,
@@ -36887,6 +36933,43 @@ Object.assign(MG, {
 			const e = W.me,
 				[t, cd] = e.side === 0 ? [e.swCd, this.SWCD] : [e.abCd, this.abOf(e).cd];
 			return Math.min(1, Math.max(0, ((t || 0) - W.t) / cd));
+		},
+		/* the cash truck's third button: the SPEAR (dark while it reloads or while no cop is in front to hit) */
+		btn3(side) {
+			return side === 0 ? "SPEAR" : null;
+		},
+		btn3Cd(W) {
+			const e = W.me;
+			if (e.side !== 0) return 0;
+			const c = Math.min(1, Math.max(0, ((e.spCd || 0) - W.t) / this.SPCD));
+			return c > 0 ? c : this.spearTarget(W, e) ? 0 : 1;
+		},
+		/* the cop the spear would hit: the nearest one clear in front of the truck's nose within WHR m */
+		spearTarget(W, T) {
+			let best = null,
+				bd = 1e9;
+			for (const c of W.list) {
+				if (c.side !== 1 || c.gone || c.yank) continue;
+				const lead = T.z - c.z;
+				if (lead < T.hb[1] + c.hb[1] + 0.5 || lead > this.WHR) continue;
+				const d = Math.hypot(c.x - T.x, lead);
+				if (d < bd) {
+					bd = d;
+					best = c;
+				}
+			}
+			return best;
+		},
+		/* firing it: shared as e.f.sr = [id, when, the cop's key]; the cop's own device reels it in */
+		spear(W, e) {
+			if (W.t < (e.spCd || 0) || e.d || e.esc) return;
+			const c = this.spearTarget(W, e);
+			if (!c) return;
+			e.spCd = W.t + this.SPCD;
+			e.spN = (e.spN || 0) + 1;
+			e.f.sr = [e.spN, Math.round(W.t * 100) / 100, c.k];
+			mgLog(W, `${mgName(e)} spears ${mgName(c)}`);
+			if (e.isMe) sfx("cannon");
 		},
 		ramCd(W) {
 			const e = W.me,
@@ -37459,7 +37542,7 @@ Object.assign(MG, {
 			e.vx = e.vz = 0;
 			e.oilHit = {};
 			e.hitC = {};
-			e.oilCd = e.swCd = e.hpCd = e.abCd = this.ARM;
+			e.oilCd = e.swCd = e.hpCd = e.abCd = e.spCd = this.ARM;
 			if (e.side === 0) {
 				e.bags = this.BAGS;
 				/* the first half of the bags hang in the right-hand nets, the rest in the left (top tier first if there is one, rear first): e.bm = the ones still on */
@@ -37548,7 +37631,8 @@ Object.assign(MG, {
 				if (solo) this.slam(W, e);
 				else this.ability(W, e);
 			}
-			if (inp) inp.boost = inp.b2 = false;
+			if (on && inp.b3 && solo) this.spear(W, e);
+			if (inp) inp.boost = inp.b2 = inp.b3 = false;
 			/* the harpoon drags the truck towards each cop holding it, and a hard swerve away (moving away fast for 0.3 s)
 			   snaps the line */
 			hooks.forEach(({ c, id }) => {
@@ -38151,23 +38235,15 @@ Object.assign(MG, {
 						e.f.wk = (e.f.wk || []).concat([[c.id, Math.round(W.t * 100) / 100, kd]]).slice(-8);
 						this.carFx(W, c, e);
 					}
-				/* the cash truck's spear: hanging in front of it too long gets this cop speared and reeled into its nose
-				   (decided here, shared as e.f.wy = when; e.f.wa = how long it has been in front, for the warning sign) */
-				if (!tf.esc && W.t >= 0) {
-					const lead = T.z - e.z,
-						front = lead > T.hb[1] + e.hb[1] + 1 && lead < this.WHR && !e.yank && W.t > (e.whCd || 0);
-					e.whA = front ? (e.whA || 0) + dt : Math.max(0, (e.whA || 0) - dt * 2);
-					e.f.wa = Math.round(e.whA * 10) / 10;
-					if (e.whA > this.WHA) {
-						e.whA = e.f.wa = 0;
-						e.whCd = W.t + this.WHCD + this.WHF + this.WHY;
-						e.yank = { t: W.t, sd: e.x >= T.x ? 1 : -1 };
-						e.f.wy = Math.round(W.t * 100) / 100;
-						this.letGo(W, e, "speared");
-						mgLog(W, `${mgName(e)} speared and yanked back by the cash truck`);
-						e.lastHit = { k: "spear", t: W.t };
-						if (e.isMe) sfx("cannon");
-					}
+				/* the cash truck's spear aimed at this cop (tf.sr = [id, when, cop key]): reeled into its nose */
+				const sr = tf.sr;
+				if (sr && sr[2] === e.k && e.srSeen !== sr[0] && W.t - sr[1] < this.WHF + this.WHY) {
+					e.srSeen = sr[0];
+					e.yank = { t: sr[1], sd: e.x >= T.x ? 1 : -1 };
+					this.letGo(W, e, "speared");
+					mgLog(W, `${mgName(e)} speared and reeled in by the cash truck`);
+					e.lastHit = { k: "spear", t: W.t };
+					if (e.isMe) sfx("cannon");
 				}
 				/* oil slicks */
 				(tf.oil || []).forEach(([id, x, z, t]) => {
@@ -39460,26 +39536,18 @@ Object.assign(MG, {
 			}
 			return g;
 		},
-		/* the cash truck's spear on every screen: a warning sign flashing over a cop that has hung in front of it for WHW s
-		   (e.f.wa), then the chain and spear head flying from the truck's nose (WHF s), the cry, the cop reeled in (WHY s)
-		   and the crash */
+		/* the cash truck's spear on every screen (from its shot, T.f.sr): the chain and spear head flying from its nose (WHF
+		   s), the cry, the cop reeled in (WHY s) and the crash */
 		spearFx(W, c) {
-			const f = c.f || {},
-				T = this.solo(W);
-			if (!c.wn) {
-				c.wn = iconSprite("warn", warnSignDraw, 0.8);
-				c.wn.visible = false;
-				W.sc.add(c.wn);
-			}
-			const warn = (f.wa || 0) >= this.WHW && !c.gone && T;
-			c.wn.visible = !!(warn && Math.sin(W.t * 18) > -0.3);
-			if (c.wn.visible) c.wn.position.set(c.x, 3.6, c.z);
+			const T = this.solo(W),
+				sr = T && T.f && T.f.sr,
+				wy = sr && sr[2] === c.k ? sr[1] : undefined;
 			let v = W.wyV && W.wyV[c.k];
-			const a = f.wy !== undefined ? W.t - f.wy : 99,
+			const a = wy !== undefined ? W.t - wy : 99,
 				on = !!(T && a >= 0 && a < this.WHF + this.WHY && !c.gone);
 			/* the crash into the truck's nose */
-			if (T && a >= this.WHF + this.WHY && a < this.WHF + this.WHY + 0.5 && c.wyHit !== f.wy) {
-				c.wyHit = f.wy;
+			if (T && a >= this.WHF + this.WHY && a < this.WHF + this.WHY + 0.5 && c.wyHit !== wy) {
+				c.wyHit = wy;
 				burst(W.sc, c.x, 1, c.z, {
 					n: 18,
 					shape: "cube",
@@ -39502,8 +39570,8 @@ Object.assign(MG, {
 			}
 			v.line.visible = v.head.visible = on;
 			if (!on) return;
-			if (v.cry !== f.wy) {
-				v.cry = f.wy;
+			if (v.cry !== wy) {
+				v.cry = wy;
 				fb(W, c, "GET OVER HERE!", { tone: "bad" });
 				if (W.tv || c.isMe || T.isMe) sfx("cannon");
 			}
@@ -39860,6 +39928,11 @@ Object.assign(MG, {
 					Math.random() < 0.06 * e.sk
 				)
 					o.b2 = true;
+				/* the spear at a cop in front of it, now and then (soonest at one lining up to drop spikes) */
+				if (W.t >= (e.spCd || 0) && Math.random() < 0.03 * e.sk) {
+					const c = this.spearTarget(W, e);
+					if (c && (Math.abs(c.x - e.x) < 3 || e.z - c.z < 15)) o.b3 = true;
+				}
 				/* like a person: it notices a harpoon only now and then (44-65% by skill), and a beat late (0.3-0.6 s after it
 				   bites), so a cop close behind usually lands the hit before the swerve snaps the line */
 				const hk = this.hooks(W, e)[0];
@@ -39902,9 +39975,7 @@ Object.assign(MG, {
 					hunter = W.list.filter((c) => c.side === 1 && !c.gone && c.z > T.z).sort((a, b) => a.z - b.z)[0],
 					runner = hunter !== e;
 				let wx = e.aimX;
-				/* hanging in front too long gets it speared: 0.6 s before the spear it gives up and drops back */
-				const calm = (e.whA || 0) < this.WHA - 0.6;
-				if (this.ahead(W, e, T) && W.t >= (e.hpCd || 0) && calm) {
+				if (this.ahead(W, e, T) && W.t >= (e.hpCd || 0)) {
 					/* ahead of it with spikes ready: get into its lane 10-25 m ahead and drop the strip once lined up (the
 					   strip lands 10-25 m in front of the truck: about 0.5-1.1 s to swerve round it) */
 					wx = T.x;
@@ -39913,7 +39984,7 @@ Object.assign(MG, {
 						o.boost = true;
 						return o;
 					}
-				} else if (runner && calm && (dz > -this.SSA || W.t >= (e.hpCd || 0) - 2)) {
+				} else if (runner && (dz > -this.SSA || W.t >= (e.hpCd || 0) - 2)) {
 					/* the runner: alongside its lane, flat out, vaulting cars to get past it (once ahead, only while its spikes are nearly ready: it doesn't hang in front) */
 					const want = T.x + sd * gap;
 					wx = want > hi - 1 || want < lo + 1 ? T.x - sd * gap : want;
