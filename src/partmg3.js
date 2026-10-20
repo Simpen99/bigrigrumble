@@ -9501,6 +9501,7 @@ Object.assign(MG, {
 			}
 			v.line.visible = !!wp;
 			v.car.visible = !!(wp && !held);
+			if (c.tr.userData.hook) c.tr.userData.hook.visible = !wp;
 			if (!wp) return;
 			const ball = held ? held.g : v.car,
 				k = held ? Math.min(1, wp.a / 0.35) : 1,
@@ -9511,9 +9512,15 @@ Object.assign(MG, {
 				held ? held.held.z + (wp.z - held.held.z) * k : wp.z,
 			);
 			ball.rotation.set(0.25 * k, wp.ang + Math.PI / 2, Math.sin(wp.a * 5) * 0.3 * k);
-			const back = new THREE.Vector3(-Math.cos(c.yaw), 0, Math.sin(c.yaw)),
-				p0 = new THREE.Vector3(c.x, 2.1, c.z).addScaledVector(back, 0.7),
-				p1 = new THREE.Vector3(wp.x, this.WBY + 0.3, wp.z),
+			/* the cable runs from the tip of Rusty's crane boom (its dangling hook hidden meanwhile) */
+			const hk = c.tr.userData.hook,
+				back = new THREE.Vector3(-Math.cos(c.yaw), 0, Math.sin(c.yaw)),
+				p0 = new THREE.Vector3(c.x, 2.1, c.z).addScaledVector(back, 0.7);
+			if (hk) {
+				c.tr.updateMatrixWorld(true);
+				hk.getWorldPosition(p0);
+			}
+			const p1 = new THREE.Vector3(wp.x, this.WBY + 0.3, wp.z),
 				d = p1.clone().sub(p0);
 			v.line.position.copy(p0).addScaledVector(d, 0.5);
 			v.line.scale.y = Math.max(0.01, d.length());

@@ -451,6 +451,8 @@ function buildTruck(i, mode) {
 					B(0.05, 0.12, 0.05, "#888E99", 0.06, -0.47, 0),
 				);
 				g.add(hook);
+				/* the hook hangs from the boom's tip (Getaway's wrecking ball swings its car from there) */
+				g.userData.hook = hook;
 			}
 			mount = { x: -0.4, y: 0.66, s: 0.95 };
 			cab(0.72);
