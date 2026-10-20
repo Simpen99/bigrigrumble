@@ -7592,7 +7592,10 @@ Object.assign(MG, {
 		WHR: 30,
 		WHF: 0.3,
 		WHY: 0.55,
-		WHS: 1.6,
+		WHS: 0.8,
+		WHH: 5 /* held up on the chain this long */,
+		WHL: 1.1 /* then knocked off to the side like a rammed car for WHL s: out to the road's edge, landing WHB m behind the truck */,
+		WHB: 5,
 		HPA: 0.4,
 		HPT: 0.9,
 		/* each cop's second button is its own truck's trick (by TRUCKS[].kind): lobs land a hazard ZL s later in front of the
@@ -8356,7 +8359,7 @@ Object.assign(MG, {
 				top = this.V0 + (solo ? this.UP : this.UPC) + cu - ldk - slow + (nitro ? (e.f.nt && e.f.nt[1] ? 14 : 12) : 0),
 				low = this.V0 - this.DN,
 				on = inp && !e.d;
-			if (!solo && T && e.yank && this.yankStep(W, e, T)) return;
+			if (!solo && T && e.yank && this.yankStep(W, e, T, dt)) return;
 			let fv = -e.vz;
 			const thr = on ? -(inp.y || 0) : 0,
 				want = Math.min(
@@ -8456,25 +8459,58 @@ Object.assign(MG, {
 			if (solo) this.hazards(W, e, dt);
 			e.f.t = Math.round(W.t * 100) / 100;
 		},
-		/* a speared cop: the spear flies WHF s (it keeps driving), then it's reeled into the truck's nose and crashes there:
-		   it spins out WHS s, knocked aside and slowed, so the truck drives on past it; true while it's being reeled */
-		yankStep(W, e, T) {
+		/* a speared cop: the spear flies WHF s (it keeps driving), then it's reeled in (WHY s) and held up on the chain in
+		   front of the truck's nose for WHH s like Monster Mash's magnet (no control, swinging), then thrown back like a
+		   rammed car: up, spinning, out to the road's edge on its side, landing WHB m behind the truck, where it spins out
+		   WHS s; true while it's in the spear's hands */
+		yankStep(W, e, T, dt) {
 			const Y = e.yank,
-				a = W.t - Y.t - this.WHF;
+				a = W.t - Y.t - this.WHF,
+				hold = this.WHY + this.WHH,
+				nose = -(T.hb[1] + e.hb[1] + 1.2);
 			if (a < 0) return false;
-			if (a >= this.WHY) {
+			if (a >= hold + this.WHL) {
 				e.yank = null;
-				e.vz = (T.vz || -18) * 0.45;
-				e.vx = Y.sd * 10;
+				e.y = 0;
+				e.vz = (T.vz || -18) * 0.5;
+				e.vx = 0;
 				e.spinT = W.t + this.WHS;
-				e.slideT = 0.9;
+				e.slideT = 0.6;
 				e.crT = W.t + this.WHS + 0.5;
-				mgLog(W, `${mgName(e)} crashes into the cash truck's nose and spins out`);
-				if (e.isMe) {
-					W.shake = 0.6;
-					buzz(120);
-				}
 				return false;
+			}
+			e.vx = 0;
+			e.vz = T.vz || 0;
+			e.f.t = Math.round(W.t * 100) / 100;
+			if (a >= hold) {
+				/* knocked off to the side like a rammed car */
+				if (Y.hx === undefined) {
+					Y.hx = e.x;
+					Y.hz = e.z - T.z;
+					Y.hy = e.y;
+					mgLog(W, `${mgName(e)} knocked off by the cash truck`);
+					if (e.isMe) {
+						W.shake = 0.6;
+						buzz(120);
+					}
+				}
+				const k = (a - hold) / this.WHL,
+					[lo, hi] = this.edges(e.z),
+					tx = Y.sd > 0 ? hi - e.hb[0] : lo + e.hb[0];
+				e.x = Y.hx + (tx - Y.hx) * (1 - (1 - k) * (1 - k));
+				e.z = T.z + Y.hz + (this.WHB - Y.hz) * k;
+				e.y = Y.hy * (1 - k) + Math.sin(k * Math.PI) * 3.5;
+				e.yaw += (dt || 0.016) * 13 * Y.sd;
+				return true;
+			}
+			if (a >= this.WHY) {
+				/* held up on the chain in front of the nose, swinging */
+				const s = a - this.WHY;
+				e.x = T.x + Math.sin(s * 2.4) * 0.6;
+				e.z = T.z + nose;
+				e.y = 1.8 + Math.sin(s * 3.1) * 0.15;
+				e.yaw = Math.PI / 2 + Math.sin(s * 1.7) * 0.4;
+				return true;
 			}
 			if (Y.x0 === undefined) {
 				Y.x0 = e.x;
@@ -8482,9 +8518,11 @@ Object.assign(MG, {
 			}
 			/* reeled in, faster and faster, to just in front of the truck's nose */
 			const k = a / this.WHY,
-				tz = -(T.hb[1] + e.hb[1] + 0.1);
+				tz = nose;
 			e.x = Y.x0 + (T.x + Y.sd * 0.4 - Y.x0) * k * k;
 			e.z = T.z + Y.z0 + (tz - Y.z0) * k * k;
+			/* lifted onto the chain as it comes in (over the truck, so they don't bump) */
+			e.y = k * k * 1.8;
 			e.vx = 0;
 			e.vz = T.vz || 0;
 			e.f.t = Math.round(W.t * 100) / 100;
@@ -10295,7 +10333,21 @@ Object.assign(MG, {
 				wy = sr && sr[2] === c.k ? sr[1] : undefined;
 			let v = W.wyV && W.wyV[c.k];
 			const a = wy !== undefined ? W.t - wy : 99,
-				on = !!(T && a >= 0 && a < this.WHF + this.WHY && !c.gone);
+				on = !!(T && a >= 0 && a < this.WHF + this.WHY + this.WHH && !c.gone);
+			/* thrown back: a crunch as the chain lets go */
+			if (T && a >= this.WHF + this.WHY + this.WHH && a < this.WHF + this.WHY + this.WHH + 0.5 && c.wyOut !== wy) {
+				c.wyOut = wy;
+				burst(W.sc, c.x, 2, c.z, {
+					n: 14,
+					shape: "cube",
+					cols: ["#C9CED8", "#FFC83D", "#3D424C"],
+					spd: 6,
+					up: 5,
+					life: 0.7,
+					size: 0.9,
+				});
+				if (W.tv || c.isMe || T.isMe) sfx("crush");
+			}
 			/* the crash into the truck's nose */
 			if (T && a >= this.WHF + this.WHY && a < this.WHF + this.WHY + 0.5 && c.wyHit !== wy) {
 				c.wyHit = wy;
@@ -10328,9 +10380,10 @@ Object.assign(MG, {
 			}
 			const fw = new THREE.Vector3(Math.cos(T.yaw), 0, -Math.sin(T.yaw)),
 				p0 = new THREE.Vector3(T.x, 1.3, T.z).addScaledVector(fw, T.hb[1] + 0.2),
-				tgt = new THREE.Vector3(c.x, 1.1, c.z),
+				tgt = new THREE.Vector3(c.x, 1.1 + (c.y || 0), c.z),
 				p1 = a < this.WHF ? p0.clone().lerp(tgt, a / this.WHF) : tgt;
-			if (a >= this.WHF) c.g.position.y += Math.sin(((a - this.WHF) / this.WHY) * Math.PI) * 0.8;
+			if (a >= this.WHF && a < this.WHF + this.WHY)
+				c.g.position.y += Math.sin(((a - this.WHF) / this.WHY) * Math.PI) * 0.8;
 			const d = p1.clone().sub(p0),
 				len = Math.max(0.01, d.length());
 			v.line.position.copy(p0).addScaledVector(d, 0.5);
