@@ -7575,11 +7575,11 @@ Object.assign(MG, {
 		HPCD: 4.5,
 		HPR: 16,
 		HPRT: 9 /* the cash truck itself only within HPRT m, and only from behind it */,
-		/* spike strip: a cop at least SSA m ahead of the cash truck drops one with its main button, SSB m behind itself,
+		/* spike strip: a cop at least SSA m ahead of the cash truck drops one with its main button, right under itself (SSB m back),
 		   SSW wide across the road, lying SST s; driving over it costs the truck a bag (once a strip) */
 		SSA: 4,
 		LEAD: 12,
-		SSB: 3,
+		SSB: 0,
 		SSW: 7.6,
 		SST: 7,
 		/* the cash truck's spear ("GET OVER HERE!"): a cop that stays in front of it (clear of its nose, within WHR m, anywhere
@@ -10533,7 +10533,7 @@ Object.assign(MG, {
 				const calm = (e.whA || 0) < this.WHA - 0.6;
 				if (this.ahead(W, e, T) && W.t >= (e.hpCd || 0) && calm) {
 					/* ahead of it with spikes ready: get into its lane 15-30 m ahead and drop the strip once lined up (the
-					   strip lands 12-27 m in front of the truck: 0.55-1.2 s, so a sharp driver can still swerve round it) */
+					   strip lands 15-30 m in front of the truck: 0.7-1.3 s, so a sharp driver can still swerve round it) */
 					wx = T.x;
 					o.y = dz > -15 ? -1 : dz < -30 ? 1 : 0.2;
 					if (ssOk && dz < -15 && Math.abs(e.x - T.x) < 1.8) {
