@@ -7589,7 +7589,7 @@ Object.assign(MG, {
 		   across the road) for WHA s gets speared (a warning sign over it from WHW s): the spear flies WHF s, then reels it
 		   into the truck's nose over WHY s, where it crashes and spins out (WHS s); then it's safe for WHCD s */
 		WHA: 8,
-		WHW: 7,
+		WHW: 5,
 		WHR: 30,
 		WHF: 0.3,
 		WHY: 0.55,
