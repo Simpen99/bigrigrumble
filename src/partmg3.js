@@ -7598,6 +7598,25 @@ Object.assign(MG, {
 		   cash truck (radius r, gone after ZT s; "obj" ones smash when hit), the rest act on the cop itself or at the truck */
 		ZL: 1,
 		ZT: 8,
+		/* lobs lead the cash truck by LOBLEAD s more than their flight, so they come down just in front of its nose (aimed at
+		   where it would be on landing, most came down under it or just behind it) */
+		LOBLEAD: 0.35,
+		/* Steady Eddie's NAILS: a crate that bursts into nails; driving over them blows a tyre on that side: the truck pulls
+		   that way at NAILP m/s² for NAILT s (counter-steer to go straight) */
+		NAILT: 4,
+		NAILP: 13,
+		/* Taco Tina's SPICY: a hot-sauce bottle flies SPF s onto the cash truck from anywhere: its left and right swap for
+		   SPT s (flames out of the exhaust) */
+		SPF: 0.6,
+		SPT: 2.2,
+		/* Garbo's BINS: BN wheelie bins flung (BF s) to the edge of the road BLEAD s ahead of the cash truck, BGAP m apart,
+		   then rolling across it at BV m/s, BDLY s after each other: moving obstacles; hitting one costs speed */
+		BN: 4,
+		BF: 0.8,
+		BLEAD: 2.4,
+		BGAP: 4,
+		BV: 6,
+		BDLY: 0.35,
 		/* Crusher's JUMP: JMPT s in the air at JMPV m/s over its top speed */
 		JMPT: 1.2,
 		JMPV: 15,
@@ -7608,15 +7627,15 @@ Object.assign(MG, {
 			monster: { lbl: "JUMP", cd: 9 },
 			icecream: { lbl: "SCOOPS", cd: 10, lob: "ice", r: 2.4 },
 			fire: { lbl: "HOSE", cd: 10 },
-			box: { lbl: "CRATES", cd: 10, lob: "crate", r: 2.4, obj: 1 },
+			box: { lbl: "NAILS", cd: 10, lob: "nails", r: 2.4 },
 			mixer: { lbl: "CEMENT", cd: 10, lob: "cement", r: 2.4 },
 			dump: { lbl: "GRAVEL", cd: 10, lob: "gravel", r: 2.1, obj: 1 },
 			pickup: { lbl: "NITRO", cd: 8 },
 			tow: { lbl: "WINCH", cd: 10 },
-			garbage: { lbl: "TRASH", cd: 10, lob: "trash", r: 2.1, obj: 1 },
+			garbage: { lbl: "BINS", cd: 11 },
 			tanker: { lbl: "FUEL", cd: 10, lob: "fuel", r: 2.4 },
 			mail: { lbl: "PARCELS", cd: 10, lob: "parcel", r: 2.6, obj: 1 },
-			food: { lbl: "SAUCE", cd: 8 },
+			food: { lbl: "SPICY", cd: 10 },
 		},
 		/* a cop's ability (its truck's kind) */
 		abOf(e) {
@@ -8278,6 +8297,7 @@ Object.assign(MG, {
 						(W.t < (e.cemT || 0) ? 9 : 0) +
 						(W.t < (e.gravT || 0) ? 5 : 0) +
 						(W.t < (e.trashT || 0) ? 4 : 0) +
+						(W.t < (e.blowT || 0) ? 2 : 0) +
 						(W.t < (e.carT || 0) ? this.CARSLOW : 0) +
 						Math.min(2, hooks.length) * 2
 					: 0,
@@ -8295,7 +8315,9 @@ Object.assign(MG, {
 				ice = solo && W.t < (e.iceT || 0);
 			fv += Math.max(-acc, Math.min(acc, (nitro ? top : want) - fv));
 			/* on ice cream the steering hardly bites and the truck drifts */
-			if (on) e.vx += (inp.x || 0) * this.LATA * (ice ? 0.35 : 1) * dt;
+			/* too spicy: left and right swapped; a blown tyre: it pulls to that side */
+			if (on) e.vx += (inp.x || 0) * (solo && W.t < (e.spicyT || 0) ? -1 : 1) * this.LATA * (ice ? 0.35 : 1) * dt;
+			if (solo && W.t < (e.blowT || 0)) e.vx += e.blowSd * this.NAILP * dt;
 			if (ice) e.vx += Math.sin(W.t * 4 + e.i) * 7 * dt;
 			e.slideT = Math.max(0, (e.slideT || 0) - dt);
 			e.bcd = Math.max(0, (e.bcd || 0) - dt);
@@ -8634,15 +8656,29 @@ Object.assign(MG, {
 				let tx = e.x,
 					tz = e.z - 18;
 				if (T) {
-					tz = T.z + Math.min(T.vz || -18, -12) * this.ZL;
+					tz = T.z + Math.min(T.vz || -18, -12) * (this.ZL + this.LOBLEAD);
 					tx = T.x + (T.vx || 0) * this.ZL * 0.4;
 				}
 				const [lo, hi] = this.edges(tz);
 				tx = Math.max(lo + 1, Math.min(hi - 1, tx));
 				e.f.zn = (e.f.zn || []).concat([[e.abN, A.lob, rd(tx), rd(tz), rd(W.t), rd(e.x), rd(e.z)]]).slice(-3);
-			} else if (A.kind === "pickup" || A.kind === "food") {
-				e.nitroT = W.t + (A.kind === "food" ? 1.6 : 2.2);
-				e.f.nt = [rd(e.nitroT), A.kind === "food" ? 1 : 0];
+			} else if (A.kind === "pickup") {
+				e.nitroT = W.t + 2.2;
+				e.f.nt = [rd(e.nitroT), 0];
+			} else if (A.kind === "food") {
+				/* the hot-sauce bottle: [id, thrown at, from x, from z] */
+				e.f.sp = [e.abN, rd(W.t), rd(e.x), rd(e.z)];
+			} else if (A.kind === "garbage") {
+				/* the bins: [id, thrown at, row z, roll direction, from x, from z] */
+				if (T)
+					e.f.rb = [
+						e.abN,
+						rd(W.t),
+						rd(T.z + Math.min(T.vz || -18, -12) * this.BLEAD),
+						Math.random() < 0.5 ? 1 : -1,
+						rd(e.x),
+						rd(e.z),
+					];
 			} else if (A.kind === "monster") {
 				e.jumpT = W.t;
 				e.f.jp = rd(W.t);
@@ -8662,6 +8698,11 @@ Object.assign(MG, {
 				(c.f.zn || []).forEach(([id, kind, x, z, t]) => {
 					const key = c.k + ":" + id,
 						a = W.t - t - this.ZL;
+					/* for tools/watch.mjs: where it came down, measured from the truck (ahead of it +, beside it) */
+					if (a >= 0 && !(e.zLand || (e.zLand = {}))[key]) {
+						e.zLand[key] = 1;
+						mgLog(W, `${kind} lands ${Math.round(e.z - z)} m ahead, ${Math.round(Math.abs(e.x - x))} m beside`);
+					}
 					if (a < 0 || a > this.ZT || e.zHit[key] || Math.hypot(e.x - x, e.z - z) > this.lobR(kind) + 0.9) return;
 					e.zHit[key] = 1;
 					const A = Object.values(this.AB).find((q) => q.lob === kind);
@@ -8674,12 +8715,18 @@ Object.assign(MG, {
 						trash: "STINKY!",
 						parcel: "BONK!",
 						crate: "BONK!",
+						nails: "BLOWOUT!",
 					}[kind];
 					if (kind === "ice") e.iceT = W.t + 2.2;
 					else if (kind === "cement") e.cemT = W.t + 2;
 					else if (kind === "gravel") e.gravT = W.t + 1.5;
 					else if (kind === "trash") e.trashT = W.t + 3;
-					else if (kind === "fuel") {
+					else if (kind === "nails") {
+						/* the tyre on the side the nails were on blows (straight over them: either side) */
+						e.blowT = W.t + this.NAILT;
+						e.blowSd = Math.abs(x - e.x) > 0.3 ? Math.sign(x - e.x) : id % 2 ? 1 : -1;
+						e.f.bl = [Math.round(W.t * 100) / 100, e.blowSd];
+					} else if (kind === "fuel") {
 						e.spinT = W.t + 0.9;
 						e.vz *= 0.8;
 					} else {
@@ -8694,6 +8741,35 @@ Object.assign(MG, {
 						sfx(A && A.obj ? "crush" : "splash");
 					}
 				});
+				/* Taco Tina's hot sauce: always lands, SPF s after the throw; left and right swap for SPT s */
+				const sp = c.f.sp;
+				if (sp && W.t >= sp[1] + this.SPF && W.t < sp[1] + this.SPF + 0.5 && !e.zHit[c.k + ":p" + sp[0]]) {
+					e.zHit[c.k + ":p" + sp[0]] = 1;
+					e.spicyT = W.t + this.SPT;
+					fb(W, e, "TOO SPICY!", { tone: "bad" });
+					mgLog(W, `${mgName(e)} gets ${mgName(c)}'s hot sauce`);
+					if (e.isMe) sfx("splash");
+				}
+				/* Garbo's bins: bumping one while it rolls costs speed and sends it flying (shared as e.f.bh) */
+				const rb = c.f.rb;
+				if (rb)
+					for (let i = 0; i < this.BN; i++) {
+						const key = c.k + ":b" + rb[0] + ":" + i,
+							b = this.binPos(W, rb, i);
+						if (!b || b.fly || e.zHit[key]) continue;
+						if (Math.abs(e.x - b.x) > e.hb[0] + 0.55 || Math.abs(e.z - b.z) > e.hb[1] + 0.55) continue;
+						e.zHit[key] = 1;
+						e.f.bh = (e.f.bh || []).concat([key]).slice(-12);
+						if (e.vz < -8) e.vz = Math.min(-8, e.vz * 0.75);
+						e.vx += (e.x >= b.x ? 1 : -1) * 4;
+						e.slideT = 0.4;
+						fb(W, e, "BONK!", { tone: "bad" });
+						mgLog(W, `${mgName(e)} hits one of ${mgName(c)}'s bins`);
+						if (e.isMe) {
+							W.shake = 0.3;
+							sfx("crush");
+						}
+					}
 				/* spike strips: driving over one costs a bag (credited to the cop who dropped it), unless the shield is up */
 				(c.f.ss || []).forEach(([id, x, z, t]) => {
 					const key = c.k + ":s" + id;
@@ -8936,6 +9012,26 @@ Object.assign(MG, {
 			}
 			if (e.side === 0) {
 				if (!e.slots) this.bagNets(W, e);
+				/* a tyre blown by Steady Eddie's nails (e.f.bl = [when, side]): it leans onto that side, the rim throws sparks */
+				if (f.bl && W.t >= f.bl[0] && W.t < f.bl[0] + this.NAILT) {
+					const sd = f.bl[1];
+					if (e.blSeen !== f.bl[0]) {
+						e.blSeen = f.bl[0];
+						burst(W.sc, e.x + sd * e.hb[0], 0.5, e.z, {
+							n: 14,
+							shape: "cube",
+							cols: ["#2A2E36", "#3D424C"],
+							spd: 5,
+							up: 4,
+							grav: 14,
+							life: 0.7,
+							size: 0.8,
+						});
+						if (W.split || e.isMe || W.tv) sfx("crack");
+					}
+					e.tr.rotation.x += sd * 0.07;
+					if (Math.random() < dt * 12) this.sparks(W, e, e.x + sd * e.hb[0], e.z + 0.8, false);
+				}
 				/* soaked by Blaze's hose (e.f.wt): water streams off it while its tyres have no grip */
 				if (f.wt !== undefined && W.t >= f.wt && W.t < f.wt + this.HOSET && Math.random() < dt * 30)
 					burst(W.sc, e.x + (Math.random() - 0.5) * 2, 1.6 + Math.random(), e.z + (Math.random() - 0.5) * 2.4, {
@@ -9218,6 +9314,126 @@ Object.assign(MG, {
 				});
 			}
 			this.hoseFx(W, c, dt);
+			this.spicyFx(W, c, dt);
+			this.binFx(W, c, dt);
+		},
+		/* where bin i of a BINS throw is: flying from the cop to its start at the road's edge, then rolling across; null
+		   once it has rolled off the road */
+		binPos(W, rb, i) {
+			const [, t, z0, dir, sx, sz] = rb,
+				z = z0 - i * this.BGAP,
+				[lo, hi] = this.edges(z),
+				x0 = dir > 0 ? lo + 0.6 : hi - 0.6,
+				fl = this.BF + i * this.BDLY,
+				a = W.t - t;
+			if (a < 0) return null;
+			if (a < fl) {
+				const k = a / fl;
+				return { x: sx + (x0 - sx) * k, z: sz + (z - sz) * k, y: 0.55 + Math.sin(k * Math.PI) * 5, fly: true, k };
+			}
+			const x = x0 + dir * this.BV * (a - fl);
+			return x > hi + 1 || x < lo - 1 ? null : { x, z, y: 0.55, roll: (x - x0) / 0.55, fly: false };
+		},
+		/* Garbo's bins on every screen: green wheelie bins flung up the road, then tumbling across it on their sides; one the
+		   cash truck hit flies off */
+		binFx(W, c, dt) {
+			const rb = c.f && c.f.rb,
+				T = this.solo(W),
+				hit = new Set(((T && T.f && T.f.bh) || []).map(String));
+			W.binV = W.binV || {};
+			if (!rb) return;
+			if (!W.binKit) {
+				const m = wheelieBinModel("#3D8B4F", "trash", "bottle");
+				W.binKit = bakeKit(m, { ao: false, ground: false });
+			}
+			for (let i = 0; i < this.BN; i++) {
+				const key = c.k + ":b" + rb[0] + ":" + i,
+					b = this.binPos(W, rb, i);
+				let v = W.binV[key];
+				if (!b) {
+					if (v) {
+						W.sc.remove(v.o);
+						delete W.binV[key];
+					}
+					continue;
+				}
+				if (!v) {
+					const o = new THREE.Group(),
+						lie = new THREE.Group(),
+						g = kitGroup(W.binKit, 0);
+					/* lying on its side, rolling about its own long axis (along the road) */
+					g.scale.setScalar(0.5);
+					g.position.y = -0.35;
+					lie.add(g);
+					lie.rotation.x = Math.PI / 2;
+					o.add(lie);
+					W.sc.add(o);
+					v = W.binV[key] = { o, lie };
+				}
+				if (hit.has(key)) {
+					if (!v.gone) {
+						v.gone = W.t;
+						burst(W.sc, b.x, 0.8, b.z, {
+							n: 12,
+							shape: "cube",
+							cols: ["#3D8B4F", "#2E6B3C", "#C9CED8"],
+							spd: 5,
+							up: 4,
+							life: 0.6,
+						});
+					}
+					const k = W.t - v.gone;
+					v.o.position.set(b.x + (b.x < (T ? T.x : 0) ? -1 : 1) * k * 9, 0.55 + k * 6 - k * k * 12, b.z);
+					v.o.rotation.x += dt * 9;
+					v.o.visible = k < 1.2;
+					continue;
+				}
+				v.o.position.set(b.x, b.y, b.z);
+				if (b.fly) v.o.rotation.set(b.k * 6, 0, b.k * 4);
+				else v.o.rotation.set(0, 0, -rb[3] * b.roll);
+				v.lie.rotation.x = b.fly ? 0 : Math.PI / 2;
+			}
+		},
+		/* Taco Tina's hot sauce on every screen: a red bottle arcs onto the cash truck, then flames burst out of its back
+		   while its steering is swapped */
+		spicyFx(W, c, dt) {
+			const sp = c.f && c.f.sp,
+				T = this.solo(W);
+			W.spV = W.spV || {};
+			let v = W.spV[c.k];
+			const a = sp && T ? W.t - sp[1] : 99;
+			if (!v && a < this.SPF) {
+				v = W.spV[c.k] = new THREE.Group();
+				v.add(
+					Cy(0.16, 0.16, 0.42, 8, "#E5484D", 0, 0, 0),
+					Cy(0.07, 0.12, 0.16, 8, "#F4F6F9", 0, 0.28, 0),
+					Cy(0.08, 0.08, 0.1, 8, "#2E7D32", 0, 0.4, 0),
+				);
+				v.scale.setScalar(1.6);
+				W.sc.add(v);
+			}
+			if (v) {
+				v.visible = a >= 0 && a < this.SPF;
+				if (v.visible) {
+					const k = a / this.SPF;
+					v.position.set(sp[2] + (T.x - sp[2]) * k, 2 + Math.sin(k * Math.PI) * 5, sp[3] + (T.z - sp[3]) * k);
+					v.rotation.set(k * 9, 0, k * 5);
+				}
+			}
+			if (T && a >= this.SPF && a < this.SPF + this.SPT && Math.random() < dt * 30) {
+				const b = Math.cos(T.yaw),
+					d = -Math.sin(T.yaw);
+				burst(W.sc, T.x - b * (T.hb[1] + 0.2), 1, T.z - d * (T.hb[1] + 0.2), {
+					n: 2,
+					shape: "ico",
+					cols: ["#E5484D", "#FF8A1F", "#FFC83D"],
+					spd: 2,
+					up: 2,
+					grav: -2,
+					life: 0.45,
+					size: 1.1,
+				});
+			}
 		},
 		/* Blaze's hose on every screen: a thick arcing jet of water from its roof (a flowing outer stream round a white
 		   core) onto the cash truck wherever it is, with a big splash where it lands */
@@ -9751,6 +9967,7 @@ Object.assign(MG, {
 				trash: ["#3D5A3A", "#6B8F5A", "#C9CED8"],
 				parcel: ["#C9A06A", "#E8D5A8", "#8A6A48"],
 				crate: ["#B07A45", "#8A5A30", "#D9A86A"],
+				nails: ["#9DA0A6", "#5A6272", "#B07A45"],
 			}[kind];
 		},
 		/* what a cop lobs: in flight (lie 0) and lying on the road (lie 1) */
@@ -9856,6 +10073,18 @@ Object.assign(MG, {
 						py = lie ? 0.3 : i * 0.2;
 					add(box(0.6, 0.5, 0.6, "#C9A06A", px, py, pz, i), box(0.62, 0.08, 0.15, "#E8D5A8", px, py + 0.22, pz, i));
 				});
+			} else if (kind === "nails" && lie) {
+				for (let i = 0; i < 16; i++) {
+					const a = i * 2.39,
+						d = 0.3 + (i % 5) * (R / 6),
+						n = Cy(0, 0.07, 0.22, 3, i % 2 ? "#9DA0A6" : "#5A6272", Math.cos(a) * d, 0.11, Math.sin(a) * d);
+					n.rotation.set(i * 0.7, i, 0.4);
+					add(n);
+				}
+				add(
+					box(1.1, 0.08, 0.28, "#B07A45", 0.5, 0.04, -0.7, 0.6),
+					box(0.9, 0.08, 0.28, "#8A5A30", -0.6, 0.04, 0.5, 2.1),
+				);
 			} else {
 				const kit = crateKits()[0];
 				[
@@ -9872,7 +10101,6 @@ Object.assign(MG, {
 			}
 			return g;
 		},
-		/* a money bag: a squat sack with a tied neck */
 		/* the cash truck's spear on every screen: a warning sign flashing over a cop that has hung in front of it for WHW s
 		   (e.f.wa), then the chain and spear head flying from the truck's nose (WHF s), the cry, the cop reeled in (WHY s)
 		   and the crash */
@@ -9986,6 +10214,7 @@ Object.assign(MG, {
 					delete W.ssV[key];
 				}
 		},
+		/* a money bag: a squat sack with a tied neck */
 		bagKit() {
 			if (this.BK) return this.BK;
 			const g = new THREE.Group(),
@@ -10207,7 +10436,13 @@ Object.assign(MG, {
 										sz < e.z &&
 										sz > e.z - far &&
 										Math.abs(sx - x) < this.SSW / 2 + 1.6,
-								),
+								) ||
+								/* rolling bins: in plain sight */
+								(c.f &&
+									c.f.rb &&
+									Array.from({ length: this.BN }, (_, i) => this.binPos(W, c.f.rb, i)).some(
+										(b) => b && !b.fly && b.z < e.z && b.z > e.z - far && Math.abs(b.x - x) < 2.2,
+									)),
 						)) ||
 					(e.side === 1 &&
 						oil.some(
@@ -10334,7 +10569,9 @@ Object.assign(MG, {
 						k = A.kind;
 					if (
 						(A.lob && dz > 0 && dT < 40) ||
-						((k === "pickup" || k === "food") && (dz > 16 || (runner && dz > -3))) ||
+						(k === "pickup" && (dz > 16 || (runner && dz > -3))) ||
+						(k === "food" && dT < 60) ||
+						(k === "garbage" && dz > 0 && dT < 50) ||
 						(k === "monster" && dz > 14 && dz < 42) ||
 						(k === "fire" && dT < 40) ||
 						(k === "tow" && dz > 0 && dT < 18 && W.t < (e.hpCd || 0) - 1)
