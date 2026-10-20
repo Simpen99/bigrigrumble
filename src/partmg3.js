@@ -7742,7 +7742,7 @@ Object.assign(MG, {
 			return !this.dazed(W, e) && W.t >= ((e.side === 0 ? e.oilCd : e.hpCd) || 0);
 		},
 		/* the sound packs it plays (sfxPack: a random take each time) */
-		PACKS: ["hit", "whip", "whimsy", "coin", "crunchy", "spike", "splash", "jump", "jumpboost", "speed"],
+		PACKS: ["hit", "whip", "whimsy", "coin", "crunchy", "spike", "splash", "strip", "jump", "jumpboost", "speed"],
 		kits() {
 			MG.hop.kits.call(MG.hop);
 			audLoad("music/pursuit.mp3");
@@ -8707,7 +8707,7 @@ Object.assign(MG, {
 					x = Math.max(lo + this.SSW / 2 - 0.3, Math.min(hi - this.SSW / 2 + 0.3, e.x));
 				e.f.ss = (e.f.ss || []).concat([[e.ssN, rd(x), rd(z), rd(W.t)]]).slice(-3);
 				mgLog(W, `${mgName(e)} drops a spike strip ${Math.round(T.z - e.z - this.SSB)} m ahead of the truck`);
-				if (e.isMe) sfx("land");
+				if (e.isMe) sfxPack("strip");
 				return;
 			}
 			e.hpN = (e.hpN || 0) + 1;
