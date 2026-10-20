@@ -7562,8 +7562,8 @@ Object.assign(MG, {
 		DN: 6,
 		LATA: 34,
 		/* cash: BAGS on the truck, IMM s safe after losing one; oil: cooldown OILCD, lasts OILT, radius OILR */
-		BAGS: 12 /* was 20 (the truck escaped every test game), then 10, then 15 */,
-		IMM: 4,
+		BAGS: 15 /* was 20 (the truck escaped every test game), then 10, then 15 */,
+		IMM: 3,
 		/* every button (oil, slam, harpoon, tricks) wakes up ARM s after the start */
 		ARM: 4,
 		/* slam (the truck's second button): cooldown SWCD; it hops SWHOP s, slams, and a shockwave ring runs out from it at
@@ -7588,7 +7588,7 @@ Object.assign(MG, {
 		/* the cash truck's spear ("GET OVER HERE!"): a cop that stays in front of it (clear of its nose, within WHR m, anywhere
 		   across the road) for WHA s gets speared (a warning sign over it from WHW s): the spear flies WHF s, then reels it
 		   into the truck's nose over WHY s, where it crashes and spins out (WHS s); then it's safe for WHCD s */
-		WHA: 10,
+		WHA: 8,
 		WHW: 7,
 		WHR: 30,
 		WHF: 0.3,
