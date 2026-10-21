@@ -175,7 +175,7 @@ body.trout .pstrip{opacity:0}
 }
 /* big screens on their side (TV, PC): the corners, the chips and the card between them (the TV zooms those by 1.5, offsets too) */
 @media (orientation:landscape) and (min-height:501px){
-  :root{--pw:clamp(220px,20vw,400px)}
+  :root{--pw:clamp(260px,24vw,480px)}
   .pstrip{left:12px;right:12px;top:calc(env(safe-area-inset-top,0px) + 12px);max-width:none;margin:0;padding:0;grid-template-columns:var(--pw) var(--pw);justify-content:space-between;gap:8px}
   .pstrip.bot{top:auto;bottom:calc(env(safe-area-inset-bottom,0px) + 12px)}
   body:not(.ctl) .pstrip~.hudtop,body:not(.ctl) .pstrip~.hudbot{left:calc(var(--pw) + 14px);right:calc(var(--pw) + 14px)}
@@ -1035,7 +1035,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-21 21:25 6ad33f5";
+const BUILD = "2026-10-22 01:01 753b84e";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {

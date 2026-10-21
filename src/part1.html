@@ -175,7 +175,7 @@ body.trout .pstrip{opacity:0}
 }
 /* big screens on their side (TV, PC): the corners, the chips and the card between them (the TV zooms those by 1.5, offsets too) */
 @media (orientation:landscape) and (min-height:501px){
-  :root{--pw:clamp(220px,20vw,400px)}
+  :root{--pw:clamp(260px,24vw,480px)}
   .pstrip{left:12px;right:12px;top:calc(env(safe-area-inset-top,0px) + 12px);max-width:none;margin:0;padding:0;grid-template-columns:var(--pw) var(--pw);justify-content:space-between;gap:8px}
   .pstrip.bot{top:auto;bottom:calc(env(safe-area-inset-bottom,0px) + 12px)}
   body:not(.ctl) .pstrip~.hudtop,body:not(.ctl) .pstrip~.hudbot{left:calc(var(--pw) + 14px);right:calc(var(--pw) + 14px)}
