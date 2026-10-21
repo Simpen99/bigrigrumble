@@ -7757,7 +7757,7 @@ Object.assign(MG, {
 			"jumpboost",
 			"speed",
 		],
-		SYNTH: ["go", "crack", "land", "windup", "fanfare", "honk", "grind", "whoosh", "screech"],
+		SYNTH: ["go", "crack", "land", "windup", "fanfare"],
 		kits() {
 			MG.hop.kits.call(MG.hop);
 			audLoad("music/pursuit.mp3");
@@ -8646,7 +8646,6 @@ Object.assign(MG, {
 					mgLog(W, `${mgName(e)} hits traffic`);
 					e.lastHit = { k: "traffic", t: W.t };
 					if (e.isMe) W.shake = 0.45;
-					if (this.heard(W, e)) sfx("honk");
 				}
 			}
 		},
@@ -9142,8 +9141,8 @@ Object.assign(MG, {
 			const [lo, hi] = this.edges(e.z),
 				rr = e.hb ? e.hb[0] : 0.6;
 			if (W.t > 0 && !e.gone && Math.hypot(e.vx || 0, e.vz || 0) > 5) {
-				if (e.x > hi - rr - 0.03) this.sparks(W, e, hi + 0.1, e.z, e.isMe && !W.tv);
-				else if (e.x < lo + rr + 0.03) this.sparks(W, e, lo - 0.1, e.z, e.isMe && !W.tv);
+				if (e.x > hi - rr - 0.03) this.sparks(W, e, hi + 0.1, e.z);
+				else if (e.x < lo + rr + 0.03) this.sparks(W, e, lo - 0.1, e.z);
 			}
 			/* the slam: the truck hops, nose up a touch, and comes down hard */
 			if (e.side === 0 && f.sw && W.t >= f.sw[1] && W.t < f.sw[1] + this.SWHOP) {
@@ -9180,7 +9179,7 @@ Object.assign(MG, {
 						if (W.split || this.heard(W, e)) sfxPack("spike");
 					}
 					e.tr.rotation.x += sd * 0.07;
-					if (Math.random() < dt * 12) this.sparks(W, e, e.x + sd * e.hb[0], e.z + 0.8, false);
+					if (Math.random() < dt * 12) this.sparks(W, e, e.x + sd * e.hb[0], e.z + 0.8);
 				}
 				/* soaked by Blaze's hose (e.f.wt): water streams off it while its tyres have no grip */
 				if (f.wt !== undefined && W.t >= f.wt && W.t < f.wt + this.HOSET && Math.random() < dt * 30)
@@ -9889,8 +9888,8 @@ Object.assign(MG, {
 				t: W.t,
 			});
 		},
-		/* a few sparks at (x, z) by truck e (rate-limited per truck), a faint grind when it's yours */
-		sparks(W, e, x, z, snd) {
+		/* a few sparks at (x, z) by truck e (rate-limited per truck) */
+		sparks(W, e, x, z) {
 			if (W.t - (e.spkT ?? -9) < 0.07) return;
 			e.spkT = W.t;
 			burst(W.sc, x, 0.55 + Math.random() * 0.4, z, {
@@ -9902,10 +9901,6 @@ Object.assign(MG, {
 				life: 0.35,
 				size: 0.32,
 			});
-			if (snd && W.t - (W.grT ?? -9) > 0.22) {
-				W.grT = W.t;
-				sfx("grind");
-			}
 		},
 		/* speed lines: thin streaks hanging in the air along the road, recycled ahead of the camera, drifting back a little;
 		   they show more the faster you go (the TV: the pack) */
@@ -9962,22 +9957,6 @@ Object.assign(MG, {
 				K.m.setMatrixAt(i, K.o.matrix);
 			});
 			K.m.instanceMatrix.needsUpdate = true;
-		},
-		/* a faint whoosh as you pass close to a car, a screech when you swerve hard at speed (your truck, phone only) */
-		nearMiss(W) {
-			const e = W.me;
-			if (W.tv || !e || e.gone || W.t <= 0 || W.over) return;
-			for (const c of W.cars) {
-				if (c.kT !== undefined) continue;
-				const cz = this.carZ(W, c),
-					rel = cz > e.z ? 1 : -1;
-				if (c.rel === -1 && rel === 1 && Math.abs(this.carX(W, c, cz) - e.x) < 5) sfx("whoosh");
-				c.rel = Math.abs(cz - e.z) < 30 ? rel : 0;
-			}
-			if (Math.abs(e.vx || 0) > 6.5 && -e.vz > 13 && W.t - (W.scrT ?? -9) > 0.9) {
-				W.scrT = W.t;
-				sfx("screech");
-			}
 		},
 		/* lights on the road at dusk: a warm pool ahead of every truck's headlights; under each cop a pool flashing red
 		   and blue with its light bar */
@@ -10391,7 +10370,7 @@ Object.assign(MG, {
 					life: 0.7,
 					size: 0.9,
 				});
-				this.sparks(W, c, c.x + (c.x > T.x ? 1 : -1) * c.hb[0], c.z, false);
+				this.sparks(W, c, c.x + (c.x > T.x ? 1 : -1) * c.hb[0], c.z);
 				if (this.heard(W, c) || T.isMe) sfxPack("hit");
 			}
 			/* the claw bites */
@@ -10591,7 +10570,6 @@ Object.assign(MG, {
 			const fdt = Math.min(0.05, dt || 0.016);
 			this.streakStep(W, fdt);
 			this.heliStep(W, fdt);
-			this.nearMiss(W);
 			/* for tools/watch.mjs: seconds cops spent right in front of the cash truck, in its lane */
 			if (T && W.t > 0)
 				W.list.forEach((c) => {
@@ -10614,7 +10592,7 @@ Object.assign(MG, {
 						const dx = b.x - a.x,
 							dz = b.z - a.z;
 						if (Math.abs(dx) < a.hb[0] + b.hb[0] + 0.12 && Math.abs(dz) < (a.hb[1] + b.hb[1]) * 0.8)
-							this.sparks(W, a, (a.x + b.x) / 2, (a.z + b.z) / 2, (a.isMe || b.isMe) && !W.tv);
+							this.sparks(W, a, (a.x + b.x) / 2, (a.z + b.z) / 2);
 					}),
 				);
 			W.loose = W.loose.filter((b) => {
@@ -10702,7 +10680,6 @@ Object.assign(MG, {
 					size: 1.2,
 				});
 				c.g.visible = false;
-				if (W.tv || Math.abs(W.me.z - c.g.position.z) < 30) sfxPack("splash");
 			});
 			if (W.wLamp) W.wLamp.emissiveIntensity = Math.floor(W.t * 2.5) % 2 ? 1.8 : 0.15;
 			if (W.wArrow) W.wArrow.material.emissiveIntensity = Math.floor(W.t * 2) % 2 ? 1.1 : 0.25;

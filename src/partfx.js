@@ -872,10 +872,25 @@ function sfxFile(url, vol = 1) {
 		})
 		.catch(() => {});
 }
-/* sound tuning per sound name (the practice 🔧 panel's Sound tab): {v: volume in dB, p: a pack's pitch spread in %},
+/* sound tuning per sound name (the practice 🔧 panel's Sound tab): {v: volume in dB, p: a pack's pitch spread in %}
+   (packs by their name, synth sounds as "s:<name>", since some share a name),
    plus hear = Getaway's range for other trucks' sounds. Baked values in SFX_BAKE, this device's saved ones (localStorage
    trp_sfx) on top */
-const SFX_BAKE = {};
+const SFX_BAKE = {
+	hit: { v: -2.5 },
+	whip: { v: -4, p: 2 },
+	whimsy: { v: -4 },
+	coin: { v: -2 },
+	crunchy: { v: -2 },
+	spike: { v: -1.5 },
+	splash: { v: -3 },
+	strip: { v: -2.5 },
+	lob: { v: -5 },
+	thud: { v: -1.5, p: 15 },
+	jump: { v: -5, p: 2 },
+	jumpboost: { v: -1.5 },
+	speed: { v: -1.5 },
+};
 const SFXT = Object.assign({}, SFX_BAKE, LS.get("trp_sfx", {}));
 const sfxVol = (n) => Math.pow(10, ((SFXT[n] && SFXT[n].v) || 0) / 20),
 	sfxSpread = (n) => (SFXT[n] && SFXT[n].p !== undefined ? SFXT[n].p : 4) / 100;
@@ -1391,7 +1406,7 @@ function sfx(n) {
 	if (!SFX.on || !SFX.ctx || SFX.ctx.state !== "running") return;
 	/* a tuned sound (sfxVol) plays through its own gain */
 	const to = SFX.to,
-		k = sfxVol(n);
+		k = sfxVol("s:" + n);
 	if (k !== 1) {
 		const g = SFX.ctx.createGain();
 		g.gain.value = k;

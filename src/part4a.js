@@ -1601,7 +1601,9 @@ function wireLightPanel() {
 		   their pitch spread), live for every game on this device (SFXT, partfx); plus a game's hear range (def.HEARR) */
 		const D = W.def,
 			PK = D.PACKS || [],
-			SND = (D.HEARR !== undefined ? [["hear", "Hear range"]] : []).concat(PK.concat(D.SYNTH || []).map((n) => [n, n])),
+			SND = (D.HEARR !== undefined ? [["hear", "Hear range"]] : []).concat(
+				PK.map((n) => [n, n]).concat((D.SYNTH || []).map((n) => ["s:" + n, n])),
+			),
 			sv = (k) => (k === "hear" ? (SFXT.hear ?? D.HEARR) : (SFXT[k] && SFXT[k].v) || 0),
 			sfmt = (k, v) => (k === "hear" ? Math.round(v) + " m" : (v > 0 ? "+" : "") + v + " dB"),
 			/* the tuned values only, as Copy gives them (bake them into SFX_BAKE) */
@@ -1790,7 +1792,7 @@ function wireLightPanel() {
 		tog.addEventListener("click", () => {
 			if (grp === "snd") {
 				if (PK.includes(cur)) sfxPack(cur);
-				else sfx(cur);
+				else sfx(cur.slice(2));
 				return;
 			}
 			if (grp !== "fx") return;
