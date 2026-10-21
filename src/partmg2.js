@@ -642,7 +642,7 @@ Object.assign(MG, {
 				ppl.push({ x, y: 0, z, face: r() * 6.28, ph: r() * 6.28, sp: 3 + r() * 3 });
 			}
 			crowdMeshes(W, ppl);
-			[W.crowd.body, W.crowd.head, W.crowd.arms].forEach((m) => (m.castShadow = true));
+			W.crowd.meshes.forEach((m) => (m.castShadow = true));
 			// drop tower and big-top tent on the horizon
 			{
 				const dt = new THREE.Group();
@@ -1816,8 +1816,7 @@ Object.assign(MG, {
 			flap.rotation.x = 0.5;
 			s.add(flap);
 			// queue of customers and other stalls
-			const SH = ["#E5484D", "#2F7DE1", "#FFC83D", "#8E5BE0", "#1FA35C", "#FF8A1F"],
-				SK = ["#F2C9A0", "#D9A273", "#A8714A", "#6E4A2E"];
+			const cr = mulberry(13);
 			W.crowdT = [];
 			[
 				[0.4, -4.6],
@@ -1828,17 +1827,10 @@ Object.assign(MG, {
 				[-4.6, -8.4],
 				[4.4, -9.6],
 			].forEach(([x, z], i) => {
-				const g = new THREE.Group();
+				const g = crowdPerson(crowdLook(cr));
+				g.scale.setScalar(2);
 				g.position.set(x, 0, z);
-				g.add(
-					B(0.55, 0.9, 0.4, SH[i % SH.length], 0, 1.05, 0),
-					B(0.22, 0.6, 0.22, "#2A2F3A", -0.13, 0.3, 0),
-					B(0.22, 0.6, 0.22, "#2A2F3A", 0.13, 0.3, 0),
-				);
-				const h = mesh(new THREE.IcosahedronGeometry(0.26, 1), SK[i % SK.length]);
-				h.position.y = 1.78;
-				g.add(h);
-				g.rotation.y = (Math.random() - 0.5) * 0.6;
+				g.rotation.y = Math.PI + (Math.random() - 0.5) * 0.6;
 				s.add(g);
 				W.crowdT.push({ g, ph: i * 1.3, ry: g.rotation.y });
 			});
@@ -3485,7 +3477,7 @@ Object.assign(MG, {
 				s.add(st);
 				for (let x = -H - 1.5; x < H + 1.5; x += 0.85 + r() * 0.3)
 					if (r() > 0.12)
-						ppl.push({ x, y: h, z: z + (r() - 0.5) * 0.25, face: Math.PI / 2, ph: r() * 6.28, sp: 7 + r() * 5 });
+						ppl.push({ x, y: h, z: z + (r() - 0.5) * 0.25, face: 0, ph: r() * 6.28, sp: 7 + r() * 5 });
 			}
 			s.add(B(2 * H + 4, 4.6, 0.4, "#5A6272", 0, 2.3, SZ - 5.4), B(2 * H + 6, 0.25, 6.6, "#FF6FAE", 0, 5.6, SZ - 2.2));
 			[-H - 2.5, H + 2.5].forEach((x) => s.add(B(0.25, 5.5, 0.25, "#D9DEE7", x, 2.75, SZ + 0.8)));
@@ -4241,7 +4233,7 @@ Object.assign(MG, {
 							x: x - 25,
 							y: h,
 							z: sg.position.z + z + (r() - 0.5) * 0.25,
-							face: Math.PI / 2,
+							face: 0,
 							ph: r() * 6.28,
 							sp: 7 + r() * 5,
 						});
