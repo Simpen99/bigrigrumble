@@ -3699,9 +3699,14 @@ const MG = {
 		unit: "ms",
 		dur: 35,
 		/* the user's Suno song "Pixel Drag Race" (112.5 bpm): its "3, 2, 1, GO!" chant, one word a beat, shouts GO 10.045 s
-		   in, on TAP; the 3, 2, 1 before TAP follow the chant (BEAT) */
-		mus: { url: "music/drag.mp3", go: 10.045 },
+		   in, on TAP; the 3, 2, 1 before TAP follow the chant (BEAT). The pill runs 0.08 s ahead of the chant: on the
+		   beat it felt late (the user) */
+		mus: { url: "music/drag.mp3", go: 10.045 - 0.08 },
 		BEAT: 60 / 112.46,
+		/* the user's light panel values (angle 275°, height 45) */
+		sun: [1.6, 45, -18.4],
+		lt: { amb: 0.84, sun: 0.5, warm: 0.6, haze: 50 },
+		fx: { tilt: 0.14, aa: 1 },
 		tapLabel: "TAP",
 		tvHint:
 			"Charge the burnout: tap your phone when your dial hits the green, 5 times. After 3-2-1-TAP: tap as fast as you can!",
@@ -3872,19 +3877,7 @@ const MG = {
 					s.add(b);
 				});
 			}
-			const lines = new THREE.Group(),
-				lm = new THREE.MeshBasicMaterial({ color: "#FFFFFF", transparent: true, opacity: 0, depthWrite: false }),
-				lg = new THREE.BoxGeometry(0.06, 0.06, 1);
-			s.add(lines);
-			W.lines = [];
-			for (let i = 0; i < 44; i++) {
-				const m = new THREE.Mesh(lg, lm);
-				m.userData.o = [(W.rng() < 0.5 ? -1 : 1) * (1.5 + W.rng() * 5), 0.4 + W.rng() * 4.5];
-				m.position.z = -W.rng() * 70;
-				lines.add(m);
-				W.lines.push(m);
-			}
-			W.lineMat = lm;
+			W.wstk = windStreaks(W, 48, 0.22);
 			const v = document.createElement("div");
 			v.id = "spdfx";
 			v.style.cssText =
@@ -4209,14 +4202,7 @@ const MG = {
 			const S = W.spd;
 			W.jit = S * S * 0.14 + (W.kick || 0) + (e.bj || 0);
 			W.kick = Math.max(0, (W.kick || 0) - dt * 0.8);
-			W.lineMat.opacity = Math.max(0, Math.min(0.6, (S - 0.35) * 1.3));
-			W.lines.forEach((m) => {
-				m.position.z += v * 0.9 * dt;
-				if (m.position.z > e.z + 12) m.position.z = e.z - 45 - Math.random() * 30;
-				m.position.x = e.x + m.userData.o[0];
-				m.position.y = m.userData.o[1];
-				m.scale.z = 0.5 + S * 7;
-			});
+			W.wstk.step(Math.min(0.05, dt), { x: e.x, z: e.z, amt: (S - 0.35) * 1.6, drift: v * 0.9, stretch: 0.5 + S });
 			if (W.vig) W.vig.style.opacity = (Math.max(0, S - 0.3) * 1.4).toFixed(3);
 			if (done && !W.cheered) {
 				W.cheered = true;
