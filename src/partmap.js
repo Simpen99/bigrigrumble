@@ -4783,6 +4783,7 @@ addEventListener("keydown", (e) => {
 			W.inp.hold = true;
 		}
 		if (k === "e" && W.def.btn2) W.inp.b2 = true;
+		if (k === "r" && W.def.btn3) W.inp.b3 = true;
 	} else if (k === " " || k === "enter" || k === "w" || k === "arrowup") {
 		W.inp.hold = true;
 		if (W.t >= 0 && !W.me.d && W.def.tap) W.def.tap(W, W.me);

@@ -872,6 +872,82 @@ function sfxFile(url, vol = 1) {
 		})
 		.catch(() => {});
 }
+/* sound tuning per sound name (the practice 🔧 panel's Sound tab): {v: volume in dB, p: a pack's pitch spread in %}
+   (packs by their name, synth sounds as "s:<name>", since some share a name),
+   plus hear = Getaway's range for other trucks' sounds. Baked values in SFX_BAKE, this device's saved ones (localStorage
+   trp_sfx) on top */
+const SFX_BAKE = {
+	hit: { v: -2.5 },
+	whip: { v: -4, p: 2 },
+	whimsy: { v: -4 },
+	coin: { v: -2 },
+	crunchy: { v: -2 },
+	spike: { v: -1.5 },
+	splash: { v: -3 },
+	strip: { v: -2.5 },
+	lob: { v: -5 },
+	thud: { v: -1.5, p: 15 },
+	jump: { v: -5, p: 2 },
+	jumpboost: { v: -1.5 },
+	speed: { v: -1.5 },
+};
+const SFXT = Object.assign({}, SFX_BAKE, LS.get("trp_sfx", {}));
+const sfxVol = (n) => Math.pow(10, ((SFXT[n] && SFXT[n].v) || 0) / 20),
+	sfxSpread = (n) => (SFXT[n] && SFXT[n].p !== undefined ? SFXT[n].p : 4) / 100;
+/* a sound pack: sfx/<name>.mp3 holds several takes of one sound with silence between them (packed and levelled by
+   tools/sfxcut.mjs); each play picks a random take (never the same one twice running) a touch higher or lower (sfxSpread). The takes
+   are found from the silences when the file is first decoded (sfxTakes: [start, end] s), so a file straight from a
+   sound pack works too. sfxPackLoad(name) fetches and decodes it early */
+function sfxTakes(buf) {
+	const d = buf.getChannelData(0),
+		sr = buf.sampleRate,
+		gap = Math.round(sr * 0.12),
+		out = [];
+	/* silence = 50 dB under the file's peak, so a quiet sound splits too */
+	let pk = 0;
+	for (let i = 0; i < d.length; i++) pk = Math.max(pk, Math.abs(d[i]));
+	const thr = Math.max(1e-5, pk * 0.003);
+	let s = -1,
+		q = 0;
+	for (let i = 0; i < d.length; i++) {
+		if (Math.abs(d[i]) > thr) {
+			if (s < 0) s = i;
+			q = 0;
+		} else if (s >= 0 && ++q > gap) {
+			out.push([s / sr, (i - q) / sr]);
+			s = -1;
+		}
+	}
+	if (s >= 0) out.push([s / sr, d.length / sr]);
+	return out.filter(([a, b]) => b - a > 0.03);
+}
+function sfxPackLoad(name) {
+	if (SFX.ctx) audBuf(`sfx/${name}.mp3`).catch(() => {});
+}
+function sfxPack(name, vol = 1) {
+	if (!SFX.on || !SFX.ctx || SFX.ctx.state !== "running") return;
+	const url = `sfx/${name}.mp3`;
+	audBuf(url)
+		.then((buf) => {
+			const a = AUD[url],
+				tk = a.takes || (a.takes = sfxTakes(buf));
+			if (!tk.length) return;
+			let n = Math.floor(Math.random() * tk.length);
+			if (tk.length > 1 && n === a.last) n = (n + 1 + Math.floor(Math.random() * (tk.length - 1))) % tk.length;
+			a.last = n;
+			const c = SFX.ctx,
+				s = c.createBufferSource(),
+				g = c.createGain(),
+				[t0, t1] = tk[n];
+			g.gain.value = vol * sfxVol(name);
+			s.buffer = buf;
+			s.playbackRate.value = 1 + (Math.random() * 2 - 1) * sfxSpread(name);
+			s.connect(g);
+			g.connect(SFX.fx);
+			s.start(0, Math.max(0, t0 - 0.005), t1 - t0 + 0.06);
+		})
+		.catch(() => {});
+}
 /* a song from a file (Getaway's chase song, the lobby song), looped through the music bus like the synth songs (fading in
    over fadeIn s): musStop fades it, and musScene leaves it playing during the minigame (MUS.track) */
 function musTrack(url, vol = 0.7, fadeIn = 0, resume = false) {
@@ -1328,6 +1404,15 @@ function windSnd() {
 }
 function sfx(n) {
 	if (!SFX.on || !SFX.ctx || SFX.ctx.state !== "running") return;
+	/* a tuned sound (sfxVol) plays through its own gain */
+	const to = SFX.to,
+		k = sfxVol("s:" + n);
+	if (k !== 1) {
+		const g = SFX.ctx.createGain();
+		g.gain.value = k;
+		g.connect(to || SFX.out);
+		SFX.to = g;
+	}
 	try {
 		switch (n) {
 			case "click":
@@ -1459,6 +1544,7 @@ function sfx(n) {
 				break;
 		}
 	} catch (e) {}
+	SFX.to = to;
 }
 document.addEventListener("click", (e) => {
 	const b = e.target.closest("button");

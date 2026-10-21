@@ -5793,6 +5793,10 @@ const MM = {
 	WARN: 3 /* a slice cracks and glows this long before it sinks */,
 	LIVES: 3 /* falls into the mud before a survivor is out */,
 	TV: 12 /* tyre speed */,
+	TYR: 1.65 /* a tyre (sliding flat, spinning) hits a truck within TYR of its middle */,
+	TYN: 3 /* TYN tyre hits within TYWIN s stun a survivor for TYSTUN s */,
+	TYWIN: 4,
+	TYSTUN: 2,
 	CLAW: 1.1 /* seconds close before the magnet grabs */,
 	WIND: 0.6 /* ground pound: wind-up after the button */,
 	JUMP: 0.7 /* then the jump before the slam */,
@@ -5817,7 +5821,8 @@ function truckTop(tr) {
 		flat = hits.filter((h) => h[1] > top - 0.12);
 	return { x: (flat[0][0] + flat[flat.length - 1][0]) / 2, y: top };
 }
-/* chunky monster tyre, axle along x (rolls along z): tread, sidewalls, silver hub, yellow cap, tread blocks */
+/* chunky monster tyre, axle along x (rolls along z; Monster Mash lays it flat to slide spinning): tread, sidewalls,
+   silver hub, yellow cap, tread blocks */
 function mmTyreKit() {
 	const g = new THREE.Group(),
 		cy = (r, w, col) => {
@@ -6092,9 +6097,12 @@ Object.assign(MG, {
 			const n = W.mg.tm ? Object.values(W.mg.tm).filter((x) => x === 1).length : Math.max(1, W.plist.length - 1);
 			W.HP = W.hp = MM.hpMax(n);
 			W.ph = 1;
-			/* TNT crates on a schedule from the seed, more often with fewer survivors */
+			/* TNT crates on a schedule from the seed, more often with fewer survivors; until the stage starts crumbling
+			   they drop out on its outer band (each crate also has a spot there, `ox` / `oz`: the choice is made just
+			   before it drops, in `tick`) */
 			const every = Math.min(6, Math.max(2, 9 / n)),
 				rr = mulberry((W.mg.seed || 1) + 907),
+				ro = mulberry((W.mg.seed || 1) + 911),
 				cm = new THREE.MeshStandardMaterial({ map: hlCrateTex(), roughness: 0.9 });
 			W.mm.crates = [];
 			for (let k = 0; 2.5 + k * every < this.dur; k++) {
@@ -6113,8 +6121,25 @@ Object.assign(MG, {
 				g.position.set(Math.cos(a) * r, 0, Math.sin(a) * r);
 				g.visible = false;
 				s.add(g);
-				const ts = 2.5 + k * every;
-				W.mm.crates.push({ id: k + 1, ts, te: ts + 14, x: g.position.x, z: g.position.z, g, box, sh, mark });
+				const ts = 2.5 + k * every,
+					oa = ro() * Math.PI * 2,
+					or = MM.RC + 1 + ro() * (MM.R - MM.RC - 2.2),
+					ox = Math.cos(oa) * or,
+					oz = Math.sin(oa) * or;
+				W.mm.crates.push({
+					id: k + 1,
+					ts,
+					te: ts + 14,
+					x: g.position.x,
+					z: g.position.z,
+					ox,
+					oz,
+					sec: this.secAt(ox, oz),
+					g,
+					box,
+					sh,
+					mark,
+				});
 			}
 			this.lights(W);
 			this.stage(W);
@@ -6443,6 +6468,21 @@ Object.assign(MG, {
 						this.crumble(W, why);
 						return false;
 					});
+				/* TNT crates: out on the outer band while no slice has cracked yet (its own slice still whole), else where
+				   they always drop; one on a slice that starts cracking goes down with it */
+				mm.crates.forEach((c) => {
+					if (c.out === undefined && W.t >= c.ts - 0.6) {
+						c.out = mm.crN === 0 && !this.gone(W, c.sec, true);
+						mgLog(W, `TNT crate ${c.id} drops ${c.out ? "on the outer band" : "inside"}`);
+						if (c.out) {
+							c.x = c.ox;
+							c.z = c.oz;
+							c.g.position.set(c.x, 0, c.z);
+						}
+					}
+					const q = c.out && mm.sec[c.sec];
+					if (q && q.warnT !== undefined) c.te = Math.min(c.te, q.warnT + MM.WARN);
+				});
 				/* a slice going down under a truck: that's what knocked it in */
 				W.list.forEach((o) => {
 					if (o.local && o.al && !o.falling && o.side !== 0 && !this.inside(W, o.x, o.z, o))
@@ -6712,15 +6752,28 @@ Object.assign(MG, {
 			e.tA = W.t;
 			const safe = W.t < (e.inv || 0) || W.t < (e.cutInv || 0);
 			e.sc = Math.floor(W.t * 10);
-			for (const t of W.tyLive || [])
-				if (t.hit && !safe && !e.tyHit[t.id] && Math.hypot(e.x - t.x, e.z - t.z) < 1.4) {
-					e.tyHit[t.id] = 1;
-					if (W.t - (e.tyT || -9) > 0.3) {
-						e.tyT = W.t;
-						this.knock(W, e, t.dx, t.dz, 13, 0.7, "tyre");
-						e.reelT = 0.35;
+			for (const t of W.tyLive || []) {
+				if (!t.hit || safe || e.tyHit[t.id]) continue;
+				const rx = e.x - t.x,
+					rz = e.z - t.z;
+				if (Math.hypot(rx, rz) > MM.TYR) continue;
+				e.tyHit[t.id] = 1;
+				if (W.t - (e.tyT || -9) > 0.3) {
+					e.tyT = W.t;
+					this.knock(W, e, t.dx, t.dz, 13, 0.7, "tyre");
+					e.reelT = 0.35;
+					/* the third tyre within TYWIN s: dizzy for TYSTUN s (no tanking the shots for the team) */
+					e.tyH = (e.tyH || []).filter((q) => W.t - q < MM.TYWIN).concat([W.t]);
+					if (e.tyH.length >= MM.TYN) {
+						e.tyH = [];
+						e.stunT = Math.max(e.stunT || 0, MM.TYSTUN);
+						e.f.stn = Math.round((W.t + MM.TYSTUN) * 100) / 100;
+						fb(W, e, "DIZZY!", { tone: "bad" });
+						mgLog(W, `${mgName(e)} stunned by ${MM.TYN} tyres`);
+						if (e.isMe || Math.hypot(e.x - W.me.x, e.z - W.me.z) < 6) sfx("stun");
 					}
 				}
+			}
 			const g = W.gpLive;
 			if (g && g.r > 0 && !safe && !e.gpHit[g.id]) {
 				const dx = e.x - g.x,
@@ -7015,11 +7068,11 @@ Object.assign(MG, {
 				let y;
 				if (t.s < 3.6) {
 					const k = (t.s - 1.4) / 2.2;
-					y = 0.6 + (t.h - 0.6) * (1 - k * k);
-				} else if (t.on) y = 0.6 + Math.abs(Math.sin(t.s * 0.9)) * 0.35;
+					y = 0.36 + (t.h - 0.36) * (1 - k * k);
+				} else if (t.on) y = 0.36 + Math.abs(Math.sin(t.s * 0.9)) * 0.35;
 				else {
 					const tf = (t.s - t.sx) / MM.TV;
-					y = 0.6 - 15 * tf * tf;
+					y = 0.36 - 15 * tf * tf;
 					if (y < this.MUD + 0.4 && !sl.spl) {
 						sl.spl = true;
 						burst(W.sc, t.x, this.MUD + 0.3, t.z, {
@@ -7036,8 +7089,9 @@ Object.assign(MG, {
 				}
 				sl.o.visible = y > this.MUD - 1;
 				sl.o.position.set(t.x, y, t.z);
-				sl.o.rotation.y = Math.atan2(t.dx, t.dz);
-				sl.t.rotation.x = t.s / 0.6;
+				/* lying flat (axle up): it slides and skips across the stage spinning, as wide as it is round */
+				sl.o.rotation.y = t.s * 0.8;
+				sl.t.rotation.set(0, 0, Math.PI / 2);
 			});
 			mm.ty.forEach((q) => {
 				if (!used.has(q)) {
@@ -7400,7 +7454,7 @@ Object.assign(MG, {
 					rz = e.z - t.z,
 					ahead = rx * t.dx + rz * t.dz,
 					side = rx * -t.dz + rz * t.dx;
-				if (ahead > 0 && ahead < 4.5 && Math.abs(side) < 1.8) {
+				if (ahead > 0 && ahead < 4.5 && Math.abs(side) < MM.TYR + 0.4) {
 					if (e.tyNote[t.id] === undefined) e.tyNote[t.id] = Math.random() < 0.5;
 					if (!e.tyNote[t.id]) continue;
 					const sg = side >= 0 ? 1 : -1;
@@ -7481,6 +7535,10 @@ Object.assign(MG, {
 		dusk: true,
 		lt: { amb: 0.5, sun: 0.62, warm: 0.85, haze: 60 },
 		bound: { t: "none" },
+		/* cops: no roof ornaments or amber beacons, the light bar on the cab (the cash truck is rebuilt as "armour") */
+		truckMode: "cop",
+		/* camera shakes at 30% (the chase is busy enough) */
+		shakeK: 0.3,
 		/* the road: LANES lanes LW wide, ROADL long, the tunnel TL up it; traffic at CARV */
 		LANES: 6,
 		LW: 3.6,
@@ -7491,49 +7549,113 @@ Object.assign(MG, {
 		WORKS: [1450, 1750],
 		CARV: 9,
 		CARCOL: MG.hop.CARCOL,
+		/* traffic cars at CARS of Rush Hour's size; traffic waves (a car in every lane) met round these shares of the run */
+		CARS: 0.85,
+		WAVES: [0.13, 0.3, 0.48, 0.66, 0.84],
+		/* the cash truck ramming a car: left with CARHIT of its speed, CARSLOW m/s off its top speed for CART s: no slowdown
+		   now, just a nudge sideways (tried ~11 m, ~7 m, ~5 m and ~0.1 m lost a car) */
+		CARHIT: 1,
+		CARSLOW: 0,
+		CART: 0,
 		/* driving: cruise V0, the stick adds up to UP (truck) / UPC (cops) or takes off DN; lateral push LATA */
 		V0: 16,
-		UP: 5.5,
-		UPC: 5.5 /* cops as fast as the cash truck (21.5 m/s top; were 20) */,
+		UP: 6.5 /* the cash truck: 22.5 m/s top (was 21.5) */,
+		UPC: 7.5 /* cops 1 m/s faster than the cash truck (23.5 vs 22.5 m/s top), so they can get past it to lay spikes */,
 		DN: 6,
 		LATA: 34,
 		/* cash: BAGS on the truck, IMM s safe after losing one; oil: cooldown OILCD, lasts OILT, radius OILR */
-		BAGS: 20,
-		IMM: 4,
+		BAGS: 12 /* was 20 (the truck escaped every test game), then 10, 15, 12, 15, 10 */,
+		IMM: 3,
 		/* every button (oil, slam, harpoon, tricks) wakes up ARM s after the start */
 		ARM: 4,
 		/* slam (the truck's second button): cooldown SWCD; it hops SWHOP s, slams, and a shockwave ring runs out from it at
 		   SWV m/s to SWR m, blasting every cop it reaches */
-		SWCD: 10,
+		SWCD: 11 /* was 10, then 12 */,
 		SWHOP: 0.35,
 		SWV: 22,
 		SWR: 9,
 		/* harpoon (the cops' main button): cooldown HPCD, reach HPR m within HPA rad of where it's aimed; the head flies 0.2 s,
 		   then the cop is reeled in until HPT s (unless the truck swerves it off); reaching the truck = a hit (a bag off) */
-		HPCD: 4.5,
-		HPR: 16,
+		HPCD: 4,
+		HPCDV: 2.5 /* after vaulting a car the harpoon reloads in HPCDV s instead */,
+		HPR: 14 /* reach to a car (was 16, then 12.5) */,
+		HPRT: 14 /* reach to the cash truck (was 9, then 12.5), and only from behind it */,
+		/* spike strip: a cop at least SSA m ahead of the cash truck drops one with its main button, right under itself (SSB m back),
+		   SSW wide across the road, lying SST s; driving over it costs the truck a bag (once a strip) */
+		SSA: 4,
+		LEAD: 12,
+		SSB: 0,
+		SSW: 7.6,
+		SST: 7,
+		/* the cash truck's SPEAR ("GET OVER HERE!", its third button, cooldown SPCD): it hits the nearest cop in front of it
+		   (clear of its nose, within WHR m, anywhere across the road): the spear flies WHF s, then reels it into the truck's
+		   nose over WHY s, where it crashes and spins out (WHS s). It was automatic (a cop WHA s in front) */
+		SPCD: 15,
+		WHR: 30,
+		WHF: 0.3,
+		WHY: 0.55,
+		WHS: 1.2,
+		WHH: 5 /* held up on the chain this long */,
+		WHL: 0.7 /* then flung into the furthest guardrail for WHL s, landing WHB m behind the truck */,
+		WHB: 4,
 		HPA: 0.4,
 		HPT: 0.9,
 		/* each cop's second button is its own truck's trick (by TRUCKS[].kind): lobs land a hazard ZL s later in front of the
 		   cash truck (radius r, gone after ZT s; "obj" ones smash when hit), the rest act on the cop itself or at the truck */
 		ZL: 1,
 		ZT: 8,
+		/* lobs lead the cash truck by LOBLEAD s more than their flight, so they come down just in front of its nose (aimed at
+		   where it would be on landing, most came down under it or just behind it) */
+		LOBLEAD: 0.35,
+		/* Steady Eddie's NAILS: a crate that bursts into nails; driving over them blows a tyre on that side: the truck pulls
+		   that way at NAILP m/s² for NAILT s (counter-steer to go straight) */
+		NAILT: 4,
+		NAILP: 13,
+		/* Taco Tina's SPICY: a hot-sauce bottle flies SPF s onto the cash truck from anywhere: its left and right swap for
+		   SPT s (flames out of the exhaust) */
+		SPF: 0.6,
+		SPT: 2.2,
+		/* Garbo's BINS: BN wheelie bins flung (BF s) onto the road BLEAD s ahead of the cash truck, BGAP m apart and BSIDE m
+		   to one side of its lane, then rolling across it at BV m/s, BDLY s after each other: timed so they cross its lane as
+		   it gets there (flung from the road's far edge they rolled past behind the truck); hitting one costs speed */
+		BN: 4,
+		BF: 0.8,
+		BLEAD: 2,
+		BGAP: 4,
+		BSIDE: 7,
+		BV: 6,
+		BDLY: 0.2,
+		/* Rusty's WRECKING BALL: a wrecked car on its crane cable swung round it for WBT s, out to WBR m at WBW rad/s, WBY m
+		   up; it smashes traffic it meets and spins the cash truck out (WBS s) */
+		WBT: 4,
+		WBR: 5.5,
+		WBW: 5 /* was 2.6 */,
+		WBG: 14 /* it grabs the nearest traffic car within WBG m to swing (a crushed car of its own if there's none) */,
+		WBY: 1.3,
+		WBS: 1.4,
 		/* Crusher's JUMP: JMPT s in the air at JMPV m/s over its top speed */
 		JMPT: 1.2,
 		JMPV: 15,
+		/* a harpoon that catches a car instead: the cop vaults over it at VLV m/s faster than the traffic, landing VLX m past
+		   it, VLTH m high (speed and distance 20% up from 22 / 7) */
+		VLV: 26.4,
+		VLX: 8.4,
+		VLTH: 3.2,
+		/* cooldowns by how hard a trick hits: self buffs and light knocks 7-8 s, slows and obstacles 11-12 s, the ones that
+		   take the truck's control or spin it out 13-15 s (was 8-11 s for all) */
 		AB: {
-			monster: { lbl: "JUMP", cd: 9 },
-			icecream: { lbl: "SCOOPS", cd: 10, lob: "ice", r: 2.4 },
-			fire: { lbl: "HOSE", cd: 10 },
-			box: { lbl: "CRATES", cd: 10, lob: "crate", r: 2.4, obj: 1 },
-			mixer: { lbl: "CEMENT", cd: 10, lob: "cement", r: 2.4 },
-			dump: { lbl: "GRAVEL", cd: 10, lob: "gravel", r: 2.1, obj: 1 },
-			pickup: { lbl: "NITRO", cd: 8 },
-			tow: { lbl: "WINCH", cd: 10 },
-			garbage: { lbl: "TRASH", cd: 10, lob: "trash", r: 2.1, obj: 1 },
-			tanker: { lbl: "FUEL", cd: 10, lob: "fuel", r: 2.4 },
-			mail: { lbl: "PARCELS", cd: 10, lob: "parcel", r: 2.6, obj: 1 },
-			food: { lbl: "SAUCE", cd: 8 },
+			pickup: { lbl: "NITRO", cd: 7 },
+			monster: { lbl: "JUMP", cd: 8 },
+			dump: { lbl: "GRAVEL", cd: 8, lob: "gravel", r: 2.1, obj: 1 },
+			mail: { lbl: "PARCELS", cd: 8, lob: "parcel", r: 2.6, obj: 1 },
+			icecream: { lbl: "SCOOPS", cd: 11, lob: "ice", r: 2.4 },
+			garbage: { lbl: "BINS", cd: 11 },
+			box: { lbl: "NAILS", cd: 12, lob: "nails", r: 2.4 },
+			mixer: { lbl: "CEMENT", cd: 13, lob: "cement", r: 2.4 },
+			food: { lbl: "SPICY", cd: 13 },
+			fire: { lbl: "HOSE", cd: 14 },
+			tanker: { lbl: "FUEL", cd: 14, lob: "fuel", r: 2.4 },
+			tow: { lbl: "WRECK", cd: 15 },
 		},
 		/* a cop's ability (its truck's kind) */
 		abOf(e) {
@@ -7543,18 +7665,20 @@ Object.assign(MG, {
 		lobR(kind) {
 			return (Object.values(this.AB).find((a) => a.lob === kind) || { r: 2.2 }).r;
 		},
-		OILCD: 7,
+		/* Blaze's hose: soaked tyres lose their grip this long */
+		HOSET: 2.2,
+		OILCD: 8 /* was 7, then 9 */,
 		OILT: 8,
 		OILR: 1.9,
-		how: "1 vs 3 highway chase! The cash truck has to reach the tunnel with any cash left; the cops harpoon it and reel themselves in to knock the money bags off. Mind the traffic!",
+		how: "1 vs 3 highway chase! The cash truck has to reach the tunnel with any cash left; the cops harpoon it from close behind or get ahead and drop spikes to knock the money bags off.",
 		teamHow: (s) =>
 			s === 0
-				? "You're the CASH TRUCK: reach the tunnel with cash left. OIL spins cops out, SLAM blasts away the cops round you; swerve hard to snap a harpoon."
-				: "You're a COP: aim the HARPOON at the cash truck; it reels you in and the crash knocks a bag off. Your second button is your truck's own trick!",
+				? "You're the CASH TRUCK: reach the tunnel with cash left. CLAW grabs a cop in front of you and flings it into the wall; OIL spins them out behind you, SLAM blasts them away."
+				: "You're a COP: HARPOON the cash truck from close behind, or get ahead of it and the same button drops SPIKES. Harpoon a car to vault over it!",
 		stickHint: (fine) =>
 			fine
-				? "WASD or arrows: steer, up = faster, down = brake. Space: harpoon (cops) / oil (cash truck). E: your truck's trick / slam."
-				: "Drag to steer: up = faster, down = brake. Buttons: HARPOON + your truck's trick for cops, OIL + SLAM for the cash truck.",
+				? "WASD or arrows: steer, up = faster, down = brake. Space: harpoon (cops) / oil (cash truck). E: your truck's trick / slam. R: claw (cash truck)."
+				: "Drag to steer: up = faster, down = brake. Buttons: HARPOON + your truck's trick for cops, OIL + SLAM + CLAW for the cash truck.",
 		ramLabel: (side) => (side === 0 ? "OIL" : "HARPOON"),
 		/* only a cop being reeled in hits the truck (bumping into it does nothing to the bags) */
 		canRam: (e) => e.side === 1 && !!e.reelOn,
@@ -7564,26 +7688,89 @@ Object.assign(MG, {
 		btn2Cd(W) {
 			const e = W.me,
 				[t, cd] = e.side === 0 ? [e.swCd, this.SWCD] : [e.abCd, this.abOf(e).cd];
+			if (this.dazed(W, e)) return 1;
 			return Math.min(1, Math.max(0, ((t || 0) - W.t) / cd));
+		},
+		/* a cop spinning out (or in the cash truck's claw) can't use its buttons: they show dark meanwhile */
+		dazed(W, e) {
+			return e.side === 1 && (W.t < (e.spinT || 0) || !!e.yank);
+		},
+		/* the cash truck's third button: the SPEAR (dark while it reloads or while no cop is in front to hit) */
+		btn3(side) {
+			return side === 0 ? "CLAW" : null;
+		},
+		btn3Cd(W) {
+			const e = W.me;
+			if (e.side !== 0) return 0;
+			const c = Math.min(1, Math.max(0, ((e.spCd || 0) - W.t) / this.SPCD));
+			return c > 0 ? c : this.spearTarget(W, e) ? 0 : 1;
+		},
+		/* the cop the spear would hit: the nearest one clear in front of the truck's nose within WHR m */
+		spearTarget(W, T) {
+			let best = null,
+				bd = 1e9;
+			for (const c of W.list) {
+				if (c.side !== 1 || c.gone || c.yank) continue;
+				const lead = T.z - c.z;
+				if (lead < T.hb[1] + c.hb[1] + 0.5 || lead > this.WHR) continue;
+				const d = Math.hypot(c.x - T.x, lead);
+				if (d < bd) {
+					bd = d;
+					best = c;
+				}
+			}
+			return best;
+		},
+		/* firing it: shared as e.f.sr = [id, when, the cop's key]; the cop's own device reels it in */
+		spear(W, e) {
+			if (W.t < (e.spCd || 0) || e.d || e.esc) return;
+			const c = this.spearTarget(W, e);
+			if (!c) return;
+			e.spCd = W.t + this.SPCD;
+			e.spN = (e.spN || 0) + 1;
+			e.f.sr = [e.spN, Math.round(W.t * 100) / 100, c.k];
+			mgLog(W, `${mgName(e)} claws ${mgName(c)}`);
 		},
 		ramCd(W) {
 			const e = W.me,
 				[t, cd] = e.side === 0 ? [e.oilCd, this.OILCD] : [e.hpCd, this.HPCD];
+			if (this.dazed(W, e)) return 1;
 			return Math.min(1, Math.max(0, ((t || 0) - W.t) / cd));
 		},
 		ramReady(W) {
 			const e = W.me;
-			return W.t >= ((e.side === 0 ? e.oilCd : e.hpCd) || 0);
+			return !this.dazed(W, e) && W.t >= ((e.side === 0 ? e.oilCd : e.hpCd) || 0);
 		},
+		/* the sound packs it plays (sfxPack: a random take each time) and its synth sounds (sfx), for the 🔧 panel's Sound tab */
+		PACKS: [
+			"hit",
+			"whip",
+			"whimsy",
+			"coin",
+			"crunchy",
+			"spike",
+			"splash",
+			"strip",
+			"lob",
+			"thud",
+			"jump",
+			"jumpboost",
+			"speed",
+		],
+		SYNTH: ["go", "crack", "land", "windup", "fanfare"],
 		kits() {
 			MG.hop.kits.call(MG.hop);
 			audLoad("music/pursuit.mp3");
+			this.PACKS.forEach(sfxPackLoad);
 		},
 		lx(l) {
 			return (l - (this.LANES - 1) / 2) * this.LW;
 		},
+		/* a car's z: up the road at CARV; a car squeezed over by a narrowing road (only a wave's cars ever are) drops back
+		   5.5 m a lane it moves over, so it queues behind the car in the lane it merges into */
 		carZ(W, c, t = W.t) {
-			return c.z0 - this.CARV * Math.max(0, t);
+			const z = c.z0 - this.CARV * Math.max(0, t);
+			return c.wave ? z + (Math.abs(this.carX(W, c, z) - this.lx(c.l)) / this.LW) * 5.5 : z;
 		},
 		/* a car's x at z: its lane, squeezed in where the road narrows (it merges over along the bridge's tapers and the
 		   roadworks, never drives inside a guardrail or barrier) */
@@ -7605,27 +7792,46 @@ Object.assign(MG, {
 			/* traffic from the seed: rows of 1-3 cars, always at least three lanes free; a row the pack meets in the
 			   roadworks (it overtakes a car that started at z0 somewhere round 1.35-2.45 z0) stays out of the shut lanes */
 			W.cars = [];
+			/* each car type's half width / half length on the road (the models scaled by CARS), for the hit tests */
+			W.carHB = {};
 			const kits = {},
-				[w0, w1] = this.WORKS;
+				/* traffic waves: WAVES times a run a row fills every lane (a rolling roadblock the cash truck has to ram
+				   through), the pack meeting them round these shares of the road (a car at z0 is met near 1.8 z0); where
+				   the road is narrower the cars in the shut lanes queue up behind the others (carZ) */
+				waves = this.WAVES.map((f) => ((f + (W.rng() - 0.5) * 0.08) * this.TL) / 1.8);
 			for (let z = -55; z > -this.TL + 25; z -= 15 + W.rng() * 12) {
 				const meets = ([a, b], m0, m1) => -z * 2.45 > a - m0 && -z * 1.35 < b + m1,
 					shut = meets(this.WORKS, 50, 10),
 					narrow = meets(this.BRIDGE, this.TB + 10, this.TA + 5),
-					lanes = (shut ? [2, 3, 4, 5] : narrow ? [1, 2, 3, 4] : [0, 1, 2, 3, 4, 5]).sort(() => W.rng() - 0.5),
-					nc = Math.min(shut || narrow ? 2 : 3, 1 + Math.floor(W.rng() * 2.4));
+					wave = waves.length && -z >= waves[0],
+					lanes = (wave || !(shut || narrow) ? [0, 1, 2, 3, 4, 5] : shut ? [2, 3, 4, 5] : [1, 2, 3, 4]).sort(
+						() => W.rng() - 0.5,
+					),
+					nc = wave ? lanes.length : Math.min(shut || narrow ? 2 : 3, 1 + Math.floor(W.rng() * 2.4));
+				if (wave) waves.shift();
 				for (let k = 0; k < nc; k++) {
 					const c = {
 							id: W.cars.length,
 							l: lanes[k],
-							z0: z - W.rng() * 4,
+							z0: z - W.rng() * (wave ? 1.2 : 4),
 							c: this.CARCOL[Math.floor(W.rng() * this.CARCOL.length)],
 						},
-						ty = CAR_TYPES[c.id % 4],
-						kit = kits[ty + c.c] || (kits[ty + c.c] = bakeKit(carModel(ty, c.c))),
-						g = kitGroup(kit);
+						ty = CAR_TYPES[c.id % 4];
+					if (!kits[ty + c.c]) {
+						const m = carModel(ty, c.c);
+						if (!W.carHB[ty]) {
+							const sz = new THREE.Box3().setFromObject(m).getSize(new THREE.Vector3());
+							W.carHB[ty] = [(sz.x / 2) * this.CARS, (sz.z / 2) * this.CARS];
+						}
+						kits[ty + c.c] = bakeKit(m);
+					}
+					const g = kitGroup(kits[ty + c.c]);
+					g.scale.setScalar(this.CARS);
 					g.position.set(this.lx(c.l), 0, c.z0);
 					s.add(g);
 					c.g = g;
+					c.hb = W.carHB[ty];
+					if (wave) c.wave = this.WAVES.length - waves.length;
 					W.cars.push(c);
 				}
 			}
@@ -8115,10 +8321,10 @@ Object.assign(MG, {
 			e.vx = e.vz = 0;
 			e.oilHit = {};
 			e.hitC = {};
-			e.oilCd = e.swCd = e.hpCd = e.abCd = this.ARM;
+			e.oilCd = e.swCd = e.hpCd = e.abCd = e.spCd = this.ARM;
 			if (e.side === 0) {
 				e.bags = this.BAGS;
-				/* bags 0-9 hang in the right-hand nets, 10-19 in the left (top tier first, rear first): e.bm = the ones still on */
+				/* the first half of the bags hang in the right-hand nets, the rest in the left (top tier first if there is one, rear first): e.bm = the ones still on */
 				e.bm = (1 << this.BAGS) - 1;
 				e.lbN = 0;
 				e.snapA = {};
@@ -8137,15 +8343,32 @@ Object.assign(MG, {
 			} else {
 				e.f = {};
 			}
+			this.hitBox(e);
+		},
+		/* the hitbox: the truck's own body as a box (e.hb = [half width, half length] on the road, which the engine's
+		   collide uses instead of the round e.rad), measured before the light bar or bag nets go on */
+		hitBox(e) {
+			const tr = e.tr,
+				par = tr.parent;
+			if (par) par.remove(tr);
+			tr.updateMatrixWorld(true);
+			const sz = new THREE.Box3().setFromObject(tr).getSize(new THREE.Vector3());
+			if (par) par.add(tr);
+			/* the model points along +x: its z is the truck's width */
+			e.hb = [(sz.z / 2) * 0.95, (sz.x / 2) * 0.95];
 		},
 		/* driving: cruise up the road; the stick steers and sets the speed; the button rams (cops) or drops oil (truck) */
 		phys(W, e, inp, dt) {
 			const solo = e.side === 0,
 				T = solo ? null : this.solo(W),
-				/* catch-up: a cop more than 27 m behind the truck cruises faster and gets extra top speed, so the pack stays
-				   together (and on the TV) */
-				lag = T ? e.z - T.z - 27 : 0,
-				cu = lag > 0 ? Math.min(12, lag * 0.4) : 0,
+				/* catch-up: a cop more than 30 m behind the truck cruises faster and gets extra top speed (up to 8 m/s; was 12
+				   from 27 m), so the pack stays together (and on the TV); vaulting cars is the quick way back */
+				lag = T ? e.z - T.z - 30 : 0,
+				cu = lag > 0 ? Math.min(8, lag * 0.3) : 0,
+				/* and the other way: a cop more than LEAD m ahead of the truck loses top speed the further it gets (up to 9
+				   m/s), so it hangs about 15-25 m ahead (spike range, still on screen with the truck) instead of racing off */
+				ld = T ? T.z - e.z - this.LEAD : 0,
+				ldk = ld > 0 ? Math.min(9, ld * 0.5) : 0,
 				hooks = solo ? this.hooks(W, e) : [],
 				/* the cash truck: slowed a moment after a hit, by a hook on it, in cement / gravel / trash; a cop: on nitro */
 				nitro = !solo && W.t < (e.nitroT || 0),
@@ -8154,11 +8377,17 @@ Object.assign(MG, {
 						(W.t < (e.cemT || 0) ? 9 : 0) +
 						(W.t < (e.gravT || 0) ? 5 : 0) +
 						(W.t < (e.trashT || 0) ? 4 : 0) +
+						(W.t < (e.blowT || 0) ? 2 : 0) +
+						(W.t < (e.carT || 0) ? this.CARSLOW : 0) +
 						Math.min(2, hooks.length) * 2
 					: 0,
-				top = this.V0 + (solo ? this.UP : this.UPC) + cu - slow + (nitro ? (e.f.nt && e.f.nt[1] ? 14 : 12) : 0),
+				top = this.V0 + (solo ? this.UP : this.UPC) + cu - ldk - slow + (nitro ? (e.f.nt && e.f.nt[1] ? 14 : 12) : 0),
 				low = this.V0 - this.DN,
 				on = inp && !e.d;
+			if (!solo && T && e.yank && this.yankStep(W, e, T, dt)) {
+				if (inp) inp.boost = inp.b2 = inp.b3 = false;
+				return;
+			}
 			let fv = -e.vz;
 			const thr = on ? -(inp.y || 0) : 0,
 				want = Math.min(
@@ -8169,20 +8398,24 @@ Object.assign(MG, {
 				ice = solo && W.t < (e.iceT || 0);
 			fv += Math.max(-acc, Math.min(acc, (nitro ? top : want) - fv));
 			/* on ice cream the steering hardly bites and the truck drifts */
-			if (on) e.vx += (inp.x || 0) * this.LATA * (ice ? 0.35 : 1) * dt;
+			/* too spicy: left and right swapped; a blown tyre: it pulls to that side */
+			if (on) e.vx += (inp.x || 0) * (solo && W.t < (e.spicyT || 0) ? -1 : 1) * this.LATA * (ice ? 0.35 : 1) * dt;
+			if (solo && W.t < (e.blowT || 0)) e.vx += e.blowSd * this.NAILP * dt;
 			if (ice) e.vx += Math.sin(W.t * 4 + e.i) * 7 * dt;
 			e.slideT = Math.max(0, (e.slideT || 0) - dt);
 			e.bcd = Math.max(0, (e.bcd || 0) - dt);
 			e.boostT = Math.max(0, (e.boostT || 0) - dt);
-			if (on && inp.boost) {
+			const dazed = this.dazed(W, e);
+			if (on && inp.boost && !dazed) {
 				if (solo) this.oil(W, e);
 				else this.harpoon(W, e, inp);
 			}
-			if (on && inp.b2) {
+			if (on && inp.b2 && !dazed) {
 				if (solo) this.slam(W, e);
 				else this.ability(W, e);
 			}
-			if (inp) inp.boost = inp.b2 = false;
+			if (on && inp.b3 && solo) this.spear(W, e);
+			if (inp) inp.boost = inp.b2 = inp.b3 = false;
 			/* the harpoon drags the truck towards each cop holding it, and a hard swerve away (moving away fast for 0.3 s)
 			   snaps the line */
 			hooks.forEach(({ c, id }) => {
@@ -8191,12 +8424,9 @@ Object.assign(MG, {
 				e.vx += sd * 3 * dt;
 				const key = c.k + ":" + id;
 				e.snapA[key] = away > 5.5 ? (e.snapA[key] || 0) + dt : Math.max(0, (e.snapA[key] || 0) - dt * 0.5);
-				/* a winch line (Rusty's) can't be snapped */
 				if (e.snapA[key] > 0.25 && !(c.f.hp && c.f.hp[4])) {
 					e.f.hs = (e.f.hs || []).concat([[c.k, id]]).slice(-6);
-					fb(W, e, "SNAP!", { tone: "good" });
 					mgLog(W, `${mgName(e)} snaps ${mgName(c)}'s harpoon`);
-					if (e.isMe) sfx("crack");
 				}
 			});
 			/* a cop whose harpoon holds is reeled in: flung at the truck; touching it is the hit (the engine's ram), then
@@ -8210,16 +8440,26 @@ Object.assign(MG, {
 				e.vx = (T.vx || 0) + (dx / d) * sp;
 				fv = -((T.vz || 0) + (dz / d) * sp);
 				e.boostT = Math.max(e.boostT, 0.15);
-				if (d < (e.rad || 0.95) + (T.rad || 1.6) + 0.35 && !e.reelHitT) e.reelHitT = W.t;
+				if (Math.abs(dx) < e.hb[0] + T.hb[0] + 0.35 && Math.abs(dz) < e.hb[1] + T.hb[1] + 0.35 && !e.reelHitT)
+					e.reelHitT = W.t;
 				if (e.reelHitT && W.t - e.reelHitT > 0.12) {
 					e.f.hr = e.f.hp[0];
 					e.reelOn = false;
 					e.slideT = 0.6;
 				}
 			} else e.reelHitT = 0;
+			/* the harpoon vault: slung up and over the car it caught, lined up with it on the way up, landing past it */
+			const vt = e.vault,
+				vk = vt ? (W.t - vt.t) / vt.dur : -1,
+				vault = vk >= 0 && vk < 1;
+			if (vault) {
+				fv = Math.max(fv, this.CARV + this.VLV);
+				if (vk < 0.5) e.vx = (this.carX(W, vt.car, this.carZ(W, vt.car)) - e.x) * 5;
+			} else if (vk >= 1) e.vault = null;
 			/* JUMP (Crusher): a long leap up the road, over the traffic */
-			const air = !solo && W.t < (e.jumpT ?? -9) + this.JMPT;
-			if (air) fv = Math.max(fv, top + this.JMPV);
+			const jump = !solo && W.t < (e.jumpT ?? -9) + this.JMPT,
+				air = jump || vault;
+			if (jump) fv = Math.max(fv, top + this.JMPV);
 			/* spun out on oil: speed bleeds off, the truck slews */
 			const spin = W.t < (e.spinT || 0);
 			if (spin) {
@@ -8227,7 +8467,7 @@ Object.assign(MG, {
 				e.vx += Math.sin(W.t * 9 + e.i) * 20 * dt;
 			}
 			e.vx *= Math.exp(-(ice ? 0.35 : e.slideT > 0 || spin ? 1.2 : 3.4) * dt);
-			const mx = e.reelOn ? 32 : e.boostT > 0 || W.t < (e.blastT || 0) ? 20 : ice ? 12 : 9;
+			const mx = e.reelOn ? 32 : e.boostT > 0 || W.t < (e.blastT || 0) || vault ? 20 : ice ? 12 : 9;
 			e.vx = Math.max(-mx, Math.min(mx, e.vx));
 			fv = Math.max(0, Math.min(e.reelOn ? 60 : top + (air ? this.JMPV : e.boostT > 0 ? 12 : 0), fv));
 			e.vz = -fv;
@@ -8235,7 +8475,7 @@ Object.assign(MG, {
 			e.z += e.vz * dt;
 			/* guardrails (and the roadworks' barriers) */
 			const [lo, hi] = this.edges(e.z),
-				rr = (e.rad || 0.95) * 0.85;
+				rr = e.hb[0];
 			if (e.x > hi - rr || e.x < lo + rr) {
 				e.x = e.x > hi - rr ? hi - rr : lo + rr;
 				e.vx *= -0.4;
@@ -8247,13 +8487,90 @@ Object.assign(MG, {
 			if (solo) this.hazards(W, e, dt);
 			e.f.t = Math.round(W.t * 100) / 100;
 		},
+		/* a clawed cop: the claw flies WHF s (it keeps driving), then it's reeled in (WHY s) and held clamped right in front
+		   of the truck's nose for WHH s (no control: pushed along like a plough; the engine doesn't collide the two, see
+		   noCollide), then flung across the road into the furthest guardrail (WHL s), where it crashes and spins out WHS s,
+		   WHB m behind the truck; true while the claw has it */
+		yankStep(W, e, T, dt) {
+			const Y = e.yank,
+				a = W.t - Y.t - this.WHF,
+				hold = this.WHY + this.WHH,
+				nose = -(T.hb[1] + e.hb[1] + 0.25);
+			if (a < 0) return false;
+			e.vx = 0;
+			e.vz = T.vz || 0;
+			e.y = 0;
+			e.f.t = Math.round(W.t * 100) / 100;
+			if (a >= hold + this.WHL) {
+				/* into the wall */
+				e.yank = null;
+				e.vz = (T.vz || -18) * 0.45;
+				e.vx = -Y.fd * 3;
+				e.spinT = W.t + this.WHS;
+				e.slideT = 0.6;
+				e.crT = W.t + this.WHS + 0.5;
+				mgLog(W, `${mgName(e)} flung into the guardrail by the cash truck`);
+				if (e.isMe) {
+					W.shake = 0.7;
+					buzz(140);
+				}
+				return false;
+			}
+			if (a >= hold) {
+				/* flung across the road to the guardrail furthest from it, low and fast */
+				if (Y.hx === undefined) {
+					const [lo, hi] = this.edges(e.z);
+					Y.hx = e.x;
+					Y.hz = e.z - T.z;
+					Y.fd = hi - e.x > e.x - lo ? 1 : -1;
+					Y.fx = Y.fd > 0 ? hi - e.hb[0] : lo + e.hb[0];
+				}
+				const k = (a - hold) / this.WHL;
+				e.x = Y.hx + (Y.fx - Y.hx) * (1 - (1 - k) * (1 - k));
+				e.z = T.z + Y.hz + (this.WHB - Y.hz) * k;
+				e.y = Math.sin(k * Math.PI) * 1.2;
+				e.yaw += (dt || 0.016) * 14 * Y.fd;
+				return true;
+			}
+			if (a >= this.WHY) {
+				/* clamped right in front of the nose, on the road */
+				e.x = T.x;
+				e.z = T.z + nose;
+				e.yaw = Math.PI / 2;
+				return true;
+			}
+			if (Y.x0 === undefined) {
+				Y.x0 = e.x;
+				Y.z0 = e.z - T.z;
+			}
+			/* reeled in, faster and faster */
+			const k = a / this.WHY;
+			e.x = Y.x0 + (T.x - Y.x0) * k * k;
+			e.z = T.z + Y.z0 + (nose - Y.z0) * k * k;
+			return true;
+		},
+		/* the engine's truck-to-truck pushes leave the cash truck and the cop its claw has alone (it holds it right against
+		   its nose) */
+		noCollide(W, a, b) {
+			const T = this.solo(W),
+				sr = T && T.f && T.f.sr,
+				c = a === T ? b : b === T ? a : null;
+			if (!c || !sr || sr[2] !== c.k) return false;
+			const age = W.t - sr[1];
+			return age >= 0 && age < this.WHF + this.WHY + this.WHH + this.WHL;
+		},
 		/* bumping into a car: thrown out beside it, down to below the traffic's speed for a moment */
 		traffic(W, e) {
-			const r = e.rad || 0.95;
+			const [hw, hl] = e.hb || [0.6, 0.9];
 			for (const c of W.cars) {
+				if (c.held) continue;
 				const cz = this.carZ(W, c);
 				if (cz > e.z + 5) continue;
-				if (cz < e.z - 5) break;
+				if (cz < e.z - 5) {
+					/* (a wave car queued behind its row can be later in the list: look 12 m further) */
+					if (cz < e.z - 17) break;
+					continue;
+				}
 				if (c.kT !== undefined) {
 					/* a car the cash truck sent flying: it wrecks any cop in its way while it's still low over the road */
 					const kp = this.carPos(W, c);
@@ -8261,8 +8578,8 @@ Object.assign(MG, {
 						e.side === 1 &&
 						W.t - c.kT < 1.6 &&
 						kp.y < 1.6 &&
-						Math.abs(e.x - kp.x) < 1.2 + r &&
-						Math.abs(e.z - kp.z) < 2.2 + r &&
+						Math.abs(e.x - kp.x) < c.hb[0] + hw + 0.3 &&
+						Math.abs(e.z - kp.z) < c.hb[1] + hl &&
 						W.t - (e.hitC[c.id] ?? -9) > 1.5
 					) {
 						e.hitC[c.id] = W.t;
@@ -8271,54 +8588,64 @@ Object.assign(MG, {
 						e.spinT = W.t + 1;
 						e.slideT = 0.8;
 						e.crT = W.t + 1.4;
-						fb(W, e, "WHAM!", { tone: "bad" });
 						this.letGo(W, e, "flying car");
 						mgLog(W, `${mgName(e)} hit by a flying car`);
 						e.lastHit = { k: "flying car", t: W.t };
-						if (e.isMe) {
-							W.shake = 0.6;
-							sfx("crush");
-						}
+						if (e.isMe) W.shake = 0.6;
+						if (this.heard(W, e)) sfxPack("hit");
 					}
 					continue;
 				}
 				const cx = this.carX(W, c, cz),
 					dx = e.x - cx;
-				if (Math.abs(dx) > 1 + r || Math.abs(e.z - cz) > 2.2 + r * 0.7) continue;
+				if (Math.abs(dx) > c.hb[0] + hw || Math.abs(e.z - cz) > c.hb[1] + hl) continue;
 				let sd = dx >= 0 ? 1 : -1;
 				/* the cash truck just shoves cars off the road (shared as e.f.tk, so every screen sees it fly) */
 				if (e.side === 0) {
 					c.kT = W.t;
 					c.kd = -sd;
 					e.f.tk = (e.f.tk || []).concat([[c.id, Math.round(W.t * 100) / 100, -sd]]).slice(-8);
-					/* a little bump back: some speed lost, nudged away from the car */
-					e.vz *= 0.82;
+					/* the crunch costs it: CARHIT of its speed gone, then CARSLOW m/s off its top speed and half the
+					   acceleration for CART s (cops catch up), nudged away from the car */
+					if (e.vz < -8) e.vz = Math.min(-8, e.vz * this.CARHIT);
+					e.carT = W.t + this.CART;
+					e.crT = Math.max(e.crT || 0, e.carT);
 					e.vx += sd * 2.5;
+					if (c.wave && e.waveLog !== c.wave) {
+						e.waveLog = c.wave;
+						mgLog(W, `${mgName(e)} rams through traffic wave ${c.wave} at ${Math.round(-e.z)} m`);
+					}
 					if (e.isMe) W.shake = Math.max(W.shake || 0, 0.25);
 					this.carFx(W, c, e);
 					continue;
 				}
-				/* thrown out beside the car, never through a guardrail or barrier: no room there, the other side */
+				/* scraping along a car's side (more overlap along the road than across it): just pushed out beside it with a
+				   light nudge, no speed lost, so squeezing between two cars and touching one doesn't ping-pong you between
+				   them */
+				const ox = c.hb[0] + hw - Math.abs(dx),
+					oz = c.hb[1] + hl - Math.abs(e.z - cz);
+				if (ox < oz * 0.6) {
+					e.x = cx + sd * (c.hb[0] + hw + 0.02);
+					e.vx = sd * Math.min(1.2, Math.max(0, sd * e.vx) + 0.6);
+					continue;
+				}
+				/* driving into its back: thrown out beside the car (never through a guardrail or barrier: no room there, the
+				   other side) and slowed */
 				{
 					const [lo, hi] = this.edges(e.z),
-						rr = r * 0.85,
-						nx = cx + sd * (1.05 + r);
-					if (nx > hi - rr || nx < lo + rr) sd = -sd;
+						nx = cx + sd * (c.hb[0] + hw + 0.1);
+					if (nx > hi - hw || nx < lo + hw) sd = -sd;
 				}
-				e.x = cx + sd * (1.05 + r);
-				e.vx = sd * 5;
+				e.x = cx + sd * (c.hb[0] + hw + 0.1);
+				e.vx = sd * 3;
 				e.vz = -(this.CARV - 3);
-				e.slideT = 0.5;
+				e.slideT = 0.3;
 				e.crT = W.t + 1.2;
 				if (W.t - (e.hitC[c.id] ?? -9) > 1.5) {
 					e.hitC[c.id] = W.t;
-					fb(W, e, "CRASH!", { tone: "bad" });
 					mgLog(W, `${mgName(e)} hits traffic`);
 					e.lastHit = { k: "traffic", t: W.t };
-					if (e.isMe) {
-						W.shake = 0.45;
-						sfx("honk");
-					}
+					if (e.isMe) W.shake = 0.45;
 				}
 			}
 		},
@@ -8346,7 +8673,7 @@ Object.assign(MG, {
 				life: 0.8,
 				size: 0.7,
 			});
-			if (by && (by.isMe || W.split || W.tv)) sfx("crush");
+			if (by && (W.split || this.heard(W, by))) sfxPack("hit");
 		},
 		/* the cash truck's oil slick, a few metres behind it */
 		oil(W, e) {
@@ -8356,7 +8683,7 @@ Object.assign(MG, {
 			const r = (v) => Math.round(v * 100) / 100;
 			e.f.oil = e.f.oil.concat([[e.oilN, r(e.x), r(e.z + 3.2), r(W.t)]]).slice(-4);
 			mgLog(W, `${mgName(e)} drops oil`);
-			if (e.isMe) sfx("splash");
+			if (this.heard(W, e)) sfxPack("splash");
 		},
 		/* the cash truck's slam: a hop, then a shockwave ring round it (shared as e.f.sw = [id, time pressed]) */
 		slam(W, e) {
@@ -8365,7 +8692,7 @@ Object.assign(MG, {
 			e.swN = (e.swN || 0) + 1;
 			e.f.sw = [e.swN, Math.round(W.t * 100) / 100];
 			mgLog(W, `${mgName(e)} slams`);
-			if (e.isMe) sfx("windup");
+			if (this.heard(W, e)) sfx("windup");
 		},
 		/* the slam's ring right now: {id, slam time, r} (r < 0 while the truck is still in the air), or null */
 		ring(W, T) {
@@ -8379,25 +8706,72 @@ Object.assign(MG, {
 		harpoon(W, e, inp) {
 			if (W.t < (e.hpCd || 0) || e.d) return;
 			e.hpCd = W.t + this.HPCD;
-			e.hpN = (e.hpN || 0) + 1;
-			/* aimed up the road, swung by the stick; it hooks the truck if it's within reach and within HPA of the aim (a
-			   wider, longer reach with Rusty's winch) */
-			const T = this.solo(W),
-				power = W.t < (e.winchT || 0),
-				aim = Math.atan2(1, ((inp && inp.x) || 0) * 0.7),
-				rg = power ? 26 : this.HPR,
-				cone = power ? 0.65 : this.HPA;
-			let hit = 0;
-			if (T && !(T.f && T.f.esc)) {
-				const d = Math.hypot(T.x - e.x, T.z - e.z),
-					a = Math.atan2(-(T.z - e.z), T.x - e.x);
-				hit = d < rg && Math.abs(wrapA(a - aim)) < cone ? 1 : 0;
+			const rd = (v) => Math.round(v * 100) / 100,
+				T = this.solo(W);
+			/* ahead of the cash truck: the button drops a spike strip across the road behind the cop instead */
+			if (this.ahead(W, e, T)) {
+				e.ssN = (e.ssN || 0) + 1;
+				const z = e.z + this.SSB,
+					[lo, hi] = this.edges(z),
+					x = Math.max(lo + this.SSW / 2 - 0.3, Math.min(hi - this.SSW / 2 + 0.3, e.x));
+				e.f.ss = (e.f.ss || []).concat([[e.ssN, rd(x), rd(z), rd(W.t)]]).slice(-3);
+				mgLog(W, `${mgName(e)} drops a spike strip ${Math.round(T.z - e.z - this.SSB)} m ahead of the truck`);
+				if (this.heard(W, e)) sfxPack("strip");
+				return;
 			}
-			if (power) e.winchT = 0;
-			const rd = (v) => Math.round(v * 100) / 100;
-			e.f.hp = [e.hpN, rd(W.t), hit, rd(aim), power ? 1 : 0];
-			mgLog(W, `${mgName(e)} fires the harpoon (${hit ? "hooked" : "missed"})`);
-			if (e.isMe) sfx("cannon");
+			e.hpN = (e.hpN || 0) + 1;
+			/* aimed up the road, swung by the stick: it hooks the cash truck only from behind it (within HPRT m), any car
+			   ahead within HPR m */
+			const aim = Math.atan2(1, ((inp && inp.x) || 0) * 0.7),
+				rg = this.HPR,
+				rt = this.HPRT,
+				cone = this.HPA;
+			let hit = 0;
+			const inCone = (x, z, r = rg) =>
+				Math.hypot(x - e.x, z - e.z) < r && Math.abs(wrapA(Math.atan2(-(z - e.z), x - e.x) - aim)) < cone;
+			if (T && !(T.f && T.f.esc) && T.z < e.z - 1) hit = inCone(T.x, T.z, rt) ? 1 : 0;
+			/* missed the truck: the nearest car ahead in the cone catches it instead, and the cop vaults over it */
+			let car = null;
+			if (!hit) {
+				let best = 1e9;
+				for (const c of W.cars) {
+					if (c.kT !== undefined) continue;
+					const cz = this.carZ(W, c);
+					if (cz > e.z + 1) continue;
+					if (cz < e.z - rg - 12) break;
+					/* any part of the car in the cone counts, not just its middle: reach and aim widened by its size */
+					const cx = this.carX(W, c, cz),
+						d = Math.hypot(cx - e.x, cz - e.z),
+						off = Math.abs(wrapA(Math.atan2(-(cz - e.z), cx - e.x) - aim));
+					if (d < best && d > 1 && d < rg + c.hb[1] && off < cone + Math.atan2(c.hb[0] + 0.4, d)) {
+						best = d;
+						car = c;
+					}
+				}
+			}
+			e.f.hp = [e.hpN, rd(W.t), hit, rd(aim), 0];
+			if (car) {
+				/* the vault: from the moment the head bites (0.2 s) the cop is in the air VLT s, slung forward over the car */
+				const d = Math.hypot(this.carX(W, car, this.carZ(W, car)) - e.x, this.carZ(W, car) - e.z),
+					dur = rd(Math.max(0.7, Math.min(1.3, (d + this.VLX) / this.VLV)));
+				e.f.hp.push(car.id);
+				e.hpCd = W.t + this.HPCDV;
+				e.vault = { t: W.t + 0.2, dur, car };
+				e.f.vt = [rd(W.t + 0.2), dur];
+			}
+			mgLog(W, `${mgName(e)} fires the harpoon (${hit ? "hooked" : car ? "vaults a car" : "missed"})`);
+			if (this.heard(W, e)) sfxPack("whip");
+		},
+		/* who hears a truck's own sounds: its player, the TV for every truck (the CPUs too), and any player within HEARR m
+		   of it (the 🔧 panel's Hear range: SFXT.hear) */
+		HEARR: 30,
+		heard(W, e) {
+			const R = SFXT.hear ?? this.HEARR;
+			return !!(e.isMe || W.tv || (W.me && Math.hypot(W.me.x - e.x, W.me.z - e.z) < R));
+		},
+		/* far enough ahead of the cash truck that the main button drops spikes */
+		ahead(W, e, T) {
+			return !!(T && !(T.f && T.f.esc) && e.z < T.z - this.SSA);
 		},
 		/* a cop's second button: its truck's trick */
 		ability(W, e) {
@@ -8408,29 +8782,67 @@ Object.assign(MG, {
 			const rd = (v) => Math.round(v * 100) / 100,
 				T = this.solo(W);
 			if (A.lob) {
-				/* lobbed to land in front of the cash truck (where it'll be in ZL s), or up the road ahead if it's far */
+				/* lobbed to land in front of the cash truck (where it'll be in ZL s), however far back the cop is (up the
+				   road ahead of the cop only if there's no cash truck) */
 				let tx = e.x,
 					tz = e.z - 18;
-				if (T && Math.hypot(T.x - e.x, T.z - e.z) < 40) {
-					tz = T.z + (T.vz || -18) * this.ZL;
+				if (T) {
+					tz = T.z + Math.min(T.vz || -18, -12) * (this.ZL + this.LOBLEAD);
 					tx = T.x + (T.vx || 0) * this.ZL * 0.4;
 				}
 				const [lo, hi] = this.edges(tz);
 				tx = Math.max(lo + 1, Math.min(hi - 1, tx));
 				e.f.zn = (e.f.zn || []).concat([[e.abN, A.lob, rd(tx), rd(tz), rd(W.t), rd(e.x), rd(e.z)]]).slice(-3);
-			} else if (A.kind === "pickup" || A.kind === "food") {
-				e.nitroT = W.t + (A.kind === "food" ? 1.6 : 2.2);
-				e.f.nt = [rd(e.nitroT), A.kind === "food" ? 1 : 0];
+			} else if (A.kind === "pickup") {
+				e.nitroT = W.t + 2.2;
+				e.f.nt = [rd(e.nitroT), 0];
+			} else if (A.kind === "food") {
+				/* the hot-sauce bottle: [id, thrown at, from x, from z] */
+				e.f.sp = [e.abN, rd(W.t), rd(e.x), rd(e.z)];
+			} else if (A.kind === "garbage") {
+				/* the bins: [id, thrown at, row z, roll direction, from x, from z, start x] */
+				if (T) {
+					const z0 = T.z + Math.min(T.vz || -18, -12) * this.BLEAD,
+						/* rolling in from the side with more road (from up against the edge they cross its lane too early) */
+						dir = Math.abs(T.x) < 2 ? (Math.random() < 0.5 ? 1 : -1) : T.x > 0 ? 1 : -1,
+						[lo, hi] = this.edges(z0);
+					e.f.rb = [
+						e.abN,
+						rd(W.t),
+						rd(z0),
+						dir,
+						rd(e.x),
+						rd(e.z),
+						rd(Math.max(lo + 0.6, Math.min(hi - 0.6, T.x - dir * this.BSIDE))),
+					];
+				}
 			} else if (A.kind === "monster") {
 				e.jumpT = W.t;
 				e.f.jp = rd(W.t);
 			} else if (A.kind === "fire") e.f.wj = [e.abN, rd(W.t)];
 			else if (A.kind === "tow") {
-				e.winchT = W.t + 8;
-				e.hpCd = Math.min(e.hpCd || 0, W.t);
+				/* the wrecking ball: [id, swung at, start angle (behind it), turning direction (towards the truck first)] */
+				/* ... and the traffic car it grabs (its id, -1 = none near: it swings its own crushed car) */
+				let pick = -1,
+					bd = this.WBG;
+				for (const c of W.cars) {
+					if (c.kT !== undefined) continue;
+					const cz = this.carZ(W, c);
+					if (Math.abs(cz - e.z) > bd) continue;
+					const d = Math.hypot(this.carX(W, c, cz) - e.x, cz - e.z);
+					if (d < bd) {
+						bd = d;
+						pick = c.id;
+					}
+				}
+				e.f.wb = [e.abN, rd(W.t), rd(Math.PI * 1.5), T && T.x < e.x ? 1 : -1, pick];
+				mgLog(W, `${mgName(e)} swings ${pick >= 0 ? "a traffic car" : "its own wreck"}`);
 			}
 			mgLog(W, `${mgName(e)}: ${A.lbl}`);
-			if (e.isMe) sfx(A.lob ? "cannon" : "go");
+			/* thrown tricks (the lobs, the sauce bottle, the bins) a soft throw; Crusher's jump and the nitro sound in trickFx */
+			if (this.heard(W, e) && A.kind !== "pickup" && A.kind !== "monster")
+				if (A.lob || A.kind === "food" || A.kind === "garbage") sfxPack("lob");
+				else sfx("go");
 		},
 		/* on the cash truck's device: the cops' hazards in its way (once each), and Blaze's hose */
 		hazards(W, e, dt) {
@@ -8440,24 +8852,25 @@ Object.assign(MG, {
 				(c.f.zn || []).forEach(([id, kind, x, z, t]) => {
 					const key = c.k + ":" + id,
 						a = W.t - t - this.ZL;
+					/* for tools/watch.mjs: where it came down, measured from the truck (ahead of it +, beside it) */
+					if (a >= 0 && !(e.zLand || (e.zLand = {}))[key]) {
+						e.zLand[key] = 1;
+						mgLog(W, `${kind} lands ${Math.round(e.z - z)} m ahead, ${Math.round(Math.abs(e.x - x))} m beside`);
+					}
 					if (a < 0 || a > this.ZT || e.zHit[key] || Math.hypot(e.x - x, e.z - z) > this.lobR(kind) + 0.9) return;
 					e.zHit[key] = 1;
 					const A = Object.values(this.AB).find((q) => q.lob === kind);
 					if (A && A.obj) e.f.zh = (e.f.zh || []).concat([key]).slice(-12);
-					const say = {
-						ice: "SLIPPY!",
-						cement: "STUCK!",
-						gravel: "BUMPY!",
-						fuel: "SPIN OUT!",
-						trash: "STINKY!",
-						parcel: "BONK!",
-						crate: "BONK!",
-					}[kind];
 					if (kind === "ice") e.iceT = W.t + 2.2;
 					else if (kind === "cement") e.cemT = W.t + 2;
 					else if (kind === "gravel") e.gravT = W.t + 1.5;
 					else if (kind === "trash") e.trashT = W.t + 3;
-					else if (kind === "fuel") {
+					else if (kind === "nails") {
+						/* the tyre on the side the nails were on blows (straight over them: either side) */
+						e.blowT = W.t + this.NAILT;
+						e.blowSd = Math.abs(x - e.x) > 0.3 ? Math.sign(x - e.x) : id % 2 ? 1 : -1;
+						e.f.bl = [Math.round(W.t * 100) / 100, e.blowSd];
+					} else if (kind === "fuel") {
 						e.spinT = W.t + 0.9;
 						e.vz *= 0.8;
 					} else {
@@ -8465,18 +8878,75 @@ Object.assign(MG, {
 						e.vz *= 0.82;
 						e.slideT = 0.5;
 					}
-					fb(W, e, say, { tone: "bad" });
 					mgLog(W, `${mgName(e)} hits ${mgName(c)}'s ${kind}`);
-					if (e.isMe) {
-						W.shake = 0.35;
-						sfx(A && A.obj ? "crush" : "splash");
-					}
+					if (e.isMe) W.shake = 0.35;
+					/* nails: the blown tyre's own sound (render) */
+					if (this.heard(W, e) && kind !== "nails") sfxPack(A && A.obj ? "spike" : "splash");
 				});
-				/* the hose: while it sprays and the truck is in reach, it's shoved away from the cop */
+				/* Taco Tina's hot sauce: always lands, SPF s after the throw; left and right swap for SPT s */
+				const sp = c.f.sp;
+				if (sp && W.t >= sp[1] + this.SPF && W.t < sp[1] + this.SPF + 0.5 && !e.zHit[c.k + ":p" + sp[0]]) {
+					e.zHit[c.k + ":p" + sp[0]] = 1;
+					e.spicyT = W.t + this.SPT;
+					mgLog(W, `${mgName(e)} gets ${mgName(c)}'s hot sauce`);
+					if (this.heard(W, e)) sfxPack("splash");
+				}
+				/* Rusty's wrecking ball: the swinging car hits the truck once a swing: it spins out */
+				const wb = c.f.wb,
+					wp = this.wbPos(W, c);
+				if (wp && wp.a > 0.3 && !e.zHit[c.k + ":wb" + wb[0]] && Math.hypot(e.x - wp.x, e.z - wp.z) < e.hb[0] + 1.3) {
+					e.zHit[c.k + ":wb" + wb[0]] = 1;
+					const d = Math.hypot(e.x - c.x, e.z - c.z) || 1;
+					e.spinT = W.t + this.WBS;
+					e.vz *= 0.7;
+					e.vx += ((e.x - c.x) / d) * 9;
+					e.slideT = 0.8;
+					mgLog(W, `${mgName(e)} spun out by ${mgName(c)}'s wrecking ball`);
+					if (e.isMe) W.shake = 0.6;
+					if (this.heard(W, e)) sfxPack("hit");
+				}
+				/* Garbo's bins: bumping one while it rolls costs speed and sends it flying (shared as e.f.bh) */
+				const rb = c.f.rb;
+				if (rb)
+					for (let i = 0; i < this.BN; i++) {
+						const key = c.k + ":b" + rb[0] + ":" + i,
+							b = this.binPos(W, rb, i);
+						if (!b || b.fly || e.zHit[key]) continue;
+						if (Math.abs(e.x - b.x) > e.hb[0] + 0.55 || Math.abs(e.z - b.z) > e.hb[1] + 0.55) continue;
+						e.zHit[key] = 1;
+						e.f.bh = (e.f.bh || []).concat([key]).slice(-12);
+						/* only the first bin of a throw costs speed, the others just knock it about */
+						if (!e.zHit[c.k + ":bt" + rb[0]] && e.vz < -8) e.vz = Math.min(-8, e.vz * 0.75);
+						e.zHit[c.k + ":bt" + rb[0]] = 1;
+						e.vx += (e.x >= b.x ? 1 : -1) * 4;
+						e.slideT = 0.4;
+						mgLog(W, `${mgName(e)} hits one of ${mgName(c)}'s bins`);
+						if (e.isMe) W.shake = 0.3;
+						if (this.heard(W, e)) sfxPack("hit");
+					}
+				/* spike strips: driving over one costs a bag (credited to the cop who dropped it), unless the shield is up */
+				(c.f.ss || []).forEach(([id, x, z, t]) => {
+					const key = c.k + ":s" + id;
+					if (W.t - t < 0.25 || W.t - t > this.SST || e.zHit[key]) return;
+					if (Math.abs(e.z - z) > e.hb[1] + 0.45 || Math.abs(e.x - x) > this.SSW / 2 + e.hb[0] - 0.2) return;
+					e.zHit[key] = 1;
+					if (W.t < (e.immT || 0) || e.esc) return;
+					mgLog(W, `${mgName(e)} drives over ${mgName(c)}'s spike strip`);
+					this.onRammed(W, e, c);
+					if (e.isMe) W.shake = 0.4;
+					if (this.heard(W, e)) sfxPack("spike");
+				});
+				/* the hose: the blast reaches the truck from any distance (like the lobs) once the jet is out: knocked sideways, and soaked
+				   tyres lose their grip for HOSET s (the ice cream's slide: steering hardly bites, it drifts) */
 				const wj = c.f.wj;
-				if (wj && W.t - wj[1] < 1.3 && W.t >= wj[1] && Math.hypot(e.x - c.x, e.z - c.z) < 16) {
-					e.vx += (e.x >= c.x ? 1 : -1) * 16 * dt;
-					e.vz *= Math.exp(-0.5 * dt);
+				if (wj && W.t - wj[1] < 1.3 && W.t >= wj[1] + 0.15 && !e.zHit[c.k + ":w" + wj[0]]) {
+					e.zHit[c.k + ":w" + wj[0]] = 1;
+					e.vx += (e.x >= c.x ? 1 : -1) * 9;
+					e.iceT = Math.max(e.iceT || 0, W.t + this.HOSET);
+					e.f.wt = Math.round(W.t * 100) / 100;
+					mgLog(W, `${mgName(e)} soaked by ${mgName(c)}'s hose`);
+					if (e.isMe) W.shake = 0.3;
+					if (this.heard(W, e)) sfxPack("splash");
 				}
 			}
 		},
@@ -8503,7 +8973,7 @@ Object.assign(MG, {
 		onRammed(W, e, by) {
 			if (e.side !== 0 || !by || by.side !== 1 || e.esc || e.bags <= 0 || W.t < (e.immT || 0)) return;
 			const lz = (by.x - e.x) * Math.sin(e.yaw) + (by.z - e.z) * Math.cos(e.yaw),
-				half = this.BAGS / 2,
+				half = Math.ceil(this.BAGS / 2),
 				all = Array.from({ length: this.BAGS }, (_, i) => i),
 				order = lz >= 0 ? all : all.slice(half).concat(all.slice(0, half)),
 				slot = order.find((i) => e.bm & (1 << i));
@@ -8531,7 +9001,7 @@ Object.assign(MG, {
 				e.f.esc = 1;
 				fb(W, e, "ESCAPED!", { stamp: true });
 				mgLog(W, `${mgName(e)} escapes with ${e.bags} bags`);
-				if (e.isMe) sfx("fanfare");
+				if (this.heard(W, e)) sfx("fanfare");
 			}
 			if (e.side === 1 && T) {
 				/* a bag this cop knocked off (the truck's device decides) */
@@ -8540,7 +9010,8 @@ Object.assign(MG, {
 					e.lbSeen = n;
 					e.sc++;
 					fb(W, e, "+1 💰", { tone: "good" });
-					if (e.isMe) sfx("coin");
+					/* (unless it hears the truck losing it: render) */
+					if (e.isMe && !this.heard(W, T)) sfxPack("coin");
 				});
 				/* the slam's shockwave: once the ring reaches you (or has passed you, if the news came late) you're blasted
 				   away from the truck: thrown sideways, a cop behind it knocked back, a moment of spin, the harpoon lets go */
@@ -8559,7 +9030,6 @@ Object.assign(MG, {
 						e.slideT = 0.8;
 						e.spinT = W.t + 0.5;
 						e.crT = W.t + 1;
-						fb(W, e, "BLASTED!", { tone: "bad" });
 						this.letGo(W, e, "shockwave");
 						mgLog(W, `${mgName(e)} blasted by the slam`);
 						e.lastHit = { k: "slam", t: W.t };
@@ -8569,19 +9039,38 @@ Object.assign(MG, {
 						}
 					}
 				}
+				/* the wrecking ball smashes traffic in its way */
+				const wp = this.wbPos(W, e);
+				if (wp && wp.a > 0.3)
+					for (const c of W.cars) {
+						if (c.kT !== undefined) continue;
+						const cz = this.carZ(W, c);
+						if (Math.abs(cz - wp.z) > c.hb[1] + 1 || Math.abs(this.carX(W, c, cz) - wp.x) > c.hb[0] + 1) continue;
+						const kd = this.carX(W, c, cz) >= e.x ? 1 : -1;
+						c.kT = W.t;
+						c.kd = kd;
+						e.f.wk = (e.f.wk || []).concat([[c.id, Math.round(W.t * 100) / 100, kd]]).slice(-8);
+						this.carFx(W, c, e);
+					}
+				/* the cash truck's spear aimed at this cop (tf.sr = [id, when, cop key]): reeled into its nose */
+				const sr = tf.sr;
+				if (sr && sr[2] === e.k && e.srSeen !== sr[0] && W.t - sr[1] < this.WHF + this.WHY) {
+					e.srSeen = sr[0];
+					e.yank = { t: sr[1], sd: e.x >= T.x ? 1 : -1 };
+					this.letGo(W, e, "speared");
+					mgLog(W, `${mgName(e)} clawed and reeled in by the cash truck`);
+					e.lastHit = { k: "spear", t: W.t };
+				}
 				/* oil slicks */
 				(tf.oil || []).forEach(([id, x, z, t]) => {
 					if (W.t - t > this.OILT || e.oilHit[id] || Math.hypot(e.x - x, e.z - z) > this.OILR) return;
 					e.oilHit[id] = 1;
 					e.spinT = W.t + 1.1;
 					e.vz *= 0.6;
-					fb(W, e, "SPIN OUT!", { tone: "bad" });
 					this.letGo(W, e, "oil");
 					mgLog(W, `${mgName(e)} spins out on oil`);
-					if (e.isMe) {
-						W.shake = 0.3;
-						sfx("skid");
-					}
+					if (e.isMe) W.shake = 0.3;
+					if (this.heard(W, e)) sfxPack("whimsy");
 				});
 			}
 			/* it's over once the truck is through the tunnel or has nothing left (a moment later, so it shows) */
@@ -8650,10 +9139,10 @@ Object.assign(MG, {
 			this.truckLights(W, e);
 			/* grinding along the guardrail: sparks (and a grind for your own truck) */
 			const [lo, hi] = this.edges(e.z),
-				rr = (e.rad || 0.95) * 0.85;
+				rr = e.hb ? e.hb[0] : 0.6;
 			if (W.t > 0 && !e.gone && Math.hypot(e.vx || 0, e.vz || 0) > 5) {
-				if (e.x > hi - rr - 0.03) this.sparks(W, e, hi + 0.1, e.z, e.isMe && !W.tv);
-				else if (e.x < lo + rr + 0.03) this.sparks(W, e, lo - 0.1, e.z, e.isMe && !W.tv);
+				if (e.x > hi - rr - 0.03) this.sparks(W, e, hi + 0.1, e.z);
+				else if (e.x < lo + rr + 0.03) this.sparks(W, e, lo - 0.1, e.z);
 			}
 			/* the slam: the truck hops, nose up a touch, and comes down hard */
 			if (e.side === 0 && f.sw && W.t >= f.sw[1] && W.t < f.sw[1] + this.SWHOP) {
@@ -8672,6 +9161,38 @@ Object.assign(MG, {
 			}
 			if (e.side === 0) {
 				if (!e.slots) this.bagNets(W, e);
+				/* a tyre blown by Steady Eddie's nails (e.f.bl = [when, side]): it leans onto that side, the rim throws sparks */
+				if (f.bl && W.t >= f.bl[0] && W.t < f.bl[0] + this.NAILT) {
+					const sd = f.bl[1];
+					if (e.blSeen !== f.bl[0]) {
+						e.blSeen = f.bl[0];
+						burst(W.sc, e.x + sd * e.hb[0], 0.5, e.z, {
+							n: 14,
+							shape: "cube",
+							cols: ["#2A2E36", "#3D424C"],
+							spd: 5,
+							up: 4,
+							grav: 14,
+							life: 0.7,
+							size: 0.8,
+						});
+						if (W.split || this.heard(W, e)) sfxPack("spike");
+					}
+					e.tr.rotation.x += sd * 0.07;
+					if (Math.random() < dt * 12) this.sparks(W, e, e.x + sd * e.hb[0], e.z + 0.8);
+				}
+				/* soaked by Blaze's hose (e.f.wt): water streams off it while its tyres have no grip */
+				if (f.wt !== undefined && W.t >= f.wt && W.t < f.wt + this.HOSET && Math.random() < dt * 30)
+					burst(W.sc, e.x + (Math.random() - 0.5) * 2, 1.6 + Math.random(), e.z + (Math.random() - 0.5) * 2.4, {
+						n: 2,
+						shape: "ico",
+						cols: ["#9FD8F0", "#D9EEF5", "#5AA9FF"],
+						spd: 1,
+						up: 0.5,
+						grav: 9,
+						life: 0.45,
+						size: 0.7,
+					});
 				const n = e.local ? e.bags : (f.bg ?? this.BAGS),
 					bm = e.local ? e.bm : (f.bm ?? (1 << this.BAGS) - 1);
 				e.slots.forEach((q, i) => {
@@ -8704,7 +9225,7 @@ Object.assign(MG, {
 						life: 1.1,
 						size: 0.8,
 					});
-					if (W.split || e.isMe || W.tv) sfx("coin");
+					if (W.split || this.heard(W, e)) sfxPack("coin");
 				}
 				/* the cash trail: notes flutter out behind it, more the more bags it has lost */
 				if (W.t > 0 && !e.gone) {
@@ -8739,33 +9260,64 @@ Object.assign(MG, {
 					});
 				}
 			} else {
-				if (!e.bar) {
-					const top = truckTop(e.tr),
-						sc = e.tr.scale.x,
-						g = new THREE.Group(),
-						red = B(0.32, 0.2, 0.7, "#E5484D", 0, 0, -0.38, { emissive: "#FF2A2A", emissiveIntensity: 1 }),
-						blue = B(0.32, 0.2, 0.7, "#2F7DE1", 0, 0, 0.38, { emissive: "#2A6BFF", emissiveIntensity: 1 }),
-						gun = new THREE.Group(),
-						tip = Cy(0, 0.1, 0.26, 6, "#FFC83D", 0.5, 0, 0);
-					g.add(B(0.4, 0.12, 1.6, "#23272F", 0, -0.12, 0), red, blue);
-					/* the harpoon gun beside the light bar: a mount, a barrel, the yellow harpoon head in its muzzle */
-					const bar = Cy(0.07, 0.08, 0.62, 8, "#3D424C", 0.12, 0, 0);
-					bar.rotation.z = -Math.PI / 2;
-					tip.rotation.z = -Math.PI / 2;
-					gun.add(B(0.2, 0.14, 0.2, "#5A6272", 0, -0.1, 0), bar, tip);
-					gun.position.set(0.28, 0.02, 0);
-					g.add(gun);
-					g.position.set(top.x / sc, (top.y + 0.18) / sc, 0);
-					g.scale.setScalar(1 / sc);
-					e.tr.add(g);
-					e.bar = { g, red, blue, gun, tip };
-				}
+				if (!e.bar) e.bar = this.copBar(e.tr);
 				this.harpoonFx(W, e);
+				this.spearFx(W, e);
+				/* ahead of the cash truck with the button ready, it drops spikes: a mini SPIKES button by the truck says so
+				   (and your own phone's button reads SPIKES) */
+				if (e.local && e.p && !e.p.bot && W.t >= 0 && !e.gone) {
+					const sp = this.ahead(W, e, this.solo(W)) && W.t >= (e.hpCd || 0);
+					if (sp && (e.isMe || W.tv)) inputHint(W, e, "SPIKES", "tap");
+					if (e.isMe && !W.tv) {
+						const b = document.querySelector("#ram span"),
+							want = sp ? "SPIKES" : "HARPOON";
+						if (b && b.textContent !== want) b.textContent = want;
+					}
+				}
 				this.trickFx(W, e, dt);
 				const ph = Math.floor(W.t * 6 + e.i) % 2;
 				e.bar.red.material.emissiveIntensity = ph ? 1.6 : 0.1;
 				e.bar.blue.material.emissiveIntensity = ph ? 0.1 : 1.6;
 			}
+		},
+		/* a cop's light bar on its roof (red and blue, kept inside the roof's width) with the harpoon gun beside it, in
+		   world-size units whatever the truck's scale */
+		copBar(tr) {
+			/* on the cab: the highest flat bit of the front third, measured with the truck on its own (in its own
+			   coordinates, wherever it is on the road) */
+			const par = tr.parent;
+			if (par) par.remove(tr);
+			tr.updateMatrixWorld(true);
+			const box = new THREE.Box3().setFromObject(tr),
+				rc = new THREE.Raycaster(),
+				hits = [];
+			for (let x = box.max.x - (box.max.x - box.min.x) * 0.33; x < box.max.x - 0.1; x += 0.05) {
+				rc.set(new THREE.Vector3(x, box.max.y + 1, 0), new THREE.Vector3(0, -1, 0));
+				const h = rc.intersectObject(tr, true)[0];
+				if (h) hits.push([x, h.point.y]);
+			}
+			if (par) par.add(tr);
+			const hy = hits.length ? Math.max(...hits.map((h) => h[1])) : box.max.y,
+				flat = hits.filter((h) => h[1] > hy - 0.05),
+				top = { x: flat.length ? (flat[0][0] + flat[flat.length - 1][0]) / 2 : 0, y: hy },
+				sc = tr.scale.x,
+				g = new THREE.Group(),
+				red = B(0.26, 0.14, 0.36, "#E5484D", 0, -0.03, -0.2, { emissive: "#FF2A2A", emissiveIntensity: 1 }),
+				blue = B(0.26, 0.14, 0.36, "#2F7DE1", 0, -0.03, 0.2, { emissive: "#2A6BFF", emissiveIntensity: 1 }),
+				gun = new THREE.Group(),
+				tip = Cy(0, 0.1, 0.26, 6, "#FFC83D", 0.5, 0, 0);
+			g.add(B(0.3, 0.1, 0.86, "#23272F", 0, -0.13, 0), red, blue);
+			/* the harpoon gun: a mount, a barrel, the yellow harpoon head in its muzzle */
+			const bar = Cy(0.07, 0.08, 0.62, 8, "#3D424C", 0.12, 0, 0);
+			bar.rotation.z = -Math.PI / 2;
+			tip.rotation.z = -Math.PI / 2;
+			gun.add(B(0.2, 0.14, 0.2, "#5A6272", 0, -0.1, 0), bar, tip);
+			gun.position.set(0.28, 0.02, 0);
+			g.add(gun);
+			g.position.set(top.x / sc, (top.y + 0.18) / sc, 0);
+			g.scale.setScalar(1 / sc);
+			tr.add(g);
+			return { g, red, blue, gun, tip };
 		},
 		/* the cash in cargo nets on the steel fenders over its tyres: 5 bags a side (3 on the rear fender, 2 on the front),
 		   each sack under a dark net that goes slack once its bag is knocked off */
@@ -8808,11 +9360,20 @@ Object.assign(MG, {
 					for (let i = 0; i < k && spots.length < 5; i++) spots.push([f.x + (i - (k - 1) / 2) * step, f.y, f.z]);
 				});
 				while (spots.length < 5) spots.push([-0.6 + spots.length * 0.4, 1.2, sd * 1.1]);
-				/* a second tier on top of the first (it goes first) */
-				const tiers = spots
-					.map(([x, y, z]) => [x + 0.05, y + 0.33, z - sd * 0.04, 1])
-					.concat(spots.map((p) => [...p, 0]));
-				tiers.slice(0, this.BAGS / 2).forEach(([x, y, z, top], i) => {
+				/* more than 5 a side: a second tier on top of the first (it goes first) */
+				const per =
+						sd > 0
+							? Math.ceil(this.BAGS / 2)
+							: Math.floor(this.BAGS / 2) /* an odd count: the extra one on the right */,
+					low = spots.map((p) => [...p, 0]),
+					tiers =
+						per > low.length
+							? spots
+									.slice(0, per - low.length)
+									.map(([x, y, z]) => [x + 0.05, y + 0.33, z - sd * 0.04, 1])
+									.concat(low)
+							: low.slice(0, per);
+				tiers.forEach(([x, y, z, top], i) => {
 					const bag = kitGroup(kit, 0),
 						net = new THREE.Mesh(geo, mat),
 						q = { bag, net, x, y: y + 0.19, z: z - sd * 0.03, sd, top, on: null };
@@ -8870,6 +9431,10 @@ Object.assign(MG, {
 			if (f.jp !== undefined) {
 				const k = (W.t - f.jp) / this.JMPT;
 				if (k >= 0 && k < 1) {
+					if (c.jpUp !== f.jp) {
+						c.jpUp = f.jp;
+						if (this.heard(W, c)) sfxPack("jumpboost");
+					}
 					c.g.position.y += Math.sin(k * Math.PI) * 3.4;
 					c.tr.rotation.z += Math.sin(k * Math.PI) * 0.35;
 				} else if (k >= 1 && c.jpSeen !== f.jp) {
@@ -8884,8 +9449,36 @@ Object.assign(MG, {
 						life: 0.6,
 						size: 1.1,
 					});
-					if (c.isMe || W.tv) sfx("crush");
+					if (this.heard(W, c)) sfx("land");
 				}
+			}
+			/* the harpoon vault: up over the car nose first, down past it, dust as it lands */
+			if (f.vt) {
+				const k = (W.t - f.vt[0]) / f.vt[1];
+				if (k >= 0 && k < 1) {
+					if (c.vtUp !== f.vt[0]) {
+						c.vtUp = f.vt[0];
+						if (this.heard(W, c)) sfxPack("jump");
+					}
+					c.g.position.y += Math.sin(k * Math.PI) * this.VLTH;
+					c.tr.rotation.z += Math.sin(k * Math.PI * 2) * 0.3;
+				} else if (k >= 1 && c.vtSeen !== f.vt[0]) {
+					c.vtSeen = f.vt[0];
+					burst(W.sc, c.x, 0.4, c.z, {
+						n: 12,
+						shape: "ico",
+						cols: ["#9DA0A6", "#C9CED8"],
+						spd: 3.5,
+						up: 2.5,
+						grav: 12,
+						life: 0.5,
+						size: 1,
+					});
+				}
+			}
+			if (f.nt && W.t < f.nt[0] && c.ntUp !== f.nt[0]) {
+				c.ntUp = f.nt[0];
+				if (this.heard(W, c)) sfxPack("speed");
 			}
 			if (f.nt && W.t < f.nt[0] && Math.random() < dt * 30) {
 				const a = c.yaw + Math.PI;
@@ -8900,24 +9493,294 @@ Object.assign(MG, {
 					size: 0.9,
 				});
 			}
-			const wj = f.wj;
-			if (wj && T && W.t >= wj[1] && W.t - wj[1] < 1.3 && Math.random() < dt * 40) {
-				const u = Math.random(),
-					x = c.x + (T.x - c.x) * u,
-					z = c.z + (T.z - c.z) * u,
-					d = Math.hypot(T.x - c.x, T.z - c.z);
-				if (d < 18)
-					burst(W.sc, x, 2.2 - u * 0.8 + Math.sin(u * Math.PI) * 1.2, z, {
-						n: 2,
-						shape: "ico",
-						cols: ["#9FD8F0", "#D9EEF5", "#5AA9FF"],
-						spd: 0.8,
-						up: 0.5,
-						grav: 6,
-						life: 0.35,
-						size: 0.8,
-					});
+			this.hoseFx(W, c, dt);
+			this.spicyFx(W, c, dt);
+			this.wreckFx(W, c, dt);
+			this.binFx(W, c, dt);
+		},
+		/* where Rusty's wrecking ball is (round cop c as it is now), or null when it isn't swinging: the cable pays out over
+		   the first 0.4 s, then it whirls round */
+		wbPos(W, c) {
+			const wb = c.f && c.f.wb,
+				a = wb ? W.t - wb[1] : 99;
+			if (!wb || a < 0 || a > this.WBT || c.gone) return null;
+			const r = this.WBR * Math.min(1, 0.35 + a / 0.4),
+				ang = wb[2] + wb[3] * this.WBW * a;
+			return { x: c.x + Math.cos(ang) * r, z: c.z - Math.sin(ang) * r, ang, a };
+		},
+		/* where bin i of a BINS throw is: flying from the cop to its start at the road's edge, then rolling across; null
+		   once it has rolled off the road */
+		binPos(W, rb, i) {
+			const [, t, z0, dir, sx, sz, xs] = rb,
+				z = z0 - i * this.BGAP,
+				[lo, hi] = this.edges(z),
+				x0 = xs !== undefined ? xs : dir > 0 ? lo + 0.6 : hi - 0.6,
+				fl = this.BF + i * this.BDLY,
+				a = W.t - t;
+			if (a < 0) return null;
+			if (a < fl) {
+				const k = a / fl;
+				return { x: sx + (x0 - sx) * k, z: sz + (z - sz) * k, y: 0.55 + Math.sin(k * Math.PI) * 5, fly: true, k };
 			}
+			const x = x0 + dir * this.BV * (a - fl);
+			return x > hi + 1 || x < lo - 1 ? null : { x, z, y: 0.55, roll: (x - x0) / 0.55, fly: false };
+		},
+		/* Garbo's bins on every screen: green wheelie bins flung up the road, then tumbling across it on their sides; one the
+		   cash truck hit flies off */
+		binFx(W, c, dt) {
+			const rb = c.f && c.f.rb,
+				T = this.solo(W),
+				hit = new Set(((T && T.f && T.f.bh) || []).map(String));
+			W.binV = W.binV || {};
+			if (!rb) return;
+			if (!W.binKit) {
+				const m = wheelieBinModel("#3D8B4F", "trash", "bottle");
+				W.binKit = bakeKit(m, { ao: false, ground: false });
+			}
+			for (let i = 0; i < this.BN; i++) {
+				const key = c.k + ":b" + rb[0] + ":" + i,
+					b = this.binPos(W, rb, i);
+				let v = W.binV[key];
+				if (!b) {
+					if (v) {
+						W.sc.remove(v.o);
+						delete W.binV[key];
+					}
+					continue;
+				}
+				if (!v) {
+					const o = new THREE.Group(),
+						lie = new THREE.Group(),
+						g = kitGroup(W.binKit, 0);
+					/* lying on its side, rolling about its own long axis (along the road) */
+					g.scale.setScalar(0.5);
+					g.position.y = -0.35;
+					lie.add(g);
+					lie.rotation.x = Math.PI / 2;
+					o.add(lie);
+					W.sc.add(o);
+					v = W.binV[key] = { o, lie };
+				}
+				if (hit.has(key)) {
+					if (!v.gone) {
+						v.gone = W.t;
+						burst(W.sc, b.x, 0.8, b.z, {
+							n: 12,
+							shape: "cube",
+							cols: ["#3D8B4F", "#2E6B3C", "#C9CED8"],
+							spd: 5,
+							up: 4,
+							life: 0.6,
+						});
+					}
+					const k = W.t - v.gone;
+					v.o.position.set(b.x + (b.x < (T ? T.x : 0) ? -1 : 1) * k * 9, 0.55 + k * 6 - k * k * 12, b.z);
+					v.o.rotation.x += dt * 9;
+					v.o.visible = k < 1.2;
+					continue;
+				}
+				v.o.position.set(b.x, b.y, b.z);
+				if (b.fly) v.o.rotation.set(b.k * 6, 0, b.k * 4);
+				else v.o.rotation.set(0, 0, -rb[3] * b.roll);
+				v.lie.rotation.x = b.fly ? 0 : Math.PI / 2;
+			}
+		},
+		/* Rusty's wrecking ball on every screen: the traffic car it grabbed (lifted off the road over 0.35 s) or a crushed
+		   car of its own, on a cable from its crane, whirling round it; a grabbed car is smashed when it lets go */
+		wreckFx(W, c, dt) {
+			const wp = this.wbPos(W, c),
+				wb = c.f && c.f.wb,
+				held = wb && wb[4] >= 0 ? W.cars.find((x) => x.id === wb[4] && x.held && x.held.by === wb[0]) : null;
+			W.wbV = W.wbV || {};
+			if (held && !wp && !held.smashed && W.t >= held.kT) {
+				held.smashed = 1;
+				held.g.visible = false;
+				burst(W.sc, held.g.position.x, 1, held.g.position.z, {
+					n: 18,
+					shape: "cube",
+					cols: [held.c, "#C9CED8", "#9FD8F0"],
+					spd: 6,
+					up: 5,
+					life: 0.8,
+					size: 0.8,
+				});
+				if (this.heard(W, c)) sfxPack("hit");
+			}
+			let v = W.wbV[c.k];
+			if (!v && !wp) return;
+			if (!v) {
+				W.wbKit = W.wbKit || bakeKit(crushedCarModel("sedan", "#7C8593"), { ao: false, ground: false });
+				const car = kitGroup(W.wbKit, 0);
+				car.scale.setScalar(0.75);
+				v = W.wbV[c.k] = {
+					car,
+					line: mesh(new THREE.CylinderGeometry(0.05, 0.05, 1, 5), "#3D424C"),
+				};
+				W.sc.add(car, v.line);
+			}
+			v.line.visible = !!wp;
+			v.car.visible = !!(wp && !held);
+			if (c.tr.userData.hook) c.tr.userData.hook.visible = !wp;
+			if (!wp) return;
+			const ball = held ? held.g : v.car,
+				k = held ? Math.min(1, wp.a / 0.35) : 1,
+				by = this.WBY - 0.4 + Math.sin(wp.a * 9) * 0.15;
+			ball.position.set(
+				held ? held.held.x + (wp.x - held.held.x) * k : wp.x,
+				by * k,
+				held ? held.held.z + (wp.z - held.held.z) * k : wp.z,
+			);
+			ball.rotation.set(0.25 * k, wp.ang + Math.PI / 2, Math.sin(wp.a * 5) * 0.3 * k);
+			/* the cable runs from the tip of Rusty's crane boom (its dangling hook hidden meanwhile) */
+			const hk = c.tr.userData.hook,
+				back = new THREE.Vector3(-Math.cos(c.yaw), 0, Math.sin(c.yaw)),
+				p0 = new THREE.Vector3(c.x, 2.1, c.z).addScaledVector(back, 0.7);
+			if (hk) {
+				c.tr.updateMatrixWorld(true);
+				hk.getWorldPosition(p0);
+			}
+			const p1 = new THREE.Vector3(wp.x, this.WBY + 0.3, wp.z),
+				d = p1.clone().sub(p0);
+			v.line.position.copy(p0).addScaledVector(d, 0.5);
+			v.line.scale.y = Math.max(0.01, d.length());
+			v.line.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.clone().normalize());
+			if (Math.random() < dt * 6)
+				burst(W.sc, wp.x, 0.4, wp.z, {
+					n: 1,
+					shape: "ico",
+					cols: ["#9DA0A6", "#C9CED8"],
+					spd: 1,
+					up: 1,
+					life: 0.4,
+					size: 0.9,
+				});
+		},
+		/* Taco Tina's hot sauce on every screen: a red bottle arcs onto the cash truck, then flames burst out of its back
+		   while its steering is swapped */
+		spicyFx(W, c, dt) {
+			const sp = c.f && c.f.sp,
+				T = this.solo(W);
+			W.spV = W.spV || {};
+			let v = W.spV[c.k];
+			const a = sp && T ? W.t - sp[1] : 99;
+			if (!v && a < this.SPF) {
+				v = W.spV[c.k] = new THREE.Group();
+				v.add(
+					Cy(0.16, 0.16, 0.42, 8, "#E5484D", 0, 0, 0),
+					Cy(0.07, 0.12, 0.16, 8, "#F4F6F9", 0, 0.28, 0),
+					Cy(0.08, 0.08, 0.1, 8, "#2E7D32", 0, 0.4, 0),
+				);
+				v.scale.setScalar(1.6);
+				W.sc.add(v);
+			}
+			if (v) {
+				v.visible = a >= 0 && a < this.SPF;
+				if (v.visible) {
+					const k = a / this.SPF;
+					v.position.set(sp[2] + (T.x - sp[2]) * k, 2 + Math.sin(k * Math.PI) * 5, sp[3] + (T.z - sp[3]) * k);
+					v.rotation.set(k * 9, 0, k * 5);
+				}
+			}
+			if (T && a >= this.SPF && a < this.SPF + this.SPT && Math.random() < dt * 30) {
+				const b = Math.cos(T.yaw),
+					d = -Math.sin(T.yaw);
+				burst(W.sc, T.x - b * (T.hb[1] + 0.2), 1, T.z - d * (T.hb[1] + 0.2), {
+					n: 2,
+					shape: "ico",
+					cols: ["#E5484D", "#FF8A1F", "#FFC83D"],
+					spd: 2,
+					up: 2,
+					grav: -2,
+					life: 0.45,
+					size: 1.1,
+				});
+			}
+		},
+		/* Blaze's hose on every screen: a thick arcing jet of water from its roof (a flowing outer stream round a white
+		   core) onto the cash truck wherever it is, with a big splash where it lands */
+		hoseFx(W, c, dt) {
+			const wj = c.f && c.f.wj,
+				T = this.solo(W),
+				a = wj ? W.t - wj[1] : 99,
+				on = !!(T && a >= 0 && a < 1.3 && !c.gone);
+			W.jet = W.jet || {};
+			let v = W.jet[c.k];
+			if (!v && !on) return;
+			if (!v) {
+				if (!W.jetTex) {
+					/* opaque streaks (no see-through pixels for phones to garble), tinted by the material */
+					W.jetTex = canvasTex(128, 32, (x, w, h) => {
+						x.fillStyle = "#BFE6F7";
+						x.fillRect(0, 0, w, h);
+						const r = mulberry(5);
+						for (let i = 0; i < 40; i++) {
+							x.fillStyle = i % 3 ? "#FFFFFF" : "#7CC4E8";
+							x.fillRect(r() * w, r() * h, 12 + r() * 40, 2 + r() * 3);
+						}
+					});
+					W.jetTex.wrapS = W.jetTex.wrapT = THREE.RepeatWrapping;
+					W.jetTex.repeat.set(3, 1);
+				}
+				v = W.jet[c.k] = {
+					outer: new THREE.Mesh(
+						new THREE.BufferGeometry(),
+						new THREE.MeshBasicMaterial({ map: W.jetTex, transparent: true, opacity: 0.7, depthWrite: false }),
+					),
+					inner: new THREE.Mesh(
+						new THREE.BufferGeometry(),
+						new THREE.MeshBasicMaterial({ color: "#F4F6F9", transparent: true, opacity: 0.9, depthWrite: false }),
+					),
+				};
+				v.outer.renderOrder = 3;
+				v.inner.renderOrder = 2;
+				W.sc.add(v.outer, v.inner);
+			}
+			v.outer.visible = v.inner.visible = on;
+			if (!on) return;
+			const p0 = new THREE.Vector3(c.x, 2.3, c.z).addScaledVector(
+					new THREE.Vector3(Math.cos(c.yaw), 0, -Math.sin(c.yaw)),
+					0.6,
+				),
+				hit = true,
+				end = new THREE.Vector3(T.x, 1.4, T.z),
+				/* the jet shoots out over 0.15 s and thins away over the last 0.25 s */
+				grow = Math.min(1, a / 0.15),
+				thin = Math.max(0.05, Math.min(1, (1.3 - a) / 0.25)),
+				p2 = p0.clone().lerp(end, Math.max(0.05, grow)),
+				p1 = p0
+					.clone()
+					.lerp(p2, 0.45)
+					.add(new THREE.Vector3(0, 1.2 + p0.distanceTo(p2) * 0.06, 0)),
+				curve = new THREE.QuadraticBezierCurve3(p0, p1, p2),
+				wob = 1 + Math.sin(W.t * 40) * 0.08;
+			v.outer.geometry.dispose();
+			v.inner.geometry.dispose();
+			v.outer.geometry = new THREE.TubeGeometry(curve, 18, 0.36 * thin * wob, 8, false);
+			v.inner.geometry = new THREE.TubeGeometry(curve, 18, 0.16 * thin, 6, false);
+			W.jetTex.offset.x -= dt * 4;
+			/* the splash where it lands (and a spray at the nozzle) */
+			if (grow >= 1 && Math.random() < dt * 40)
+				burst(W.sc, p2.x, p2.y, p2.z, {
+					n: 3,
+					shape: "ico",
+					cols: ["#F4F6F9", "#BFE6F7", "#7CC4E8"],
+					spd: hit ? 5 : 3.5,
+					up: 3,
+					grav: 10,
+					life: 0.5,
+					size: hit ? 1.3 : 1,
+				});
+			if (Math.random() < dt * 12)
+				burst(W.sc, p0.x, p0.y, p0.z, {
+					n: 1,
+					shape: "ico",
+					cols: ["#F4F6F9", "#BFE6F7"],
+					spd: 1.5,
+					up: 1,
+					grav: 6,
+					life: 0.3,
+					size: 0.8,
+				});
 		},
 		/* a cop's harpoon: the head flies out (0.2 s), the line holds onto the truck's rear while it's hooked, a miss shoots
 		   forward and reels back in, a snapped line whips away */
@@ -8967,7 +9830,7 @@ Object.assign(MG, {
 				/* snapped (or let go): the line whips sideways and droops as it reels back into the gun */
 				if (v.relT === undefined) {
 					v.relT = W.t;
-					if (snapped && (W.tv || c.isMe || T.isMe)) sfx("crack");
+					if (snapped && (this.heard(W, c) || T.isMe)) sfx("crack");
 				}
 				const k = (W.t - v.relT) / 0.45;
 				if (k >= 1 || !v.off) return done();
@@ -8977,6 +9840,15 @@ Object.assign(MG, {
 					.addScaledVector(v.off, (1 - k) * (1 - k))
 					.addScaledVector(side, Math.sin(k * Math.PI * 2) * 1.6 * (1 - k));
 				b.y -= Math.sin(k * Math.PI) * 0.9;
+			} else if (h[5] !== undefined) {
+				/* caught a car: the line holds onto its roof until the cop is over it */
+				const car = W.cars.find((q) => q.id === h[5]),
+					vt = c.f.vt,
+					hold = vt ? vt[0] - h[1] + vt[1] * 0.55 : 0.8;
+				if (!car || age >= hold) return done();
+				const cp = this.carPos(W, car),
+					tb = new THREE.Vector3(cp.x, cp.y + 1.3 * this.CARS, cp.z);
+				b = age < 0.2 ? a.clone().lerp(tb, age / 0.2) : tb;
 			} else {
 				/* a miss: out up to 12 m ahead, then reeled back */
 				const out = age < 0.25 ? age / 0.25 : Math.max(0, 1 - (age - 0.25) / 0.35);
@@ -8991,9 +9863,9 @@ Object.assign(MG, {
 			v.line.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.clone().normalize());
 			v.head.position.copy(b);
 			v.head.quaternion.copy(v.line.quaternion);
-			if (h[2] && age >= 0.2 && age < 0.25 && !v.clank) {
+			if ((h[2] || h[5] !== undefined) && age >= 0.2 && age < 0.25 && !v.clank) {
 				v.clank = h[0];
-				if (W.tv || c.isMe || T.isMe) sfx("crush");
+				if (h[2] && (this.heard(W, c) || T.isMe)) sfxPack("hit", 0.6);
 			}
 			if (v.clank && v.clank !== h[0]) v.clank = 0;
 		},
@@ -9016,8 +9888,8 @@ Object.assign(MG, {
 				t: W.t,
 			});
 		},
-		/* a few sparks at (x, z) by truck e (rate-limited per truck), a faint grind when it's yours */
-		sparks(W, e, x, z, snd) {
+		/* a few sparks at (x, z) by truck e (rate-limited per truck) */
+		sparks(W, e, x, z) {
 			if (W.t - (e.spkT ?? -9) < 0.07) return;
 			e.spkT = W.t;
 			burst(W.sc, x, 0.55 + Math.random() * 0.4, z, {
@@ -9029,10 +9901,6 @@ Object.assign(MG, {
 				life: 0.35,
 				size: 0.32,
 			});
-			if (snd && W.t - (W.grT ?? -9) > 0.22) {
-				W.grT = W.t;
-				sfx("grind");
-			}
 		},
 		/* speed lines: thin streaks hanging in the air along the road, recycled ahead of the camera, drifting back a little;
 		   they show more the faster you go (the TV: the pack) */
@@ -9090,22 +9958,6 @@ Object.assign(MG, {
 			});
 			K.m.instanceMatrix.needsUpdate = true;
 		},
-		/* a faint whoosh as you pass close to a car, a screech when you swerve hard at speed (your truck, phone only) */
-		nearMiss(W) {
-			const e = W.me;
-			if (W.tv || !e || e.gone || W.t <= 0 || W.over) return;
-			for (const c of W.cars) {
-				if (c.kT !== undefined) continue;
-				const cz = this.carZ(W, c),
-					rel = cz > e.z ? 1 : -1;
-				if (c.rel === -1 && rel === 1 && Math.abs(this.carX(W, c, cz) - e.x) < 5) sfx("whoosh");
-				c.rel = Math.abs(cz - e.z) < 30 ? rel : 0;
-			}
-			if (Math.abs(e.vx || 0) > 6.5 && -e.vz > 13 && W.t - (W.scrT ?? -9) > 0.9) {
-				W.scrT = W.t;
-				sfx("screech");
-			}
-		},
 		/* lights on the road at dusk: a warm pool ahead of every truck's headlights; under each cop a pool flashing red
 		   and blue with its light bar */
 		truckLights(W, e) {
@@ -9148,11 +10000,13 @@ Object.assign(MG, {
 		glowTex(W) {
 			return (
 				W.glowTex ||
+				/* opaque, white fading to black (every pool using it is additive, so black adds nothing): a see-through
+				   white-to-clear canvas gets its faint pixels un-premultiplied wrongly on phones (as the lava haze did) */
 				(W.glowTex = canvasTex(128, 128, (x, w, h) => {
 					const g = x.createRadialGradient(w / 2, h / 2, 2, w / 2, h / 2, w / 2);
-					g.addColorStop(0, "rgba(255,255,255,1)");
-					g.addColorStop(0.45, "rgba(255,255,255,0.55)");
-					g.addColorStop(1, "rgba(255,255,255,0)");
+					g.addColorStop(0, "#FFFFFF");
+					g.addColorStop(0.45, "#8C8C8C");
+					g.addColorStop(1, "#000000");
 					x.fillStyle = g;
 					x.fillRect(0, 0, w, h);
 				}))
@@ -9301,11 +10155,15 @@ Object.assign(MG, {
 					v.mark.visible = k < 1;
 					v.lie.visible = k >= 1 && !smashed;
 					if (k < 1) {
-						v.fly.position.set(sx + (x - sx) * k, 1.6 + Math.sin(k * Math.PI) * 6, sz + (z - sz) * k);
+						/* a long throw from far back arcs higher */
+						const hgt = 6 + Math.min(14, Math.hypot(x - sx, z - sz) * 0.1);
+						v.fly.position.set(sx + (x - sx) * k, 1.6 + Math.sin(k * Math.PI) * hgt, sz + (z - sz) * k);
 						v.fly.rotation.set(k * 7, k * 4, 0);
 						v.mark.material.opacity = 0.35 + 0.35 * Math.sin(W.t * 20);
 					} else if (!v.landed) {
 						v.landed = 1;
+						/* a faint thud where it lands (near you, or on the TV) */
+						if (a < this.ZL + 0.3 && (W.tv || Math.hypot(W.me.x - x, W.me.z - z) < 30)) sfxPack("thud");
 						burst(W.sc, x, 0.5, z, {
 							n: 10,
 							shape: "ico",
@@ -9352,6 +10210,7 @@ Object.assign(MG, {
 				trash: ["#3D5A3A", "#6B8F5A", "#C9CED8"],
 				parcel: ["#C9A06A", "#E8D5A8", "#8A6A48"],
 				crate: ["#B07A45", "#8A5A30", "#D9A86A"],
+				nails: ["#9DA0A6", "#5A6272", "#B07A45"],
 			}[kind];
 		},
 		/* what a cop lobs: in flight (lie 0) and lying on the road (lie 1) */
@@ -9457,6 +10316,18 @@ Object.assign(MG, {
 						py = lie ? 0.3 : i * 0.2;
 					add(box(0.6, 0.5, 0.6, "#C9A06A", px, py, pz, i), box(0.62, 0.08, 0.15, "#E8D5A8", px, py + 0.22, pz, i));
 				});
+			} else if (kind === "nails" && lie) {
+				for (let i = 0; i < 16; i++) {
+					const a = i * 2.39,
+						d = 0.3 + (i % 5) * (R / 6),
+						n = Cy(0, 0.07, 0.22, 3, i % 2 ? "#9DA0A6" : "#5A6272", Math.cos(a) * d, 0.11, Math.sin(a) * d);
+					n.rotation.set(i * 0.7, i, 0.4);
+					add(n);
+				}
+				add(
+					box(1.1, 0.08, 0.28, "#B07A45", 0.5, 0.04, -0.7, 0.6),
+					box(0.9, 0.08, 0.28, "#8A5A30", -0.6, 0.04, 0.5, 2.1),
+				);
 			} else {
 				const kit = crateKits()[0];
 				[
@@ -9472,6 +10343,153 @@ Object.assign(MG, {
 				});
 			}
 			return g;
+		},
+		/* the cash truck's spear on every screen (from its shot, T.f.sr): the chain and spear head flying from its nose (WHF
+		   s), the cry, the cop reeled in (WHY s) and the crash */
+		spearFx(W, c) {
+			const T = this.solo(W),
+				sr = T && T.f && T.f.sr,
+				wy = sr && sr[2] === c.k ? sr[1] : undefined;
+			let v = W.wyV && W.wyV[c.k];
+			const a = wy !== undefined ? W.t - wy : 99,
+				on = !!(T && a >= 0 && a < this.WHF + this.WHY + this.WHH && !c.gone);
+			/* the fling ends in the guardrail: sparks and bits */
+			if (
+				T &&
+				a >= this.WHF + this.WHY + this.WHH + this.WHL &&
+				a < this.WHF + this.WHY + this.WHH + this.WHL + 0.5 &&
+				c.wyOut !== wy
+			) {
+				c.wyOut = wy;
+				burst(W.sc, c.x, 1, c.z, {
+					n: 18,
+					shape: "cube",
+					cols: ["#C9CED8", "#FFC83D", "#3D424C"],
+					spd: 6,
+					up: 4,
+					life: 0.7,
+					size: 0.9,
+				});
+				this.sparks(W, c, c.x + (c.x > T.x ? 1 : -1) * c.hb[0], c.z);
+				if (this.heard(W, c) || T.isMe) sfxPack("hit");
+			}
+			/* the claw bites */
+			if (T && a >= this.WHF && a < this.WHF + 0.5 && c.wyHit !== wy) {
+				c.wyHit = wy;
+				burst(W.sc, c.x, 1, c.z, {
+					n: 10,
+					shape: "cube",
+					cols: ["#C9CED8", "#5A6272"],
+					spd: 4,
+					up: 2,
+					life: 0.5,
+					size: 0.7,
+				});
+			}
+			if (!v && !on) return;
+			if (!v) {
+				W.wyV = W.wyV || {};
+				v = W.wyV[c.k] = {
+					line: mesh(new THREE.CylinderGeometry(0.06, 0.06, 1, 5), "#3D424C"),
+					head: this.clawModel(),
+				};
+				W.sc.add(v.line, v.head);
+			}
+			v.line.visible = v.head.visible = on;
+			if (!on) return;
+			if (v.cry !== wy) {
+				v.cry = wy;
+				fb(W, c, "GET OVER HERE!", { tone: "bad" });
+				if (this.heard(W, c) || T.isMe) sfxPack("whip");
+			}
+			/* from the truck's bull bar to the cop's tail: the claw flies open, then closes on it */
+			const fw = new THREE.Vector3(Math.cos(T.yaw), 0, -Math.sin(T.yaw)),
+				p0 = new THREE.Vector3(T.x, 0.9, T.z).addScaledVector(fw, T.hb[1] + 0.1),
+				tgt = new THREE.Vector3(c.x, 0.9, c.z).addScaledVector(fw, -(c.hb[1] - 0.15)),
+				p1 = a < this.WHF ? p0.clone().lerp(tgt, a / this.WHF) : tgt,
+				open = a < this.WHF ? 1 : Math.max(0, 1 - (a - this.WHF) / 0.12);
+			v.head.userData.fingers.forEach((q) => (q.rotation.x = 0.15 + open * 0.75));
+			const d = p1.clone().sub(p0),
+				len = Math.max(0.01, d.length());
+			v.line.position.copy(p0).addScaledVector(d, 0.5);
+			v.line.scale.y = len;
+			v.line.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.clone().normalize());
+			v.head.position.copy(p1);
+			v.head.quaternion.copy(v.line.quaternion);
+		},
+		/* the cash truck's claw: a steel hub with three hooked yellow fingers that open while it flies and close on a cop;
+		   points along +y (the chain's direction) */
+		clawModel() {
+			const g = new THREE.Group(),
+				fingers = [];
+			g.add(Cy(0.2, 0.24, 0.24, 8, "#5A6272", 0, 0, 0), Cy(0.1, 0.1, 0.12, 6, "#3D424C", 0, -0.16, 0));
+			for (let i = 0; i < 3; i++) {
+				const piv = new THREE.Group(),
+					f = new THREE.Group();
+				piv.rotation.y = (i / 3) * Math.PI * 2;
+				f.position.set(0, 0.1, 0.16);
+				f.add(B(0.1, 0.42, 0.08, "#FFC83D", 0, 0.21, 0), B(0.14, 0.08, 0.13, "#FFC83D", 0, 0.405, -0.035));
+				f.rotation.x = 0.5;
+				piv.add(f);
+				g.add(piv);
+				fingers.push(f);
+			}
+			g.userData.fingers = fingers;
+			g.scale.setScalar(1.3);
+			return g;
+		},
+		/* a police spike strip (stinger): hinged yellow and black links SSW long with steel spikes standing up on each,
+		   end caps with handles; lies across the road (along x) */
+		stripModel() {
+			const g = new THREE.Group(),
+				n = 13,
+				L = this.SSW,
+				step = L / n;
+			for (let i = 0; i < n; i++) {
+				const x = -L / 2 + step * (i + 0.5);
+				g.add(B(step - 0.06, 0.08, 0.5, i % 2 ? "#23272F" : "#FFC83D", x, 0.04, 0));
+				if (i < n - 1) g.add(B(0.1, 0.06, 0.56, "#5A6272", x + step / 2, 0.04, 0));
+				[-0.14, 0.14].forEach((z, j) => {
+					const sp = Cy(0, 0.05, 0.24, 4, "#C9CED8", x + (j ? 0.12 : -0.12), 0.19, z);
+					g.add(sp);
+				});
+			}
+			[-1, 1].forEach((sd) => {
+				g.add(B(0.2, 0.14, 0.6, "#E5484D", sd * (L / 2 + 0.06), 0.07, 0));
+				g.add(B(0.1, 0.08, 0.4, "#23272F", sd * (L / 2 + 0.2), 0.12, 0));
+			});
+			return g;
+		},
+		/* every cop's spike strips on every screen: unrolled across the road from where it was dropped, gone after SST s */
+		stripFx(W) {
+			W.ssV = W.ssV || {};
+			const live = new Set();
+			W.list.forEach((c) => {
+				if (c.side !== 1 || !c.f) return;
+				(c.f.ss || []).forEach(([id, x, z, t]) => {
+					const a = W.t - t,
+						key = c.k + ":" + id;
+					if (a < 0 || a > this.SST) return;
+					live.add(key);
+					let v = W.ssV[key];
+					if (!v) {
+						W.ssKit = W.ssKit || bakeKit(this.stripModel(), { ao: false });
+						v = W.ssV[key] = kitGroup(W.ssKit, 0.25);
+						v.position.set(x, 0.11, z);
+						W.sc.add(v);
+						burst(W.sc, x, 0.4, z, { n: 8, shape: "cube", cols: ["#FFC83D", "#23272F"], spd: 3, up: 2, life: 0.4 });
+					}
+					const k = Math.min(1, a / 0.3),
+						out = Math.min(1, (this.SST - a) / 0.4);
+					v.scale.set(Math.max(0.05, k), 1, 1);
+					v.position.y = 0.11 - (1 - out) * 0.25;
+				});
+			});
+			for (const key in W.ssV)
+				if (!live.has(key)) {
+					W.sc.remove(W.ssV[key]);
+					delete W.ssV[key];
+				}
 		},
 		/* a money bag: a squat sack with a tied neck */
 		bagKit() {
@@ -9506,7 +10524,19 @@ Object.assign(MG, {
 				}
 			}
 			const T = this.solo(W);
-			/* cars the cash truck hit (here or on its device) fly off the road: sideways, up, spinning, into the field */
+			/* cars the cash truck hit (here or on its device) or a wrecking ball smashed fly off the road: sideways, up,
+			   spinning, into the field */
+			W.list.forEach((q) => {
+				if (q.side !== 1 || !q.f || !q.f.wk) return;
+				q.f.wk.forEach(([id, t, d]) => {
+					const c = W.cars.find((x) => x.id === id);
+					if (c && c.kT === undefined) {
+						c.kT = t;
+						c.kd = d;
+						this.carFx(W, c, q);
+					}
+				});
+			});
 			((T && T.f && T.f.tk) || []).forEach(([id, t, d]) => {
 				const c = W.cars.find((q) => q.id === id);
 				if (c && c.kT === undefined) {
@@ -9515,7 +10545,19 @@ Object.assign(MG, {
 					this.carFx(W, c, T);
 				}
 			});
+			/* a car grabbed by a wrecking ball leaves the traffic (it counts as knocked from then on, wreckFx swings it) */
+			W.list.forEach((q) => {
+				const wb = q.side === 1 && q.f && q.f.wb;
+				if (!wb || !(wb[4] >= 0)) return;
+				const c = W.cars.find((x) => x.id === wb[4]);
+				if (!c || c.kT !== undefined) return;
+				const z0 = this.carZ(W, c, wb[1]);
+				c.held = { x: this.carX(W, c, z0), z: z0, by: wb[0] };
+				c.kT = wb[1] + this.WBT;
+				c.kd = 1;
+			});
 			W.cars.forEach((c) => {
+				if (c.held) return;
 				if (c.kT === undefined) {
 					const z = this.carZ(W, c);
 					return c.g.position.set(this.carX(W, c, z), 0, z);
@@ -9528,17 +10570,29 @@ Object.assign(MG, {
 			const fdt = Math.min(0.05, dt || 0.016);
 			this.streakStep(W, fdt);
 			this.heliStep(W, fdt);
-			this.nearMiss(W);
+			/* for tools/watch.mjs: seconds cops spent right in front of the cash truck, in its lane */
+			if (T && W.t > 0)
+				W.list.forEach((c) => {
+					if (c.side === 1 && !c.gone && c.z < T.z && c.z > T.z - 7 && Math.abs(c.x - T.x) < c.hb[0] + T.hb[0])
+						W.blockT = (W.blockT || 0) + fdt;
+					if (c.side === 1 && !c.gone) {
+						W.maxAhead = Math.max(W.maxAhead || 0, T.z - c.z);
+						/* where each cop spends its time: far behind (30+ m), behind, alongside, ahead */
+						const dz = c.z - T.z,
+							q = ((W.copT = W.copT || {})[mgName(c)] = W.copT[mgName(c)] || [0, 0, 0, 0]);
+						q[dz > 30 ? 0 : dz > T.hb[1] + c.hb[1] ? 1 : dz > -T.hb[1] - c.hb[1] ? 2 : 3] += fdt;
+					}
+				});
 			/* trucks grinding side by side: sparks between them */
 			if (W.t > 0)
 				W.list.forEach((a, i) =>
 					W.list.slice(i + 1).forEach((b) => {
 						if (a.gone || b.gone) return;
+						if (!a.hb || !b.hb) return;
 						const dx = b.x - a.x,
-							dz = b.z - a.z,
-							rr = (a.rad || 0.95) + (b.rad || 0.95);
-						if (Math.hypot(dx, dz) < rr + 0.12 && Math.abs(dz) < rr * 0.8)
-							this.sparks(W, a, (a.x + b.x) / 2, (a.z + b.z) / 2, (a.isMe || b.isMe) && !W.tv);
+							dz = b.z - a.z;
+						if (Math.abs(dx) < a.hb[0] + b.hb[0] + 0.12 && Math.abs(dz) < (a.hb[1] + b.hb[1]) * 0.8)
+							this.sparks(W, a, (a.x + b.x) / 2, (a.z + b.z) / 2);
 					}),
 				);
 			W.loose = W.loose.filter((b) => {
@@ -9563,6 +10617,7 @@ Object.assign(MG, {
 				return true;
 			});
 			this.hazardFx(W);
+			this.stripFx(W);
 			/* the slam's shockwave: a glowing ring running out round the truck, dust and a thump as it lands */
 			{
 				const ring = this.ring(W, T);
@@ -9591,8 +10646,7 @@ Object.assign(MG, {
 						W.swSeen = ring.id;
 						const near = W.tv || Math.hypot(W.me.x - T.x, W.me.z - T.z) < 20;
 						if (near) {
-							sfx("crush");
-							sfx("thunder");
+							sfxPack("crunchy");
 							W.shake = Math.max(W.shake, 0.45);
 						}
 						for (let i = 0; i < 16; i++) {
@@ -9626,7 +10680,6 @@ Object.assign(MG, {
 					size: 1.2,
 				});
 				c.g.visible = false;
-				if (W.tv || Math.abs(W.me.z - c.g.position.z) < 30) sfx("splash");
 			});
 			if (W.wLamp) W.wLamp.emissiveIntensity = Math.floor(W.t * 2.5) % 2 ? 1.8 : 0.15;
 			if (W.wArrow) W.wArrow.material.emissiveIntensity = Math.floor(W.t * 2) % 2 ? 1.1 : 0.25;
@@ -9664,14 +10717,30 @@ Object.assign(MG, {
 					(e.side === 0 &&
 						W.list.some(
 							(c) =>
-								c.side === 1 &&
-								((c.f && c.f.zn) || []).some(
-									([, kind, zx, zz, t]) =>
-										W.t - t < this.ZL + this.ZT &&
-										zz < e.z &&
-										zz > e.z - far &&
-										Math.abs(zx - x) < this.lobR(kind) + 1.6,
-								),
+								(c.side === 1 &&
+									((c.f && c.f.zn) || []).some(
+										([id, kind, zx, zz, t]) =>
+											W.t - t < this.ZL + this.ZT &&
+											zz < e.z &&
+											zz > e.z - far &&
+											Math.abs(zx - x) < this.lobR(kind) + 1.6 &&
+											W.t >= this.lobSeen(e, c.k + ":" + id, t),
+									)) ||
+								/* spike strips: in plain sight on the road, spotted 0.35-0.7 s after they go down */
+								((c.f && c.f.ss) || []).some(
+									([, sx, sz, t]) =>
+										W.t - t > 0.35 + 0.35 * (1.2 - e.sk) &&
+										W.t - t < this.SST &&
+										sz < e.z &&
+										sz > e.z - far &&
+										Math.abs(sx - x) < this.SSW / 2 + 1.6,
+								) ||
+								/* rolling bins: in plain sight */
+								(c.f &&
+									c.f.rb &&
+									Array.from({ length: this.BN }, (_, i) => this.binPos(W, c.f.rb, i)).some(
+										(b) => b && !b.fly && b.z < e.z && b.z > e.z - far && Math.abs(b.x - x) < 2.2,
+									)),
 						)) ||
 					(e.side === 1 &&
 						oil.some(
@@ -9706,12 +10775,20 @@ Object.assign(MG, {
 					Math.random() < 0.06 * e.sk
 				)
 					o.b2 = true;
+				/* the spear at a cop in front of it, now and then (soonest at one lining up to drop spikes) */
+				if (W.t >= (e.spCd || 0) && Math.random() < 0.03 * e.sk) {
+					const c = this.spearTarget(W, e);
+					if (c && (Math.abs(c.x - e.x) < 3 || e.z - c.z < 15)) o.b3 = true;
+				}
+				/* like a person: it notices a harpoon only now and then (44-65% by skill), and a beat late (0.3-0.6 s after it
+				   bites), so a cop close behind usually lands the hit before the swerve snaps the line */
 				const hk = this.hooks(W, e)[0];
 				if (hk) {
 					const key = hk.c.k + ":" + hk.id;
 					e.snapTry = e.snapTry || {};
-					if (e.snapTry[key] === undefined) e.snapTry[key] = Math.random() < 0.35 + 0.5 * e.sk;
-					if (e.snapTry[key]) tx = e.x + (e.x > hk.c.x ? 9 : -9);
+					if (e.snapTry[key] === undefined)
+						e.snapTry[key] = Math.random() < 0.3 + 0.35 * e.sk ? W.t + 0.3 + Math.random() * 0.3 * (1.4 - e.sk) : -1;
+					if (e.snapTry[key] >= 0 && W.t >= e.snapTry[key]) tx = e.x + (e.x > hk.c.x ? 9 : -9);
 				}
 			} else {
 				/* a beat late and a little off: re-aim every 0.3-0.8 s with a miss of up to a lane, and ease off to about the
@@ -9720,33 +10797,86 @@ Object.assign(MG, {
 					e.reT = W.t + 0.3 + Math.random() * 0.5 * (1.4 - e.sk);
 					e.aimX = T.x + (Math.random() - 0.5) * 2.4 * (1.3 - e.sk);
 				}
-				const dz = e.z - T.z;
-				tx = blocked(e.aimX, 22) ? clear(e.aimX) : e.aimX;
-				o.y = dz > 6 ? -1 : dz > 1.5 ? -0.65 : dz < -3 ? 0.7 : 0;
-				/* the harpoon when the truck is in reach and in front (aimed with the steering, a bit sloppily) */
-				const dT = Math.hypot(T.x - e.x, T.z - e.z),
-					ang = Math.atan2(T.x - e.x, Math.max(0.1, dz));
-				if (
-					W.t >= (e.hpCd || 0) &&
-					dT < this.HPR - 1.5 &&
-					dz > 1 &&
-					Math.abs(ang) < this.HPA * 1.6 &&
-					Math.random() < 0.05 * e.sk
-				) {
+				const dz = e.z - T.z,
+					dT = Math.hypot(T.x - e.x, T.z - e.z),
+					/* think time, like a person: once a button is ready the CPU waits a while (lo .. lo + span s, less when
+					   skilled) before it's willing to use it */
+					think = (key, cd, lo, span) => {
+						if (W.t < cd) {
+							e[key] = undefined;
+							return false;
+						}
+						if (e[key] === undefined) e[key] = W.t + lo + Math.random() * span * (1.3 - e.sk);
+						return W.t >= e[key];
+					},
+					hpOk = think("hpAt", e.hpCd || 0, 1, 2),
+					/* dropping spikes needs no aim: a short think (0.3-0.8 s) */
+					ssOk = think("ssAt", e.hpCd || 0, 0.3, 0.5),
+					/* one harpoon at a time: it waits while another cop's is out (or was fired in the last 1.5 s) */
+					busy = W.list.some((c) => c !== e && c.side === 1 && !c.gone && c.f && c.f.hp && W.t - c.f.hp[1] < 1.5),
+					sd = e.x >= T.x ? 1 : -1,
+					gap = e.hb[0] + T.hb[0] + 2.2,
+					[lo, hi] = this.edges(e.z),
+					/* roles: the cop closest behind the truck (human or CPU) is the hunter that goes for the harpoon; every
+					   other CPU cop is a runner whose job is to get past the truck and lay spikes */
+					hunter = W.list.filter((c) => c.side === 1 && !c.gone && c.z > T.z).sort((a, b) => a.z - b.z)[0],
+					runner = hunter !== e;
+				let wx = e.aimX;
+				if (this.ahead(W, e, T) && W.t >= (e.hpCd || 0)) {
+					/* ahead of it with spikes ready: get into its lane 10-25 m ahead and drop the strip once lined up (the
+					   strip lands 10-25 m in front of the truck: about 0.5-1.1 s to swerve round it) */
+					wx = T.x;
+					o.y = dz > -10 ? -1 : dz < -25 ? 1 : 0.2;
+					if (ssOk && dz < -10 && Math.abs(e.x - T.x) < 1.8) {
+						o.boost = true;
+						return o;
+					}
+				} else if (runner && (dz > -this.SSA || W.t >= (e.hpCd || 0) - 2)) {
+					/* the runner: alongside its lane, flat out, vaulting cars to get past it (once ahead, only while its spikes are nearly ready: it doesn't hang in front) */
+					const want = T.x + sd * gap;
+					wx = want > hi - 1 || want < lo + 1 ? T.x - sd * gap : want;
+					o.y = -1;
+				} else if (dz < 2) {
+					/* level with it or ahead (spikes used): pull out of its lane, to the side it is already on (out of the
+					   spear), and drop back behind it */
+					const want = T.x + sd * gap;
+					wx = want > hi - 1 || want < lo + 1 ? T.x - sd * gap : want;
+					o.y = dz < -1 ? 1 : 0.5;
+				} else o.y = dz > 6 ? -1 : dz > 1.5 ? -0.65 : 0.5;
+				tx = blocked(wx, 22) ? clear(wx) : wx;
+				/* the harpoon at the truck: only from close behind, lined up, and not while another cop's is out */
+				const ang = Math.atan2(T.x - e.x, Math.max(0.1, dz));
+				if (!runner && hpOk && !busy && dz > 1 && dT < this.HPRT - 1 && Math.abs(ang) < this.HPA * 1.3) {
 					o.boost = true;
-					o.x = Math.max(-1, Math.min(1, ang * 1.3 + (Math.random() - 0.5) * 0.5));
+					o.x = Math.max(-1, Math.min(1, ang * 1.3 + (Math.random() - 0.5) * 0.4));
 					return o;
 				}
-				/* its truck's trick, when it fits */
-				if (W.t >= (e.abCd || 0) && Math.random() < 0.03 * e.sk) {
+				/* far behind (or stuck behind a car), or the runner until it's past: harpoon a car ahead and vault it (a short
+				   think: a car needs no careful aim) */
+				if (think("vtAt", e.hpCd || 0, 0.2, 0.5) && (dz > 12 || (runner && dz > -this.SSA - 2))) {
+					const car = W.cars.find((c) => {
+						const cz = this.carZ(W, c);
+						return c.kT === undefined && cz < e.z - 4 && cz > e.z - 14.5 && Math.abs(this.carX(W, c, cz) - e.x) < 4.5;
+					});
+					if (car) {
+						const cz = this.carZ(W, car);
+						o.boost = true;
+						o.x = Math.max(-1, Math.min(1, (this.carX(W, car, cz) - e.x) / (0.7 * (e.z - cz))));
+						return o;
+					}
+				}
+				/* its truck's trick: after a longer think (2-5 s), and only when it fits */
+				if (think("abAt", e.abCd || 0, 2, 3)) {
 					const A = this.abOf(e),
 						k = A.kind;
 					if (
-						(A.lob && dT < 36) ||
-						((k === "pickup" || k === "food") && dz > 16) ||
+						(A.lob && dz > 0 && dT < 40) ||
+						(k === "pickup" && (dz > 16 || (runner && dz > -3))) ||
+						(k === "food" && dT < 60) ||
+						(k === "garbage" && dz > 0 && dT < 50) ||
 						(k === "monster" && dz > 14 && dz < 42) ||
-						(k === "fire" && dT < 12) ||
-						(k === "tow" && dT < 24 && W.t < (e.hpCd || 0) - 1)
+						(k === "fire" && dT < 40) ||
+						(k === "tow" && Math.abs(dz) < 5 && dT < 8)
 					)
 						o.b2 = true;
 				}
@@ -9755,9 +10885,25 @@ Object.assign(MG, {
 			if (o.b2 && e.side === 0 && W.t < (e.swCd || 0)) o.b2 = false;
 			return o;
 		},
+		/* when the CPU cash truck sees a lob coming (thrown at t): like a person it spots one in flight only now and then
+		   (35-65% by skill) and a beat late (0.45-0.85 s after the throw, landing at ZL = 1 s); the rest once they're
+		   lying on the road */
+		lobSeen(e, key, t) {
+			e.lobSn = e.lobSn || {};
+			if (e.lobSn[key] === undefined)
+				e.lobSn[key] =
+					Math.random() < 0.35 + 0.3 * e.sk ? t + 0.45 + Math.random() * 0.4 * (1.4 - e.sk) : t + this.ZL + 0.3;
+			return e.lobSn[key];
+		},
 		watchSum(W) {
 			const T = this.solo(W);
-			return T ? `cash truck: ${T.f.bg} bags${T.f.esc ? ", escaped" : ""}, at ${Math.round(-T.z)} m` : "";
+			return T
+				? `cash truck: ${T.f.bg} bags${T.f.esc ? ", escaped" : ""}, at ${Math.round(-T.z)} m; cops in front of it ${Math.round(W.blockT || 0)} s, a cop got up to ${Math.round(W.maxAhead || 0)} m ahead; s far behind / behind / alongside / ahead: ${Object.entries(
+						W.copT || {},
+					)
+						.map(([k, q]) => `${k} ${q.map(Math.round).join("/")}`)
+						.join(", ")}`
+				: "";
 		},
 		/* tools/nettest.mjs: the bags and the escape must agree */
 		syncSnap(W) {

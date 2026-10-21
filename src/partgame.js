@@ -1210,7 +1210,8 @@ function rollGeysers() {
 		HG.gyT[i] = c[rnd(c.length)];
 	});
 }
-/* rising lava throws loose shards out of the volcano onto dry spaces, more each level (6, then 10); they last until the lava drains */
+/* rising lava throws loose shards out of the volcano onto dry spaces, more each level (6, then 10); they stay until a truck
+   picks them up or the lava floods their space */
 function scatterShards(r) {
 	HG.loose = HG.loose || {};
 	const want = lavaLv(r) >= 2 ? 10 : 6;
@@ -1239,7 +1240,11 @@ function lavaRound() {
 		scatterShards(r);
 		parts.push("Lava bursts throw loose shards onto the ledges: drive over them to grab one.");
 	}
-	if (lv < was) HG.loose = {};
+	/* loose shards stay on the board when the lava drains; rising lava swallows the ones on spaces it floods */
+	if (lv > was && HG.loose)
+		Object.keys(HG.loose).forEach((i) => {
+			if (flooded(+i, r)) delete HG.loose[i];
+		});
 	if (lv > was) {
 		title = "🌋 Lava rises!";
 		const moved = [];
@@ -1330,12 +1335,15 @@ function eruption(done) {
 }
 /* team minigames (Mario Party style): each truck's side is the colour of the space it stands on (blue or red, any other
    space is a coin flip). 4+ trucks split 1 vs 3 (1 vs N) or 2 vs 2 (any even-ish split) pick a game from that pool;
-   everyone on one colour (or board team mode, or fewer than 4 trucks) plays free-for-all.
+   everyone on one colour (or board team mode, or fewer than 4 trucks) plays free-for-all. The colours alone split the
+   field ~80% of rounds, so a split only goes ahead `TEAM_P` of the time and never right after a team game
+   (`HG.lastTeam`): ~70% of rounds free-for-all, ~19% 1 vs 3, ~11% 2 vs 2 (simulated end-of-round boards).
    Returns {mode, tm: {key: side}, tc: [side colours]}, side 0 = the solo truck in a 1 vs N game. */
-const SIDE_COL = ["#2F7DE1", "#E5484D"];
+const SIDE_COL = ["#2F7DE1", "#E5484D"],
+	TEAM_P = 0.55;
 function spaceSplit() {
 	const ps = HG.players;
-	if (HG.teams || ps.length < 4) return null;
+	if (HG.teams || ps.length < 4 || HG.lastTeam || Math.random() >= TEAM_P) return null;
 	const tm = {};
 	ps.forEach((p) => {
 		const n = MAP.nodes[p.pos],
@@ -1363,14 +1371,16 @@ function forcedSplit(g) {
 		hum = ps.find((p) => p.key === me.key) || ps.find((p) => !p.bot),
 		order = ps.slice().sort(() => Math.random() - 0.5);
 	if (mode === "1v3") {
-		/* TEST_SIDE (tools/watch.mjs --side, nettest.mjs --solo) puts the host's truck on side 0 or 1, or names the solo player's key */
-		const others = order.filter((p) => p !== hum),
+		/* TEST_SIDE (tools/watch.mjs --side, nettest.mjs --solo) puts the host's truck on side 0 or 1, or names the solo player's key;
+		   otherwise practice uses the side picked in the practice menu (practiceSide) */
+		const side = TEST_SIDE !== null ? TEST_SIDE : HG.practice && practiceSide >= 0 ? practiceSide : null,
+			others = order.filter((p) => p !== hum),
 			solo =
-				typeof TEST_SIDE === "string" && ps.some((p) => p.key === TEST_SIDE)
-					? ps.find((p) => p.key === TEST_SIDE)
-					: TEST_SIDE === 0 && hum
+				typeof side === "string" && ps.some((p) => p.key === side)
+					? ps.find((p) => p.key === side)
+					: side === 0 && hum
 						? hum
-						: TEST_SIDE === 1
+						: side === 1
 							? others[0]
 							: hum && Math.random() < 0.5
 								? hum
@@ -1410,6 +1420,7 @@ function startMinigame(duel, forceG, split) {
 		g = pool[rnd(pool.length)];
 		HG.used.push(g);
 		HG.lastMg = g;
+		HG.lastTeam = !!split;
 		if (split) {
 			/* the reveal: a "1 vs 3!" sticker over the board, then the minigame */
 			HG.phase = "teams";
@@ -2092,6 +2103,9 @@ document.addEventListener("click", (e) => {
 
 /* ---------- minigame practice menu ---------- */
 let practiceCpu = LS.get("trp_pcpu", 3);
+/* practice 1 vs 3 games: the side you play (-1 random, 0 the solo truck: Getaway's cash truck, Monster Mash's monster,
+   1 the team) */
+let practiceSide = LS.get("trp_pside", -1);
 function practiceHTML() {
 	const list = (kind) =>
 		Object.keys(MG)
@@ -2103,6 +2117,14 @@ function practiceHTML() {
 			.join("");
 	return `<div class="stage short"><div class="brand"><i></i>Minigame practice</div></div>
   <section class="sheet"><h2>CPU opponents</h2><div class="seg">${[0, 1, 2, 3].map((n) => `<button data-pcpu="${n}" class="${practiceCpu === n ? "on" : ""}">${n}</button>`).join("")}</div>
+  <h2 style="margin-top:14px">1 vs 3 games: play as</h2><div class="seg">${[
+		[-1, "Random"],
+		[0, "Solo"],
+		[1, "Team"],
+	]
+		.map(([v, t]) => `<button data-pside="${v}" class="${practiceSide === v ? "on" : ""}">${t}</button>`)
+		.join("")}</div>
+  <p class="note">Solo = the cash truck in Getaway, the monster in Monster Mash. Team = a cop or a survivor (needs a CPU opponent).</p>
   <p class="note">Practice runs only on this device. Nothing is shared with other players, and it doesn't touch a saved hosted game.</p></section>
   <section class="sheet"><h2>Truck specials</h2><div class="pgrid">${list("special")}</div></section>
   <section class="sheet"><h2>Arena battles</h2><div class="pgrid">${list("arena")}</div></section>
@@ -2170,6 +2192,13 @@ document.addEventListener("click", (e) => {
 	if (d.pcpu !== undefined) {
 		practiceCpu = +d.pcpu;
 		LS.set("trp_pcpu", practiceCpu);
+		render.last = null;
+		render();
+		return;
+	}
+	if (d.pside !== undefined) {
+		practiceSide = +d.pside;
+		LS.set("trp_pside", practiceSide);
 		render.last = null;
 		render();
 		return;

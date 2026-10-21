@@ -1,2 +1,4 @@
 tools/node_modules/
 tools/out/
+sfx-raw/
+dist/sfx/*.wav
