@@ -1284,12 +1284,12 @@ const LOBBY_MUS = "music/lobby.mp3",
 	MENU_VIEWS = ["home", "join", "waiting", "practice", "lobby"];
 /* fetched at load, so the first tap starts it quickly */
 audLoad(LOBBY_MUS);
-/* minigame music per mode (the user's Suno songs, by def.team; free-for-all later): from the countdown until the game is
-   over, once per screen. Fetched while the ready screen is up. Games with their own song (Getaway, Monster Mash) are
-   1 vs 3, which has none here yet */
-const MODE_MUS = { "2v2": "music/2v2.mp3" };
+/* minigame music per mode (the user's Suno songs, by def.team): from the countdown until the game is over, once per
+   screen. Fetched while the ready screen is up. Free-for-all only in arena games (lane and station games are calmer and
+   keep the quiet); the 1 vs 3 games (Getaway, Monster Mash) have their own songs */
+const MODE_MUS = { "2v2": "music/2v2.mp3", ffa: "music/ffa.mp3" };
 function modeMus(W) {
-	const url = MODE_MUS[W.def.team || "ffa"];
+	const url = MODE_MUS[W.def.team || (W.def.kind === "arena" ? "ffa" : "")];
 	if (!url || (W.split && typeof TVS !== "undefined" && TVS && TVS.worlds[0].W !== W)) return;
 	if (!W.mmus) {
 		W.mmus = 1;
