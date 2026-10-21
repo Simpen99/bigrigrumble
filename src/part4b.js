@@ -385,8 +385,10 @@ function dialGearTex(gr) {
 		}))
 	);
 }
-function engineSnd() {
+/* vol = this game's engine level; on top, the 🔧 panel's "engine" tuning (s:engine), live */
+function engineSnd(vol = 1) {
 	if (!SFX.on || !SFX.ctx || SFX.ctx.state !== "running") return null;
+	SFX_SEEN.add("s:engine");
 	const c = SFX.ctx,
 		o = c.createOscillator(),
 		o2 = c.createOscillator(),
@@ -428,7 +430,7 @@ function engineSnd() {
 			o.frequency.setTargetAtTime(48 + spd * 150, t, 0.06);
 			o2.frequency.setTargetAtTime(24 + spd * 75, t, 0.06);
 			lp.frequency.setTargetAtTime(350 + spd * 1600, t, 0.08);
-			g.gain.setTargetAtTime(on ? 0.05 + spd * 0.09 : 0, t, 0.15);
+			g.gain.setTargetAtTime(on ? (0.05 + spd * 0.09) * vol * sfxVol("s:engine") : 0, t, 0.15);
 			ng.gain.setTargetAtTime(crowd, t, 0.25);
 		},
 		stop() {
@@ -3696,21 +3698,31 @@ const MG = {
 		liveHi: true,
 		unit: "ms",
 		dur: 35,
+		/* the user's Suno song "Pixel Drag Race" (112.5 bpm): its "3, 2, 1, GO!" chant, one word a beat, shouts GO 10.045 s
+		   in, on TAP; the 3, 2, 1 before TAP follow the chant (BEAT). The pill runs 0.08 s ahead of the chant: on the
+		   beat it felt late (the user) */
+		mus: { url: "music/drag.mp3", go: 10.045 - 0.08 },
+		BEAT: 60 / 112.46,
+		/* the user's light panel values (angle 275°, height 45) */
+		sun: [1.6, 45, -18.4],
+		lt: { amb: 0.84, sun: 0.5, warm: 0.6, haze: 50 },
+		fx: { tilt: 0.14, aa: 1 },
 		tapLabel: "TAP",
 		tvHint:
-			"Charge the burnout: tap your phone when your dial hits the green, 5 times. After GO: tap as fast as you can!",
-		tapHint: "Charge: tap when the needle is in the green (5 times). After GO tap as fast as you can.",
+			"Charge the burnout: tap your phone when your dial hits the green, 5 times. After 3-2-1-TAP: tap as fast as you can!",
+		tapHint: "Charge: tap when the needle is in the green (5 times). After 3-2-1-TAP tap as fast as you can.",
 		how: "Charge a burnout by tapping in the green, then mash to the line. A red resets your charge!",
-		/* 3-2-1, then the charge: 5 steps of STEP s; each step the needle sweeps up (faster every step) and one tap
+		/* 3-2-1, then the charge: 5 steps of STEP s, then HOLD s of 3-2-1-TAP (TAP on the song's GO); each step the needle sweeps up (faster every step) and one tap
 		   grades it: PERFECT (green band) +1 charge, good (amber edges) +0.6, early +0, red (past the zone, or no tap
 		   before the limiter) resets the charge to 0. The burnout gets wilder with the charge. At GO the charge sets the
 		   launch speed and a short nitro push (5 = 3 launch points), then speed comes from the tap rate (tapF saturates,
 		   so a good start beats slightly faster thumbs); 6 gears that shift by themselves. Taps are graded where the
 		   needle was LAG s earlier (input and display delay, longer from a TV controller).
 		   Balance check: node tools/watch.mjs drag --runs 6 --quiet */
-		LEN: 240,
+		LEN: 312,
 		STEP: 1.5,
-		cd: 3.2 + 5 * 1.5,
+		HOLD: 3.5,
+		cd: 3.2 + 5 * 1.5 + 3.5,
 		RISE: [1.2, 1.15, 1.1, 1.05, 1],
 		ZONE: [0.79, 0.975],
 		PERF: [0.84, 0.945],
@@ -3722,25 +3734,34 @@ const MG = {
 		VT: [16, 23, 30, 37, 44, 51],
 		ACC: [12.5, 10.4, 8.8, 7.5, 6.4, 5.6],
 		DRAG: 0.0015,
-		TAPK: 3.6 /* tap rate (taps/s) that gives 63% of the pull */,
+		TAPK: 4.15 /* tap rate (taps/s) that gives 63% of the pull */,
 		WIN: 0.8 /* tap rate window (s) */,
 		tapF(R) {
 			return 1 - Math.exp(-R / this.TAPK);
 		},
-		/* 3, 2, 1, then REV! as the charge starts */
+		/* 3, 2, 1, then REV! as the charge starts, then 3, 2, 1 on the song's chant (a beat apart) and TAP! (goText) */
 		cdText(t) {
 			const k = t + this.cd;
-			return k < 0.2 ? "" : k < 3.2 ? String(3 - Math.floor(k - 0.2)) : k < 3.9 ? "REV!" : "";
+			return k < 0.2
+				? ""
+				: k < 3.2
+					? String(3 - Math.floor(k - 0.2))
+					: k < 3.9
+						? "REV!"
+						: t >= -3 * this.BEAT
+							? String(Math.ceil(-t / this.BEAT - 1e-9))
+							: "";
 		},
-		/* which charging step countdown time t is in (0..4), -1 outside */
+		goText: "TAP!",
+		/* which charging step countdown time t is in (0..4), -1 outside (the charge ends HOLD s before TAP) */
 		beat(t) {
-			const b = Math.floor((t + 5 * this.STEP) / this.STEP);
-			return t < 0 && b >= 0 && b < 5 ? b : -1;
+			const b = Math.floor((t + this.HOLD + 5 * this.STEP) / this.STEP);
+			return t < -this.HOLD && b >= 0 && b < 5 ? b : -1;
 		},
 		/* the needle in step b at time t: idle, then a straight sweep up to the limiter */
 		needle(b, t) {
 			if (b < 0) return 0.12;
-			const u = (t + (5 - b) * this.STEP - 0.1) / this.RISE[b];
+			const u = (t + this.HOLD + (5 - b) * this.STEP - 0.1) / this.RISE[b];
 			return 0.12 + 0.88 * Math.min(1, Math.max(0, u));
 		},
 		/* grades pop up above the rev dial */
@@ -3856,19 +3877,7 @@ const MG = {
 					s.add(b);
 				});
 			}
-			const lines = new THREE.Group(),
-				lm = new THREE.MeshBasicMaterial({ color: "#FFFFFF", transparent: true, opacity: 0, depthWrite: false }),
-				lg = new THREE.BoxGeometry(0.06, 0.06, 1);
-			s.add(lines);
-			W.lines = [];
-			for (let i = 0; i < 44; i++) {
-				const m = new THREE.Mesh(lg, lm);
-				m.userData.o = [(W.rng() < 0.5 ? -1 : 1) * (1.5 + W.rng() * 5), 0.4 + W.rng() * 4.5];
-				m.position.z = -W.rng() * 70;
-				lines.add(m);
-				W.lines.push(m);
-			}
-			W.lineMat = lm;
+			W.wstk = windStreaks(W, 48, 0.22);
 			const v = document.createElement("div");
 			v.id = "spdfx";
 			v.style.cssText =
@@ -3891,7 +3900,7 @@ const MG = {
 				bo = this.bo(e);
 			if (b < 0 || bo.res[b] !== undefined) return;
 			if (r === undefined) {
-				const st = -(5 - b) * this.STEP;
+				const st = -(5 - b) * this.STEP - this.HOLD;
 				r = this.needle(b, Math.max(st, W.t - this.LAG[W.split || W.tv ? 1 : 0]));
 			}
 			this.grade(
@@ -3947,13 +3956,13 @@ const MG = {
 			const b = this.beat(W.t),
 				bo = this.bo(e);
 			/* a step that ended without a tap was a red */
-			for (let k = 0; k < (b < 0 ? (W.t < -5 * this.STEP ? 0 : 5) : b); k++)
+			for (let k = 0; k < (b < 0 ? (W.t < -5 * this.STEP - this.HOLD ? 0 : 5) : b); k++)
 				if (bo.res[k] === undefined) this.grade(W, e, k, "red", 1);
 			if (b < 0) bo.r = 0.12;
 			else if (bo.res[b] !== undefined) bo.r = Math.max(0.12, bo.r - dt * 3);
 			else {
 				bo.r = this.needle(b, W.t);
-				if (W.t + (5 - b) * this.STEP - 0.1 >= this.RISE[b] + 0.35) this.grade(W, e, b, "red", 1);
+				if (W.t + this.HOLD + (5 - b) * this.STEP - 0.1 >= this.RISE[b] + 0.35) this.grade(W, e, b, "red", 1);
 				else if (e.bot) {
 					/* CPUs: a target needle per step from their skill (a red is rare: it costs the whole charge) */
 					if (bo.tb !== b) {
@@ -4106,7 +4115,8 @@ const MG = {
 			if (e.local && e.crossed) this.coast(W, e, dt);
 			/* shown revs: the burnout needle on the countdown, the gear's revs in the race, a bounce on the limiter */
 			e.rs = Math.max(0.1, rv) - (lim ? Math.abs(Math.sin(W.t * 40)) * 0.04 : 0);
-			this.burnout(W, e, dt, burn, rv);
+			/* the burnout carries on through the 3-2-1 hold */
+			this.burnout(W, e, dt, burn || (W.t < 0 && W.t >= -this.HOLD), rv);
 			/* the race is a mash: a hammered mini TAP button by the truck */
 			if (W.t >= 0 && !done) inputHint(W, e, "TAP", "mash");
 			if ((e.isMe || W.split) && !done) {
@@ -4192,14 +4202,7 @@ const MG = {
 			const S = W.spd;
 			W.jit = S * S * 0.14 + (W.kick || 0) + (e.bj || 0);
 			W.kick = Math.max(0, (W.kick || 0) - dt * 0.8);
-			W.lineMat.opacity = Math.max(0, Math.min(0.6, (S - 0.35) * 1.3));
-			W.lines.forEach((m) => {
-				m.position.z += v * 0.9 * dt;
-				if (m.position.z > e.z + 12) m.position.z = e.z - 45 - Math.random() * 30;
-				m.position.x = e.x + m.userData.o[0];
-				m.position.y = m.userData.o[1];
-				m.scale.z = 0.5 + S * 7;
-			});
+			W.wstk.step(Math.min(0.05, dt), { x: e.x, z: e.z, amt: (S - 0.35) * 1.6, drift: v * 0.9, stretch: 0.5 + S });
 			if (W.vig) W.vig.style.opacity = (Math.max(0, S - 0.3) * 1.4).toFixed(3);
 			if (done && !W.cheered) {
 				W.cheered = true;
@@ -4217,7 +4220,8 @@ const MG = {
 			}
 			W.roar = Math.max(0, (W.roar || 0) - dt * 0.4);
 			crowdStep(W, e.z, Math.max(S, W.roar));
-			if (!W.eng && W.t >= -this.cd) W.eng = engineSnd() || { set() {}, stop() {} };
+			/* 40% quieter than the other games' engines: the burnout revs were too loud */
+			if (!W.eng && W.t >= -this.cd) W.eng = engineSnd(0.6) || { set() {}, stop() {} };
 			/* the engine sings with the revs (drops on every shift), so the shift point can be heard */
 			if (W.eng) W.eng.set(done ? S : 0.1 + e.rs * 0.9, 0.012 + S * 0.03 + W.roar * 0.05, !done || W.roar > 0.2);
 		},
@@ -4233,7 +4237,7 @@ const MG = {
 			if (W.eng) W.eng.stop();
 			if (W.vig) W.vig.remove();
 		},
-		PADZ: -274.3 /* the cushion, 34.3 m past the line */,
+		PADZ: -346.3 /* the cushion, 34.3 m past the line */,
 		BRAKE: 31 /* from about 165 km/h at the line (flat-out mashing) the truck reaches the cushion */,
 		rules(W, e, dt) {
 			if (e.d || e.crossed) return;

@@ -1009,7 +1009,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-21 03:04 43debe4";
+const BUILD = "2026-10-21 16:40 70c320b";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -9134,6 +9134,8 @@ const SFX_BAKE = {
 	speed: { v: -1.5 },
 };
 const SFXT = Object.assign({}, SFX_BAKE, LS.get("trp_sfx", {}));
+/* every sound played since the minigame started (start3D clears it), so the 🔧 panel's Sound group can list them in any game */
+const SFX_SEEN = new Set();
 const sfxVol = (n) => Math.pow(10, ((SFXT[n] && SFXT[n].v) || 0) / 20),
 	sfxSpread = (n) => (SFXT[n] && SFXT[n].p !== undefined ? SFXT[n].p : 4) / 100;
 /* a sound pack: sfx/<name>.mp3 holds several takes of one sound with silence between them (packed and levelled by
@@ -9168,6 +9170,7 @@ function sfxPackLoad(name) {
 }
 function sfxPack(name, vol = 1) {
 	if (!SFX.on || !SFX.ctx || SFX.ctx.state !== "running") return;
+	SFX_SEEN.add(name);
 	const url = `sfx/${name}.mp3`;
 	audBuf(url)
 		.then((buf) => {
@@ -9192,7 +9195,7 @@ function sfxPack(name, vol = 1) {
 }
 /* a song from a file (Getaway's chase song, the lobby song), looped through the music bus like the synth songs (fading in
    over fadeIn s): musStop fades it, and musScene leaves it playing during the minigame (MUS.track) */
-function musTrack(url, vol = 0.7, fadeIn = 0, resume = false) {
+function musTrack(url, vol = 0.7, fadeIn = 0, resume = false, sync = null) {
 	musStop();
 	if (!SFX.ctx || !SFX.on) return;
 	const o = musOut(vol);
@@ -9206,15 +9209,18 @@ function musTrack(url, vol = 0.7, fadeIn = 0, resume = false) {
 			s.buffer = buf;
 			s.loop = true;
 			s.connect(o.g);
+			const at = resume && MUS.pos[url],
+				c = SFX.ctx;
+			/* sync() = where the song should be right now (s, negative = not yet), heard after the output latency */
+			const want = sync ? sync() + (c.baseLatency || 0) + (c.outputLatency || 0) : 0;
+			o.off = at ? at.off % buf.duration : Math.max(0, want) % buf.duration;
+			o.t0 = c.currentTime - Math.min(0, want);
+			/* the fade starts with the song (later, for a song waiting for its sync point) */
 			if (fadeIn) {
-				const t = SFX.ctx.currentTime;
-				o.g.gain.setValueAtTime(0.0001, t);
-				o.g.gain.linearRampToValueAtTime(vol, t + fadeIn);
+				o.g.gain.setValueAtTime(0.0001, o.t0);
+				o.g.gain.linearRampToValueAtTime(vol, o.t0 + fadeIn);
 			}
-			const at = resume && MUS.pos[url];
-			o.off = at ? at.off % buf.duration : 0;
-			o.t0 = SFX.ctx.currentTime;
-			s.start(0, o.off);
+			s.start(o.t0, o.off);
 			o.src = s;
 		})
 		.catch(() => {});
@@ -9526,20 +9532,22 @@ const LOBBY_MUS = "music/lobby.mp3",
 	MENU_VIEWS = ["home", "join", "waiting", "practice", "lobby"];
 /* fetched at load, so the first tap starts it quickly */
 audLoad(LOBBY_MUS);
-/* minigame music per mode (the user's Suno songs, by def.team; free-for-all later): from the countdown until the game is
-   over, once per screen. Fetched while the ready screen is up. Games with their own song (Getaway, Monster Mash) are
-   1 vs 3, which has none here yet */
-const MODE_MUS = { "2v2": "music/2v2.mp3" };
+/* minigame music per mode (the user's Suno songs, by def.team): from the countdown until the game is over, once per
+   screen. Fetched while the ready screen is up. Free-for-all only in arena games (lane and station games are calmer and
+   keep the quiet); the 1 vs 3 games (Getaway, Monster Mash) have their own songs. A game's own song: def.mus = {url, go}
+   = its beat at go s into the file lands on W.t = 0 (Drag Race's "GO" on the launch) */
+const MODE_MUS = { "2v2": "music/2v2.mp3", ffa: "music/ffa.mp3" };
 function modeMus(W) {
-	const url = MODE_MUS[W.def.team || "ffa"];
+	const own = W.def.mus,
+		url = own ? own.url : MODE_MUS[W.def.team || (W.def.kind === "arena" ? "ffa" : "")];
 	if (!url || (W.split && typeof TVS !== "undefined" && TVS && TVS.worlds[0].W !== W)) return;
 	if (!W.mmus) {
 		W.mmus = 1;
 		audLoad(url);
 	}
-	if (W.mmus === 1 && W.t > -2.5) {
+	if (W.mmus === 1 && W.t > (own ? -own.go - 0.5 : -2.5)) {
 		W.mmus = 2;
-		musTrack(url, 0.75);
+		musTrack(url, 0.75, own ? 2 : 0, false, own && (() => own.go + (Date.now() - W.startAt) / 1000));
 	}
 	if (W.mmus === 2 && W.over) {
 		W.mmus = 3;
@@ -9646,6 +9654,7 @@ function windSnd() {
 }
 function sfx(n) {
 	if (!SFX.on || !SFX.ctx || SFX.ctx.state !== "running") return;
+	SFX_SEEN.add("s:" + n);
 	/* a tuned sound (sfxVol) plays through its own gain */
 	const to = SFX.to,
 		k = sfxVol("s:" + n);
@@ -14320,6 +14329,7 @@ function camFov(f) {
 function start3D(mg, p, localOnly, startAt, split) {
 	const def = MG[mg.g],
 		s = new THREE.Scene();
+	SFX_SEEN.clear();
 	GFX.fx.bloom.th = 0.9;
 	setFx(def.fx);
 	/* light panel values saved on this device (Save button) win over the baked ones */
@@ -15348,12 +15358,16 @@ function wireLightPanel() {
 			["col", "Colour"],
 			["aa", "Smooth edges"],
 		];
-		/* the Sound group: the game's sound packs and synth sounds (def.PACKS / def.SYNTH), each a volume in dB (packs also
-		   their pitch spread), live for every game on this device (SFXT, partfx); plus a game's hear range (def.HEARR) */
+		/* the Sound group: the game's sound packs and synth sounds (def.PACKS / def.SYNTH) and every other sound played
+		   since the game started (SFX_SEEN), each a volume in dB (packs also their pitch spread), live for every game on
+		   this device (SFXT, partfx: a sound tuned here sounds the same in every game); plus a game's hear range (def.HEARR) */
 		const D = W.def,
-			PK = D.PACKS || [],
+			PK = (D.PACKS || []).concat([...SFX_SEEN].filter((n) => !n.startsWith("s:") && !(D.PACKS || []).includes(n))),
+			SY = (D.SYNTH || []).map((n) => "s:" + n),
 			SND = (D.HEARR !== undefined ? [["hear", "Hear range"]] : []).concat(
-				PK.map((n) => [n, n]).concat((D.SYNTH || []).map((n) => ["s:" + n, n])),
+				PK.map((n) => [n, n]).concat(
+					SY.concat([...SFX_SEEN].filter((n) => n.startsWith("s:") && !SY.includes(n))).map((n) => [n, n.slice(2)]),
+				),
 			),
 			sv = (k) => (k === "hear" ? (SFXT.hear ?? D.HEARR) : (SFXT[k] && SFXT[k].v) || 0),
 			sfmt = (k, v) => (k === "hear" ? Math.round(v) + " m" : (v > 0 ? "+" : "") + v + " dB"),
@@ -15455,7 +15469,8 @@ function wireLightPanel() {
 		const showTog = () => {
 			const isFx = grp === "fx",
 				isSnd = grp === "snd";
-			tog.hidden = !isFx && !(isSnd && cur !== "hear");
+			/* ▶ plays the sound once (not for the hear range or the engine loop, which you hear running) */
+			tog.hidden = !isFx && !(isSnd && cur !== "hear" && cur !== "s:engine");
 			if (isFx) {
 				tog.textContent = F[cur].on ? "ON" : "OFF";
 				tog.classList.toggle("on", F[cur].on);
@@ -16163,13 +16178,13 @@ function hud3(dt) {
 					? def.cdText(t)
 					: String(Math.ceil(-t))
 				: t < 0.8
-					? "GO!"
+					? def.goText || "GO!"
 					: W.big && t < W.bigT
 						? W.big
 						: "";
 		if (tx !== W.lastC) {
 			W.lastC = tx;
-			if (tx === "GO!") sfx("go");
+			if (tx === (def.goText || "GO!")) sfx("go");
 			else if (tx && +tx <= 3) sfx("beep");
 			/* long words shrink to fit a narrow screen (Bungee is ~0.9 em per letter) */
 			c.style.fontSize = tx.length > 3 ? `min(110px, ${(88 / tx.length).toFixed(1)}vw)` : "";
@@ -16940,7 +16955,8 @@ function tvcTick() {
 			navigator.vibrate && navigator.vibrate(60);
 		} catch (e) {}
 	}
-	const big = t === null ? "" : t < 0 ? (def.cdText ? def.cdText(t) : String(Math.ceil(-t))) : t < 0.8 ? "GO!" : "";
+	const big =
+		t === null ? "" : t < 0 ? (def.cdText ? def.cdText(t) : String(Math.ceil(-t))) : t < 0.8 ? def.goText || "GO!" : "";
 	if (st && st[7] && !def.swipe && !def.slide) {
 		const j = JSON.stringify(st[7]);
 		if (j !== TVC.mir) {
@@ -17886,8 +17902,10 @@ function dialGearTex(gr) {
 		}))
 	);
 }
-function engineSnd() {
+/* vol = this game's engine level; on top, the 🔧 panel's "engine" tuning (s:engine), live */
+function engineSnd(vol = 1) {
 	if (!SFX.on || !SFX.ctx || SFX.ctx.state !== "running") return null;
+	SFX_SEEN.add("s:engine");
 	const c = SFX.ctx,
 		o = c.createOscillator(),
 		o2 = c.createOscillator(),
@@ -17929,7 +17947,7 @@ function engineSnd() {
 			o.frequency.setTargetAtTime(48 + spd * 150, t, 0.06);
 			o2.frequency.setTargetAtTime(24 + spd * 75, t, 0.06);
 			lp.frequency.setTargetAtTime(350 + spd * 1600, t, 0.08);
-			g.gain.setTargetAtTime(on ? 0.05 + spd * 0.09 : 0, t, 0.15);
+			g.gain.setTargetAtTime(on ? (0.05 + spd * 0.09) * vol * sfxVol("s:engine") : 0, t, 0.15);
 			ng.gain.setTargetAtTime(crowd, t, 0.25);
 		},
 		stop() {
@@ -21197,21 +21215,31 @@ const MG = {
 		liveHi: true,
 		unit: "ms",
 		dur: 35,
+		/* the user's Suno song "Pixel Drag Race" (112.5 bpm): its "3, 2, 1, GO!" chant, one word a beat, shouts GO 10.045 s
+		   in, on TAP; the 3, 2, 1 before TAP follow the chant (BEAT). The pill runs 0.08 s ahead of the chant: on the
+		   beat it felt late (the user) */
+		mus: { url: "music/drag.mp3", go: 10.045 - 0.08 },
+		BEAT: 60 / 112.46,
+		/* the user's light panel values (angle 275°, height 45) */
+		sun: [1.6, 45, -18.4],
+		lt: { amb: 0.84, sun: 0.5, warm: 0.6, haze: 50 },
+		fx: { tilt: 0.14, aa: 1 },
 		tapLabel: "TAP",
 		tvHint:
-			"Charge the burnout: tap your phone when your dial hits the green, 5 times. After GO: tap as fast as you can!",
-		tapHint: "Charge: tap when the needle is in the green (5 times). After GO tap as fast as you can.",
+			"Charge the burnout: tap your phone when your dial hits the green, 5 times. After 3-2-1-TAP: tap as fast as you can!",
+		tapHint: "Charge: tap when the needle is in the green (5 times). After 3-2-1-TAP tap as fast as you can.",
 		how: "Charge a burnout by tapping in the green, then mash to the line. A red resets your charge!",
-		/* 3-2-1, then the charge: 5 steps of STEP s; each step the needle sweeps up (faster every step) and one tap
+		/* 3-2-1, then the charge: 5 steps of STEP s, then HOLD s of 3-2-1-TAP (TAP on the song's GO); each step the needle sweeps up (faster every step) and one tap
 		   grades it: PERFECT (green band) +1 charge, good (amber edges) +0.6, early +0, red (past the zone, or no tap
 		   before the limiter) resets the charge to 0. The burnout gets wilder with the charge. At GO the charge sets the
 		   launch speed and a short nitro push (5 = 3 launch points), then speed comes from the tap rate (tapF saturates,
 		   so a good start beats slightly faster thumbs); 6 gears that shift by themselves. Taps are graded where the
 		   needle was LAG s earlier (input and display delay, longer from a TV controller).
 		   Balance check: node tools/watch.mjs drag --runs 6 --quiet */
-		LEN: 240,
+		LEN: 312,
 		STEP: 1.5,
-		cd: 3.2 + 5 * 1.5,
+		HOLD: 3.5,
+		cd: 3.2 + 5 * 1.5 + 3.5,
 		RISE: [1.2, 1.15, 1.1, 1.05, 1],
 		ZONE: [0.79, 0.975],
 		PERF: [0.84, 0.945],
@@ -21223,25 +21251,34 @@ const MG = {
 		VT: [16, 23, 30, 37, 44, 51],
 		ACC: [12.5, 10.4, 8.8, 7.5, 6.4, 5.6],
 		DRAG: 0.0015,
-		TAPK: 3.6 /* tap rate (taps/s) that gives 63% of the pull */,
+		TAPK: 4.15 /* tap rate (taps/s) that gives 63% of the pull */,
 		WIN: 0.8 /* tap rate window (s) */,
 		tapF(R) {
 			return 1 - Math.exp(-R / this.TAPK);
 		},
-		/* 3, 2, 1, then REV! as the charge starts */
+		/* 3, 2, 1, then REV! as the charge starts, then 3, 2, 1 on the song's chant (a beat apart) and TAP! (goText) */
 		cdText(t) {
 			const k = t + this.cd;
-			return k < 0.2 ? "" : k < 3.2 ? String(3 - Math.floor(k - 0.2)) : k < 3.9 ? "REV!" : "";
+			return k < 0.2
+				? ""
+				: k < 3.2
+					? String(3 - Math.floor(k - 0.2))
+					: k < 3.9
+						? "REV!"
+						: t >= -3 * this.BEAT
+							? String(Math.ceil(-t / this.BEAT - 1e-9))
+							: "";
 		},
-		/* which charging step countdown time t is in (0..4), -1 outside */
+		goText: "TAP!",
+		/* which charging step countdown time t is in (0..4), -1 outside (the charge ends HOLD s before TAP) */
 		beat(t) {
-			const b = Math.floor((t + 5 * this.STEP) / this.STEP);
-			return t < 0 && b >= 0 && b < 5 ? b : -1;
+			const b = Math.floor((t + this.HOLD + 5 * this.STEP) / this.STEP);
+			return t < -this.HOLD && b >= 0 && b < 5 ? b : -1;
 		},
 		/* the needle in step b at time t: idle, then a straight sweep up to the limiter */
 		needle(b, t) {
 			if (b < 0) return 0.12;
-			const u = (t + (5 - b) * this.STEP - 0.1) / this.RISE[b];
+			const u = (t + this.HOLD + (5 - b) * this.STEP - 0.1) / this.RISE[b];
 			return 0.12 + 0.88 * Math.min(1, Math.max(0, u));
 		},
 		/* grades pop up above the rev dial */
@@ -21357,19 +21394,7 @@ const MG = {
 					s.add(b);
 				});
 			}
-			const lines = new THREE.Group(),
-				lm = new THREE.MeshBasicMaterial({ color: "#FFFFFF", transparent: true, opacity: 0, depthWrite: false }),
-				lg = new THREE.BoxGeometry(0.06, 0.06, 1);
-			s.add(lines);
-			W.lines = [];
-			for (let i = 0; i < 44; i++) {
-				const m = new THREE.Mesh(lg, lm);
-				m.userData.o = [(W.rng() < 0.5 ? -1 : 1) * (1.5 + W.rng() * 5), 0.4 + W.rng() * 4.5];
-				m.position.z = -W.rng() * 70;
-				lines.add(m);
-				W.lines.push(m);
-			}
-			W.lineMat = lm;
+			W.wstk = windStreaks(W, 48, 0.22);
 			const v = document.createElement("div");
 			v.id = "spdfx";
 			v.style.cssText =
@@ -21392,7 +21417,7 @@ const MG = {
 				bo = this.bo(e);
 			if (b < 0 || bo.res[b] !== undefined) return;
 			if (r === undefined) {
-				const st = -(5 - b) * this.STEP;
+				const st = -(5 - b) * this.STEP - this.HOLD;
 				r = this.needle(b, Math.max(st, W.t - this.LAG[W.split || W.tv ? 1 : 0]));
 			}
 			this.grade(
@@ -21448,13 +21473,13 @@ const MG = {
 			const b = this.beat(W.t),
 				bo = this.bo(e);
 			/* a step that ended without a tap was a red */
-			for (let k = 0; k < (b < 0 ? (W.t < -5 * this.STEP ? 0 : 5) : b); k++)
+			for (let k = 0; k < (b < 0 ? (W.t < -5 * this.STEP - this.HOLD ? 0 : 5) : b); k++)
 				if (bo.res[k] === undefined) this.grade(W, e, k, "red", 1);
 			if (b < 0) bo.r = 0.12;
 			else if (bo.res[b] !== undefined) bo.r = Math.max(0.12, bo.r - dt * 3);
 			else {
 				bo.r = this.needle(b, W.t);
-				if (W.t + (5 - b) * this.STEP - 0.1 >= this.RISE[b] + 0.35) this.grade(W, e, b, "red", 1);
+				if (W.t + this.HOLD + (5 - b) * this.STEP - 0.1 >= this.RISE[b] + 0.35) this.grade(W, e, b, "red", 1);
 				else if (e.bot) {
 					/* CPUs: a target needle per step from their skill (a red is rare: it costs the whole charge) */
 					if (bo.tb !== b) {
@@ -21607,7 +21632,8 @@ const MG = {
 			if (e.local && e.crossed) this.coast(W, e, dt);
 			/* shown revs: the burnout needle on the countdown, the gear's revs in the race, a bounce on the limiter */
 			e.rs = Math.max(0.1, rv) - (lim ? Math.abs(Math.sin(W.t * 40)) * 0.04 : 0);
-			this.burnout(W, e, dt, burn, rv);
+			/* the burnout carries on through the 3-2-1 hold */
+			this.burnout(W, e, dt, burn || (W.t < 0 && W.t >= -this.HOLD), rv);
 			/* the race is a mash: a hammered mini TAP button by the truck */
 			if (W.t >= 0 && !done) inputHint(W, e, "TAP", "mash");
 			if ((e.isMe || W.split) && !done) {
@@ -21693,14 +21719,7 @@ const MG = {
 			const S = W.spd;
 			W.jit = S * S * 0.14 + (W.kick || 0) + (e.bj || 0);
 			W.kick = Math.max(0, (W.kick || 0) - dt * 0.8);
-			W.lineMat.opacity = Math.max(0, Math.min(0.6, (S - 0.35) * 1.3));
-			W.lines.forEach((m) => {
-				m.position.z += v * 0.9 * dt;
-				if (m.position.z > e.z + 12) m.position.z = e.z - 45 - Math.random() * 30;
-				m.position.x = e.x + m.userData.o[0];
-				m.position.y = m.userData.o[1];
-				m.scale.z = 0.5 + S * 7;
-			});
+			W.wstk.step(Math.min(0.05, dt), { x: e.x, z: e.z, amt: (S - 0.35) * 1.6, drift: v * 0.9, stretch: 0.5 + S });
 			if (W.vig) W.vig.style.opacity = (Math.max(0, S - 0.3) * 1.4).toFixed(3);
 			if (done && !W.cheered) {
 				W.cheered = true;
@@ -21718,7 +21737,8 @@ const MG = {
 			}
 			W.roar = Math.max(0, (W.roar || 0) - dt * 0.4);
 			crowdStep(W, e.z, Math.max(S, W.roar));
-			if (!W.eng && W.t >= -this.cd) W.eng = engineSnd() || { set() {}, stop() {} };
+			/* 40% quieter than the other games' engines: the burnout revs were too loud */
+			if (!W.eng && W.t >= -this.cd) W.eng = engineSnd(0.6) || { set() {}, stop() {} };
 			/* the engine sings with the revs (drops on every shift), so the shift point can be heard */
 			if (W.eng) W.eng.set(done ? S : 0.1 + e.rs * 0.9, 0.012 + S * 0.03 + W.roar * 0.05, !done || W.roar > 0.2);
 		},
@@ -21734,7 +21754,7 @@ const MG = {
 			if (W.eng) W.eng.stop();
 			if (W.vig) W.vig.remove();
 		},
-		PADZ: -274.3 /* the cushion, 34.3 m past the line */,
+		PADZ: -346.3 /* the cushion, 34.3 m past the line */,
 		BRAKE: 31 /* from about 165 km/h at the line (flat-out mashing) the truck reaches the cushion */,
 		rules(W, e, dt) {
 			if (e.d || e.crossed) return;
@@ -39322,26 +39342,10 @@ Object.assign(MG, {
 				size: 0.32,
 			});
 		},
-		/* speed lines: thin streaks hanging in the air along the road, recycled ahead of the camera, drifting back a little;
-		   they show more the faster you go (the TV: the pack) */
+		/* speed lines: wind streaks (windStreaks) hanging in the air along the road, drifting back a little; more of them
+		   the faster you go (the TV: the pack) */
 		streaks(W) {
-			const N = 44,
-				m = new THREE.InstancedMesh(
-					new THREE.BoxGeometry(0.05, 0.05, 1),
-					new THREE.MeshBasicMaterial({
-						color: "#FFFFFF",
-						transparent: true,
-						opacity: 0,
-						depthWrite: false,
-						blending: THREE.AdditiveBlending,
-					}),
-					N,
-				);
-			m.frustumCulled = false;
-			m.renderOrder = 3;
-			W.sc.add(m);
-			W.stk = { m, L: [], o: new THREE.Object3D() };
-			for (let i = 0; i < N; i++) W.stk.L.push({ x: 0, y: 0, z: 1e6, l: 4 });
+			W.stk = windStreaks(W, 48, 0.2);
 		},
 		/* where the action is: your truck, or the pack on the TV, and how fast it goes */
 		focus(W) {
@@ -39354,29 +39358,9 @@ Object.assign(MG, {
 			};
 		},
 		streakStep(W, dt) {
-			const K = W.stk;
-			if (!K) return;
-			const F = this.focus(W),
-				on = W.t > 0 && !W.over ? Math.max(0, Math.min(1, (F.sp - 10) / 10)) : 0;
-			K.m.material.opacity = 0.32 * on;
-			K.m.visible = on > 0.01;
-			if (!K.m.visible) return;
-			K.L.forEach((q, i) => {
-				q.z += 9 * dt;
-				if (q.z > F.z + 12 || q.z < F.z - 70) {
-					/* a new one up ahead, off to the sides or overhead, rarely right in the middle */
-					const side = Math.random() < 0.5 ? -1 : 1;
-					q.x = F.x * 0.5 + side * (2.5 + Math.random() * 11);
-					q.y = 0.6 + Math.random() * 6;
-					q.z = F.z - 25 - Math.random() * 40;
-					q.l = 3 + Math.random() * 4;
-				}
-				K.o.position.set(q.x, q.y, q.z);
-				K.o.scale.set(1, 1, q.l);
-				K.o.updateMatrix();
-				K.m.setMatrixAt(i, K.o.matrix);
-			});
-			K.m.instanceMatrix.needsUpdate = true;
+			if (!W.stk) return;
+			const F = this.focus(W);
+			W.stk.step(dt, { x: F.x * 0.5, z: F.z, amt: W.t > 0 && !W.over ? (F.sp - 10) / 10 : 0, drift: 9 });
 		},
 		/* lights on the road at dusk: a warm pool ahead of every truck's headlights; under each cop a pool flashing red
 		   and blue with its light bar */
@@ -42692,6 +42676,102 @@ function vergeScatter(s, xs, z0, z1, n = 400, spots = [], gy = 0) {
 			s.add(im);
 		});
 	});
+}
+/* wind streaks for speed (Drag Race, Getaway): thin soft strands in the air round the action, each its own length,
+   thickness and brightness, fading in and out over its own short life (no popping, no hard ends: a bright head and a
+   long fading tail). One additive InstancedMesh (two crossed quads per strand so they read from any angle), the brightness
+   per strand through instance colours. step(dt, {x, z, amt 0..1, drift m/s along +z, stretch}) each frame: amt sets how
+   many strands are alive (not how bright each is), stretch lengthens them with speed. Keep it faint (base, ~0.2) */
+function windStreaks(W, n = 48, base = 0.2) {
+	const tex =
+			W.windTex ||
+			(W.windTex = canvasTex(128, 16, (x) => {
+				/* along u: the head at 0 fades in fast, the tail fades out slowly; across v: a soft core (pixel by pixel:
+				   the canvas is canvasTex's double size and putImageData ignores its scale) */
+				const w = x.canvas.width,
+					h = x.canvas.height,
+					im = x.createImageData(w, h);
+				for (let i = 0; i < w; i++)
+					for (let j = 0; j < h; j++) {
+						const u = i / (w - 1),
+							v = (j + 0.5) / h - 0.5,
+							a = Math.min(1, u / 0.12) * Math.pow(1 - u, 1.6) * Math.exp(-v * v * 18),
+							o = (j * w + i) * 4;
+						im.data[o] = im.data[o + 1] = im.data[o + 2] = Math.round(255 * a);
+						im.data[o + 3] = 255;
+					}
+				x.putImageData(im, 0, 0);
+			})),
+		g = new THREE.BufferGeometry();
+	/* a unit strand from z 0 (head) back to z 1 (tail): one flat quad and one upright quad */
+	g.setAttribute(
+		"position",
+		new THREE.Float32BufferAttribute(
+			[-0.5, 0, 0, 0.5, 0, 0, -0.5, 0, 1, 0.5, 0, 1, 0, -0.5, 0, 0, 0.5, 0, 0, -0.5, 1, 0, 0.5, 1],
+			3,
+		),
+	);
+	g.setAttribute("uv", new THREE.Float32BufferAttribute([0, 0, 0, 1, 1, 0, 1, 1, 0, 0, 0, 1, 1, 0, 1, 1], 2));
+	g.setIndex([0, 2, 1, 1, 2, 3, 4, 6, 5, 5, 6, 7]);
+	const m = new THREE.InstancedMesh(
+			g,
+			new THREE.MeshBasicMaterial({
+				map: tex,
+				transparent: true,
+				depthWrite: false,
+				blending: THREE.AdditiveBlending,
+				side: THREE.DoubleSide,
+			}),
+			n,
+		),
+		o = new THREE.Object3D(),
+		col = new THREE.Color(),
+		L = [];
+	m.frustumCulled = false;
+	m.renderOrder = 3;
+	for (let i = 0; i < n; i++) {
+		L.push({ x: 0, y: 0, z: 0, l: 1, w: 0.05, b: 0, age: 1, life: 0 });
+		m.setColorAt(i, col.setScalar(0));
+	}
+	W.sc.add(m);
+	return {
+		m,
+		step(dt, f) {
+			const amt = Math.max(0, Math.min(1, f.amt));
+			m.visible = amt > 0.01 || L.some((q) => q.age < q.life);
+			if (!m.visible) return;
+			L.forEach((q, i) => {
+				q.age += dt;
+				q.z += (f.drift || 0) * dt;
+				if (q.age >= q.life || q.z > f.z + 14) {
+					q.life = 0;
+					/* a new strand only as often as the speed asks for: fewer strands, not dimmer ones */
+					if (Math.random() < amt * amt * dt * 4) {
+						const side = Math.random() < 0.5 ? -1 : 1,
+							r = Math.random();
+						q.x = f.x + side * (1.6 + Math.random() * Math.random() * 10);
+						q.y = 0.35 + Math.random() * Math.random() * 5.5;
+						q.z = f.z - 8 - Math.random() * 55;
+						/* mostly short wisps, now and then a long one */
+						q.l = 1.2 + r * r * r * 11;
+						q.w = 0.12 + Math.random() * 0.16;
+						q.b = 0.35 + Math.random() * 0.65;
+						q.age = 0;
+						q.life = 0.5 + Math.random() * 1.1;
+					}
+				}
+				const live = q.age < q.life,
+					fade = live ? Math.sin((Math.PI * q.age) / q.life) : 0;
+				o.position.set(q.x, q.y, q.z);
+				o.scale.set(q.w, q.w, q.l * (f.stretch || 1));
+				o.updateMatrix();
+				m.setMatrixAt(i, o.matrix);
+				m.setColorAt(i, col.setScalar(base * q.b * fade));
+			});
+			m.instanceMatrix.needsUpdate = true;
+			m.instanceColor.needsUpdate = true;
+		},
+	};
 }
 /* automatic tyre tracks for games that move trucks themselves (lane games): speed from position change, call from stepMG */
 function autoTracks(W, col, y, N = 1400, fade = 5) {

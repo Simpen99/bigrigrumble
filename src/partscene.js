@@ -580,6 +580,102 @@ function vergeScatter(s, xs, z0, z1, n = 400, spots = [], gy = 0) {
 		});
 	});
 }
+/* wind streaks for speed (Drag Race, Getaway): thin soft strands in the air round the action, each its own length,
+   thickness and brightness, fading in and out over its own short life (no popping, no hard ends: a bright head and a
+   long fading tail). One additive InstancedMesh (two crossed quads per strand so they read from any angle), the brightness
+   per strand through instance colours. step(dt, {x, z, amt 0..1, drift m/s along +z, stretch}) each frame: amt sets how
+   many strands are alive (not how bright each is), stretch lengthens them with speed. Keep it faint (base, ~0.2) */
+function windStreaks(W, n = 48, base = 0.2) {
+	const tex =
+			W.windTex ||
+			(W.windTex = canvasTex(128, 16, (x) => {
+				/* along u: the head at 0 fades in fast, the tail fades out slowly; across v: a soft core (pixel by pixel:
+				   the canvas is canvasTex's double size and putImageData ignores its scale) */
+				const w = x.canvas.width,
+					h = x.canvas.height,
+					im = x.createImageData(w, h);
+				for (let i = 0; i < w; i++)
+					for (let j = 0; j < h; j++) {
+						const u = i / (w - 1),
+							v = (j + 0.5) / h - 0.5,
+							a = Math.min(1, u / 0.12) * Math.pow(1 - u, 1.6) * Math.exp(-v * v * 18),
+							o = (j * w + i) * 4;
+						im.data[o] = im.data[o + 1] = im.data[o + 2] = Math.round(255 * a);
+						im.data[o + 3] = 255;
+					}
+				x.putImageData(im, 0, 0);
+			})),
+		g = new THREE.BufferGeometry();
+	/* a unit strand from z 0 (head) back to z 1 (tail): one flat quad and one upright quad */
+	g.setAttribute(
+		"position",
+		new THREE.Float32BufferAttribute(
+			[-0.5, 0, 0, 0.5, 0, 0, -0.5, 0, 1, 0.5, 0, 1, 0, -0.5, 0, 0, 0.5, 0, 0, -0.5, 1, 0, 0.5, 1],
+			3,
+		),
+	);
+	g.setAttribute("uv", new THREE.Float32BufferAttribute([0, 0, 0, 1, 1, 0, 1, 1, 0, 0, 0, 1, 1, 0, 1, 1], 2));
+	g.setIndex([0, 2, 1, 1, 2, 3, 4, 6, 5, 5, 6, 7]);
+	const m = new THREE.InstancedMesh(
+			g,
+			new THREE.MeshBasicMaterial({
+				map: tex,
+				transparent: true,
+				depthWrite: false,
+				blending: THREE.AdditiveBlending,
+				side: THREE.DoubleSide,
+			}),
+			n,
+		),
+		o = new THREE.Object3D(),
+		col = new THREE.Color(),
+		L = [];
+	m.frustumCulled = false;
+	m.renderOrder = 3;
+	for (let i = 0; i < n; i++) {
+		L.push({ x: 0, y: 0, z: 0, l: 1, w: 0.05, b: 0, age: 1, life: 0 });
+		m.setColorAt(i, col.setScalar(0));
+	}
+	W.sc.add(m);
+	return {
+		m,
+		step(dt, f) {
+			const amt = Math.max(0, Math.min(1, f.amt));
+			m.visible = amt > 0.01 || L.some((q) => q.age < q.life);
+			if (!m.visible) return;
+			L.forEach((q, i) => {
+				q.age += dt;
+				q.z += (f.drift || 0) * dt;
+				if (q.age >= q.life || q.z > f.z + 14) {
+					q.life = 0;
+					/* a new strand only as often as the speed asks for: fewer strands, not dimmer ones */
+					if (Math.random() < amt * amt * dt * 4) {
+						const side = Math.random() < 0.5 ? -1 : 1,
+							r = Math.random();
+						q.x = f.x + side * (1.6 + Math.random() * Math.random() * 10);
+						q.y = 0.35 + Math.random() * Math.random() * 5.5;
+						q.z = f.z - 8 - Math.random() * 55;
+						/* mostly short wisps, now and then a long one */
+						q.l = 1.2 + r * r * r * 11;
+						q.w = 0.12 + Math.random() * 0.16;
+						q.b = 0.35 + Math.random() * 0.65;
+						q.age = 0;
+						q.life = 0.5 + Math.random() * 1.1;
+					}
+				}
+				const live = q.age < q.life,
+					fade = live ? Math.sin((Math.PI * q.age) / q.life) : 0;
+				o.position.set(q.x, q.y, q.z);
+				o.scale.set(q.w, q.w, q.l * (f.stretch || 1));
+				o.updateMatrix();
+				m.setMatrixAt(i, o.matrix);
+				m.setColorAt(i, col.setScalar(base * q.b * fade));
+			});
+			m.instanceMatrix.needsUpdate = true;
+			m.instanceColor.needsUpdate = true;
+		},
+	};
+}
 /* automatic tyre tracks for games that move trucks themselves (lane games): speed from position change, call from stepMG */
 function autoTracks(W, col, y, N = 1400, fade = 5) {
 	W.autoTrk = tyreTracks(W, col, "#FFFFFF", N, fade, 1, true);

@@ -9902,26 +9902,10 @@ Object.assign(MG, {
 				size: 0.32,
 			});
 		},
-		/* speed lines: thin streaks hanging in the air along the road, recycled ahead of the camera, drifting back a little;
-		   they show more the faster you go (the TV: the pack) */
+		/* speed lines: wind streaks (windStreaks) hanging in the air along the road, drifting back a little; more of them
+		   the faster you go (the TV: the pack) */
 		streaks(W) {
-			const N = 44,
-				m = new THREE.InstancedMesh(
-					new THREE.BoxGeometry(0.05, 0.05, 1),
-					new THREE.MeshBasicMaterial({
-						color: "#FFFFFF",
-						transparent: true,
-						opacity: 0,
-						depthWrite: false,
-						blending: THREE.AdditiveBlending,
-					}),
-					N,
-				);
-			m.frustumCulled = false;
-			m.renderOrder = 3;
-			W.sc.add(m);
-			W.stk = { m, L: [], o: new THREE.Object3D() };
-			for (let i = 0; i < N; i++) W.stk.L.push({ x: 0, y: 0, z: 1e6, l: 4 });
+			W.stk = windStreaks(W, 48, 0.2);
 		},
 		/* where the action is: your truck, or the pack on the TV, and how fast it goes */
 		focus(W) {
@@ -9934,29 +9918,9 @@ Object.assign(MG, {
 			};
 		},
 		streakStep(W, dt) {
-			const K = W.stk;
-			if (!K) return;
-			const F = this.focus(W),
-				on = W.t > 0 && !W.over ? Math.max(0, Math.min(1, (F.sp - 10) / 10)) : 0;
-			K.m.material.opacity = 0.32 * on;
-			K.m.visible = on > 0.01;
-			if (!K.m.visible) return;
-			K.L.forEach((q, i) => {
-				q.z += 9 * dt;
-				if (q.z > F.z + 12 || q.z < F.z - 70) {
-					/* a new one up ahead, off to the sides or overhead, rarely right in the middle */
-					const side = Math.random() < 0.5 ? -1 : 1;
-					q.x = F.x * 0.5 + side * (2.5 + Math.random() * 11);
-					q.y = 0.6 + Math.random() * 6;
-					q.z = F.z - 25 - Math.random() * 40;
-					q.l = 3 + Math.random() * 4;
-				}
-				K.o.position.set(q.x, q.y, q.z);
-				K.o.scale.set(1, 1, q.l);
-				K.o.updateMatrix();
-				K.m.setMatrixAt(i, K.o.matrix);
-			});
-			K.m.instanceMatrix.needsUpdate = true;
+			if (!W.stk) return;
+			const F = this.focus(W);
+			W.stk.step(dt, { x: F.x * 0.5, z: F.z, amt: W.t > 0 && !W.over ? (F.sp - 10) / 10 : 0, drift: 9 });
 		},
 		/* lights on the road at dusk: a warm pool ahead of every truck's headlights; under each cop a pool flashing red
 		   and blue with its light bar */
