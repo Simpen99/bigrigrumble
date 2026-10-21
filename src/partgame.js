@@ -1926,41 +1926,58 @@ const cargoHTML = (p, bs, bc) =>
 	shardMap()
 		? `<span class="cargo${bs ? " bump" : ""}">${p.shards | 0}${shardIco}</span><span class="cargo${bc ? " bump" : ""}">${p.dust | 0}${dustIco}</span>`
 		: "";
+/* a player's panel (the designer's art, UI_ART panel-gold = whose move it is, panel-silver = everyone else): the truck in the octagon
+   over the player's (or team's) colour, place badge under it, items in the three boxes, name on the tab (long names smaller), batteries and coins
+   (+ shards and dust on Volcano Quarry) on the right, upgrades right of the tab. Every size is in cqw, so it scales with the panel.
+   o: {rank, off, bump: [bat, coins, shards, dust], flip: mirrored (right-hand side), pos: grid style} */
+function pcardHTML(p, now, o = {}) {
+	const col = G.teams ? TEAMS[p.team || 0].col : pcol(p),
+		it = p.items || [],
+		bp = o.bump || [],
+		bc = (k) => (bp[k] ? ` class="bump"` : "");
+	return `<div class="pc${now ? " now" : ""}${o.off ? " off" : ""}${o.flip ? " flip" : ""}" data-k="${esc(p.key)}" style="--c:${col};${o.pos || ""}"><div class="pc-oct"><img alt="" src="${thumb(p.truck)}">${o.rank ? `<em>${ordinal(o.rank)}</em>` : ""}</div><b class="pc-nm" style="--nl:${Math.max(8, [...p.name].length)}">${esc(p.name)}</b><div class="pc-it">${[0, 1, 2].map((i) => `<span>${it[i] && ITEMS[it[i]] ? ITEMS[it[i]].icon : ""}</span>`).join("")}</div><div class="stats${shardMap() ? " four" : ""}"><span${bc(0)}>${p.bat}${bIco()}</span><span${bc(1)}>${p.coins}${coinIco}</span>${cargoHTML(p, bp[2], bp[3])}</div>${(p.up || []).length ? `<div class="pc-up">${p.up.map((u) => UPGRADES[u].icon).join("")}</div>` : ""}${o.off ? `<i class="pc-off">offline</i>` : ""}</div>`;
+}
+/* the board's player panels, one in every corner (Mario Party style): players alternate left / right (teams: one side each, its
+   totals on top), the first half of a side in its top corner, the rest in its bottom corner; right-hand panels are mirrored.
+   Returns [top, bottom] HTML; CSS places each panel from --sc (column 1 or 2) and --sr (row in its corner) */
 function stripHTML() {
 	const st = standings(G.players),
 		c = G.players[G.turn],
-		inTurn = !["minigame", "mgres", "rival", "erupt", "teams"].includes(G.phase);
-	let head = "";
-	if (G.teams) {
-		const T = teamTotals();
-		head = [0, 1]
-			.map(
-				(k) =>
-					`<div class="teamc" style="--tc:${TEAMS[k].col}"><b>${TEAMS[k].name}</b><div class="stats"><span>${T[k].bat}${bIco()}</span><span>${T[k].coins}${coinIco}</span></div></div>`,
-			)
-			.join("");
-	}
-	return (
-		head +
-		G.players
-			.map((p) => {
-				const sh = p.shards | 0,
-					ce = p.dust | 0,
-					ls = LASTST[p.key] || [p.bat, p.coins, 0, sh, ce],
-					bumpB = ls[0] !== p.bat,
-					bumpC = ls[1] !== p.coins,
-					bumpS = ls[3] !== sh,
-					bumpL = ls[4] !== ce;
-				if (!LASTST[p.key] || bumpB || bumpC || bumpS || bumpL)
-					LASTST[p.key] = [p.bat, p.coins, performance.now(), sh, ce];
-				const rank = st.indexOf(p) + 1,
-					off = role === "host" && !p.bot && !p.local && !online(p.key),
-					gear =
-						(p.up || []).map((u) => UPGRADES[u].icon).join("") + ((p.items || []).length ? `🎒${p.items.length}` : "");
-				return `<div class="pc ${inTurn && c === p ? "now" : ""}" data-k="${esc(p.key)}" style="--c:${G.teams ? TEAMS[p.team || 0].col : pcol(p)}"><span class="cdot" style="background:${G.teams ? TEAMS[p.team || 0].col : pcol(p)}"></span><img alt="" src="${thumb(p.truck)}"><div class="who"><b>${G.teams ? "" : rank + ". "}${esc(p.name)}</b><div class="stats"><span class="${bumpB ? "bump" : ""}">${p.bat}${bIco()}</span><span class="${bumpC ? "bump" : ""}">${p.coins}${coinIco}</span>${cargoHTML(p, bumpS, bumpL)}${gear ? `<span class="gear">${gear}</span>` : ""}</div>${off ? `<span class="off">offline</span>` : ""}</div></div>`;
-			})
-			.join("")
-	);
+		inTurn = !["minigame", "mgres", "rival", "erupt", "teams"].includes(G.phase),
+		T = G.teams && teamTotals(),
+		side = G.players.map((p, i) => (G.teams ? p.team || 0 : i % 2)),
+		list = [[], []],
+		out = ["", ""];
+	if (G.teams)
+		[0, 1].forEach((k) =>
+			list[k].push(
+				`<div class="teamc" style="--tc:${TEAMS[k].col};STYLE"><b>${TEAMS[k].name}</b><div class="stats"><span>${T[k].bat}${bIco()}</span><span>${T[k].coins}${coinIco}</span></div></div>`,
+			),
+		);
+	G.players.forEach((p, i) => {
+		const sh = p.shards | 0,
+			ce = p.dust | 0,
+			ls = LASTST[p.key] || [p.bat, p.coins, 0, sh, ce],
+			bump = [ls[0] !== p.bat, ls[1] !== p.coins, ls[3] !== sh, ls[4] !== ce];
+		if (!LASTST[p.key] || bump.some((b) => b)) LASTST[p.key] = [p.bat, p.coins, performance.now(), sh, ce];
+		list[side[i]].push(
+			pcardHTML(p, inTurn && c === p, {
+				rank: G.teams ? 0 : st.indexOf(p) + 1,
+				off: role === "host" && !p.bot && !p.local && !online(p.key),
+				bump,
+				flip: side[i] === 1,
+				pos: "STYLE",
+			}),
+		);
+	});
+	list.forEach((l, s) => {
+		const top = Math.ceil(l.length / 2);
+		l.forEach((h, r) => {
+			const b = r < top ? 0 : 1;
+			out[b] += h.replace("STYLE", `--sc:${s + 1};--sr:${b ? r - top + 1 : r + 1}`);
+		});
+	});
+	return out;
 }
 function overHTML() {
 	const st = standings(G.players),
