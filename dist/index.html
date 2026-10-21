@@ -1009,7 +1009,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-21 02:46 19c7096";
+const BUILD = "2026-10-21 02:58 37f3b97";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -37160,7 +37160,7 @@ Object.assign(MG, {
 			"jumpboost",
 			"speed",
 		],
-		SYNTH: ["cannon", "go", "crack", "land", "windup", "fanfare", "honk", "grind", "whoosh", "screech"],
+		SYNTH: ["go", "crack", "land", "windup", "fanfare", "honk", "grind", "whoosh", "screech"],
 		kits() {
 			MG.hop.kits.call(MG.hop);
 			audLoad("music/pursuit.mp3");

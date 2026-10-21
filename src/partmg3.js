@@ -7757,7 +7757,7 @@ Object.assign(MG, {
 			"jumpboost",
 			"speed",
 		],
-		SYNTH: ["cannon", "go", "crack", "land", "windup", "fanfare", "honk", "grind", "whoosh", "screech"],
+		SYNTH: ["go", "crack", "land", "windup", "fanfare", "honk", "grind", "whoosh", "screech"],
 		kits() {
 			MG.hop.kits.call(MG.hop);
 			audLoad("music/pursuit.mp3");
