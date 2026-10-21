@@ -8426,7 +8426,6 @@ Object.assign(MG, {
 				if (e.snapA[key] > 0.25 && !(c.f.hp && c.f.hp[4])) {
 					e.f.hs = (e.f.hs || []).concat([[c.k, id]]).slice(-6);
 					mgLog(W, `${mgName(e)} snaps ${mgName(c)}'s harpoon`);
-					if (e.isMe) sfx("crack");
 				}
 			});
 			/* a cop whose harpoon holds is reeled in: flung at the truck; touching it is the hit (the engine's ram), then
@@ -8591,10 +8590,8 @@ Object.assign(MG, {
 						this.letGo(W, e, "flying car");
 						mgLog(W, `${mgName(e)} hit by a flying car`);
 						e.lastHit = { k: "flying car", t: W.t };
-						if (e.isMe) {
-							W.shake = 0.6;
-							sfxPack("hit");
-						}
+						if (e.isMe) W.shake = 0.6;
+						if (this.heard(W, e)) sfxPack("hit");
 					}
 					continue;
 				}
@@ -8647,10 +8644,8 @@ Object.assign(MG, {
 					e.hitC[c.id] = W.t;
 					mgLog(W, `${mgName(e)} hits traffic`);
 					e.lastHit = { k: "traffic", t: W.t };
-					if (e.isMe) {
-						W.shake = 0.45;
-						sfx("honk");
-					}
+					if (e.isMe) W.shake = 0.45;
+					if (this.heard(W, e)) sfx("honk");
 				}
 			}
 		},
@@ -8688,7 +8683,7 @@ Object.assign(MG, {
 			const r = (v) => Math.round(v * 100) / 100;
 			e.f.oil = e.f.oil.concat([[e.oilN, r(e.x), r(e.z + 3.2), r(W.t)]]).slice(-4);
 			mgLog(W, `${mgName(e)} drops oil`);
-			if (e.isMe) sfxPack("splash");
+			if (this.heard(W, e)) sfxPack("splash");
 		},
 		/* the cash truck's slam: a hop, then a shockwave ring round it (shared as e.f.sw = [id, time pressed]) */
 		slam(W, e) {
@@ -8697,7 +8692,7 @@ Object.assign(MG, {
 			e.swN = (e.swN || 0) + 1;
 			e.f.sw = [e.swN, Math.round(W.t * 100) / 100];
 			mgLog(W, `${mgName(e)} slams`);
-			if (e.isMe) sfx("windup");
+			if (this.heard(W, e)) sfx("windup");
 		},
 		/* the slam's ring right now: {id, slam time, r} (r < 0 while the truck is still in the air), or null */
 		ring(W, T) {
@@ -8721,7 +8716,7 @@ Object.assign(MG, {
 					x = Math.max(lo + this.SSW / 2 - 0.3, Math.min(hi - this.SSW / 2 + 0.3, e.x));
 				e.f.ss = (e.f.ss || []).concat([[e.ssN, rd(x), rd(z), rd(W.t)]]).slice(-3);
 				mgLog(W, `${mgName(e)} drops a spike strip ${Math.round(T.z - e.z - this.SSB)} m ahead of the truck`);
-				if (e.isMe) sfxPack("strip");
+				if (this.heard(W, e)) sfxPack("strip");
 				return;
 			}
 			e.hpN = (e.hpN || 0) + 1;
@@ -8765,7 +8760,11 @@ Object.assign(MG, {
 				e.f.vt = [rd(W.t + 0.2), dur];
 			}
 			mgLog(W, `${mgName(e)} fires the harpoon (${hit ? "hooked" : car ? "vaults a car" : "missed"})`);
-			if (e.isMe) sfxPack("whip");
+			if (this.heard(W, e)) sfxPack("whip");
+		},
+		/* who hears a truck's own sounds: its player, and the TV for every truck (the CPUs too) */
+		heard(W, e) {
+			return !!(e.isMe || W.tv);
 		},
 		/* far enough ahead of the cash truck that the main button drops spikes */
 		ahead(W, e, T) {
@@ -8838,7 +8837,7 @@ Object.assign(MG, {
 			}
 			mgLog(W, `${mgName(e)}: ${A.lbl}`);
 			/* thrown tricks (the lobs, the sauce bottle, the bins) a soft throw; Crusher's jump and the nitro sound in trickFx */
-			if (e.isMe && A.kind !== "pickup" && A.kind !== "monster")
+			if (this.heard(W, e) && A.kind !== "pickup" && A.kind !== "monster")
 				if (A.lob || A.kind === "food" || A.kind === "garbage") sfxPack("lob");
 				else sfx("go");
 		},
@@ -8877,11 +8876,9 @@ Object.assign(MG, {
 						e.slideT = 0.5;
 					}
 					mgLog(W, `${mgName(e)} hits ${mgName(c)}'s ${kind}`);
-					if (e.isMe) {
-						W.shake = 0.35;
-						/* nails: the blown tyre's own sound (render) */
-						if (kind !== "nails") sfxPack(A && A.obj ? "spike" : "splash");
-					}
+					if (e.isMe) W.shake = 0.35;
+					/* nails: the blown tyre's own sound (render) */
+					if (this.heard(W, e) && kind !== "nails") sfxPack(A && A.obj ? "spike" : "splash");
 				});
 				/* Taco Tina's hot sauce: always lands, SPF s after the throw; left and right swap for SPT s */
 				const sp = c.f.sp;
@@ -8889,7 +8886,7 @@ Object.assign(MG, {
 					e.zHit[c.k + ":p" + sp[0]] = 1;
 					e.spicyT = W.t + this.SPT;
 					mgLog(W, `${mgName(e)} gets ${mgName(c)}'s hot sauce`);
-					if (e.isMe) sfxPack("splash");
+					if (this.heard(W, e)) sfxPack("splash");
 				}
 				/* Rusty's wrecking ball: the swinging car hits the truck once a swing: it spins out */
 				const wb = c.f.wb,
@@ -8902,10 +8899,8 @@ Object.assign(MG, {
 					e.vx += ((e.x - c.x) / d) * 9;
 					e.slideT = 0.8;
 					mgLog(W, `${mgName(e)} spun out by ${mgName(c)}'s wrecking ball`);
-					if (e.isMe) {
-						W.shake = 0.6;
-						sfxPack("hit");
-					}
+					if (e.isMe) W.shake = 0.6;
+					if (this.heard(W, e)) sfxPack("hit");
 				}
 				/* Garbo's bins: bumping one while it rolls costs speed and sends it flying (shared as e.f.bh) */
 				const rb = c.f.rb;
@@ -8923,10 +8918,8 @@ Object.assign(MG, {
 						e.vx += (e.x >= b.x ? 1 : -1) * 4;
 						e.slideT = 0.4;
 						mgLog(W, `${mgName(e)} hits one of ${mgName(c)}'s bins`);
-						if (e.isMe) {
-							W.shake = 0.3;
-							sfxPack("hit");
-						}
+						if (e.isMe) W.shake = 0.3;
+						if (this.heard(W, e)) sfxPack("hit");
 					}
 				/* spike strips: driving over one costs a bag (credited to the cop who dropped it), unless the shield is up */
 				(c.f.ss || []).forEach(([id, x, z, t]) => {
@@ -8937,10 +8930,8 @@ Object.assign(MG, {
 					if (W.t < (e.immT || 0) || e.esc) return;
 					mgLog(W, `${mgName(e)} drives over ${mgName(c)}'s spike strip`);
 					this.onRammed(W, e, c);
-					if (e.isMe) {
-						W.shake = 0.4;
-						sfxPack("spike");
-					}
+					if (e.isMe) W.shake = 0.4;
+					if (this.heard(W, e)) sfxPack("spike");
 				});
 				/* the hose: the blast reaches the truck from any distance (like the lobs) once the jet is out: knocked sideways, and soaked
 				   tyres lose their grip for HOSET s (the ice cream's slide: steering hardly bites, it drifts) */
@@ -8951,10 +8942,8 @@ Object.assign(MG, {
 					e.iceT = Math.max(e.iceT || 0, W.t + this.HOSET);
 					e.f.wt = Math.round(W.t * 100) / 100;
 					mgLog(W, `${mgName(e)} soaked by ${mgName(c)}'s hose`);
-					if (e.isMe) {
-						W.shake = 0.3;
-						sfxPack("splash");
-					}
+					if (e.isMe) W.shake = 0.3;
+					if (this.heard(W, e)) sfxPack("splash");
 				}
 			}
 		},
@@ -9009,7 +8998,7 @@ Object.assign(MG, {
 				e.f.esc = 1;
 				fb(W, e, "ESCAPED!", { stamp: true });
 				mgLog(W, `${mgName(e)} escapes with ${e.bags} bags`);
-				if (e.isMe) sfx("fanfare");
+				if (this.heard(W, e)) sfx("fanfare");
 			}
 			if (e.side === 1 && T) {
 				/* a bag this cop knocked off (the truck's device decides) */
@@ -9018,7 +9007,7 @@ Object.assign(MG, {
 					e.lbSeen = n;
 					e.sc++;
 					fb(W, e, "+1 💰", { tone: "good" });
-					if (e.isMe) sfxPack("coin");
+					if (e.isMe && !W.tv) sfxPack("coin");
 				});
 				/* the slam's shockwave: once the ring reaches you (or has passed you, if the news came late) you're blasted
 				   away from the truck: thrown sideways, a cop behind it knocked back, a moment of spin, the harpoon lets go */
@@ -9076,10 +9065,8 @@ Object.assign(MG, {
 					e.vz *= 0.6;
 					this.letGo(W, e, "oil");
 					mgLog(W, `${mgName(e)} spins out on oil`);
-					if (e.isMe) {
-						W.shake = 0.3;
-						sfxPack("whimsy");
-					}
+					if (e.isMe) W.shake = 0.3;
+					if (this.heard(W, e)) sfxPack("whimsy");
 				});
 			}
 			/* it's over once the truck is through the tunnel or has nothing left (a moment later, so it shows) */
