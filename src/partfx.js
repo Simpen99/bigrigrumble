@@ -872,8 +872,15 @@ function sfxFile(url, vol = 1) {
 		})
 		.catch(() => {});
 }
+/* sound tuning per sound name (the practice 🔧 panel's Sound tab): {v: volume in dB, p: a pack's pitch spread in %},
+   plus hear = Getaway's range for other trucks' sounds. Baked values in SFX_BAKE, this device's saved ones (localStorage
+   trp_sfx) on top */
+const SFX_BAKE = {};
+const SFXT = Object.assign({}, SFX_BAKE, LS.get("trp_sfx", {}));
+const sfxVol = (n) => Math.pow(10, ((SFXT[n] && SFXT[n].v) || 0) / 20),
+	sfxSpread = (n) => (SFXT[n] && SFXT[n].p !== undefined ? SFXT[n].p : 4) / 100;
 /* a sound pack: sfx/<name>.mp3 holds several takes of one sound with silence between them (packed and levelled by
-   tools/sfxcut.mjs); each play picks a random take (never the same one twice running) a touch higher or lower. The takes
+   tools/sfxcut.mjs); each play picks a random take (never the same one twice running) a touch higher or lower (sfxSpread). The takes
    are found from the silences when the file is first decoded (sfxTakes: [start, end] s), so a file straight from a
    sound pack works too. sfxPackLoad(name) fetches and decodes it early */
 function sfxTakes(buf) {
@@ -917,9 +924,9 @@ function sfxPack(name, vol = 1) {
 				s = c.createBufferSource(),
 				g = c.createGain(),
 				[t0, t1] = tk[n];
-			g.gain.value = vol;
+			g.gain.value = vol * sfxVol(name);
 			s.buffer = buf;
-			s.playbackRate.value = 0.96 + Math.random() * 0.08;
+			s.playbackRate.value = 1 + (Math.random() * 2 - 1) * sfxSpread(name);
 			s.connect(g);
 			g.connect(SFX.fx);
 			s.start(0, Math.max(0, t0 - 0.005), t1 - t0 + 0.06);
@@ -1382,6 +1389,15 @@ function windSnd() {
 }
 function sfx(n) {
 	if (!SFX.on || !SFX.ctx || SFX.ctx.state !== "running") return;
+	/* a tuned sound (sfxVol) plays through its own gain */
+	const to = SFX.to,
+		k = sfxVol(n);
+	if (k !== 1) {
+		const g = SFX.ctx.createGain();
+		g.gain.value = k;
+		g.connect(to || SFX.out);
+		SFX.to = g;
+	}
 	try {
 		switch (n) {
 			case "click":
@@ -1513,6 +1529,7 @@ function sfx(n) {
 				break;
 		}
 	} catch (e) {}
+	SFX.to = to;
 }
 document.addEventListener("click", (e) => {
 	const b = e.target.closest("button");

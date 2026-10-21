@@ -1145,7 +1145,7 @@ function openMg(mg, p) {
 	const go = (startAt) => {
 		if (first) rtJoin(mg.nonce);
 		start3D(mg, p, !first, startAt);
-		box.innerHTML = `<div class="m3top"><span class="chip name">${esc(def.name)}</span><span class="chip" id="m3t"></span><span class="chip grow" id="m3s"></span>${G && G.practice ? '<button class="chip" id="m3light" aria-label="Lighting">💡</button>' : ""}</div>
+		box.innerHTML = `<div class="m3top"><span class="chip name">${esc(def.name)}</span><span class="chip" id="m3t"></span><span class="chip grow" id="m3s"></span>${G && G.practice ? '<button class="chip" id="m3light" aria-label="Tools: light, effects, sound">🔧</button>' : ""}</div>
       <div class="m3lb${def.lbTop ? " top" : ""}" id="m3lb"></div><div class="m3intro" id="m3in"><h3>${esc(def.name)}</h3><p>${esc(def.how)}</p>${teamLine(mg, p, def)}<p class="m3ctl">${def.ctrl === "stick" ? (def.stickHint ? def.stickHint(FINE) : FINE ? "WASD or arrow keys to drive, Space to ram." : "Drag anywhere to drive. Tap RAM to charge.") : esc(def.tapHint || "Tap the big button.") + (FINE ? " On a keyboard, press Space." : "")}</p>${!first ? `<p class="m3ctl">Practice run against CPU trucks. Your score still counts.</p>` : ""}</div>
       <div class="m3center${def.msgTop ? " hi" : ""}"><div class="m3big" id="m3c"></div><div class="m3msg" id="m3m" hidden></div></div>
       ${first ? `<div class="m3ready" id="m3r"><h3>Get ready</h3><div id="m3rl"></div><button class="btn go" id="m3rb">I'm ready${FINE ? " (Enter)" : ""}</button><button class="btn ghost" id="m3rs" hidden style="margin-top:8px">Start without the others</button></div>` : ""}
@@ -1597,6 +1597,23 @@ function wireLightPanel() {
 			["col", "Colour"],
 			["aa", "Smooth edges"],
 		];
+		/* the Sound group: the game's sound packs and synth sounds (def.PACKS / def.SYNTH), each a volume in dB (packs also
+		   their pitch spread), live for every game on this device (SFXT, partfx); plus a game's hear range (def.HEARR) */
+		const D = W.def,
+			PK = D.PACKS || [],
+			SND = (D.HEARR !== undefined ? [["hear", "Hear range"]] : []).concat(PK.concat(D.SYNTH || []).map((n) => [n, n])),
+			sv = (k) => (k === "hear" ? (SFXT.hear ?? D.HEARR) : (SFXT[k] && SFXT[k].v) || 0),
+			sfmt = (k, v) => (k === "hear" ? Math.round(v) + " m" : (v > 0 ? "+" : "") + v + " dB"),
+			/* the tuned values only, as Copy gives them (bake them into SFX_BAKE) */
+			sndOut = () => {
+				const o = {};
+				for (const k in SFXT) {
+					const q = SFXT[k];
+					if (k === "hear") o.hear = q;
+					else if (q && (q.v || (q.p !== undefined && q.p !== 4))) o[k] = q;
+				}
+				return o;
+			};
 		const fxv = (k) => (k === "col" ? F.col.sat / 0.6 : k === "aa" ? 1 : F[k].v),
 			fxset = (k, v) => {
 				if (k === "col") {
@@ -1613,8 +1630,8 @@ function wireLightPanel() {
 		document.getElementById("mg").classList.add("lpmode");
 		lpCamStart();
 		lpCamWire();
-		p.innerHTML = `<div class="lpgroups"><button data-g="light">Light</button><button data-g="fx">Effects</button></div><div class="lptabs" id="lptabs"></div>
-      <div class="lpsrow"><button id="lptog" class="lptog">OFF</button><input type="range" id="lpslider" class="lpslider"></div><div class="lpout" id="lpout"></div>
+		p.innerHTML = `<div class="lpgroups"><button data-g="light">Light</button><button data-g="fx">Effects</button>${SND.length ? '<button data-g="snd">Sound</button>' : ""}</div><div class="lptabs" id="lptabs"></div>
+      <div class="lpsrow"><button id="lptog" class="lptog">OFF</button><input type="range" id="lpslider" class="lpslider"></div><div class="lpsrow" id="lpprow" hidden><span class="lplbl">Pitch ±<b id="lppv"></b></span><input type="range" id="lpslider2" class="lpslider" min="0" max="15" step="0.5"></div><div class="lpout" id="lpout"></div>
       <div class="lpbtns"><button id="lpsave">Save</button><button id="lpdef" hidden>Default</button><button id="lpcopy">Copy</button><button id="lpreset">Reset view</button><button id="lpclose">Close</button></div>`;
 		document.getElementById("mg").appendChild(p);
 		const sl = document.getElementById("lpslider"),
@@ -1660,8 +1677,15 @@ function wireLightPanel() {
 			}
 			p.querySelectorAll(".lptab").forEach((b) => {
 				const k = b.dataset.k;
-				b.querySelector("b").textContent = grp === "light" ? fmt(k, st[k]) : fxs(k);
+				b.querySelector("b").textContent = grp === "light" ? fmt(k, st[k]) : grp === "snd" ? sfmt(k, sv(k)) : fxs(k);
 			});
+			if (grp === "snd") {
+				const o = sndOut();
+				document.getElementById("lpout").textContent = Object.keys(o).length
+					? `sound: ${JSON.stringify(o)}`
+					: "sound: as baked (move a slider, ▶ plays it)";
+				return;
+			}
 			const on = FX.filter(([k]) => F[k].on)
 				.map(([k, l]) => `${l.toLowerCase()} ${k === "aa" ? "on" : fxv(k).toFixed(2)}`)
 				.join(", ");
@@ -1673,14 +1697,22 @@ function wireLightPanel() {
 					: "") +
 				` · effects: ${on || "none"}`;
 		};
+		const prow = document.getElementById("lpprow"),
+			sl2 = document.getElementById("lpslider2");
 		const showTog = () => {
-			const isFx = grp === "fx";
-			tog.hidden = !isFx;
+			const isFx = grp === "fx",
+				isSnd = grp === "snd";
+			tog.hidden = !isFx && !(isSnd && cur !== "hear");
 			if (isFx) {
 				tog.textContent = F[cur].on ? "ON" : "OFF";
 				tog.classList.toggle("on", F[cur].on);
+			} else if (isSnd) {
+				tog.textContent = "▶";
+				tog.classList.remove("on");
 			}
 			sl.hidden = isFx && cur === "aa";
+			prow.hidden = !(isSnd && PK.includes(cur));
+			if (!prow.hidden) document.getElementById("lppv").textContent = ` ${Math.round(sfxSpread(cur) * 1000) / 10}%`;
 		};
 		const pick = (k) => {
 			cur = k;
@@ -1691,6 +1723,13 @@ function wireLightPanel() {
 				sl.max = r[3];
 				sl.step = r[4];
 				sl.value = st[k];
+			} else if (grp === "snd") {
+				const hear = k === "hear";
+				sl.min = hear ? 0 : -24;
+				sl.max = hear ? 80 : 12;
+				sl.step = hear ? 1 : 0.5;
+				sl.value = sv(k);
+				sl2.value = sfxSpread(k) * 100;
 			} else {
 				sl.min = 0;
 				sl.max = 1;
@@ -1704,7 +1743,8 @@ function wireLightPanel() {
 			grp = g;
 			W.lpGrp = g;
 			p.querySelectorAll(".lpgroups button").forEach((b) => b.classList.toggle("on", b.dataset.g === g));
-			const list = g === "light" ? LIGHT : FX;
+			const list = g === "light" ? LIGHT : g === "snd" ? SND : FX;
+			showDef();
 			document.getElementById("lptabs").innerHTML = list
 				.map(([k, l]) => `<button class="lptab" data-k="${k}">${l} <b></b></button>`)
 				.join("");
@@ -1715,7 +1755,10 @@ function wireLightPanel() {
 		p.querySelectorAll(".lpgroups button").forEach((b) => b.addEventListener("click", () => setGrp(b.dataset.g)));
 		sl.addEventListener("input", () => {
 			if (grp === "light") st[cur] = +sl.value;
-			else {
+			else if (grp === "snd") {
+				if (cur === "hear") SFXT.hear = +sl.value;
+				else SFXT[cur] = Object.assign({}, SFXT[cur], { v: +sl.value });
+			} else {
 				fxset(cur, +sl.value);
 				if (!F[cur].on) {
 					F[cur].on = true;
@@ -1738,22 +1781,50 @@ function wireLightPanel() {
 				},
 			);
 		};
+		sl2.addEventListener("input", () => {
+			if (grp !== "snd") return;
+			SFXT[cur] = Object.assign({}, SFXT[cur], { p: +sl2.value });
+			showTog();
+			apply();
+		});
 		tog.addEventListener("click", () => {
+			if (grp === "snd") {
+				if (PK.includes(cur)) sfxPack(cur);
+				else sfx(cur);
+				return;
+			}
 			if (grp !== "fx") return;
 			F[cur].on = !F[cur].on;
 			if (F[cur].on) ensurePost();
 			showTog();
 			apply();
 		});
+		/* Save keeps these values on this device for this game (localStorage trp_light), applied from the next round on;
+		   Default drops them. In the Sound group: the sound tuning, for every game, live (trp_sfx) */
+		const sb = document.getElementById("lpsave"),
+			db = document.getElementById("lpdef"),
+			g = W.mg.g;
+		function showDef() {
+			db.hidden = grp === "snd" ? !LS.get("trp_sfx", null) : !LS.get("trp_light", {})[g];
+			db.textContent = "Default";
+		}
 		setGrp(grp);
 		document.getElementById("lpclose").addEventListener("click", closeLP);
 		{
-			/* Save keeps these values on this device for this game (localStorage trp_light), applied from the next round on; Default drops them */
-			const sb = document.getElementById("lpsave"),
-				db = document.getElementById("lpdef"),
-				g = W.mg.g;
-			db.hidden = !LS.get("trp_light", {})[g];
 			sb.addEventListener("click", () => {
+				const saved = () => {
+					sb.textContent = "Saved ✓";
+					db.hidden = false;
+					db.textContent = "Default";
+					setTimeout(() => {
+						if (sb.isConnected) sb.textContent = "Save";
+					}, 1600);
+				};
+				if (grp === "snd") {
+					LS.set("trp_sfx", sndOut());
+					saved();
+					return;
+				}
 				const A = LS.get("trp_light", {}),
 					lt = { amb: st.amb, sun: st.sun, warm: st.warm },
 					fx = {};
@@ -1762,14 +1833,19 @@ function wireLightPanel() {
 				FX.forEach(([k]) => (fx[k] = F[k].on ? (k === "aa" ? 1 : +fxv(k).toFixed(2)) : 0));
 				A[g] = { lt, sun: (W.def.sun || [14, 26, 12]).slice(), fx };
 				LS.set("trp_light", A);
-				sb.textContent = "Saved ✓";
-				db.hidden = false;
-				db.textContent = "Default";
-				setTimeout(() => {
-					if (sb.isConnected) sb.textContent = "Save";
-				}, 1600);
+				saved();
 			});
 			db.addEventListener("click", () => {
+				if (grp === "snd") {
+					/* back to the baked tuning, straight away */
+					LS.del("trp_sfx");
+					for (const k in SFXT) delete SFXT[k];
+					Object.assign(SFXT, SFX_BAKE);
+					pick(cur);
+					apply();
+					db.hidden = true;
+					return;
+				}
 				const A = LS.get("trp_light", {});
 				delete A[g];
 				LS.set("trp_light", A);

@@ -7741,7 +7741,7 @@ Object.assign(MG, {
 			const e = W.me;
 			return !this.dazed(W, e) && W.t >= ((e.side === 0 ? e.oilCd : e.hpCd) || 0);
 		},
-		/* the sound packs it plays (sfxPack: a random take each time) */
+		/* the sound packs it plays (sfxPack: a random take each time) and its synth sounds (sfx), for the 🔧 panel's Sound tab */
 		PACKS: [
 			"hit",
 			"whip",
@@ -7757,6 +7757,7 @@ Object.assign(MG, {
 			"jumpboost",
 			"speed",
 		],
+		SYNTH: ["cannon", "go", "crack", "land", "windup", "fanfare", "honk", "grind", "whoosh", "screech"],
 		kits() {
 			MG.hop.kits.call(MG.hop);
 			audLoad("music/pursuit.mp3");
@@ -8763,10 +8764,11 @@ Object.assign(MG, {
 			if (this.heard(W, e)) sfxPack("whip");
 		},
 		/* who hears a truck's own sounds: its player, the TV for every truck (the CPUs too), and any player within HEARR m
-		   of it */
+		   of it (the 🔧 panel's Hear range: SFXT.hear) */
 		HEARR: 30,
 		heard(W, e) {
-			return !!(e.isMe || W.tv || (W.me && Math.hypot(W.me.x - e.x, W.me.z - e.z) < this.HEARR));
+			const R = SFXT.hear ?? this.HEARR;
+			return !!(e.isMe || W.tv || (W.me && Math.hypot(W.me.x - e.x, W.me.z - e.z) < R));
 		},
 		/* far enough ahead of the cash truck that the main button drops spikes */
 		ahead(W, e, T) {
