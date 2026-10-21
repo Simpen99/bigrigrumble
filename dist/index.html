@@ -1009,7 +1009,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-21 19:23 6ad33f5";
+const BUILD = "2026-10-21 21:12 160089c";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -17754,11 +17754,29 @@ function crowdFar() {
 		hand: new THREE.BoxGeometry(0.075, 0.06, 0.08).translate(0, -0.215, 0),
 	});
 }
+/* drop spectators standing closer than d m to one already kept on the same level (arms out, they'd clip) */
+function crowdSpace(ppl, d) {
+	const grid = new Map(),
+		cell = (x, z) => Math.floor(x / d) + "," + Math.floor(z / d);
+	return ppl.filter((q) => {
+		const cx = Math.floor(q.x / d),
+			cz = Math.floor(q.z / d);
+		for (let i = -1; i <= 1; i++)
+			for (let k = -1; k <= 1; k++)
+				for (const o of grid.get(cx + i + "," + (cz + k)) || [])
+					if (Math.abs(o.y - q.y) < 0.3 && Math.hypot(o.x - q.x, o.z - q.z) < d) return false;
+		const key = cell(q.x, q.z);
+		if (!grid.has(key)) grid.set(key, []);
+		grid.get(key).push(q);
+		return true;
+	});
+}
 function crowdMeshes(W, ppl) {
 	/* instanced spectators (crowdPerson's parts, outfits from crowdLook); each q has x, y, z, ph, sp and either sd
 	   (side of a straight stand) or face (yaw, the way the person looks along +z). One InstancedMesh per part, refilled
 	   every frame by crowdStep: on stands longer than LODZ * 2.5 m the people further than LODZ m (along z) from the
 	   focus draw as crowdFar's stand-ins. Looks are cosmetic: a local seed. */
+	ppl = crowdSpace(ppl, 0.95);
 	const s = W.sc,
 		G = Object.assign({}, crowdGeo(), crowdFar()),
 		r = mulberry(ppl.length * 31 + 7),
@@ -18389,10 +18407,10 @@ const MG = {
 				top.rotation.x = -Math.PI / 2;
 				top.position.y = h - 0.1;
 				s.add(top);
-				const n = Math.floor((rr * 6.28) / 0.9);
+				const n = Math.floor((rr * 6.28) / 1.05);
 				for (let i = 0; i < n; i++) {
 					if (r() < 0.12) continue;
-					const a = (i / n) * 6.283 + r() * 0.05;
+					const a = ((i + (r() - 0.5) * 0.15) / n) * 6.283;
 					ppl.push({
 						x: Math.cos(a) * rr,
 						y: h - 0.1,
