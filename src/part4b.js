@@ -3696,6 +3696,8 @@ const MG = {
 		liveHi: true,
 		unit: "ms",
 		dur: 35,
+		/* the user's Suno song "Pixel Drag Race": its "3, 2, 1, GO!" chant shouts GO 10.05 s in, on the launch */
+		mus: { url: "music/drag.mp3", go: 10.05 },
 		tapLabel: "TAP",
 		tvHint:
 			"Charge the burnout: tap your phone when your dial hits the green, 5 times. After GO: tap as fast as you can!",

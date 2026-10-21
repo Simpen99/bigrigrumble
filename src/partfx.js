@@ -950,7 +950,7 @@ function sfxPack(name, vol = 1) {
 }
 /* a song from a file (Getaway's chase song, the lobby song), looped through the music bus like the synth songs (fading in
    over fadeIn s): musStop fades it, and musScene leaves it playing during the minigame (MUS.track) */
-function musTrack(url, vol = 0.7, fadeIn = 0, resume = false) {
+function musTrack(url, vol = 0.7, fadeIn = 0, resume = false, sync = null) {
 	musStop();
 	if (!SFX.ctx || !SFX.on) return;
 	const o = musOut(vol);
@@ -969,10 +969,13 @@ function musTrack(url, vol = 0.7, fadeIn = 0, resume = false) {
 				o.g.gain.setValueAtTime(0.0001, t);
 				o.g.gain.linearRampToValueAtTime(vol, t + fadeIn);
 			}
-			const at = resume && MUS.pos[url];
-			o.off = at ? at.off % buf.duration : 0;
-			o.t0 = SFX.ctx.currentTime;
-			s.start(0, o.off);
+			const at = resume && MUS.pos[url],
+				c = SFX.ctx;
+			/* sync() = where the song should be right now (s, negative = not yet), heard after the output latency */
+			const want = sync ? sync() + (c.baseLatency || 0) + (c.outputLatency || 0) : 0;
+			o.off = at ? at.off % buf.duration : Math.max(0, want) % buf.duration;
+			o.t0 = c.currentTime - Math.min(0, want);
+			s.start(o.t0, o.off);
 			o.src = s;
 		})
 		.catch(() => {});
@@ -1286,18 +1289,20 @@ const LOBBY_MUS = "music/lobby.mp3",
 audLoad(LOBBY_MUS);
 /* minigame music per mode (the user's Suno songs, by def.team): from the countdown until the game is over, once per
    screen. Fetched while the ready screen is up. Free-for-all only in arena games (lane and station games are calmer and
-   keep the quiet); the 1 vs 3 games (Getaway, Monster Mash) have their own songs */
+   keep the quiet); the 1 vs 3 games (Getaway, Monster Mash) have their own songs. A game's own song: def.mus = {url, go}
+   = its beat at go s into the file lands on W.t = 0 (Drag Race's "GO" on the launch) */
 const MODE_MUS = { "2v2": "music/2v2.mp3", ffa: "music/ffa.mp3" };
 function modeMus(W) {
-	const url = MODE_MUS[W.def.team || (W.def.kind === "arena" ? "ffa" : "")];
+	const own = W.def.mus,
+		url = own ? own.url : MODE_MUS[W.def.team || (W.def.kind === "arena" ? "ffa" : "")];
 	if (!url || (W.split && typeof TVS !== "undefined" && TVS && TVS.worlds[0].W !== W)) return;
 	if (!W.mmus) {
 		W.mmus = 1;
 		audLoad(url);
 	}
-	if (W.mmus === 1 && W.t > -2.5) {
+	if (W.mmus === 1 && W.t > (own ? -own.go - 0.5 : -2.5)) {
 		W.mmus = 2;
-		musTrack(url, 0.75);
+		musTrack(url, 0.75, 0, false, own && (() => own.go + (Date.now() - W.startAt) / 1000));
 	}
 	if (W.mmus === 2 && W.over) {
 		W.mmus = 3;
