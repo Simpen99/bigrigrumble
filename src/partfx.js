@@ -964,17 +964,17 @@ function musTrack(url, vol = 0.7, fadeIn = 0, resume = false, sync = null) {
 			s.buffer = buf;
 			s.loop = true;
 			s.connect(o.g);
-			if (fadeIn) {
-				const t = SFX.ctx.currentTime;
-				o.g.gain.setValueAtTime(0.0001, t);
-				o.g.gain.linearRampToValueAtTime(vol, t + fadeIn);
-			}
 			const at = resume && MUS.pos[url],
 				c = SFX.ctx;
 			/* sync() = where the song should be right now (s, negative = not yet), heard after the output latency */
 			const want = sync ? sync() + (c.baseLatency || 0) + (c.outputLatency || 0) : 0;
 			o.off = at ? at.off % buf.duration : Math.max(0, want) % buf.duration;
 			o.t0 = c.currentTime - Math.min(0, want);
+			/* the fade starts with the song (later, for a song waiting for its sync point) */
+			if (fadeIn) {
+				o.g.gain.setValueAtTime(0.0001, o.t0);
+				o.g.gain.linearRampToValueAtTime(vol, o.t0 + fadeIn);
+			}
 			s.start(o.t0, o.off);
 			o.src = s;
 		})
@@ -1302,7 +1302,7 @@ function modeMus(W) {
 	}
 	if (W.mmus === 1 && W.t > (own ? -own.go - 0.5 : -2.5)) {
 		W.mmus = 2;
-		musTrack(url, 0.75, 0, false, own && (() => own.go + (Date.now() - W.startAt) / 1000));
+		musTrack(url, 0.75, own ? 2 : 0, false, own && (() => own.go + (Date.now() - W.startAt) / 1000));
 	}
 	if (W.mmus === 2 && W.over) {
 		W.mmus = 3;

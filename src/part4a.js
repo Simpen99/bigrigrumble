@@ -2412,13 +2412,13 @@ function hud3(dt) {
 					? def.cdText(t)
 					: String(Math.ceil(-t))
 				: t < 0.8
-					? "GO!"
+					? def.goText || "GO!"
 					: W.big && t < W.bigT
 						? W.big
 						: "";
 		if (tx !== W.lastC) {
 			W.lastC = tx;
-			if (tx === "GO!") sfx("go");
+			if (tx === (def.goText || "GO!")) sfx("go");
 			else if (tx && +tx <= 3) sfx("beep");
 			/* long words shrink to fit a narrow screen (Bungee is ~0.9 em per letter) */
 			c.style.fontSize = tx.length > 3 ? `min(110px, ${(88 / tx.length).toFixed(1)}vw)` : "";
@@ -3189,7 +3189,8 @@ function tvcTick() {
 			navigator.vibrate && navigator.vibrate(60);
 		} catch (e) {}
 	}
-	const big = t === null ? "" : t < 0 ? (def.cdText ? def.cdText(t) : String(Math.ceil(-t))) : t < 0.8 ? "GO!" : "";
+	const big =
+		t === null ? "" : t < 0 ? (def.cdText ? def.cdText(t) : String(Math.ceil(-t))) : t < 0.8 ? def.goText || "GO!" : "";
 	if (st && st[7] && !def.swipe && !def.slide) {
 		const j = JSON.stringify(st[7]);
 		if (j !== TVC.mir) {

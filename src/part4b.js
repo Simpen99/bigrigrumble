@@ -3696,23 +3696,24 @@ const MG = {
 		liveHi: true,
 		unit: "ms",
 		dur: 35,
-		/* the user's Suno song "Pixel Drag Race": its "3, 2, 1, GO!" chant shouts GO 10.05 s in, on the launch */
+		/* the user's Suno song "Pixel Drag Race": its "3, 2, 1, GO!" chant shouts GO 10.05 s in, on TAP */
 		mus: { url: "music/drag.mp3", go: 10.05 },
 		tapLabel: "TAP",
 		tvHint:
-			"Charge the burnout: tap your phone when your dial hits the green, 5 times. After GO: tap as fast as you can!",
-		tapHint: "Charge: tap when the needle is in the green (5 times). After GO tap as fast as you can.",
+			"Charge the burnout: tap your phone when your dial hits the green, 5 times. After 3-2-1-TAP: tap as fast as you can!",
+		tapHint: "Charge: tap when the needle is in the green (5 times). After 3-2-1-TAP tap as fast as you can.",
 		how: "Charge a burnout by tapping in the green, then mash to the line. A red resets your charge!",
-		/* 3-2-1, then the charge: 5 steps of STEP s; each step the needle sweeps up (faster every step) and one tap
+		/* 3-2-1, then the charge: 5 steps of STEP s, then HOLD s of 3-2-1-TAP (TAP on the song's GO); each step the needle sweeps up (faster every step) and one tap
 		   grades it: PERFECT (green band) +1 charge, good (amber edges) +0.6, early +0, red (past the zone, or no tap
 		   before the limiter) resets the charge to 0. The burnout gets wilder with the charge. At GO the charge sets the
 		   launch speed and a short nitro push (5 = 3 launch points), then speed comes from the tap rate (tapF saturates,
 		   so a good start beats slightly faster thumbs); 6 gears that shift by themselves. Taps are graded where the
 		   needle was LAG s earlier (input and display delay, longer from a TV controller).
 		   Balance check: node tools/watch.mjs drag --runs 6 --quiet */
-		LEN: 240,
+		LEN: 312,
 		STEP: 1.5,
-		cd: 3.2 + 5 * 1.5,
+		HOLD: 3.5,
+		cd: 3.2 + 5 * 1.5 + 3.5,
 		RISE: [1.2, 1.15, 1.1, 1.05, 1],
 		ZONE: [0.79, 0.975],
 		PERF: [0.84, 0.945],
@@ -3724,25 +3725,34 @@ const MG = {
 		VT: [16, 23, 30, 37, 44, 51],
 		ACC: [12.5, 10.4, 8.8, 7.5, 6.4, 5.6],
 		DRAG: 0.0015,
-		TAPK: 3.6 /* tap rate (taps/s) that gives 63% of the pull */,
+		TAPK: 4.15 /* tap rate (taps/s) that gives 63% of the pull */,
 		WIN: 0.8 /* tap rate window (s) */,
 		tapF(R) {
 			return 1 - Math.exp(-R / this.TAPK);
 		},
-		/* 3, 2, 1, then REV! as the charge starts */
+		/* 3, 2, 1, then REV! as the charge starts, then 3, 2, 1 after it and TAP! (goText) */
 		cdText(t) {
 			const k = t + this.cd;
-			return k < 0.2 ? "" : k < 3.2 ? String(3 - Math.floor(k - 0.2)) : k < 3.9 ? "REV!" : "";
+			return k < 0.2
+				? ""
+				: k < 3.2
+					? String(3 - Math.floor(k - 0.2))
+					: k < 3.9
+						? "REV!"
+						: t >= -3
+							? String(Math.ceil(-t))
+							: "";
 		},
-		/* which charging step countdown time t is in (0..4), -1 outside */
+		goText: "TAP!",
+		/* which charging step countdown time t is in (0..4), -1 outside (the charge ends HOLD s before TAP) */
 		beat(t) {
-			const b = Math.floor((t + 5 * this.STEP) / this.STEP);
-			return t < 0 && b >= 0 && b < 5 ? b : -1;
+			const b = Math.floor((t + this.HOLD + 5 * this.STEP) / this.STEP);
+			return t < -this.HOLD && b >= 0 && b < 5 ? b : -1;
 		},
 		/* the needle in step b at time t: idle, then a straight sweep up to the limiter */
 		needle(b, t) {
 			if (b < 0) return 0.12;
-			const u = (t + (5 - b) * this.STEP - 0.1) / this.RISE[b];
+			const u = (t + this.HOLD + (5 - b) * this.STEP - 0.1) / this.RISE[b];
 			return 0.12 + 0.88 * Math.min(1, Math.max(0, u));
 		},
 		/* grades pop up above the rev dial */
@@ -3893,7 +3903,7 @@ const MG = {
 				bo = this.bo(e);
 			if (b < 0 || bo.res[b] !== undefined) return;
 			if (r === undefined) {
-				const st = -(5 - b) * this.STEP;
+				const st = -(5 - b) * this.STEP - this.HOLD;
 				r = this.needle(b, Math.max(st, W.t - this.LAG[W.split || W.tv ? 1 : 0]));
 			}
 			this.grade(
@@ -3949,13 +3959,13 @@ const MG = {
 			const b = this.beat(W.t),
 				bo = this.bo(e);
 			/* a step that ended without a tap was a red */
-			for (let k = 0; k < (b < 0 ? (W.t < -5 * this.STEP ? 0 : 5) : b); k++)
+			for (let k = 0; k < (b < 0 ? (W.t < -5 * this.STEP - this.HOLD ? 0 : 5) : b); k++)
 				if (bo.res[k] === undefined) this.grade(W, e, k, "red", 1);
 			if (b < 0) bo.r = 0.12;
 			else if (bo.res[b] !== undefined) bo.r = Math.max(0.12, bo.r - dt * 3);
 			else {
 				bo.r = this.needle(b, W.t);
-				if (W.t + (5 - b) * this.STEP - 0.1 >= this.RISE[b] + 0.35) this.grade(W, e, b, "red", 1);
+				if (W.t + this.HOLD + (5 - b) * this.STEP - 0.1 >= this.RISE[b] + 0.35) this.grade(W, e, b, "red", 1);
 				else if (e.bot) {
 					/* CPUs: a target needle per step from their skill (a red is rare: it costs the whole charge) */
 					if (bo.tb !== b) {
@@ -4108,7 +4118,8 @@ const MG = {
 			if (e.local && e.crossed) this.coast(W, e, dt);
 			/* shown revs: the burnout needle on the countdown, the gear's revs in the race, a bounce on the limiter */
 			e.rs = Math.max(0.1, rv) - (lim ? Math.abs(Math.sin(W.t * 40)) * 0.04 : 0);
-			this.burnout(W, e, dt, burn, rv);
+			/* the burnout carries on through the 3-2-1 hold */
+			this.burnout(W, e, dt, burn || (W.t < 0 && W.t >= -this.HOLD), rv);
 			/* the race is a mash: a hammered mini TAP button by the truck */
 			if (W.t >= 0 && !done) inputHint(W, e, "TAP", "mash");
 			if ((e.isMe || W.split) && !done) {
@@ -4235,7 +4246,7 @@ const MG = {
 			if (W.eng) W.eng.stop();
 			if (W.vig) W.vig.remove();
 		},
-		PADZ: -274.3 /* the cushion, 34.3 m past the line */,
+		PADZ: -346.3 /* the cushion, 34.3 m past the line */,
 		BRAKE: 31 /* from about 165 km/h at the line (flat-out mashing) the truck reaches the cushion */,
 		rules(W, e, dt) {
 			if (e.d || e.crossed) return;
