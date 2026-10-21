@@ -892,6 +892,8 @@ const SFX_BAKE = {
 	speed: { v: -1.5 },
 };
 const SFXT = Object.assign({}, SFX_BAKE, LS.get("trp_sfx", {}));
+/* every sound played since the minigame started (start3D clears it), so the 🔧 panel's Sound group can list them in any game */
+const SFX_SEEN = new Set();
 const sfxVol = (n) => Math.pow(10, ((SFXT[n] && SFXT[n].v) || 0) / 20),
 	sfxSpread = (n) => (SFXT[n] && SFXT[n].p !== undefined ? SFXT[n].p : 4) / 100;
 /* a sound pack: sfx/<name>.mp3 holds several takes of one sound with silence between them (packed and levelled by
@@ -926,6 +928,7 @@ function sfxPackLoad(name) {
 }
 function sfxPack(name, vol = 1) {
 	if (!SFX.on || !SFX.ctx || SFX.ctx.state !== "running") return;
+	SFX_SEEN.add(name);
 	const url = `sfx/${name}.mp3`;
 	audBuf(url)
 		.then((buf) => {
@@ -1409,6 +1412,7 @@ function windSnd() {
 }
 function sfx(n) {
 	if (!SFX.on || !SFX.ctx || SFX.ctx.state !== "running") return;
+	SFX_SEEN.add("s:" + n);
 	/* a tuned sound (sfxVol) plays through its own gain */
 	const to = SFX.to,
 		k = sfxVol("s:" + n);

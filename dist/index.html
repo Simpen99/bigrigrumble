@@ -1009,7 +1009,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-21 16:11 93ee538";
+const BUILD = "2026-10-21 16:19 409c236";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -9134,6 +9134,8 @@ const SFX_BAKE = {
 	speed: { v: -1.5 },
 };
 const SFXT = Object.assign({}, SFX_BAKE, LS.get("trp_sfx", {}));
+/* every sound played since the minigame started (start3D clears it), so the 🔧 panel's Sound group can list them in any game */
+const SFX_SEEN = new Set();
 const sfxVol = (n) => Math.pow(10, ((SFXT[n] && SFXT[n].v) || 0) / 20),
 	sfxSpread = (n) => (SFXT[n] && SFXT[n].p !== undefined ? SFXT[n].p : 4) / 100;
 /* a sound pack: sfx/<name>.mp3 holds several takes of one sound with silence between them (packed and levelled by
@@ -9168,6 +9170,7 @@ function sfxPackLoad(name) {
 }
 function sfxPack(name, vol = 1) {
 	if (!SFX.on || !SFX.ctx || SFX.ctx.state !== "running") return;
+	SFX_SEEN.add(name);
 	const url = `sfx/${name}.mp3`;
 	audBuf(url)
 		.then((buf) => {
@@ -9651,6 +9654,7 @@ function windSnd() {
 }
 function sfx(n) {
 	if (!SFX.on || !SFX.ctx || SFX.ctx.state !== "running") return;
+	SFX_SEEN.add("s:" + n);
 	/* a tuned sound (sfxVol) plays through its own gain */
 	const to = SFX.to,
 		k = sfxVol("s:" + n);
@@ -14325,6 +14329,7 @@ function camFov(f) {
 function start3D(mg, p, localOnly, startAt, split) {
 	const def = MG[mg.g],
 		s = new THREE.Scene();
+	SFX_SEEN.clear();
 	GFX.fx.bloom.th = 0.9;
 	setFx(def.fx);
 	/* light panel values saved on this device (Save button) win over the baked ones */
@@ -15353,12 +15358,16 @@ function wireLightPanel() {
 			["col", "Colour"],
 			["aa", "Smooth edges"],
 		];
-		/* the Sound group: the game's sound packs and synth sounds (def.PACKS / def.SYNTH), each a volume in dB (packs also
-		   their pitch spread), live for every game on this device (SFXT, partfx); plus a game's hear range (def.HEARR) */
+		/* the Sound group: the game's sound packs and synth sounds (def.PACKS / def.SYNTH) and every other sound played
+		   since the game started (SFX_SEEN), each a volume in dB (packs also their pitch spread), live for every game on
+		   this device (SFXT, partfx: a sound tuned here sounds the same in every game); plus a game's hear range (def.HEARR) */
 		const D = W.def,
-			PK = D.PACKS || [],
+			PK = (D.PACKS || []).concat([...SFX_SEEN].filter((n) => !n.startsWith("s:") && !(D.PACKS || []).includes(n))),
+			SY = (D.SYNTH || []).map((n) => "s:" + n),
 			SND = (D.HEARR !== undefined ? [["hear", "Hear range"]] : []).concat(
-				PK.map((n) => [n, n]).concat((D.SYNTH || []).map((n) => ["s:" + n, n])),
+				PK.map((n) => [n, n]).concat(
+					SY.concat([...SFX_SEEN].filter((n) => n.startsWith("s:") && !SY.includes(n))).map((n) => [n, n.slice(2)]),
+				),
 			),
 			sv = (k) => (k === "hear" ? (SFXT.hear ?? D.HEARR) : (SFXT[k] && SFXT[k].v) || 0),
 			sfmt = (k, v) => (k === "hear" ? Math.round(v) + " m" : (v > 0 ? "+" : "") + v + " dB"),
@@ -15460,7 +15469,8 @@ function wireLightPanel() {
 		const showTog = () => {
 			const isFx = grp === "fx",
 				isSnd = grp === "snd";
-			tog.hidden = !isFx && !(isSnd && cur !== "hear");
+			/* ▶ plays the sound once (not for the hear range or the engine loop, which you hear running) */
+			tog.hidden = !isFx && !(isSnd && cur !== "hear" && cur !== "s:engine");
 			if (isFx) {
 				tog.textContent = F[cur].on ? "ON" : "OFF";
 				tog.classList.toggle("on", F[cur].on);
@@ -17892,8 +17902,10 @@ function dialGearTex(gr) {
 		}))
 	);
 }
-function engineSnd() {
+/* vol = this game's engine level; on top, the 🔧 panel's "engine" tuning (s:engine), live */
+function engineSnd(vol = 1) {
 	if (!SFX.on || !SFX.ctx || SFX.ctx.state !== "running") return null;
+	SFX_SEEN.add("s:engine");
 	const c = SFX.ctx,
 		o = c.createOscillator(),
 		o2 = c.createOscillator(),
@@ -17935,7 +17947,7 @@ function engineSnd() {
 			o.frequency.setTargetAtTime(48 + spd * 150, t, 0.06);
 			o2.frequency.setTargetAtTime(24 + spd * 75, t, 0.06);
 			lp.frequency.setTargetAtTime(350 + spd * 1600, t, 0.08);
-			g.gain.setTargetAtTime(on ? 0.05 + spd * 0.09 : 0, t, 0.15);
+			g.gain.setTargetAtTime(on ? (0.05 + spd * 0.09) * vol * sfxVol("s:engine") : 0, t, 0.15);
 			ng.gain.setTargetAtTime(crowd, t, 0.25);
 		},
 		stop() {
@@ -21739,7 +21751,8 @@ const MG = {
 			}
 			W.roar = Math.max(0, (W.roar || 0) - dt * 0.4);
 			crowdStep(W, e.z, Math.max(S, W.roar));
-			if (!W.eng && W.t >= -this.cd) W.eng = engineSnd() || { set() {}, stop() {} };
+			/* 40% quieter than the other games' engines: the burnout revs were too loud */
+			if (!W.eng && W.t >= -this.cd) W.eng = engineSnd(0.6) || { set() {}, stop() {} };
 			/* the engine sings with the revs (drops on every shift), so the shift point can be heard */
 			if (W.eng) W.eng.set(done ? S : 0.1 + e.rs * 0.9, 0.012 + S * 0.03 + W.roar * 0.05, !done || W.roar > 0.2);
 		},

@@ -569,6 +569,7 @@ function camFov(f) {
 function start3D(mg, p, localOnly, startAt, split) {
 	const def = MG[mg.g],
 		s = new THREE.Scene();
+	SFX_SEEN.clear();
 	GFX.fx.bloom.th = 0.9;
 	setFx(def.fx);
 	/* light panel values saved on this device (Save button) win over the baked ones */
@@ -1597,12 +1598,16 @@ function wireLightPanel() {
 			["col", "Colour"],
 			["aa", "Smooth edges"],
 		];
-		/* the Sound group: the game's sound packs and synth sounds (def.PACKS / def.SYNTH), each a volume in dB (packs also
-		   their pitch spread), live for every game on this device (SFXT, partfx); plus a game's hear range (def.HEARR) */
+		/* the Sound group: the game's sound packs and synth sounds (def.PACKS / def.SYNTH) and every other sound played
+		   since the game started (SFX_SEEN), each a volume in dB (packs also their pitch spread), live for every game on
+		   this device (SFXT, partfx: a sound tuned here sounds the same in every game); plus a game's hear range (def.HEARR) */
 		const D = W.def,
-			PK = D.PACKS || [],
+			PK = (D.PACKS || []).concat([...SFX_SEEN].filter((n) => !n.startsWith("s:") && !(D.PACKS || []).includes(n))),
+			SY = (D.SYNTH || []).map((n) => "s:" + n),
 			SND = (D.HEARR !== undefined ? [["hear", "Hear range"]] : []).concat(
-				PK.map((n) => [n, n]).concat((D.SYNTH || []).map((n) => ["s:" + n, n])),
+				PK.map((n) => [n, n]).concat(
+					SY.concat([...SFX_SEEN].filter((n) => n.startsWith("s:") && !SY.includes(n))).map((n) => [n, n.slice(2)]),
+				),
 			),
 			sv = (k) => (k === "hear" ? (SFXT.hear ?? D.HEARR) : (SFXT[k] && SFXT[k].v) || 0),
 			sfmt = (k, v) => (k === "hear" ? Math.round(v) + " m" : (v > 0 ? "+" : "") + v + " dB"),
@@ -1704,7 +1709,8 @@ function wireLightPanel() {
 		const showTog = () => {
 			const isFx = grp === "fx",
 				isSnd = grp === "snd";
-			tog.hidden = !isFx && !(isSnd && cur !== "hear");
+			/* ▶ plays the sound once (not for the hear range or the engine loop, which you hear running) */
+			tog.hidden = !isFx && !(isSnd && cur !== "hear" && cur !== "s:engine");
 			if (isFx) {
 				tog.textContent = F[cur].on ? "ON" : "OFF";
 				tog.classList.toggle("on", F[cur].on);

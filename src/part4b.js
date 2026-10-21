@@ -385,8 +385,10 @@ function dialGearTex(gr) {
 		}))
 	);
 }
-function engineSnd() {
+/* vol = this game's engine level; on top, the 🔧 panel's "engine" tuning (s:engine), live */
+function engineSnd(vol = 1) {
 	if (!SFX.on || !SFX.ctx || SFX.ctx.state !== "running") return null;
+	SFX_SEEN.add("s:engine");
 	const c = SFX.ctx,
 		o = c.createOscillator(),
 		o2 = c.createOscillator(),
@@ -428,7 +430,7 @@ function engineSnd() {
 			o.frequency.setTargetAtTime(48 + spd * 150, t, 0.06);
 			o2.frequency.setTargetAtTime(24 + spd * 75, t, 0.06);
 			lp.frequency.setTargetAtTime(350 + spd * 1600, t, 0.08);
-			g.gain.setTargetAtTime(on ? 0.05 + spd * 0.09 : 0, t, 0.15);
+			g.gain.setTargetAtTime(on ? (0.05 + spd * 0.09) * vol * sfxVol("s:engine") : 0, t, 0.15);
 			ng.gain.setTargetAtTime(crowd, t, 0.25);
 		},
 		stop() {
@@ -4232,7 +4234,8 @@ const MG = {
 			}
 			W.roar = Math.max(0, (W.roar || 0) - dt * 0.4);
 			crowdStep(W, e.z, Math.max(S, W.roar));
-			if (!W.eng && W.t >= -this.cd) W.eng = engineSnd() || { set() {}, stop() {} };
+			/* 40% quieter than the other games' engines: the burnout revs were too loud */
+			if (!W.eng && W.t >= -this.cd) W.eng = engineSnd(0.6) || { set() {}, stop() {} };
 			/* the engine sings with the revs (drops on every shift), so the shift point can be heard */
 			if (W.eng) W.eng.set(done ? S : 0.1 + e.rs * 0.9, 0.012 + S * 0.03 + W.roar * 0.05, !done || W.roar > 0.2);
 		},
