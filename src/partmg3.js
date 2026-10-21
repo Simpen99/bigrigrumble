@@ -8673,7 +8673,7 @@ Object.assign(MG, {
 				life: 0.8,
 				size: 0.7,
 			});
-			if (by && (by.isMe || W.split || W.tv)) sfxPack("hit");
+			if (by && (W.split || this.heard(W, by))) sfxPack("hit");
 		},
 		/* the cash truck's oil slick, a few metres behind it */
 		oil(W, e) {
@@ -8762,9 +8762,11 @@ Object.assign(MG, {
 			mgLog(W, `${mgName(e)} fires the harpoon (${hit ? "hooked" : car ? "vaults a car" : "missed"})`);
 			if (this.heard(W, e)) sfxPack("whip");
 		},
-		/* who hears a truck's own sounds: its player, and the TV for every truck (the CPUs too) */
+		/* who hears a truck's own sounds: its player, the TV for every truck (the CPUs too), and any player within HEARR m
+		   of it */
+		HEARR: 30,
 		heard(W, e) {
-			return !!(e.isMe || W.tv);
+			return !!(e.isMe || W.tv || (W.me && Math.hypot(W.me.x - e.x, W.me.z - e.z) < this.HEARR));
 		},
 		/* far enough ahead of the cash truck that the main button drops spikes */
 		ahead(W, e, T) {
@@ -9007,7 +9009,8 @@ Object.assign(MG, {
 					e.lbSeen = n;
 					e.sc++;
 					fb(W, e, "+1 💰", { tone: "good" });
-					if (e.isMe && !W.tv) sfxPack("coin");
+					/* (unless it hears the truck losing it: render) */
+					if (e.isMe && !this.heard(W, T)) sfxPack("coin");
 				});
 				/* the slam's shockwave: once the ring reaches you (or has passed you, if the news came late) you're blasted
 				   away from the truck: thrown sideways, a cop behind it knocked back, a moment of spin, the harpoon lets go */
@@ -9172,7 +9175,7 @@ Object.assign(MG, {
 							life: 0.7,
 							size: 0.8,
 						});
-						if (W.split || e.isMe || W.tv) sfxPack("spike");
+						if (W.split || this.heard(W, e)) sfxPack("spike");
 					}
 					e.tr.rotation.x += sd * 0.07;
 					if (Math.random() < dt * 12) this.sparks(W, e, e.x + sd * e.hb[0], e.z + 0.8, false);
@@ -9221,7 +9224,7 @@ Object.assign(MG, {
 						life: 1.1,
 						size: 0.8,
 					});
-					if (W.split || e.isMe || W.tv) sfxPack("coin");
+					if (W.split || this.heard(W, e)) sfxPack("coin");
 				}
 				/* the cash trail: notes flutter out behind it, more the more bags it has lost */
 				if (W.t > 0 && !e.gone) {
@@ -9429,7 +9432,7 @@ Object.assign(MG, {
 				if (k >= 0 && k < 1) {
 					if (c.jpUp !== f.jp) {
 						c.jpUp = f.jp;
-						if (c.isMe || W.tv) sfxPack("jumpboost");
+						if (this.heard(W, c)) sfxPack("jumpboost");
 					}
 					c.g.position.y += Math.sin(k * Math.PI) * 3.4;
 					c.tr.rotation.z += Math.sin(k * Math.PI) * 0.35;
@@ -9445,7 +9448,7 @@ Object.assign(MG, {
 						life: 0.6,
 						size: 1.1,
 					});
-					if (c.isMe || W.tv) sfx("land");
+					if (this.heard(W, c)) sfx("land");
 				}
 			}
 			/* the harpoon vault: up over the car nose first, down past it, dust as it lands */
@@ -9454,7 +9457,7 @@ Object.assign(MG, {
 				if (k >= 0 && k < 1) {
 					if (c.vtUp !== f.vt[0]) {
 						c.vtUp = f.vt[0];
-						if (c.isMe || W.tv) sfxPack("jump");
+						if (this.heard(W, c)) sfxPack("jump");
 					}
 					c.g.position.y += Math.sin(k * Math.PI) * this.VLTH;
 					c.tr.rotation.z += Math.sin(k * Math.PI * 2) * 0.3;
@@ -9474,7 +9477,7 @@ Object.assign(MG, {
 			}
 			if (f.nt && W.t < f.nt[0] && c.ntUp !== f.nt[0]) {
 				c.ntUp = f.nt[0];
-				if (c.isMe || W.tv) sfxPack("speed");
+				if (this.heard(W, c)) sfxPack("speed");
 			}
 			if (f.nt && W.t < f.nt[0] && Math.random() < dt * 30) {
 				const a = c.yaw + Math.PI;
@@ -9600,7 +9603,7 @@ Object.assign(MG, {
 					life: 0.8,
 					size: 0.8,
 				});
-				if (W.tv || c.isMe) sfxPack("hit");
+				if (this.heard(W, c)) sfxPack("hit");
 			}
 			let v = W.wbV[c.k];
 			if (!v && !wp) return;
@@ -9826,7 +9829,7 @@ Object.assign(MG, {
 				/* snapped (or let go): the line whips sideways and droops as it reels back into the gun */
 				if (v.relT === undefined) {
 					v.relT = W.t;
-					if (snapped && (W.tv || c.isMe || T.isMe)) sfx("crack");
+					if (snapped && (this.heard(W, c) || T.isMe)) sfx("crack");
 				}
 				const k = (W.t - v.relT) / 0.45;
 				if (k >= 1 || !v.off) return done();
@@ -9861,7 +9864,7 @@ Object.assign(MG, {
 			v.head.quaternion.copy(v.line.quaternion);
 			if ((h[2] || h[5] !== undefined) && age >= 0.2 && age < 0.25 && !v.clank) {
 				v.clank = h[0];
-				if (h[2] && (W.tv || c.isMe || T.isMe)) sfxPack("hit", 0.6);
+				if (h[2] && (this.heard(W, c) || T.isMe)) sfxPack("hit", 0.6);
 			}
 			if (v.clank && v.clank !== h[0]) v.clank = 0;
 		},
@@ -10387,7 +10390,7 @@ Object.assign(MG, {
 					size: 0.9,
 				});
 				this.sparks(W, c, c.x + (c.x > T.x ? 1 : -1) * c.hb[0], c.z, false);
-				if (W.tv || c.isMe || T.isMe) sfxPack("hit");
+				if (this.heard(W, c) || T.isMe) sfxPack("hit");
 			}
 			/* the claw bites */
 			if (T && a >= this.WHF && a < this.WHF + 0.5 && c.wyHit !== wy) {
@@ -10416,7 +10419,7 @@ Object.assign(MG, {
 			if (v.cry !== wy) {
 				v.cry = wy;
 				fb(W, c, "GET OVER HERE!", { tone: "bad" });
-				if (W.tv || c.isMe || T.isMe) sfxPack("whip");
+				if (this.heard(W, c) || T.isMe) sfxPack("whip");
 			}
 			/* from the truck's bull bar to the cop's tail: the claw flies open, then closes on it */
 			const fw = new THREE.Vector3(Math.cos(T.yaw), 0, -Math.sin(T.yaw)),
