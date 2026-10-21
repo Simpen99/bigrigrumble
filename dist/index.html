@@ -1008,7 +1008,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-21 01:54 dd83530";
+const BUILD = "2026-10-21 02:18 7a90503";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -9122,10 +9122,14 @@ function sfxTakes(buf) {
 		sr = buf.sampleRate,
 		gap = Math.round(sr * 0.12),
 		out = [];
+	/* silence = 50 dB under the file's peak, so a quiet sound splits too */
+	let pk = 0;
+	for (let i = 0; i < d.length; i++) pk = Math.max(pk, Math.abs(d[i]));
+	const thr = Math.max(1e-5, pk * 0.003);
 	let s = -1,
 		q = 0;
 	for (let i = 0; i < d.length; i++) {
-		if (Math.abs(d[i]) > 0.002) {
+		if (Math.abs(d[i]) > thr) {
 			if (s < 0) s = i;
 			q = 0;
 		} else if (s >= 0 && ++q > gap) {
@@ -37047,7 +37051,21 @@ Object.assign(MG, {
 			return !this.dazed(W, e) && W.t >= ((e.side === 0 ? e.oilCd : e.hpCd) || 0);
 		},
 		/* the sound packs it plays (sfxPack: a random take each time) */
-		PACKS: ["hit", "whip", "whimsy", "coin", "crunchy", "spike", "splash", "strip", "jump", "jumpboost", "speed"],
+		PACKS: [
+			"hit",
+			"whip",
+			"whimsy",
+			"coin",
+			"crunchy",
+			"spike",
+			"splash",
+			"strip",
+			"lob",
+			"thud",
+			"jump",
+			"jumpboost",
+			"speed",
+		],
 		kits() {
 			MG.hop.kits.call(MG.hop);
 			audLoad("music/pursuit.mp3");
@@ -38128,7 +38146,10 @@ Object.assign(MG, {
 				mgLog(W, `${mgName(e)} swings ${pick >= 0 ? "a traffic car" : "its own wreck"}`);
 			}
 			mgLog(W, `${mgName(e)}: ${A.lbl}`);
-			if (e.isMe && A.kind !== "pickup" && A.kind !== "monster") sfx(A.lob ? "cannon" : "go");
+			/* thrown tricks (the lobs, the sauce bottle, the bins) a soft throw; Crusher's jump and the nitro sound in trickFx */
+			if (e.isMe && A.kind !== "pickup" && A.kind !== "monster")
+				if (A.lob || A.kind === "food" || A.kind === "garbage") sfxPack("lob");
+				else sfx("go");
 		},
 		/* on the cash truck's device: the cops' hazards in its way (once each), and Blaze's hose */
 		hazards(W, e, dt) {
@@ -39479,6 +39500,8 @@ Object.assign(MG, {
 						v.mark.material.opacity = 0.35 + 0.35 * Math.sin(W.t * 20);
 					} else if (!v.landed) {
 						v.landed = 1;
+						/* a faint thud where it lands (near you, or on the TV) */
+						if (a < this.ZL + 0.3 && (W.tv || Math.hypot(W.me.x - x, W.me.z - z) < 30)) sfxPack("thud");
 						burst(W.sc, x, 0.5, z, {
 							n: 10,
 							shape: "ico",

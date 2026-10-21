@@ -10,7 +10,7 @@ import fs from "fs";
 import path from "path";
 
 const GAP = 0.3,
-	FLOOR = -50,
+	FLOOR = 49,
 	MIN = 0.15;
 /* the packs and their gains in dB: matched to the synth sounds they replaced (the loudest moment, EBU R128 momentary
    loudness: hit = crush, whip = cannon, crunchy = crush + thunder, splash = splash, spike = crush; the rest a little under) */
@@ -23,6 +23,8 @@ const PACKS = {
 	spike: -5,
 	splash: 6.5,
 	strip: 10,
+	lob: -13,
+	thud: 7,
 	jump: -3,
 	jumpboost: -12,
 	speed: -9.5,
@@ -62,9 +64,12 @@ function ffmpeg() {
 const FF = ffmpeg(),
 	ff = (a) => spawnSync(FF, ["-hide_banner", "-nostats", ...a], { encoding: "utf8" });
 
-/* the takes = the stretches between silences (under FLOOR dB for MIN s), with a little room either side: the attack
-   starts just under the floor, the tail fades out under it */
-const det = ff(["-i", src, "-af", `silencedetect=n=${FLOOR}dB:d=${MIN}`, "-f", "null", "-"]).stderr,
+/* the takes = the stretches between silences (FLOOR dB under the file's peak for MIN s, so a quiet file works too), with
+   a little room either side: the attack starts just under the floor, the tail fades out under it */
+const peak = +(/max_volume: (-?[d.]+)/.exec(ff(["-i", src, "-af", "volumedetect", "-f", "null", "-"]).stderr) || [
+		0, 0,
+	])[1],
+	det = ff(["-i", src, "-af", `silencedetect=n=${peak - FLOOR}dB:d=${MIN}`, "-f", "null", "-"]).stderr,
 	dur = (/Duration: (\d+):(\d+):([\d.]+)/.exec(det) || []).slice(1).reduce((a, v) => a * 60 + +v, 0),
 	ev = [...det.matchAll(/silence_(start|end): ([\d.]+)/g)].map((m) => [m[1], +m[2]]),
 	segs = [];

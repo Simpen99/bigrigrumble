@@ -881,10 +881,14 @@ function sfxTakes(buf) {
 		sr = buf.sampleRate,
 		gap = Math.round(sr * 0.12),
 		out = [];
+	/* silence = 50 dB under the file's peak, so a quiet sound splits too */
+	let pk = 0;
+	for (let i = 0; i < d.length; i++) pk = Math.max(pk, Math.abs(d[i]));
+	const thr = Math.max(1e-5, pk * 0.003);
 	let s = -1,
 		q = 0;
 	for (let i = 0; i < d.length; i++) {
-		if (Math.abs(d[i]) > 0.002) {
+		if (Math.abs(d[i]) > thr) {
 			if (s < 0) s = i;
 			q = 0;
 		} else if (s >= 0 && ++q > gap) {
