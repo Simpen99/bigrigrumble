@@ -3696,8 +3696,10 @@ const MG = {
 		liveHi: true,
 		unit: "ms",
 		dur: 35,
-		/* the user's Suno song "Pixel Drag Race": its "3, 2, 1, GO!" chant shouts GO 10.05 s in, on TAP */
-		mus: { url: "music/drag.mp3", go: 10.05 },
+		/* the user's Suno song "Pixel Drag Race" (112.5 bpm): its "3, 2, 1, GO!" chant, one word a beat, shouts GO 10.045 s
+		   in, on TAP; the 3, 2, 1 before TAP follow the chant (BEAT) */
+		mus: { url: "music/drag.mp3", go: 10.045 },
+		BEAT: 60 / 112.46,
 		tapLabel: "TAP",
 		tvHint:
 			"Charge the burnout: tap your phone when your dial hits the green, 5 times. After 3-2-1-TAP: tap as fast as you can!",
@@ -3730,7 +3732,7 @@ const MG = {
 		tapF(R) {
 			return 1 - Math.exp(-R / this.TAPK);
 		},
-		/* 3, 2, 1, then REV! as the charge starts, then 3, 2, 1 after it and TAP! (goText) */
+		/* 3, 2, 1, then REV! as the charge starts, then 3, 2, 1 on the song's chant (a beat apart) and TAP! (goText) */
 		cdText(t) {
 			const k = t + this.cd;
 			return k < 0.2
@@ -3739,8 +3741,8 @@ const MG = {
 					? String(3 - Math.floor(k - 0.2))
 					: k < 3.9
 						? "REV!"
-						: t >= -3
-							? String(Math.ceil(-t))
+						: t >= -3 * this.BEAT
+							? String(Math.ceil(-t / this.BEAT - 1e-9))
 							: "";
 		},
 		goText: "TAP!",
