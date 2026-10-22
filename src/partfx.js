@@ -1313,7 +1313,7 @@ function modeMus(W) {
 	}
 }
 function musScene(v) {
-	if (!SFX.ctx) return;
+	if (!SFX.ctx || MODELS_URL) return;
 	/* nothing starts until the audio has been running a moment (iPhone Safari knocks when a song starts the instant the first tap wakes the audio); try again shortly */
 	if (SFX.ctx.state !== "running" || SFX.ctx.currentTime < 0.15) {
 		clearTimeout(musScene.t);
@@ -1557,7 +1557,7 @@ function sfx(n) {
 }
 document.addEventListener("click", (e) => {
 	const b = e.target.closest("button");
-	if (!b) return;
+	if (!b || b.closest("#me")) return;
 	if (b.dataset.a === "snd") {
 		volPop(b);
 		return;

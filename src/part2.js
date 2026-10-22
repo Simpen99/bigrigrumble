@@ -1077,6 +1077,15 @@ function frame(t) {
 	}
 	/* board: shadows are only re-rendered on frames where something that casts one moved (shadowNeeded, set by stepBoard); every other mode (minigames, editor, podium) renders shadows every frame */
 	GFX.r.shadowMap.autoUpdate = !(GFX.mode === "board" && G && GFX.board);
+	if (GFX.mode === "medit") {
+		if (ME)
+			try {
+				meFrame(dt, t / 1000);
+			} catch (e) {
+				console.error(e);
+			}
+		return;
+	}
 	if (GFX.mode === "edit") {
 		if (ED)
 			try {

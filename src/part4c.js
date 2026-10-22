@@ -234,12 +234,13 @@ setInterval(() => {
 }, 100);
 gfxInit();
 render();
+if (MODELS_URL) openModelEditor();
 setInterval(() => {
 	if (view === "game" && role === "client") updateGame();
 	if (view === "join") render();
 }, 2000);
 (async () => {
-	if (!NET.ok) {
+	if (!NET.ok || MODELS_URL) {
 		roomState = "none";
 		render.last = null;
 		render();
