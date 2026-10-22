@@ -1026,7 +1026,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-22 04:25 96d8151";
+const BUILD = "2026-10-22 13:32 e5f7563";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -47533,24 +47533,24 @@ const CROWD_P = {
 	lsD: 0.11,
 	lsY: -0.085,
 	armBev: 0.02,
-	handW: 0.075,
-	handH: 0.06,
-	handD: 0.08,
+	handW: 0.065,
+	handH: 0.078,
+	handD: 0.068,
 	handY: -0.215,
 	handBev: 0.015,
-	hoodR: 0.135,
-	hoodT: 0.066,
-	hoodSides: 5,
-	hoodSeg: 12,
+	hoodR: 0.14,
+	hoodT: 0.074,
+	hoodSides: 7,
+	hoodSeg: 8,
 	hoodY: 0.6,
-	hoodDip: 0.075,
-	hoodBack: 0.045,
-	pocketW: 0.2,
-	pocketH: 0.12,
+	hoodDip: 0.087,
+	hoodBack: 0.057,
+	pocketW: 0.192,
+	pocketH: 0.116,
 	pocketD: 0.05,
 	pocketY: 0.26,
 	pocketZ: -0.124,
-	pocketBev: 0.015,
+	pocketBev: 0.01,
 	innerW: 0.07,
 	innerH: 0.4,
 	innerD: 0.2,
@@ -47588,7 +47588,29 @@ const CROWD_P = {
 	beanieP: 0.2,
 	bobbleP: 0.4,
 };
-const CROWD_BAKE = { x: {}, add: [], out: {} };
+const CROWD_BAKE = {
+	x: {
+		hood: { p: [-0.01, 0, 0.042], r: [3.7, 0, 0], s: [0.95, 0.95, 0.95] },
+		pocket: { p: [0, 0, 0.026] },
+		hand: { p: [0, 0.01, 0] },
+	},
+	add: [
+		{
+			id: "+1",
+			name: "Cylinder / cone",
+			shape: "cyl",
+			a: { rt: 0.127, rb: 0.077, h: 0.014, n: 7 },
+			p: [-0.01, 0.534, 0.073],
+			r: [-14.7, 0, 0],
+			s: [1.178, 1.178, 1.178],
+			col: "top",
+			fr: "body",
+			on: "hoodie",
+			mir: false,
+		},
+	],
+	out: {},
+};
 const CROWD_COL = {
 	skin: ["#F2C9A0", "#D9A273", "#A8714A", "#6E4A2E", "#FFE0C2", "#E8D3A6"],
 	top: ["#E5484D", "#2F7DE1", "#F2CB2E", "#1FA35C", "#FF6FAE", "#7650B8", "#FF8A1F", "#EEF1F5", "#26C6DA", "#3A4252"],
