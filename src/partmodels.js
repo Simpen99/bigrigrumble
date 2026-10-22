@@ -1,3 +1,251 @@
+/* ---------- tunable models (the model editor, dist/index.html?models): a model registers its numbers (P, a plain
+   params table, with named sliders in ui), its colours (C) and a bake = {x: {part: {p: [x, y, z] metres, r: [x, y, z]
+   degrees, s: [x, y, z], hide}} (a part moved about its centre, or hidden), add: [new parts], out: {new outfit pieces}}.
+   Model code reads them through mdl(id); the editor swaps in its live edits (MDL[id].live) and calls reset() so the
+   model rebuilds. A new part: {id: "+n", name, shape (MDL_SHAPES, or "copy" of a part: a.of), a: its numbers, p, r, s,
+   col: colour slot or "#hex", fr: frame (body, or a moving bit like an arm), on: when it shows (an outfit), mir: a
+   mirrored copy on the other side}. ---------- */
+const MDL = {},
+	D2R = Math.PI / 180;
+function mdl(id) {
+	const d = MDL[id];
+	return (
+		d.live || d.base || (d.base = { P: d.P, C: d.C, x: d.bake.x || {}, add: d.bake.add || [], out: d.bake.out || {} })
+	);
+}
+/* a part's move about its centre c: T(c + p) R S T(-c) */
+function mdlMat(x, c) {
+	const r = x.r || [0, 0, 0],
+		m = new THREE.Matrix4().compose(
+			new THREE.Vector3(...(x.p || [0, 0, 0])).add(c),
+			new THREE.Quaternion().setFromEuler(new THREE.Euler(r[0] * D2R, r[1] * D2R, r[2] * D2R)),
+			new THREE.Vector3(...(x.s || [1, 1, 1])),
+		);
+	return m.multiply(new THREE.Matrix4().makeTranslation(-c.x, -c.y, -c.z));
+}
+const mdlMoved = (x) =>
+	!!x && ((x.p || []).some((v) => v) || (x.r || []).some((v) => v) || (x.s || []).some((v) => v !== 1));
+function mdlCentre(geo) {
+	geo.computeBoundingBox();
+	return geo.boundingBox.getCenter(new THREE.Vector3());
+}
+/* geo moved by x about its centre (cs[name] = the centre, for the editor); geo itself when x doesn't move it */
+function mdlFixGeo(geo, x, cs, name) {
+	if (cs) cs[name] = mdlCentre(geo);
+	return mdlMoved(x) ? geo.clone().applyMatrix4(mdlMat(x, cs ? cs[name] : mdlCentre(geo))) : geo;
+}
+/* left-right mirror image (x flipped, triangles turned so they still face out) */
+function mirrorGeo(g) {
+	const m = g.clone().scale(-1, 1, 1);
+	if (m.index) {
+		const a = m.index.array;
+		for (let i = 0; i < a.length; i += 3) [a[i + 1], a[i + 2]] = [a[i + 2], a[i + 1]];
+	} else
+		Object.values(m.attributes).forEach((at) => {
+			const a = at.array,
+				n = at.itemSize;
+			for (let i = 0; i + 2 < at.count; i += 3)
+				for (let k = 0; k < n; k++) [a[(i + 1) * n + k], a[(i + 2) * n + k]] = [a[(i + 2) * n + k], a[(i + 1) * n + k]];
+		});
+	return m;
+}
+/* shapes for new parts, centred on their own origin. a = default numbers, ui = their sliders */
+const MDL_SHAPES = {
+	box: {
+		name: "Box",
+		a: { w: 0.15, h: 0.15, d: 0.15 },
+		ui: [
+			["w", "Width", "cm", 0.005, 1.5],
+			["h", "Height", "cm", 0.005, 1.5],
+			["d", "Depth", "cm", 0.005, 1.5],
+		],
+		geo: (a) => new THREE.BoxGeometry(a.w, a.h, a.d),
+	},
+	bevel: {
+		name: "Rounded box",
+		a: { w: 0.15, h: 0.15, d: 0.15, b: 0.02 },
+		ui: [
+			["w", "Width", "cm", 0.01, 1.5],
+			["h", "Height", "cm", 0.01, 1.5],
+			["d", "Depth", "cm", 0.01, 1.5],
+			["b", "Rounded edges", "cm", 0.001, 0.2, "How much the edges are cut off"],
+		],
+		geo: (a) => {
+			const b = Math.min(a.b, a.w / 2.2, a.h / 2.2, a.d / 2.2);
+			return chamferBox(a.w, a.h, a.d, b).clone();
+		},
+	},
+	sphere: {
+		name: "Ball",
+		a: { r: 0.08, n: 10, m: 7 },
+		ui: [
+			["r", "Size (radius)", "cm", 0.005, 0.8],
+			["n", "Facets around", "n", 3, 24, "Fewer = more blocky"],
+			["m", "Facets top to bottom", "n", 2, 16],
+		],
+		geo: (a) => new THREE.SphereGeometry(a.r, a.n, a.m),
+	},
+	cyl: {
+		name: "Cylinder / cone",
+		a: { rt: 0.06, rb: 0.06, h: 0.15, n: 8 },
+		ui: [
+			["rt", "Top radius", "cm", 0, 0.8, "0 makes a cone"],
+			["rb", "Bottom radius", "cm", 0, 0.8],
+			["h", "Height", "cm", 0.005, 1.5],
+			["n", "Sides", "n", 3, 32],
+		],
+		geo: (a) => new THREE.CylinderGeometry(a.rt, a.rb, a.h, a.n),
+	},
+	torus: {
+		name: "Ring",
+		a: { R: 0.1, t: 0.03, n: 6, m: 12, arc: 360 },
+		ui: [
+			["R", "Ring size", "cm", 0.01, 0.8],
+			["t", "Thickness", "cm", 0.003, 0.3],
+			["n", "Facets round the tube", "n", 3, 16],
+			["m", "Facets round the ring", "n", 3, 48],
+			["arc", "How much of the ring (°)", "n", 10, 360, "360 = a full ring, 180 = half"],
+		],
+		geo: (a) => new THREE.TorusGeometry(a.R, a.t, a.n, a.m, a.arc * D2R),
+	},
+	lathe: {
+		name: "Turned shape (lathe)",
+		a: {
+			pts: [
+				[0.001, -0.08],
+				[0.07, -0.07],
+				[0.08, 0],
+				[0.05, 0.07],
+				[0.001, 0.08],
+			],
+			n: 10,
+		},
+		ui: [["n", "Sides", "n", 3, 32]],
+		geo: (a) =>
+			new THREE.LatheGeometry(
+				a.pts.map(([r, y]) => new THREE.Vector2(Math.max(0.001, r), y)),
+				a.n,
+			),
+	},
+	wedge: {
+		name: "Wedge",
+		a: { w: 0.15, h: 0.1, d: 0.15, top: 0.04, b: 0.005 },
+		ui: [
+			["w", "Length (bottom)", "cm", 0.01, 1.5],
+			["top", "Length (top)", "cm", 0.002, 1.5, "Small = a sharp wedge, same as the bottom = a box"],
+			["h", "Height", "cm", 0.01, 1.5],
+			["d", "Width", "cm", 0.01, 1.5],
+			["b", "Rounded edges", "cm", 0.001, 0.05],
+		],
+		geo: (a) => {
+			const w = a.w / 2,
+				h = a.h / 2,
+				t = Math.min(Math.max(0.002, a.top), a.w),
+				b = Math.min(a.b, a.d / 2.2, a.h / 4, t / 2);
+			return chamferPrism(
+				[
+					[-w, -h],
+					[w, -h],
+					[w, h],
+					[w - t, h],
+				],
+				a.d,
+				b,
+				[],
+			);
+		},
+	},
+};
+/* a new part's geometry in its frame (a copy of a part takes that part's own geometry, src) */
+function mdlShapeGeo(q, src) {
+	if (q.shape === "copy") return src ? src.clone().applyMatrix4(mdlMat(q, mdlCentre(src))) : null;
+	const S = MDL_SHAPES[q.shape];
+	if (!S) return null;
+	const g = S.geo(Object.assign({}, S.a, q.a));
+	return g && g.applyMatrix4(mdlMat(q, new THREE.Vector3()));
+}
+/* group models: meshes carry .mdl = their part name (set while building, see mdlTag). Moves and hides the parts,
+   adds the new ones (on(q) says if one shows on this build, col(slot) gives a slot's colour) to their frames
+   (frames = {name: group}, body = the model's group) */
+const mdlTag = (o, n) => {
+	o.traverse((m) => m.isMesh && (m.mdl = n));
+	return o;
+};
+function mdlFinish(id, g, frames, on, col) {
+	const D = mdl(id);
+	if (!D.add.length && !Object.keys(D.x).length && !MDL[id].live) return g;
+	const cs = (MDL[id].cs = g.mdlCs = {}),
+		by = {};
+	frames = Object.assign({ body: g }, frames);
+	g.updateMatrixWorld(true);
+	g.traverse((o) => o.isMesh && o.mdl && (by[o.mdl] = by[o.mdl] || []).push(o));
+	/* a mesh's matrix relative to its frame */
+	const rel = (m) => {
+		const f = Object.values(frames).find((f) => {
+			for (let q = m.parent; q; q = q.parent) if (q === f) return true;
+		});
+		return new THREE.Matrix4().copy(f.matrixWorld).invert().multiply(m.matrixWorld);
+	};
+	const centre = (ms) => {
+		const bb = new THREE.Box3();
+		ms.forEach((m) => {
+			const gg = m.geometry.clone().applyMatrix4(rel(m));
+			gg.computeBoundingBox();
+			bb.union(gg.boundingBox);
+		});
+		return bb.getCenter(new THREE.Vector3());
+	};
+	const moveMesh = (m, E) => {
+		const L = rel(m);
+		m.geometry = m.geometry.clone().applyMatrix4(new THREE.Matrix4().copy(L).invert().multiply(E).multiply(L));
+	};
+	/* new parts first, so copies take their source as built */
+	const made = [];
+	D.add.forEach((q) => {
+		if (!on(q)) return;
+		const fr = frames[q.fr] || g,
+			put = (m, side) => {
+				m.mdl = q.id;
+				if (side) m.mdlSide = side;
+				made.push(m);
+			};
+		if (q.shape === "copy") {
+			const src = by[q.a.of];
+			if (!src) return;
+			const E = mdlMat(q, (cs[q.id] = centre(src)));
+			src.forEach((s) => {
+				const m = s.clone();
+				m.geometry = s.geometry.clone();
+				s.parent.add(m);
+				m.updateMatrixWorld(true);
+				moveMesh(m, E);
+				if (q.col) m.material = M(col(q.col), { vertexColors: true });
+				put(m);
+			});
+			return;
+		}
+		const geo = mdlShapeGeo(q);
+		if (!geo) return;
+		cs[q.id] = new THREE.Vector3();
+		const m = mesh(geo, col(q.col));
+		fr.add(m);
+		put(m);
+		if (q.mir) {
+			const t = mesh(mirrorGeo(geo), col(q.col));
+			fr.add(t);
+			put(t, -1);
+		}
+	});
+	Object.keys(by).forEach((n) => {
+		const x = D.x[n],
+			ms = by[n];
+		if (x && x.hide) return ms.forEach((m) => m.parent.remove(m));
+		cs[n] = centre(ms);
+		if (mdlMoved(x)) ms.forEach((m) => moveMesh(m, mdlMat(x, cs[n])));
+	});
+	return g;
+}
+
 /* ---------- detailed reusable props ----------
    Build a model once as a normal group (as much detail as it deserves), bakeKit() merges it into one geometry per
    material, placeKits() stamps out any number of copies with one InstancedMesh per material: detail costs almost nothing.
@@ -1869,69 +2117,315 @@ function stencil(txt, w, h, col, op) {
 	return new THREE.Mesh(new THREE.PlaneGeometry(w, h), WOOD[k]);
 }
 /* v 0 pine crate (edge battens, X braces, FRAGILE stamp), 1 dark crate (straps, steel corners, rope handles),
-   2 painted steel case (ribs, rims, label), 3 carton on a pallet (taped, labelled) */
+   2 painted steel case (ribs, rims, label), 3 carton on a pallet (taped, labelled). Sizes in CRATE_P, colours in
+   CRATE_COL, part moves and new parts in CRATE_BAKE (the model editor, see mdl) */
+const CRATE_P = {
+	pW: 0.9,
+	pH: 0.7,
+	pT: 0.1,
+	pBr: 0.04,
+	pBw: 0.09,
+	pSt: 1,
+	dW: 0.94,
+	dH: 0.74,
+	dStY: 0.22,
+	dStT: 0.07,
+	dCo: 0.14,
+	sW: 0.92,
+	sH: 0.72,
+	sRib: 0.22,
+	sRibW: 0.06,
+	cW: 0.94,
+	cH: 0.67,
+	cTape: 0.18,
+};
+const CRATE_COL = {
+	pine: "#E2B07A",
+	pineFrame: "#A8743F",
+	fragile: "#B5262B",
+	dark: "#B98352",
+	strap: "#5A3A22",
+	corner: "#8E96A3",
+	rope: "#3A3F48",
+	ink: "#2A1A0E",
+	steel: "#3E7CB1",
+	rib: "#2B5C86",
+	rim: "#2A4A6B",
+	label: "#F4F6F9",
+	labelInk: "#2A2F3A",
+	band: "#FFC83D",
+	runner: "#C49A68",
+	slat: "#D2A874",
+	carton: "#C9A26B",
+	tape: "#E6CFA0",
+	barcode: "#23272F",
+};
+const CRATE_BAKE = { x: {}, add: [] };
 function crateModel(v) {
-	const g = new THREE.Group(),
-		put = (m, x, y, z, ry) => {
+	const D = mdl("crate"),
+		P = D.P,
+		C = D.C,
+		g = new THREE.Group(),
+		add = (n, ...ms) => ms.forEach((m) => g.add(mdlTag(m, n))),
+		put = (n, m, x, y, z, ry) => {
 			m.position.set(x, y, z);
 			m.rotation.y = ry || 0;
-			g.add(m);
+			add(n, m);
 		};
 	if (v === 0) {
-		const fr = "#A8743F";
-		g.add(plankBox(0.9, 0.7, 0.9, "#E2B07A", 0, 0, 0));
+		const fr = C.pineFrame,
+			W = P.pW,
+			H = P.pH,
+			T = P.pT;
+		add("wood", plankBox(W, H, W, C.pine, 0, 0, 0));
 		[-1, 1].forEach((a) =>
 			[-1, 1].forEach((b) => {
-				g.add(B(1.0, 0.1, 0.1, fr, 0, a * 0.35, b * 0.45), B(0.1, 0.1, 0.8, fr, a * 0.45, b * 0.35, 0));
-				g.add(B(0.1, 0.6, 0.1, fr, a * 0.45, 0, b * 0.45));
+				add(
+					"battens",
+					B(W + T, T, T, fr, 0, (a * H) / 2, (b * W) / 2),
+					B(T, T, W - T, fr, (a * W) / 2, (b * H) / 2, 0),
+				);
+				add("posts", B(T, H - T, T, fr, (a * W) / 2, 0, (b * W) / 2));
 			}),
 		);
 		[-1, 1].forEach((sd) => {
-			const br = B(0.96, 0.09, 0.04, fr, 0, 0, sd * 0.47);
-			br.rotation.z = sd * Math.atan2(0.6, 0.8);
-			g.add(br, B(0.04, 0.09, 0.8, fr, sd * 0.47, 0, 0));
-			put(stencil("FRAGILE", 0.62, 0.17, "#B5262B", 0.8), sd * 0.452, 0.16, 0, (sd * Math.PI) / 2);
+			const br = B(Math.hypot(W - T, H - T) - P.pBr, P.pBw, P.pBr, fr, 0, 0, sd * (W / 2 + 0.02));
+			br.rotation.z = sd * Math.atan2(H - T, W - T);
+			add("braces", br);
+			add("bars", B(P.pBr, P.pBw, W - T, fr, sd * (W / 2 + 0.02), 0, 0));
+			put(
+				"fragile",
+				stencil("FRAGILE", 0.62 * P.pSt, 0.17 * P.pSt, C.fragile, 0.8),
+				sd * (W / 2 + 0.002),
+				0.16,
+				0,
+				(sd * Math.PI) / 2,
+			);
 		});
 	} else if (v === 1) {
-		g.add(plankBox(0.94, 0.74, 0.94, "#B98352", 0, 0, 0));
-		[-0.22, 0.22].forEach((y) => g.add(B(0.98, 0.07, 0.98, "#5A3A22", 0, y, 0)));
+		const W = P.dW,
+			H = P.dH,
+			k = P.dCo;
+		add("wood", plankBox(W, H, W, C.dark, 0, 0, 0));
+		[-P.dStY, P.dStY].forEach((y) => add("straps", B(W + 0.04, P.dStT, W + 0.04, C.strap, 0, y, 0)));
 		[-1, 1].forEach((a) =>
 			[-1, 1].forEach((b) =>
-				[-1, 1].forEach((c) => g.add(B(0.14, 0.14, 0.14, "#8E96A3", a * 0.43, b * 0.33, c * 0.43))),
+				[-1, 1].forEach((c) =>
+					add("corners", B(k, k, k, C.corner, a * (W / 2 - 0.04), b * (H / 2 - 0.04), c * (W / 2 - 0.04))),
+				),
 			),
 		);
 		[-1, 1].forEach((sd) => {
-			g.add(B(0.04, 0.05, 0.34, "#3A3F48", sd * 0.51, 0.05, 0));
-			[-0.13, 0.13].forEach((z) => g.add(B(0.04, 0.09, 0.04, "#3A3F48", sd * 0.49, 0.05, z)));
+			add("handles", B(0.04, 0.05, 0.34, C.rope, sd * (W / 2 + 0.04), 0.05, 0));
+			[-0.13, 0.13].forEach((z) => add("handles", B(0.04, 0.09, 0.04, C.rope, sd * (W / 2 + 0.02), 0.05, z)));
 		});
-		put(stencil("THIS SIDE UP", 0.7, 0.16, "#2A1A0E", 0.6), 0, 0, 0.472);
+		put("stamp", stencil("THIS SIDE UP", 0.7, 0.16, C.ink, 0.6), 0, 0, W / 2 + 0.002);
 	} else if (v === 2) {
-		const col = "#3E7CB1",
-			rib = "#2B5C86",
-			rim = "#2A4A6B";
-		g.add(B(0.92, 0.72, 0.92, col, 0, 0, 0));
-		[-0.38, 0.38].forEach((y) => g.add(B(1.0, 0.04, 1.0, rim, 0, y, 0)));
+		const W = P.sW,
+			H = P.sH;
+		add("case", B(W, H, W, C.steel, 0, 0, 0));
+		[-1, 1].forEach((a) => add("rims", B(W + 0.08, 0.04, W + 0.08, C.rim, 0, a * (H / 2 + 0.02), 0)));
 		[-1, 1].forEach((sd) =>
-			[-0.22, 0.22].forEach((o) => {
-				g.add(B(0.06, 0.66, 0.03, rib, o, 0, sd * 0.475), B(0.03, 0.66, 0.06, rib, sd * 0.475, 0, o));
+			[-P.sRib, P.sRib].forEach((o) => {
+				add(
+					"ribs",
+					B(P.sRibW, H - 0.06, 0.03, C.rib, o, 0, sd * (W / 2 + 0.015)),
+					B(0.03, H - 0.06, P.sRibW, C.rib, sd * (W / 2 + 0.015), 0, o),
+				);
 			}),
 		);
-		g.add(B(0.3, 0.2, 0.02, "#F4F6F9", 0, 0.05, 0.47));
-		put(stencil("BRR", 0.26, 0.14, "#2A2F3A", 0.85), 0, 0.05, 0.481);
-		g.add(B(0.38, 0.06, 0.02, "#FFC83D", 0, -0.2, 0.47));
+		add("label", B(0.3, 0.2, 0.02, C.label, 0, 0.05, W / 2 + 0.01));
+		put("labelText", stencil("BRR", 0.26, 0.14, C.labelInk, 0.85), 0, 0.05, W / 2 + 0.021);
+		add("band", B(0.38, 0.06, 0.02, C.band, 0, -0.2, W / 2 + 0.01));
 	} else {
-		[-0.43, 0, 0.43].forEach((z) => g.add(plankBox(1.0, 0.1, 0.14, "#C49A68", 0, -0.35, z)));
-		[-0.42, -0.21, 0, 0.21, 0.42].forEach((x) => g.add(plankBox(0.16, 0.03, 1.0, "#D2A874", x, -0.285, 0)));
-		g.add(B(0.94, 0.67, 0.94, "#C9A26B", 0, 0.065, 0));
-		g.add(B(0.18, 0.02, 0.96, "#E6CFA0", 0, 0.405, 0));
-		[-1, 1].forEach((sd) => g.add(B(0.17, 0.24, 0.02, "#E6CFA0", 0, 0.28, sd * 0.48)));
-		g.add(B(0.26, 0.18, 0.02, "#F4F6F9", 0.24, -0.06, 0.475));
-		[0.17, 0.2, 0.22, 0.26, 0.29, 0.31].forEach((x) => g.add(B(0.012, 0.08, 0.01, "#23272F", x, -0.09, 0.489)));
+		const W = P.cW,
+			H = P.cH,
+			y0 = -0.27 + H / 2;
+		[-0.43, 0, 0.43].forEach((z) => add("runners", plankBox(1.0, 0.1, 0.14, C.runner, 0, -0.35, z)));
+		[-0.42, -0.21, 0, 0.21, 0.42].forEach((x) => add("slats", plankBox(0.16, 0.03, 1.0, C.slat, x, -0.285, 0)));
+		add("carton", B(W, H, W, C.carton, 0, y0, 0));
+		add("tape", B(P.cTape, 0.02, W + 0.02, C.tape, 0, y0 + H / 2 + 0.005, 0));
+		[-1, 1].forEach((sd) =>
+			add("tape", B(P.cTape - 0.01, 0.24, 0.02, C.tape, 0, y0 + H / 2 - 0.12, sd * (W / 2 + 0.01))),
+		);
+		add("label", B(0.26, 0.18, 0.02, C.label, 0.24, -0.06, W / 2 + 0.005));
+		[0.17, 0.2, 0.22, 0.26, 0.29, 0.31].forEach((x) =>
+			add("barcode", B(0.012, 0.08, 0.01, C.barcode, x, -0.09, W / 2 + 0.019)),
+		);
 	}
-	return g;
+	return mdlFinish(
+		"crate",
+		g,
+		{},
+		(q) => !q.on || q.on === "all" || q.on === String(v),
+		(s) => C[s] || s,
+	);
 }
 var CRATE_KITS;
 const crateKits = () => CRATE_KITS || (CRATE_KITS = [0, 1, 2, 3].map((v) => bakeKit(crateModel(v))));
+const CRATE_PART = {
+	wood: "0",
+	battens: "0",
+	posts: "0",
+	braces: "0",
+	bars: "0",
+	fragile: "0",
+	straps: "1",
+	corners: "1",
+	handles: "1",
+	stamp: "1",
+	case: "2",
+	rims: "2",
+	ribs: "2",
+	labelText: "2",
+	band: "2",
+	runners: "3",
+	slats: "3",
+	carton: "3",
+	tape: "3",
+	barcode: "3",
+};
+Object.assign(MDL, {
+	crate: {
+		name: "Cargo crate",
+		P: CRATE_P,
+		C: CRATE_COL,
+		bake: CRATE_BAKE,
+		reset() {
+			CRATE_KITS = null;
+		},
+		parts: {
+			wood: "Wooden box",
+			battens: "Edge battens",
+			posts: "Corner posts",
+			braces: "X braces",
+			bars: "Side bars",
+			fragile: "FRAGILE stamp",
+			straps: "Straps",
+			corners: "Steel corners",
+			handles: "Rope handles",
+			stamp: "THIS SIDE UP stamp",
+			case: "Steel case",
+			rims: "Rims",
+			ribs: "Ribs",
+			label: "Label",
+			labelText: "Label text",
+			band: "Yellow band",
+			runners: "Pallet runners",
+			slats: "Pallet slats",
+			carton: "Carton",
+			tape: "Tape",
+			barcode: "Barcode",
+		},
+		frames: { body: "The crate" },
+		partOn: CRATE_PART,
+		slots: {
+			pine: "Pine wood",
+			pineFrame: "Pine frame",
+			fragile: "FRAGILE ink",
+			dark: "Dark wood",
+			strap: "Straps",
+			corner: "Steel corners",
+			rope: "Rope handles",
+			ink: "Stamp ink",
+			steel: "Steel case",
+			rib: "Ribs",
+			rim: "Rims",
+			label: "Labels",
+			labelInk: "Label ink",
+			band: "Yellow band",
+			runner: "Pallet runners",
+			slat: "Pallet slats",
+			carton: "Carton",
+			tape: "Tape",
+			barcode: "Barcode",
+		},
+		outfits: { all: "Every crate", 0: "Pine crate", 1: "Dark crate", 2: "Steel case", 3: "Carton on a pallet" },
+		ui: [
+			[
+				"Pine crate",
+				["wood", "battens", "posts", "braces", "bars", "fragile"],
+				[
+					["pW", "Width", "cm", 0.4, 1.4],
+					["pH", "Height", "cm", 0.3, 1.2],
+					["pT", "Frame thickness", "cm", 0.03, 0.2],
+					["pBr", "Brace thickness", "cm", 0.01, 0.1],
+					["pBw", "Brace width", "cm", 0.03, 0.2],
+					["pSt", "FRAGILE stamp size", "x", 0.4, 1.5],
+				],
+				{ v: 0 },
+			],
+			[
+				"Dark crate",
+				["wood", "straps", "corners", "handles", "stamp"],
+				[
+					["dW", "Width", "cm", 0.4, 1.4],
+					["dH", "Height", "cm", 0.3, 1.2],
+					["dStY", "Straps apart", "cm", 0.05, 0.4, "From the middle to each strap"],
+					["dStT", "Strap width", "cm", 0.02, 0.2],
+					["dCo", "Corner size", "cm", 0.05, 0.25],
+				],
+				{ v: 1 },
+			],
+			[
+				"Steel case",
+				["case", "rims", "ribs", "label", "labelText", "band"],
+				[
+					["sW", "Width", "cm", 0.4, 1.4],
+					["sH", "Height", "cm", 0.3, 1.2],
+					["sRib", "Ribs apart", "cm", 0.05, 0.4, "From the middle to each rib"],
+					["sRibW", "Rib width", "cm", 0.02, 0.15],
+				],
+				{ v: 2 },
+			],
+			[
+				"Carton on a pallet",
+				["carton", "tape", "label", "barcode", "runners", "slats"],
+				[
+					["cW", "Carton width", "cm", 0.4, 1],
+					["cH", "Carton height", "cm", 0.2, 1.2],
+					["cTape", "Tape width", "cm", 0.05, 0.4],
+				],
+				{ v: 3 },
+			],
+		],
+		cols: null,
+		dress0: { v: 0 },
+		dressUI: () => [
+			[
+				"v",
+				"Crate",
+				[
+					[0, "Pine crate"],
+					[1, "Dark crate"],
+					[2, "Steel case"],
+					[3, "Carton on a pallet"],
+				],
+			],
+		],
+		look: (d) => d.v,
+		need: (k) => (CRATE_PART[k] ? { v: +CRATE_PART[k] } : /^\d$/.test(k) ? { v: +k } : {}),
+		build(v) {
+			const g = crateModel(v);
+			g.position.y = 0.4;
+			return { g, frames: { body: g } };
+		},
+		variants() {
+			const g = new THREE.Group();
+			[0, 1, 2, 3].forEach((v, i) => {
+				const c = crateModel(v);
+				c.position.set((i - 1.5) * 1.4, 0.4, 0);
+				g.add(c);
+			});
+			return g;
+		},
+		spawn: { body: [0, 0, -0.65] },
+		view: { y: 0.4, d: 3.8, vz: 2 },
+		offLabel: "other crate",
+		slotDefault: "pineFrame",
+		onDefault: (d) => String(d.v),
+	},
+});
 
 /* ---------- rubber-tyred gantry crane spanning lanes along x (legs at x = +-span/2, z centred), girders at y ~15:
    tyre bogies on sill beams with hazard stripes, legs with a diagonal brace and a ladder, portal beams, two girders
@@ -3869,41 +4363,165 @@ function garageRoom(s) {
    on separately: a tee (short sleeves, bare arms) or a hoodie (hood rolled round the neck, front pocket) as the top, a
    puffer jacket over it, a cap or a beanie. Feet at y 0, facing -z, about 1 m tall. Parts are shared geometries in two
    frames (the body, and an arm hanging from its shoulder pivot) so the crowd can stamp them out as instanced meshes:
-   each piece one colour, picked per person. */
-const CROWD_SH = [0.146, 0.5],
-	CROWD_ARM = 0.95,
-	CROWD_HEAD = 0.76;
-let CROWD_G = null;
-function crowdGeo() {
-	if (CROWD_G) return CROWD_G;
-	const at = (g, x, y, z) => g.clone().translate(x, y, z),
+   each piece one colour, picked per person. Sizes in CROWD_P (the model editor's sliders, MDL.crowd.ui), part moves,
+   new parts and new outfit pieces in CROWD_BAKE (see mdl above). */
+const CROWD_P = {
+	bodyW: 0.336,
+	bodyH: 0.42,
+	bodyD: 0.205,
+	bodyY: 0.36,
+	bodyBev: 0.025,
+	headR: 0.2,
+	headTall: 1.06,
+	headY: 0.76,
+	headSides: 10,
+	headRings: 7,
+	legW: 0.11,
+	legH: 0.17,
+	legD: 0.12,
+	legGap: 0.085,
+	legBev: 0.02,
+	shX: 0.146,
+	shY: 0.5,
+	armA: 0.95,
+	armW: 0.1,
+	armH: 0.26,
+	armD: 0.11,
+	armY: -0.1,
+	slW: 0.13,
+	slH: 0.12,
+	slD: 0.14,
+	slY: -0.02,
+	lsW: 0.1,
+	lsH: 0.23,
+	lsD: 0.11,
+	lsY: -0.085,
+	armBev: 0.02,
+	handW: 0.065,
+	handH: 0.078,
+	handD: 0.068,
+	handY: -0.215,
+	handBev: 0.015,
+	hoodR: 0.143,
+	hoodT: 0.06,
+	hoodSides: 7,
+	hoodSeg: 9,
+	hoodY: 0.605,
+	hoodDip: 0.088,
+	hoodBack: 0.023,
+	pocketW: 0.192,
+	pocketH: 0.116,
+	pocketD: 0.05,
+	pocketY: 0.26,
+	pocketZ: -0.124,
+	pocketBev: 0.01,
+	jkUpW: 0.144,
+	jkUpH: 0.243,
+	jkUpD: 0.257,
+	jkUpX: 0.107,
+	jkUpY: 0.4725,
+	jkLoW: 0.127,
+	jkLoH: 0.269,
+	jkLoD: 0.241,
+	jkLoX: 0.117,
+	jkLoY: 0.25,
+	jkBev: 0.022,
+	jkBackW: 0.144,
+	jkBackH: 0.44,
+	jkBackD: 0.058,
+	jkBackZ: 0.133,
+	jkGap: 0.4747,
+	capR: 0.222,
+	capTall: 1.08,
+	capDeep: 0.56,
+	visorTilt: 0.26,
+	visorL: 1,
+	visorW: 1,
+	visorT: 0.04,
+	visorZ: 0.08,
+	beanieW: 1,
+	beanieH: 1,
+	bobR: 0.062,
+	bobY: 0.33,
+	teeP: 0.5,
+	jacketP: 0.25,
+	capP: 0.25,
+	beanieP: 0.2,
+	bobbleP: 0.4,
+};
+const CROWD_BAKE = {
+	x: {
+		hood: { p: [0, -0.019, 0.027], s: [0.96, 0.95, 0.961] },
+		pocket: { p: [0, 0, 0.026] },
+		hand: { p: [0, 0.01, 0] },
+		jkBack: { p: [0, -0.014, -0.026], s: [1.418, 1.081, 1.21] },
+		jkHood: { p: [0, -0.014, 0.004], r: [-5.5, 0, 0], s: [1.12, 0.954, 1.077] },
+		jkBelly: { p: [0, -0.012, 0], s: [1.011, 0.839, 1.011] },
+		jkChest: { p: [0, -0.03, 0], s: [1.036, 1.089, 1] },
+	},
+	add: [
+		{
+			id: "+1",
+			name: "Hoodie Fill",
+			shape: "cyl",
+			a: { rt: 0.127, rb: 0.077, h: 0.014, n: 7 },
+			p: [0, 0.526, 0.054],
+			r: [-9.2, 0, 0],
+			s: [1.121, 1.256, 1.128],
+			col: "top",
+			fr: "body",
+			on: "hoodie",
+			mir: false,
+		},
+	],
+	out: {},
+};
+const CROWD_COL = {
+	skin: ["#F2C9A0", "#D9A273", "#A8714A", "#6E4A2E", "#FFE0C2", "#E8D3A6"],
+	top: ["#E5484D", "#2F7DE1", "#F2CB2E", "#1FA35C", "#FF6FAE", "#7650B8", "#FF8A1F", "#EEF1F5", "#26C6DA", "#3A4252"],
+	jacket: ["#283A5C", "#6A4BAA", "#C2413C", "#4E6B3A", "#2E3239", "#E07A2A", "#2C8C8C"],
+	hat: ["#1E2A3A", "#2E3239", "#C2413C", "#E9ECF0", "#D9A93A", "#6A4BAA", "#2F7DE1"],
+	legs: ["#3E5A8A", "#3A3F4A", "#B49A6A", "#2A2D34", "#6E7480", "#4B5F7A"],
+};
+const CROWD_ARMP = ["arm", "sleeve", "longSleeve", "hand"];
+/* crowdGeo(true): the same with plain boxes for the small parts (the instanced crowd: a 2 cm bevel on a limb doesn't
+   show at crowd distance, and costs 60 triangles instead of 12). Arm parts that aren't left-right symmetric any more
+   (moved sideways, turned) get a mirrored twin "<name>L" for the left arm; new parts on the arm always do. */
+let CROWD_G = null,
+	CROWD_GL = null;
+function crowdGeo(lite) {
+	if (lite ? CROWD_GL : CROWD_G) return lite ? CROWD_GL : CROWD_G;
+	const D = mdl("crowd"),
+		P = D.P,
+		at = (g, x, y, z) => g.clone().translate(x, y, z),
 		merge = (gs) => {
 			/* plain join: positions and normals of non-indexed copies */
 			const nx = gs.map((g) => (g.index ? g.toNonIndexed() : g)),
 				n = nx.reduce((s, g) => s + g.attributes.position.count, 0),
-				P = new Float32Array(n * 3),
+				Pa = new Float32Array(n * 3),
 				N = new Float32Array(n * 3);
 			let o = 0;
 			nx.forEach((g) => {
 				if (!g.attributes.normal) g.computeVertexNormals();
-				P.set(g.attributes.position.array, o * 3);
+				Pa.set(g.attributes.position.array, o * 3);
 				N.set(g.attributes.normal.array, o * 3);
 				o += g.attributes.position.count;
 			});
 			const out = new THREE.BufferGeometry();
-			out.setAttribute("position", new THREE.BufferAttribute(P, 3));
+			out.setAttribute("position", new THREE.BufferAttribute(Pa, 3));
 			out.setAttribute("normal", new THREE.BufferAttribute(N, 3));
 			return out;
 		},
-		leg = chamferBox(0.11, 0.17, 0.12, 0.02),
-		H = CROWD_HEAD;
+		cb = (w, h, d, r) => (lite ? new THREE.BoxGeometry(w, h, d) : chamferBox(w, h, d, r)),
+		leg = cb(P.legW, P.legH, P.legD, P.legBev),
+		H = P.headY;
 	/* hood: a faceted roll round the neck, high at the back, dipping to a V at the front where it tucks into the body;
 	   gap (radians) leaves it open at the front (the jacket's), the ends capped */
 	const hoodRoll = (gap) => {
-		const R = 0.135,
-			r = 0.066,
-			SIDES = 5,
-			SEG = 12,
+		const R = P.hoodR,
+			r = P.hoodT,
+			SIDES = P.hoodSides,
+			SEG = P.hoodSeg,
 			a0 = gap / 2,
 			n = gap ? SEG + 1 : SEG,
 			ring = (a) => {
@@ -3918,10 +4536,10 @@ function crowdGeo() {
 				});
 			},
 			rings = Array.from({ length: n }, (_, i) => ring(a0 + ((Math.PI * 2 - gap) * i) / SEG)),
-			P = [],
+			Pt = [],
 			tri = (p, q, w, out) => {
 				const nv = q.clone().sub(p).cross(w.clone().sub(p));
-				(nv.dot(out) < 0 ? [p, w, q] : [p, q, w]).forEach((v) => P.push(v.x, v.y, v.z));
+				(nv.dot(out) < 0 ? [p, w, q] : [p, q, w]).forEach((v) => Pt.push(v.x, v.y, v.z));
 			};
 		for (let i = 0; i < (gap ? n - 1 : n); i++) {
 			const A = rings[i],
@@ -3944,22 +4562,22 @@ function crowdGeo() {
 					out = new THREE.Vector3(Math.cos(a), 0, Math.sin(a)).multiplyScalar(sd);
 				for (let j = 0; j < SIDES; j++) tri(c, E[j], E[(j + 1) % SIDES], out);
 			});
-		for (let i = 0; i < P.length; i += 3) {
-			const x = P[i],
-				z = P[i + 2] * 0.92,
+		for (let i = 0; i < Pt.length; i += 3) {
+			const x = Pt[i],
+				z = Pt[i + 2] * 0.92,
 				a = Math.abs(Math.atan2(x, -z));
-			P[i + 1] += 0.6 - 0.075 * Math.max(0, 1 - a / 1.1) + 0.045 * Math.max(0, z / 0.2);
-			P[i + 2] = z + 0.01;
+			Pt[i + 1] += P.hoodY - P.hoodDip * Math.max(0, 1 - a / 1.1) + P.hoodBack * Math.max(0, z / 0.2);
+			Pt[i + 2] = z + 0.01;
 		}
 		const g = new THREE.BufferGeometry();
-		g.setAttribute("position", new THREE.Float32BufferAttribute(P, 3));
+		g.setAttribute("position", new THREE.Float32BufferAttribute(Pt, 3));
 		g.computeVertexNormals();
 		return g;
 	};
 	/* cap: a faceted crown turned half a facet off the head's, reaching a little below the head's middle, a visor
 	   tipped down growing out of its front rim, a button */
-	const crown = new THREE.SphereGeometry(0.222, 10, 5, Math.PI / 10, Math.PI * 2, 0, Math.PI * 0.56);
-	crown.scale(1, 1.08, 1);
+	const crown = new THREE.SphereGeometry(P.capR, 10, 5, Math.PI / 10, Math.PI * 2, 0, Math.PI * P.capDeep);
+	crown.scale(1, P.capTall, 1);
 	const vs = new THREE.Shape();
 	[
 		[0.15, 0],
@@ -3970,16 +4588,16 @@ function crowdGeo() {
 		[-0.12, -0.2],
 		[-0.155, -0.12],
 		[-0.15, 0],
-	].forEach(([x, y], i) => (i ? vs.lineTo(x, y) : vs.moveTo(-x, y)));
-	const visor = new THREE.ExtrudeGeometry(vs, { depth: 0.04, bevelEnabled: false });
+	].forEach(([x, y], i) => (i ? vs.lineTo(x * P.visorW, y * P.visorL) : vs.moveTo(x * P.visorW, y * P.visorL)));
+	const visor = new THREE.ExtrudeGeometry(vs, { depth: P.visorT, bevelEnabled: false });
 	visor.rotateX(Math.PI / 2);
-	visor.rotateX(-0.26);
-	visor.translate(0, 0.005, -0.08);
-	const cap = merge([crown, visor, new THREE.CylinderGeometry(0.028, 0.034, 0.03, 6).translate(0, 0.243, 0)]).translate(
-		0,
-		H,
-		0,
-	);
+	visor.rotateX(-P.visorTilt);
+	visor.translate(0, 0.005, -P.visorZ);
+	const cap = merge([
+		crown,
+		visor,
+		new THREE.CylinderGeometry(0.028, 0.034, 0.03, 6).translate(0, 0.243 * (P.capR / 0.222) * (P.capTall / 1.08), 0),
+	]).translate(0, H, 0);
 	/* beanie: a lathe with a folded cuff, slightly pointed top; the bobble is optional */
 	const bp = [
 		[0.232, -0.005],
@@ -3992,93 +4610,170 @@ function crowdGeo() {
 		[0.12, 0.262],
 		[0.055, 0.292],
 		[0.001, 0.3],
-	].map(([r, y]) => new THREE.Vector2(r, y));
+	].map(([r, y]) => new THREE.Vector2(r * P.beanieW, y * P.beanieH));
 	const beanie = new THREE.LatheGeometry(bp, 10, Math.PI / 10).translate(0, H, 0);
-	const head = new THREE.SphereGeometry(0.2, 10, 7);
-	head.scale(1, 1.06, 1).translate(0, H, 0);
-	CROWD_G = {
+	const head = new THREE.SphereGeometry(P.headR, P.headSides, P.headRings);
+	head.scale(1, P.headTall, 1).translate(0, H, 0);
+	const base = {
 		/* body frame */
 		head,
-		legs: merge([at(leg, -0.085, 0.085, 0), at(leg, 0.085, 0.085, 0)]),
-		torso: at(chamferBox(0.336, 0.42, 0.233, 0.02), 0, 0.36, 0),
+		legs: merge([at(leg, -P.legGap, P.legH / 2, 0), at(leg, P.legGap, P.legH / 2, 0)]),
+		torso: at(chamferBox(P.bodyW, P.bodyH, P.bodyD, P.bodyBev), 0, P.bodyY, 0),
 		hood: hoodRoll(0),
-		pocket: at(chamferBox(0.2, 0.12, 0.05, 0.015), 0, 0.26, -0.124),
-		/* the jacket replaces the body (same size as it): the shirt shows only as this strip down its front opening */
-		inner: at(chamferBox(0.07, 0.4, 0.2, 0.02), 0, 0.36, 0),
-		/* puffer jacket: four quilted blocks open down the front, a back strip, the hoodie's hood split open */
-		jacket: merge([
-			at(chamferBox(0.16, 0.24, 0.243, 0.03), -0.09, 0.47, 0),
-			at(chamferBox(0.16, 0.24, 0.243, 0.03), 0.09, 0.47, 0),
-			at(chamferBox(0.165, 0.23, 0.248, 0.03), -0.0925, 0.26, 0),
-			at(chamferBox(0.165, 0.23, 0.248, 0.03), 0.0925, 0.26, 0),
-			at(chamferBox(0.07, 0.44, 0.05, 0.02), 0, 0.36, 0.09),
-			hoodRoll(0.6),
+		pocket: at(cb(P.pocketW, P.pocketH, P.pocketD, P.pocketBev), 0, P.pocketY, P.pocketZ),
+		/* puffer jacket, worn over the body: four quilted blocks open down the front (chest and belly pairs, 2.5 cm outside
+		   the body, bevels less deep than that so the body never shows in the seams), a back strip over the gap between them, the hoodie's hood split open */
+		jkChest: merge([
+			at(chamferBox(P.jkUpW, P.jkUpH, P.jkUpD, P.jkBev), -P.jkUpX, P.jkUpY, 0),
+			at(chamferBox(P.jkUpW, P.jkUpH, P.jkUpD, P.jkBev), P.jkUpX, P.jkUpY, 0),
 		]),
+		jkBelly: merge([
+			at(chamferBox(P.jkLoW, P.jkLoH, P.jkLoD, P.jkBev), -P.jkLoX, P.jkLoY, 0),
+			at(chamferBox(P.jkLoW, P.jkLoH, P.jkLoD, P.jkBev), P.jkLoX, P.jkLoY, 0),
+		]),
+		jkBack: merge([at(chamferBox(P.jkBackW, P.jkBackH, P.jkBackD, P.bodyBev), 0, P.bodyY, P.jkBackZ)]),
+		jkHood: hoodRoll(P.jkGap),
 		cap,
 		beanie,
-		bobble: new THREE.IcosahedronGeometry(0.062, 0).translate(0, H + 0.33, 0),
+		bobble: new THREE.IcosahedronGeometry(P.bobR, 0).translate(0, H + P.bobY, 0),
 		/* arm frame: hangs down from the shoulder pivot */
-		arm: at(chamferBox(0.1, 0.26, 0.11, 0.02), 0, -0.1, 0),
-		sleeve: at(chamferBox(0.13, 0.12, 0.14, 0.02), 0, -0.02, 0),
+		arm: at(cb(P.armW, P.armH, P.armD, P.armBev), 0, P.armY, 0),
+		sleeve: at(cb(P.slW, P.slH, P.slD, P.armBev), 0, P.slY, 0),
 		/* hoodie and jacket: a long sleeve with a small hand sticking out of the cuff */
-		longSleeve: at(chamferBox(0.1, 0.23, 0.11, 0.02), 0, -0.085, 0),
-		hand: at(chamferBox(0.075, 0.06, 0.08, 0.015), 0, -0.215, 0),
+		longSleeve: at(cb(P.lsW, P.lsH, P.lsD, P.armBev), 0, P.lsY, 0),
+		hand: at(cb(P.handW, P.handH, P.handD, P.handBev), 0, P.handY, 0),
 	};
-	return CROWD_G;
+	const G = {},
+		cs = {};
+	Object.keys(base).forEach((n) => {
+		const x = D.x[n];
+		G[n] = mdlFixGeo(base[n], x, cs, n);
+		if (CROWD_ARMP.includes(n) && x && ((x.p && x.p[0]) || (x.r && (x.r[1] || x.r[2])))) G[n + "L"] = mirrorGeo(G[n]);
+	});
+	D.add.forEach((q) => {
+		const g = mdlShapeGeo(q, q.shape === "copy" && base[q.a.of]);
+		if (!g) return;
+		cs[q.id] = q.shape === "copy" ? mdlCentre(base[q.a.of]) : new THREE.Vector3();
+		G[q.id] = g;
+		if (q.fr === "arm" || q.mir) G[q.id + "L"] = mirrorGeo(g);
+	});
+	if (!lite) MDL.crowd.cs = cs;
+	return lite ? (CROWD_GL = G) : (CROWD_G = G);
 }
-const CROWD_COL = {
-	skin: ["#F2C9A0", "#D9A273", "#A8714A", "#6E4A2E", "#FFE0C2", "#E8D3A6"],
-	top: ["#E5484D", "#2F7DE1", "#F2CB2E", "#1FA35C", "#FF6FAE", "#7650B8", "#FF8A1F", "#EEF1F5", "#26C6DA", "#3A4252"],
-	jacket: ["#283A5C", "#6A4BAA", "#C2413C", "#4E6B3A", "#2E3239", "#E07A2A", "#2C8C8C"],
-	hat: ["#1E2A3A", "#2E3239", "#C2413C", "#E9ECF0", "#D9A93A", "#6A4BAA", "#2F7DE1"],
-	legs: ["#3E5A8A", "#3A3F4A", "#B49A6A", "#2A2D34", "#6E7480", "#4B5F7A"],
-};
-/* a random outfit; r() = a 0..1 random source (W.rng for crowds that must match, Math.random for show) */
+/* does an outfit condition hold for a look: all, tee (bare arms), hoodie, jacket, long (long sleeves), cap, beanie,
+   bobble, nohat, or a new outfit piece's id */
+function crowdOn(L, on) {
+	const tee = L.top === "tee" && !L.jacket;
+	return !on || on === "all"
+		? true
+		: on === "tee"
+			? tee
+			: on === "long"
+				? !tee
+				: on === "hoodie"
+					? L.top === "hoodie" && !L.jacket
+					: on === "jacket"
+						? !!L.jacket
+						: on === "bobble"
+							? L.hat === "beanie" && !!L.bobble
+							: on === "nohat"
+								? !L.hat
+								: L.hat === on || !!(L.ex && L.ex[on]);
+}
+/* a colour slot's colour on a look (or a fixed "#hex") */
+const crowdSlot = (L, s) =>
+	({ skin: L.skin, top: L.col, jacket: L.jacket || L.col, hat: L.hatCol, legs: L.legs })[s] || s;
+/* the pieces a look wears: {n: geometry name, c: colour, a: frame (0 body, 1 the +x arm, -1 the -x arm), part, side}.
+   On the -x arm a part uses its mirrored twin "<n>L" when there is one */
+function crowdParts(L) {
+	const D = mdl("crowd"),
+		G = crowdGeo(),
+		tee = L.top === "tee" && !L.jacket,
+		outer = L.jacket || L.col,
+		out = [],
+		put = (n, c) => !(D.x[n] && D.x[n].hide) && out.push({ n, c, a: 0, part: n, side: 1 }),
+		arms = (n, c) =>
+			!(D.x[n] && D.x[n].hide) &&
+			out.push({ n, c, a: 1, part: n, side: 1 }, { n: G[n + "L"] ? n + "L" : n, c, a: -1, part: n, side: -1 });
+	put("head", L.skin);
+	put("legs", L.legs);
+	put("torso", L.col);
+	if (L.top === "hoodie" && !L.jacket) {
+		put("hood", L.col);
+		put("pocket", L.col);
+	}
+	if (L.jacket) ["jkChest", "jkBelly", "jkBack", "jkHood"].forEach((n) => put(n, L.jacket));
+	if (L.hat === "cap" || L.hat === "beanie") put(L.hat, L.hatCol);
+	if (L.hat === "beanie" && L.bobble) put("bobble", L.hatCol);
+	if (tee) {
+		arms("arm", L.skin);
+		arms("sleeve", L.col);
+	} else {
+		arms("longSleeve", outer);
+		arms("hand", L.skin);
+	}
+	D.add.forEach((q) => {
+		if (!G[q.id] || !crowdOn(L, q.on)) return;
+		const c = crowdSlot(L, q.col || (q.shape === "copy" && MDL.crowd.partSlot[q.a.of]) || "top");
+		if (q.fr === "arm") arms(q.id, c);
+		else {
+			put(q.id, c);
+			if (q.mir) out.push({ n: q.id + "L", c, a: 0, part: q.id, side: -1 });
+		}
+	});
+	return out;
+}
+/* a random outfit; r() = a 0..1 random source (W.rng for crowds that must match, Math.random for show). New hats
+   (outfit pieces with hat: true) share the hat roll, other new pieces roll on their own (p = how often) */
 function crowdLook(r) {
-	const pick = (a) => a[Math.floor(r() * a.length) % a.length],
+	const D = mdl("crowd"),
+		P = D.P,
+		C = D.C,
+		pick = (a) => a[Math.floor(r() * a.length) % a.length],
 		u = r(),
 		look = {
-			skin: pick(CROWD_COL.skin),
-			top: r() < 0.5 ? "tee" : "hoodie",
-			col: pick(CROWD_COL.top),
-			legs: pick(CROWD_COL.legs),
-			jacket: r() < 0.25 ? pick(CROWD_COL.jacket) : null,
-			hat: u < 0.25 ? "cap" : u < 0.45 ? "beanie" : null,
-			hatCol: pick(CROWD_COL.hat),
-			bobble: r() < 0.4,
-		};
+			skin: pick(C.skin),
+			top: r() < P.teeP ? "tee" : "hoodie",
+			col: pick(C.top),
+			legs: pick(C.legs),
+			jacket: r() < P.jacketP ? pick(C.jacket) : null,
+			hat: u < P.capP ? "cap" : u < P.capP + P.beanieP ? "beanie" : null,
+			hatCol: pick(C.hat),
+			bobble: r() < P.bobbleP,
+		},
+		outs = Object.keys(D.out);
+	let t = P.capP + P.beanieP;
+	for (const k of outs) {
+		if (look.hat) break;
+		if (D.out[k].hat && u < (t += D.out[k].p)) look.hat = k;
+	}
+	if (outs.some((k) => !D.out[k].hat)) {
+		look.ex = {};
+		outs.forEach((k) => !D.out[k].hat && (look.ex[k] = r() < D.out[k].p));
+	}
 	if (look.jacket) look.top = "tee";
 	return look;
 }
-/* one person as a normal group (previews, a handful of extras); userData.arms = the two shoulder pivots */
+/* one person as a normal group (previews, a handful of extras); userData.arms = the two shoulder pivots. Meshes
+   carry .mdl = their part (and .mdlSide -1 on mirrored copies) for the model editor */
 function crowdPerson(look) {
 	const G = crowdGeo(),
+		P = mdl("crowd").P,
 		g = new THREE.Group(),
-		add = (p, geo, c) => p.add(mesh(geo, c));
-	add(g, G.head, look.skin);
-	add(g, G.legs, look.legs);
-	add(g, look.jacket ? G.inner : G.torso, look.col);
-	if (look.top === "hoodie" && !look.jacket) {
-		add(g, G.hood, look.col);
-		add(g, G.pocket, look.col);
-	}
-	if (look.jacket) add(g, G.jacket, look.jacket);
-	if (look.hat) add(g, G[look.hat], look.hatCol);
-	if (look.hat === "beanie" && look.bobble) add(g, G.bobble, look.hatCol);
-	g.userData.arms = [-1, 1].map((sd) => {
-		const a = new THREE.Group();
-		a.position.set(sd * CROWD_SH[0], CROWD_SH[1], 0);
-		a.rotation.z = sd * CROWD_ARM;
-		if (look.top === "tee" && !look.jacket) {
-			add(a, G.arm, look.skin);
-			add(a, G.sleeve, look.col);
-		} else {
-			add(a, G.longSleeve, look.jacket || look.col);
-			add(a, G.hand, look.skin);
-		}
-		g.add(a);
-		return a;
+		arms = [-1, 1].map((sd) => {
+			const a = new THREE.Group();
+			a.position.set(sd * P.shX, P.shY, 0);
+			a.rotation.z = sd * P.armA;
+			return a;
+		});
+	crowdParts(look).forEach((q) => {
+		const m = mesh(G[q.n], q.c);
+		m.mdl = q.part;
+		if (q.side < 0) m.mdlSide = -1;
+		(q.a ? arms[q.a > 0 ? 1 : 0] : g).add(m);
 	});
+	g.add(...arms);
+	g.userData.arms = arms;
 	return g;
 }
 /* a row of n people for looking at the outfits (rig.mjs) */
@@ -4092,3 +4787,336 @@ function crowdLineup(n = 8, seed = 3) {
 	}
 	return g;
 }
+/* the crowd person in the model editor: part names, slider sections (kinds: cm = metres shown in cm, deg = radians
+   shown in degrees, n = a whole number, x = a multiplier, % = a chance), how to dress the preview */
+Object.assign(MDL, {
+	crowd: {
+		name: "Crowd person",
+		P: CROWD_P,
+		C: CROWD_COL,
+		bake: CROWD_BAKE,
+		reset() {
+			CROWD_G = CROWD_GL = CROWD_F = null;
+		},
+		parts: {
+			head: "Head",
+			legs: "Legs",
+			torso: "Body",
+			hood: "Hood",
+			pocket: "Hoodie pocket",
+			jkChest: "Jacket chest pads",
+			jkBelly: "Jacket belly pads",
+			jkBack: "Jacket back strip",
+			jkHood: "Jacket hood (open)",
+			cap: "Cap",
+			beanie: "Beanie",
+			bobble: "Bobble",
+			arm: "Bare arm",
+			sleeve: "T-shirt sleeve",
+			longSleeve: "Long sleeve",
+			hand: "Hand",
+		},
+		armParts: CROWD_ARMP,
+		/* a copy of a part takes its colour slot and shows with the same outfit */
+		partSlot: {
+			head: "skin",
+			legs: "legs",
+			torso: "top",
+			hood: "top",
+			pocket: "top",
+			jkChest: "jacket",
+			jkBelly: "jacket",
+			jkBack: "jacket",
+			jkHood: "jacket",
+			cap: "hat",
+			beanie: "hat",
+			bobble: "hat",
+			arm: "skin",
+			sleeve: "top",
+			longSleeve: "jacket",
+			hand: "skin",
+		},
+		partOn: {
+			hood: "hoodie",
+			pocket: "hoodie",
+			jkChest: "jacket",
+			jkBelly: "jacket",
+			jkBack: "jacket",
+			jkHood: "jacket",
+			cap: "cap",
+			beanie: "beanie",
+			bobble: "bobble",
+			arm: "tee",
+			sleeve: "tee",
+			longSleeve: "long",
+			hand: "long",
+		},
+		frames: { body: "The body", arm: "An arm (swings with it; both arms get one)" },
+		slots: { skin: "Skin", top: "Top (tee or hoodie)", jacket: "Jacket (or the top)", hat: "Hat", legs: "Trousers" },
+		outfits: {
+			all: "Always",
+			tee: "T-shirt (bare arms)",
+			hoodie: "Hoodie",
+			jacket: "Puffer jacket",
+			long: "Long sleeves (hoodie or jacket)",
+			cap: "Cap",
+			beanie: "Beanie",
+			bobble: "Beanie with a bobble",
+			nohat: "No hat",
+		},
+		ui: [
+			[
+				"Body",
+				["torso"],
+				[
+					["bodyW", "Body width", "cm", 0.15, 0.6],
+					["bodyH", "Body height", "cm", 0.2, 0.7],
+					["bodyD", "Body depth (front to back)", "cm", 0.1, 0.4],
+					["bodyY", "Body height off the ground", "cm", 0.2, 0.6, "Where the middle of the body sits"],
+					["bodyBev", "Body rounded edges", "cm", 0.002, 0.06],
+				],
+			],
+			[
+				"Head",
+				["head"],
+				[
+					["headR", "Head size", "cm", 0.1, 0.32, "The ball's radius"],
+					["headTall", "Head stretch (taller)", "x", 0.7, 1.5],
+					["headY", "Head height", "cm", 0.55, 1, "Where the middle of the head sits; hats and the bobble go with it"],
+					["headSides", "Head facets around", "n", 4, 20, "Fewer = more blocky"],
+					["headRings", "Head facets top to bottom", "n", 3, 14],
+				],
+			],
+			[
+				"Legs",
+				["legs"],
+				[
+					["legW", "Leg width", "cm", 0.04, 0.2],
+					["legH", "Leg length", "cm", 0.06, 0.4],
+					["legD", "Leg depth", "cm", 0.04, 0.25],
+					["legGap", "Leg spacing", "cm", 0.03, 0.16, "From the middle to each leg"],
+					["legBev", "Leg rounded edges", "cm", 0.002, 0.04],
+				],
+			],
+			[
+				"Arms",
+				CROWD_ARMP,
+				[
+					["shX", "Shoulder width", "cm", 0.08, 0.3, "Where the arms hang from, measured from the middle"],
+					["shY", "Shoulder height", "cm", 0.3, 0.7],
+					["armA", "Arm angle", "deg", 0, 2.2, "How far the arms stick out (in the stands they cheer too)"],
+					["armW", "Bare arm width", "cm", 0.03, 0.2],
+					["armH", "Bare arm length", "cm", 0.08, 0.45],
+					["armD", "Bare arm depth", "cm", 0.03, 0.2],
+					["armY", "Bare arm drop", "cm", -0.3, 0.05, "How far below the shoulder the arm's middle hangs"],
+					["slW", "T-shirt sleeve width", "cm", 0.05, 0.25],
+					["slH", "T-shirt sleeve length", "cm", 0.03, 0.3],
+					["slD", "T-shirt sleeve depth", "cm", 0.05, 0.25],
+					["slY", "T-shirt sleeve drop", "cm", -0.2, 0.05],
+					["lsW", "Long sleeve width", "cm", 0.03, 0.2],
+					["lsH", "Long sleeve length", "cm", 0.08, 0.45],
+					["lsD", "Long sleeve depth", "cm", 0.03, 0.2],
+					["lsY", "Long sleeve drop", "cm", -0.3, 0.05],
+					["armBev", "Arm and sleeve rounded edges", "cm", 0.002, 0.04],
+					["handW", "Hand width", "cm", 0.02, 0.15],
+					["handH", "Hand length", "cm", 0.02, 0.15],
+					["handD", "Hand depth", "cm", 0.02, 0.15],
+					["handY", "Hand drop", "cm", -0.4, -0.05, "How far below the shoulder the hand sits"],
+					["handBev", "Hand rounded edges", "cm", 0.002, 0.03],
+				],
+			],
+			[
+				"Hoodie",
+				["hood", "pocket", "jkHood"],
+				[
+					["hoodR", "Hood ring size", "cm", 0.08, 0.22],
+					["hoodT", "Hood thickness", "cm", 0.02, 0.12],
+					["hoodY", "Hood height", "cm", 0.45, 0.75],
+					["hoodDip", "Hood dip at the front", "cm", 0, 0.15],
+					["hoodBack", "Hood rise at the back", "cm", 0, 0.12],
+					["hoodSides", "Hood facets (round the tube)", "n", 3, 10],
+					["hoodSeg", "Hood facets (round the neck)", "n", 6, 24],
+					["pocketW", "Pocket width", "cm", 0.05, 0.32],
+					["pocketH", "Pocket height", "cm", 0.03, 0.25],
+					["pocketD", "Pocket thickness", "cm", 0.01, 0.1],
+					["pocketY", "Pocket height off the ground", "cm", 0.15, 0.5],
+					["pocketZ", "Pocket forward", "cm", -0.2, -0.05, "More negative = further out in front"],
+					["pocketBev", "Pocket rounded edges", "cm", 0.002, 0.03],
+				],
+			],
+			[
+				"Jacket",
+				["jkChest", "jkBelly", "jkBack", "jkHood"],
+				[
+					["jkUpW", "Chest pads: width", "cm", 0.08, 0.25],
+					["jkUpH", "Chest pads: height", "cm", 0.1, 0.35],
+					["jkUpD", "Chest pads: depth", "cm", 0.15, 0.35],
+					["jkUpX", "Chest pads: apart", "cm", 0.04, 0.15, "From the middle to each pad"],
+					["jkUpY", "Chest pads: height off the ground", "cm", 0.3, 0.6],
+					["jkLoW", "Belly pads: width", "cm", 0.08, 0.25],
+					["jkLoH", "Belly pads: height", "cm", 0.1, 0.35],
+					["jkLoD", "Belly pads: depth", "cm", 0.15, 0.35],
+					["jkLoX", "Belly pads: apart", "cm", 0.04, 0.15],
+					["jkLoY", "Belly pads: height off the ground", "cm", 0.15, 0.45],
+					["jkBev", "Jacket rounded edges", "cm", 0.005, 0.06, "Bigger = puffier"],
+					["jkBackW", "Back strip width", "cm", 0.02, 0.2],
+					["jkBackH", "Back strip height", "cm", 0.2, 0.6],
+					["jkBackD", "Back strip depth", "cm", 0.02, 0.15],
+					["jkBackZ", "Back strip back", "cm", 0.03, 0.15],
+					["jkGap", "Collar opening", "deg", 0.1, 1.6, "How wide the jacket's hood is open at the front"],
+				],
+			],
+			[
+				"Cap",
+				["cap"],
+				[
+					["capR", "Cap size", "cm", 0.15, 0.32],
+					["capTall", "Cap stretch (taller)", "x", 0.7, 1.5],
+					["capDeep", "Cap reaches down", "%", 0.3, 0.8, "How far down the head the crown goes"],
+					["visorTilt", "Visor tilt", "deg", -0.3, 1, "How much it points down"],
+					["visorL", "Visor length", "x", 0.4, 2],
+					["visorW", "Visor width", "x", 0.5, 1.6],
+					["visorT", "Visor thickness", "cm", 0.01, 0.08],
+					["visorZ", "Visor forward", "cm", 0, 0.2],
+				],
+			],
+			[
+				"Beanie",
+				["beanie", "bobble"],
+				[
+					["beanieW", "Beanie width", "x", 0.8, 1.3],
+					["beanieH", "Beanie height", "x", 0.6, 1.8],
+					["bobR", "Bobble size", "cm", 0.02, 0.12],
+					["bobY", "Bobble height", "cm", 0.2, 0.5, "Above the head's middle"],
+				],
+			],
+			[
+				"Outfit mix",
+				[],
+				[
+					["teeP", "T-shirts (the rest wear hoodies)", "%", 0, 1],
+					["jacketP", "Puffer jackets", "%", 0, 1],
+					["capP", "Caps", "%", 0, 1],
+					["beanieP", "Beanies", "%", 0, 1, "Caps + beanies + new hats can't go over 100%"],
+					["bobbleP", "Bobbles on beanies", "%", 0, 1],
+				],
+			],
+		],
+		cols: { skin: "Skin", top: "Tops", jacket: "Jackets", hat: "Hats", legs: "Trousers" },
+		/* the editor's preview: dress = the outfit picked in its panel */
+		dress0: { top: "hoodie", jk: false, hat: "none", bobble: true, skin: 0, col: 1, legs: 0, jkc: 0, hatc: 2, ex: {} },
+		dressUI(D) {
+			const hats = Object.keys(D.out).filter((k) => D.out[k].hat),
+				ex = Object.keys(D.out).filter((k) => !D.out[k].hat);
+			return [
+				[
+					"top",
+					"Top",
+					[
+						["tee", "T-shirt"],
+						["hoodie", "Hoodie"],
+					],
+				],
+				["jk", "Puffer jacket", "bool"],
+				[
+					"hat",
+					"Hat",
+					[
+						["none", "None"],
+						["cap", "Cap"],
+						["beanie", "Beanie"],
+					].concat(hats.map((k) => [k, D.out[k].name])),
+				],
+				["bobble", "Bobble on the beanie", "bool"],
+				...ex.map((k) => ["ex." + k, D.out[k].name, "bool"]),
+				["skin", "Skin", "pal:skin"],
+				["col", "Top colour", "pal:top"],
+				["jkc", "Jacket colour", "pal:jacket"],
+				["hatc", "Hat colour", "pal:hat"],
+				["legs", "Trousers", "pal:legs"],
+			];
+		},
+		look(d) {
+			const C = mdl("crowd").C,
+				at = (a, i) => a[i % a.length];
+			return {
+				skin: at(C.skin, d.skin),
+				top: d.top,
+				col: at(C.top, d.col),
+				legs: at(C.legs, d.legs),
+				jacket: d.jk ? at(C.jacket, d.jkc) : null,
+				hat: d.hat === "none" ? null : d.hat,
+				hatCol: at(C.hat, d.hatc),
+				bobble: !!d.bobble,
+				ex: Object.assign({}, d.ex),
+			};
+		},
+		/* the outfit that shows a part (a part name or an outfit condition) */
+		need(k) {
+			const o = mdl("crowd").out[k];
+			return (
+				{
+					jacket: { jk: true },
+					jkChest: { jk: true },
+					jkBelly: { jk: true },
+					jkBack: { jk: true },
+					jkHood: { jk: true },
+					hood: { jk: false, top: "hoodie" },
+					pocket: { jk: false, top: "hoodie" },
+					hoodie: { jk: false, top: "hoodie" },
+					cap: { hat: "cap" },
+					beanie: { hat: "beanie" },
+					bobble: { hat: "beanie", bobble: true },
+					arm: { jk: false, top: "tee" },
+					sleeve: { jk: false, top: "tee" },
+					tee: { jk: false, top: "tee" },
+					longSleeve: { top: "hoodie" },
+					hand: { top: "hoodie" },
+					long: { top: "hoodie" },
+					nohat: { hat: "none" },
+				}[k] || (o ? (o.hat ? { hat: k } : { ex: { [k]: true } }) : {})
+			);
+		},
+		build(look) {
+			const g = crowdPerson(look);
+			return { g, frames: { body: g, arm: g.userData.arms[1], armL: g.userData.arms[0] } };
+		},
+		variants(seed) {
+			const g = crowdLineup(8, seed);
+			g.children.forEach((p, i) => (p.rotation.y = (i - 3.5) * 0.08));
+			return g;
+		},
+		/* a little stand of people drawn the way the games draw them (instanced: crowdMeshes / crowdStep) */
+		stand(s) {
+			const g = new THREE.Group(),
+				ppl = [],
+				W0 = { sc: g, t: 0 };
+			for (let row = 0; row < 5; row++) {
+				g.add(B(14, (row + 1) * 0.4, 1.1, "#B9C0CC", 0, (row + 1) * 0.2, row * 1.1));
+				for (let i = 0; i < 14; i++)
+					ppl.push({
+						x: -6.4 + i * 0.95 + (row % 2) * 0.4,
+						y: row * 0.4 + 0.4,
+						z: row * 1.1,
+						ph: i * 1.7 + row,
+						sp: 2 + ((i * 7 + row) % 5) * 0.3,
+						face: Math.PI,
+					});
+			}
+			crowdMeshes(W0, ppl);
+			s.add(g);
+			return {
+				g,
+				step(t) {
+					W0.t = t;
+					crowdStep(W0, null, 0.6 + 0.4 * Math.sin(t * 0.5));
+				},
+			};
+		},
+		spawn: { body: [0, 0.45, -0.32], arm: [0, -0.18, 0] },
+		view: { y: 0.5, d: 3.1 },
+		offLabel: "not worn",
+		slotDefault: "top",
+		onDefault: "all",
+	},
+});

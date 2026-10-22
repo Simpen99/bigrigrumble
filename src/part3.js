@@ -398,7 +398,17 @@ function render() {
 	GFX.ctl = ctlr;
 	if (!ctlr && GFX.peek) togglePeek(false);
 	if (GFX.ok) {
-		setMode(GFX.mode === "edit" ? "edit" : W ? "mg" : v === "game" ? "board" : v === "over" ? "podium" : "show");
+		setMode(
+			GFX.mode === "edit" || GFX.mode === "medit"
+				? GFX.mode
+				: W
+					? "mg"
+					: v === "game"
+						? "board"
+						: v === "over"
+							? "podium"
+							: "show",
+		);
 		if (v === "home" || v === "join" || v === "waiting" || v === "practice") setShowroom([me.truck]);
 		else if (v === "lobby" && G) setShowroom(G.players.map((p) => p.truck));
 		else if (v === "over" && G) setPodium(standings(G.players).slice(0, 3));

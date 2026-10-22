@@ -203,38 +203,21 @@ function grandstands(W, wid, z0, z1) {
 	crowdMeshes(W, ppl);
 }
 /* stand-ins for spectators far down a long stand (a few pixels tall there): faceted head, block body, legs, arms and
-   hat in the same colours, ~80 triangles instead of ~400; and boxes for the near crowd's small parts */
+   hat in the same colours, ~80 triangles instead of ~400. Sized from CROWD_P (no part moves or new parts: too small
+   to see) */
 let CROWD_F = null;
 function crowdFar() {
 	if (CROWD_F) return CROWD_F;
-	const H = CROWD_HEAD,
+	const P = mdl("crowd").P,
+		H = P.headY,
+		k = P.headR / 0.2,
 		ico = (r, sy, y) => new THREE.IcosahedronGeometry(r, 0).scale(1, sy, 1).translate(0, y, 0);
 	return (CROWD_F = {
-		fHead: ico(0.2, 1.06, H),
-		fBody: new THREE.BoxGeometry(0.336, 0.42, 0.233).translate(0, 0.36, 0),
-		fLegs: new THREE.BoxGeometry(0.28, 0.17, 0.12).translate(0, 0.085, 0),
-		fHat: ico(0.22, 0.65, H + 0.11),
-		fArm: new THREE.BoxGeometry(0.1, 0.27, 0.11).translate(0, -0.105, 0),
-		/* near crowd: crowdGeo's small parts as plain boxes (a 2 cm bevel on a limb doesn't show at crowd distance, and
-		   costs 60 triangles instead of 12) */
-		legs: (() => {
-			const g = new THREE.BoxGeometry(0.11, 0.17, 0.12).toNonIndexed(),
-				a = g.attributes.position.array,
-				b = new Float32Array(a.length * 2);
-			for (let i = 0; i < a.length; i += 3) {
-				b.set([a[i] - 0.085, a[i + 1] + 0.085, a[i + 2]], i);
-				b.set([a[i] + 0.085, a[i + 1] + 0.085, a[i + 2]], a.length + i);
-			}
-			const l = new THREE.BufferGeometry();
-			l.setAttribute("position", new THREE.BufferAttribute(b, 3));
-			l.computeVertexNormals();
-			return l;
-		})(),
-		pocket: new THREE.BoxGeometry(0.2, 0.12, 0.05).translate(0, 0.26, -0.124),
-		arm: new THREE.BoxGeometry(0.1, 0.26, 0.11).translate(0, -0.1, 0),
-		sleeve: new THREE.BoxGeometry(0.13, 0.12, 0.14).translate(0, -0.02, 0),
-		longSleeve: new THREE.BoxGeometry(0.1, 0.23, 0.11).translate(0, -0.085, 0),
-		hand: new THREE.BoxGeometry(0.075, 0.06, 0.08).translate(0, -0.215, 0),
+		fHead: ico(P.headR, P.headTall, H),
+		fBody: new THREE.BoxGeometry(P.bodyW, P.bodyH, P.bodyD).translate(0, P.bodyY, 0),
+		fLegs: new THREE.BoxGeometry(P.legGap * 2 + P.legW, P.legH, P.legD).translate(0, P.legH / 2, 0),
+		fHat: ico(0.22 * k, 0.65, H + 0.11 * k),
+		fArm: new THREE.BoxGeometry(P.armW, 0.27 * (P.armH / 0.26), P.armD).translate(0, -0.105 * (P.armY / -0.1), 0),
 	});
 }
 /* drop spectators standing closer than d m to one already kept on the same level (arms out, they'd clip) */
@@ -261,7 +244,7 @@ function crowdMeshes(W, ppl) {
 	   focus draw as crowdFar's stand-ins. Looks are cosmetic: a local seed. */
 	ppl = crowdSpace(ppl, 0.95);
 	const s = W.sc,
-		G = Object.assign({}, crowdGeo(), crowdFar()),
+		G = Object.assign({}, crowdGeo(true), crowdFar()),
 		r = mulberry(ppl.length * 31 + 7),
 		mat = new THREE.MeshStandardMaterial({ flatShading: true, roughness: 0.8 }),
 		LODZ = 45,
@@ -272,29 +255,21 @@ function crowdMeshes(W, ppl) {
 		const L = crowdLook(r),
 			tee = L.top === "tee" && !L.jacket,
 			outer = L.jacket || L.col,
-			near = [
-				["head", L.skin],
-				["legs", L.legs],
-				[L.jacket ? "inner" : "torso", L.col],
-			],
+			near = crowdParts(L).map((e) => [e.n, e.c, e.a]),
 			far = [
 				["fHead", L.skin],
 				["fLegs", L.legs],
 				["fBody", outer],
 				["fArm", tee ? L.skin : outer, 1],
+				["fArm", tee ? L.skin : outer, -1],
 			];
-		if (L.top === "hoodie" && !L.jacket) near.push(["hood", L.col], ["pocket", L.col]);
-		if (L.jacket) near.push(["jacket", L.jacket]);
-		if (L.hat) near.push([L.hat, L.hatCol]) && far.push(["fHat", L.hatCol]);
-		if (L.hat === "beanie" && L.bobble) near.push(["bobble", L.hatCol]);
-		if (tee) near.push(["arm", L.skin, 1], ["sleeve", L.col, 1]);
-		else near.push(["longSleeve", outer, 1], ["hand", L.skin, 1]);
+		if (L.hat) far.push(["fHat", L.hatCol]);
 		q.yaw = (q.face !== undefined ? q.face : (-q.sd * Math.PI) / 2) + Math.PI;
 		q.parts = [near, lod ? far : null];
 		[near, lod ? far : []].forEach((l) =>
 			l.forEach((e) => {
 				e[1] = new THREE.Color(e[1]);
-				cap[e[0]] = (cap[e[0]] || 0) + (e[2] ? 2 : 1);
+				cap[e[0]] = (cap[e[0]] || 0) + 1;
 			}),
 		);
 	});
@@ -327,29 +302,28 @@ function crowdStep(W, focusZ, hype) {
 	const o = C.o,
 		ta = C.ta,
 		mb = C.mb,
-		t = W.t;
+		t = W.t,
+		P = mdl("crowd").P;
 	C.meshes.forEach((m) => (m.count = 0));
 	C.ppl.forEach((q) => {
 		const dz = focusZ === null ? 0 : Math.abs(q.z - focusZ),
 			near = focusZ === null ? 0.7 : Math.max(0, 1 - dz / 45),
 			ex = Math.min(1, 0.15 + near * (0.35 + hype * 0.65)),
 			j = Math.abs(Math.sin(t * q.sp + q.ph)) * 0.32 * ex,
-			up = ex > 0.45 ? 2.6 + Math.sin(t * q.sp * 0.8 + q.ph) * 0.45 : CROWD_ARM + j * 0.6;
+			up = ex > 0.45 ? 2.6 + Math.sin(t * q.sp * 0.8 + q.ph) * 0.45 : P.armA + j * 0.6;
 		o.rotation.set(0, q.yaw, 0);
 		o.position.set(q.x, q.y + j, q.z);
 		o.updateMatrix();
 		mb.copy(o.matrix);
 		[-1, 1].forEach((sd, k) => {
-			ta.makeRotationZ(sd * up).setPosition(sd * CROWD_SH[0], CROWD_SH[1], 0);
+			ta.makeRotationZ(sd * up).setPosition(sd * P.shX, P.shY, 0);
 			C.ma[k].multiplyMatrices(mb, ta);
 		});
-		q.parts[C.lod && dz > C.lod ? 1 : 0].forEach(([m, col, arm]) =>
-			(arm ? C.ma : [mb]).forEach((mx) => {
-				const n = m.count++;
-				m.instanceMatrix.array.set(mx.elements, n * 16);
-				col.toArray(m.instanceColor.array, n * 3);
-			}),
-		);
+		q.parts[C.lod && dz > C.lod ? 1 : 0].forEach(([m, col, arm]) => {
+			const n = m.count++;
+			m.instanceMatrix.array.set((arm ? C.ma[arm > 0 ? 1 : 0] : mb).elements, n * 16);
+			col.toArray(m.instanceColor.array, n * 3);
+		});
 	});
 	C.meshes.forEach((m) => (m.instanceMatrix.needsUpdate = m.instanceColor.needsUpdate = true));
 }
