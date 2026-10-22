@@ -384,6 +384,7 @@ function render() {
 	{
 		const tvp = role === "client" && !!G && !!G.tv && !SCREEN;
 		document.body.classList.toggle("tvphone", tvp);
+		sfxQuiet(tvp);
 		if (tvp && !document.getElementById("rotov")) {
 			const o = document.createElement("div");
 			o.id = "rotov";
@@ -780,9 +781,11 @@ function tvLobbyHTML() {
 /* ---------- game view ---------- */
 function buildGame() {
 	$("#app").innerHTML =
-		`<div class="pstrip" id="pstrip"></div><div class="pstrip bot" id="pstripb"></div><div class="dpick" id="dpick" hidden></div><div class="hudtop"><span class="chip" id="rnd"></span><span class="chip grow" id="turnchip"></span><button class="chip" data-a="snd" aria-label="Sound levels">${SFX.on ? "🔊" : "🔇"}</button><button class="chip" data-a="cam" id="cambtn">Board</button><button class="chip" data-a="peek" id="peekbtn">${GFX.peek ? "🎮 Controls" : "🗺 Board"}</button><button class="chip" data-a="${role === "host" ? "endask" : "leave"}" aria-label="Leave game">✕</button></div>
+		`<div class="pstrip" id="pstrip"></div><div class="pstrip bot" id="pstripb"></div><div class="dpick" id="dpick" hidden></div><div class="ctlpick" id="ctlpick" hidden></div><div class="hudtop"><span class="chip" id="rnd"></span><span class="chip grow" id="turnchip"></span><button class="chip" data-a="snd" aria-label="Sound levels">${SFX.on ? "🔊" : "🔇"}</button><button class="chip" data-a="cam" id="cambtn">Board</button><button class="chip" data-a="peek" id="peekbtn">${GFX.peek ? "🎮 Controls" : "🗺 Board"}</button><button class="chip" data-a="${role === "host" ? "endask" : "leave"}" aria-label="Leave game">✕</button></div>
   <div class="hudbot" id="hudbot"><div id="hostgone"></div><div id="ctlme"></div><div class="hcard"><div class="msg"><i></i><span id="msg" aria-live="polite"></span></div><div id="panel"></div></div></div>`;
-	render.lastPanel = render.lastStrip = render.lastMe = render.lastPick = null;
+	render.lastPanel = render.lastStrip = render.lastMe = render.lastPick = render.lastCtlPick = null;
+	document.body.classList.remove("ctlpk");
+	wireCtlPick($("#ctlpick"));
 	/* portrait: the top panels sit under the top chips, so the roll label goes below them (--psh), and the bottom ones ride on the card (--hbh) */
 	if (window.ResizeObserver) {
 		const ro = (el, v) =>
@@ -809,15 +812,15 @@ function togglePeek(on) {
 function ctlMeHTML() {
 	const p = G.players.find((x) => x.key === me.key);
 	if (!p) return "";
-	const rank = standings(G.players).indexOf(p) + 1,
-		c = G.players[G.turn];
-	const mine =
-		(G.phase === "turn" && c === p) ||
-		(G.phase === "fork" && G.fork && G.fork.pid === p.key) ||
-		(G.phase === "shop" && G.shop && G.shop.pid === p.key) ||
-		(G.phase === "buy" && G.buy && G.buy.pid === p.key) ||
-		(G.phase === "duelpick" && G.duelPick && G.duelPick.pid === p.key);
-	return `<div class="ctlcard ${mine ? "now" : ""}">${pcardHTML(p, mine, { rank: G.teams ? 0 : rank })}</div>${mine ? "" : `<div class="ctlidle">📺 Watch the TV</div>`}`;
+	const c = G.players[G.turn],
+		mine =
+			(G.phase === "turn" && c === p) ||
+			(G.phase === "fork" && G.fork && G.fork.pid === p.key) ||
+			(G.phase === "shop" && G.shop && G.shop.pid === p.key) ||
+			(G.phase === "buy" && G.buy && G.buy.pid === p.key) ||
+			(G.phase === "duelpick" && G.duelPick && G.duelPick.pid === p.key);
+	/* your move: the card (or the pad, ctlPickHTML) has the controls; the board panels are on the TV */
+	return mine ? `<i class="ctlnow" hidden></i>` : `<div class="ctlidle">📺 Watch the TV</div>`;
 }
 const ordinal = (n) =>
 	n +
@@ -859,7 +862,7 @@ function updateGame() {
 			: "";
 	if (GFX.ctl) {
 		const h = ctlMeHTML(),
-			mine = h.includes("ctlcard now");
+			mine = h.includes("ctlnow");
 		if (h !== render.lastMe) {
 			render.lastMe = h;
 			$("#ctlme").innerHTML = h;
@@ -892,6 +895,15 @@ function updateGame() {
 			render.lastPick = h;
 			el.innerHTML = h;
 			el.hidden = !h;
+		}
+		/* TV controller: the pad (left flips, right rolls / uses) in place of the card */
+		const cp = $("#ctlpick"),
+			ch = pk && pk.mine && GFX.ctl && !G.test ? ctlPickHTML(pk) : "";
+		if (ch !== render.lastCtlPick) {
+			render.lastCtlPick = ch;
+			cp.innerHTML = ch;
+			cp.hidden = !ch;
+			document.body.classList.toggle("ctlpk", !!ch);
 		}
 	}
 	const st = stripHTML();

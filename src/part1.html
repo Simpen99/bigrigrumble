@@ -686,6 +686,17 @@ body.ctl #gl{display:none}
 #peekbtn{display:none}body.ctl #peekbtn{display:inline-block}body.ctl.peek #gl{display:block}body.ctl.peek .hudbot{display:none}body.ctl.peek{background:#9FD4F5}
 body.ctl .hudbot{top:calc(env(safe-area-inset-top,0px) + 58px);display:flex;flex-direction:column;justify-content:flex-end;gap:12px}
 body.ctl .pstrip,body.ctl #cambtn,body.ctl.mglive .hudbot,body.ctl.mgres .hudbot{display:none}
+/* TV controller: the round, status and your panel are on the TV, and so is the sound */
+body.ctl #rnd,body.ctl #turnchip,body.ctl .hudtop [data-a="snd"],body.ctl #ctlme:has(.ctlnow){display:none}
+body.ctl .hudtop{justify-content:flex-end;max-width:none}
+/* TV controller on your roll (ctlPickHTML): the left side flips through the dice and items, the right side rolls / uses */
+.ctlpick{position:fixed;inset:0;z-index:4;display:flex;touch-action:none;-webkit-user-select:none;user-select:none}
+.ctlpick[hidden],body.ctl.peek .ctlpick,body.ctl.ctlpk .hudbot{display:none}
+.cp-pad{position:relative;flex:0 0 58%;border-right:2px dashed rgba(255,255,255,.12)}
+.cp-pad .tvchint{top:46%;font-size:17px}
+.cp-go{flex:1;border:0;border-radius:0;padding:0;color:#fff;font:400 40px/1 var(--display);letter-spacing:1px;text-shadow:0 3px 0 rgba(0,0,0,.25);background:linear-gradient(160deg,#F0686C,#C7343A);box-shadow:inset 4px 0 0 rgba(0,0,0,.22);-webkit-tap-highlight-color:transparent}
+.cp-go.use{background:linear-gradient(160deg,#FFC24A,#E0700F)}
+.cp-go:active,.cp-go:disabled{filter:brightness(.8)}
 body.ctl .hcard{max-height:100%;overflow-y:auto}
 .ctlcard{width:100%;max-width:360px;margin:0 auto}
 .ctlcard.now .pc{animation:ctlPulse 1.2s ease-in-out infinite alternate}

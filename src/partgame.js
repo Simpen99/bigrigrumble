@@ -1778,8 +1778,9 @@ function panelHTML() {
 			}
 			return `<div class="pan"><h3>${it.icon} Golden Die: pick your roll</h3>${factoryHint(c)}<div class="numgrid">${[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((v) => `<button class="numb" data-ival="${v}">${v}</button>`).join("")}</div>${cancel}</div>`;
 		}
-		/* the dice and the bag's items float over the truck (pickNow); flat in the card on a TV controller or without 3D */
-		const pk = (GFX.ctl || !GFX.ok) && pickNow();
+		/* the dice and the bag's items float over the truck (pickNow); flat in the card without 3D, a pad on a TV controller
+		   (ctlPickHTML; test mode keeps the card for its buttons) */
+		const pk = ((!GFX.ok && !GFX.ctl) || (GFX.ctl && G.test)) && pickNow();
 		return `<div class="pan">${c.local || hasLocal ? `<h3>${head}</h3>` : ""}${used ? `<p class="panhint">Item used. Now roll!</p>` : factoryHint(c)}${pk ? `<div class="dpick flat">${pickHTML(pk)}</div>` : ""}${G.test ? testHTML(c) : ""}</div>`;
 	}
 	if (G.phase === "fork" && G.fork && ctrl(P_(G.fork.pid))) {
@@ -1996,6 +1997,44 @@ function pickHTML(s) {
 			? `<b>${ITEMS[d.item].icon} ${esc(d.name)}</b><small>${esc(d.desc)}</small>`
 			: `<b>${esc(d.name)}</b>`;
 	return `<button class="mm-arr l" data-dstep="-1" aria-label="Previous"></button>${tap}<button class="mm-arr r" data-dstep="1" aria-label="Next"></button><div class="dp-info${d.item ? " it" : ""}">${info}</div>`;
+}
+/* TV controller on your roll (#ctlpick, laid out like the minigame controllers; the TV shows the die or item): the left side
+   flips through them (swipe left = next, right = back, a tap = next), the right side is one big button that rolls the die
+   or uses the item */
+function ctlPickHTML(s) {
+	const d = s.dice[s.i];
+	return `<div class="cp-pad"><span class="tvchint">Swipe to choose</span><div class="swl sw-l" style="--bc:#FFC83D"><i>◀</i></div><div class="swl sw-r" style="--bc:#FFC83D"><i>▶</i></div></div>${
+		d.item
+			? `<button class="cp-go use" data-item="${d.idx}">USE</button>`
+			: `<button class="cp-go" data-roll="${d.k}" data-for="${esc(s.p.key)}">ROLL</button>`
+	}`;
+}
+function wireCtlPick(el) {
+	const st = new Map(),
+		step = (dir) => {
+			pickStep(dir);
+			const l = el.querySelector(dir > 0 ? ".sw-r" : ".sw-l");
+			if (!l) return;
+			l.classList.remove("on");
+			void l.offsetWidth;
+			l.classList.add("on");
+		};
+	el.addEventListener("pointerdown", (e) => {
+		if (!e.target.closest(".cp-pad")) return;
+		e.preventDefault();
+		st.set(e.pointerId, [e.clientX, e.clientY]);
+	});
+	el.addEventListener("pointermove", (e) => {
+		const s = st.get(e.pointerId);
+		if (!s || Math.abs(e.clientX - s[0]) < 24) return;
+		st.set(e.pointerId, null);
+		step(e.clientX < s[0] ? 1 : -1);
+	});
+	el.addEventListener("pointerup", (e) => {
+		if (st.get(e.pointerId)) step(1);
+		st.delete(e.pointerId);
+	});
+	el.addEventListener("pointercancel", (e) => st.delete(e.pointerId));
 }
 /* the board's player panels, one in every corner (Mario Party style): players alternate left / right (teams: one side each, its
    totals on top), the first half of a side in its top corner, the rest in its bottom corner; right-hand panels are mirrored.

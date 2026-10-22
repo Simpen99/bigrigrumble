@@ -126,7 +126,7 @@ function stepParts(scene, dt) {
 const DUST = ["#D8CBB0", "#C9BC9F", "#EDE3CF"];
 
 /* ---------- sound (synthesised, no files) ---------- */
-const SFX = { ctx: null, on: LS.get("trp_snd", true) };
+const SFX = { ctx: null, on: LS.get("trp_snd", true), quiet: false };
 /* the player's levels 0..1: music m, sound effects s (localStorage trp_vol; the 🔊 chip and the start page set them) */
 const VOL = Object.assign({ m: 1, s: 1 }, LS.get("trp_vol", {}));
 function sfxInit() {
@@ -148,6 +148,16 @@ function sfxInit() {
 	} catch (e) {
 		SFX.ctx = null;
 	}
+}
+/* phones in a TV game (controllers) stay silent: the big screen plays the music and the sound */
+function sfxQuiet(on) {
+	if (!SFX.ctx || SFX.quiet === on) return;
+	SFX.quiet = on;
+	const g = SFX.out.gain,
+		t = SFX.ctx.currentTime;
+	g.cancelScheduledValues(t);
+	g.setValueAtTime(g.value, t);
+	g.linearRampToValueAtTime(on ? 0 : 0.32, t + 0.06);
 }
 /* the audio engine is made at load (paused until the first tap resumes it): making it on the tap that starts the sound
    knocked about half the time on iPhone Safari */

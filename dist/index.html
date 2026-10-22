@@ -686,6 +686,17 @@ body.ctl #gl{display:none}
 #peekbtn{display:none}body.ctl #peekbtn{display:inline-block}body.ctl.peek #gl{display:block}body.ctl.peek .hudbot{display:none}body.ctl.peek{background:#9FD4F5}
 body.ctl .hudbot{top:calc(env(safe-area-inset-top,0px) + 58px);display:flex;flex-direction:column;justify-content:flex-end;gap:12px}
 body.ctl .pstrip,body.ctl #cambtn,body.ctl.mglive .hudbot,body.ctl.mgres .hudbot{display:none}
+/* TV controller: the round, status and your panel are on the TV, and so is the sound */
+body.ctl #rnd,body.ctl #turnchip,body.ctl .hudtop [data-a="snd"],body.ctl #ctlme:has(.ctlnow){display:none}
+body.ctl .hudtop{justify-content:flex-end;max-width:none}
+/* TV controller on your roll (ctlPickHTML): the left side flips through the dice and items, the right side rolls / uses */
+.ctlpick{position:fixed;inset:0;z-index:4;display:flex;touch-action:none;-webkit-user-select:none;user-select:none}
+.ctlpick[hidden],body.ctl.peek .ctlpick,body.ctl.ctlpk .hudbot{display:none}
+.cp-pad{position:relative;flex:0 0 58%;border-right:2px dashed rgba(255,255,255,.12)}
+.cp-pad .tvchint{top:46%;font-size:17px}
+.cp-go{flex:1;border:0;border-radius:0;padding:0;color:#fff;font:400 40px/1 var(--display);letter-spacing:1px;text-shadow:0 3px 0 rgba(0,0,0,.25);background:linear-gradient(160deg,#F0686C,#C7343A);box-shadow:inset 4px 0 0 rgba(0,0,0,.22);-webkit-tap-highlight-color:transparent}
+.cp-go.use{background:linear-gradient(160deg,#FFC24A,#E0700F)}
+.cp-go:active,.cp-go:disabled{filter:brightness(.8)}
 body.ctl .hcard{max-height:100%;overflow-y:auto}
 .ctlcard{width:100%;max-width:360px;margin:0 auto}
 .ctlcard.now .pc{animation:ctlPulse 1.2s ease-in-out infinite alternate}
@@ -1019,7 +1030,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-22 18:37 e3c566f";
+const BUILD = "2026-10-22 19:05 f7df03b";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -8601,7 +8612,7 @@ function stepParts(scene, dt) {
 const DUST = ["#D8CBB0", "#C9BC9F", "#EDE3CF"];
 
 /* ---------- sound (synthesised, no files) ---------- */
-const SFX = { ctx: null, on: LS.get("trp_snd", true) };
+const SFX = { ctx: null, on: LS.get("trp_snd", true), quiet: false };
 /* the player's levels 0..1: music m, sound effects s (localStorage trp_vol; the 🔊 chip and the start page set them) */
 const VOL = Object.assign({ m: 1, s: 1 }, LS.get("trp_vol", {}));
 function sfxInit() {
@@ -8623,6 +8634,16 @@ function sfxInit() {
 	} catch (e) {
 		SFX.ctx = null;
 	}
+}
+/* phones in a TV game (controllers) stay silent: the big screen plays the music and the sound */
+function sfxQuiet(on) {
+	if (!SFX.ctx || SFX.quiet === on) return;
+	SFX.quiet = on;
+	const g = SFX.out.gain,
+		t = SFX.ctx.currentTime;
+	g.cancelScheduledValues(t);
+	g.setValueAtTime(g.value, t);
+	g.linearRampToValueAtTime(on ? 0 : 0.32, t + 0.06);
 }
 /* the audio engine is made at load (paused until the first tap resumes it): making it on the tap that starts the sound
    knocked about half the time on iPhone Safari */
@@ -11228,6 +11249,7 @@ function render() {
 	{
 		const tvp = role === "client" && !!G && !!G.tv && !SCREEN;
 		document.body.classList.toggle("tvphone", tvp);
+		sfxQuiet(tvp);
 		if (tvp && !document.getElementById("rotov")) {
 			const o = document.createElement("div");
 			o.id = "rotov";
@@ -11624,9 +11646,11 @@ function tvLobbyHTML() {
 /* ---------- game view ---------- */
 function buildGame() {
 	$("#app").innerHTML =
-		`<div class="pstrip" id="pstrip"></div><div class="pstrip bot" id="pstripb"></div><div class="dpick" id="dpick" hidden></div><div class="hudtop"><span class="chip" id="rnd"></span><span class="chip grow" id="turnchip"></span><button class="chip" data-a="snd" aria-label="Sound levels">${SFX.on ? "🔊" : "🔇"}</button><button class="chip" data-a="cam" id="cambtn">Board</button><button class="chip" data-a="peek" id="peekbtn">${GFX.peek ? "🎮 Controls" : "🗺 Board"}</button><button class="chip" data-a="${role === "host" ? "endask" : "leave"}" aria-label="Leave game">✕</button></div>
+		`<div class="pstrip" id="pstrip"></div><div class="pstrip bot" id="pstripb"></div><div class="dpick" id="dpick" hidden></div><div class="ctlpick" id="ctlpick" hidden></div><div class="hudtop"><span class="chip" id="rnd"></span><span class="chip grow" id="turnchip"></span><button class="chip" data-a="snd" aria-label="Sound levels">${SFX.on ? "🔊" : "🔇"}</button><button class="chip" data-a="cam" id="cambtn">Board</button><button class="chip" data-a="peek" id="peekbtn">${GFX.peek ? "🎮 Controls" : "🗺 Board"}</button><button class="chip" data-a="${role === "host" ? "endask" : "leave"}" aria-label="Leave game">✕</button></div>
   <div class="hudbot" id="hudbot"><div id="hostgone"></div><div id="ctlme"></div><div class="hcard"><div class="msg"><i></i><span id="msg" aria-live="polite"></span></div><div id="panel"></div></div></div>`;
-	render.lastPanel = render.lastStrip = render.lastMe = render.lastPick = null;
+	render.lastPanel = render.lastStrip = render.lastMe = render.lastPick = render.lastCtlPick = null;
+	document.body.classList.remove("ctlpk");
+	wireCtlPick($("#ctlpick"));
 	/* portrait: the top panels sit under the top chips, so the roll label goes below them (--psh), and the bottom ones ride on the card (--hbh) */
 	if (window.ResizeObserver) {
 		const ro = (el, v) =>
@@ -11653,15 +11677,15 @@ function togglePeek(on) {
 function ctlMeHTML() {
 	const p = G.players.find((x) => x.key === me.key);
 	if (!p) return "";
-	const rank = standings(G.players).indexOf(p) + 1,
-		c = G.players[G.turn];
-	const mine =
-		(G.phase === "turn" && c === p) ||
-		(G.phase === "fork" && G.fork && G.fork.pid === p.key) ||
-		(G.phase === "shop" && G.shop && G.shop.pid === p.key) ||
-		(G.phase === "buy" && G.buy && G.buy.pid === p.key) ||
-		(G.phase === "duelpick" && G.duelPick && G.duelPick.pid === p.key);
-	return `<div class="ctlcard ${mine ? "now" : ""}">${pcardHTML(p, mine, { rank: G.teams ? 0 : rank })}</div>${mine ? "" : `<div class="ctlidle">📺 Watch the TV</div>`}`;
+	const c = G.players[G.turn],
+		mine =
+			(G.phase === "turn" && c === p) ||
+			(G.phase === "fork" && G.fork && G.fork.pid === p.key) ||
+			(G.phase === "shop" && G.shop && G.shop.pid === p.key) ||
+			(G.phase === "buy" && G.buy && G.buy.pid === p.key) ||
+			(G.phase === "duelpick" && G.duelPick && G.duelPick.pid === p.key);
+	/* your move: the card (or the pad, ctlPickHTML) has the controls; the board panels are on the TV */
+	return mine ? `<i class="ctlnow" hidden></i>` : `<div class="ctlidle">📺 Watch the TV</div>`;
 }
 const ordinal = (n) =>
 	n +
@@ -11703,7 +11727,7 @@ function updateGame() {
 			: "";
 	if (GFX.ctl) {
 		const h = ctlMeHTML(),
-			mine = h.includes("ctlcard now");
+			mine = h.includes("ctlnow");
 		if (h !== render.lastMe) {
 			render.lastMe = h;
 			$("#ctlme").innerHTML = h;
@@ -11736,6 +11760,15 @@ function updateGame() {
 			render.lastPick = h;
 			el.innerHTML = h;
 			el.hidden = !h;
+		}
+		/* TV controller: the pad (left flips, right rolls / uses) in place of the card */
+		const cp = $("#ctlpick"),
+			ch = pk && pk.mine && GFX.ctl && !G.test ? ctlPickHTML(pk) : "";
+		if (ch !== render.lastCtlPick) {
+			render.lastCtlPick = ch;
+			cp.innerHTML = ch;
+			cp.hidden = !ch;
+			document.body.classList.toggle("ctlpk", !!ch);
 		}
 	}
 	const st = stripHTML();
@@ -13605,8 +13638,9 @@ function panelHTML() {
 			}
 			return `<div class="pan"><h3>${it.icon} Golden Die: pick your roll</h3>${factoryHint(c)}<div class="numgrid">${[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((v) => `<button class="numb" data-ival="${v}">${v}</button>`).join("")}</div>${cancel}</div>`;
 		}
-		/* the dice and the bag's items float over the truck (pickNow); flat in the card on a TV controller or without 3D */
-		const pk = (GFX.ctl || !GFX.ok) && pickNow();
+		/* the dice and the bag's items float over the truck (pickNow); flat in the card without 3D, a pad on a TV controller
+		   (ctlPickHTML; test mode keeps the card for its buttons) */
+		const pk = ((!GFX.ok && !GFX.ctl) || (GFX.ctl && G.test)) && pickNow();
 		return `<div class="pan">${c.local || hasLocal ? `<h3>${head}</h3>` : ""}${used ? `<p class="panhint">Item used. Now roll!</p>` : factoryHint(c)}${pk ? `<div class="dpick flat">${pickHTML(pk)}</div>` : ""}${G.test ? testHTML(c) : ""}</div>`;
 	}
 	if (G.phase === "fork" && G.fork && ctrl(P_(G.fork.pid))) {
@@ -13823,6 +13857,44 @@ function pickHTML(s) {
 			? `<b>${ITEMS[d.item].icon} ${esc(d.name)}</b><small>${esc(d.desc)}</small>`
 			: `<b>${esc(d.name)}</b>`;
 	return `<button class="mm-arr l" data-dstep="-1" aria-label="Previous"></button>${tap}<button class="mm-arr r" data-dstep="1" aria-label="Next"></button><div class="dp-info${d.item ? " it" : ""}">${info}</div>`;
+}
+/* TV controller on your roll (#ctlpick, laid out like the minigame controllers; the TV shows the die or item): the left side
+   flips through them (swipe left = next, right = back, a tap = next), the right side is one big button that rolls the die
+   or uses the item */
+function ctlPickHTML(s) {
+	const d = s.dice[s.i];
+	return `<div class="cp-pad"><span class="tvchint">Swipe to choose</span><div class="swl sw-l" style="--bc:#FFC83D"><i>◀</i></div><div class="swl sw-r" style="--bc:#FFC83D"><i>▶</i></div></div>${
+		d.item
+			? `<button class="cp-go use" data-item="${d.idx}">USE</button>`
+			: `<button class="cp-go" data-roll="${d.k}" data-for="${esc(s.p.key)}">ROLL</button>`
+	}`;
+}
+function wireCtlPick(el) {
+	const st = new Map(),
+		step = (dir) => {
+			pickStep(dir);
+			const l = el.querySelector(dir > 0 ? ".sw-r" : ".sw-l");
+			if (!l) return;
+			l.classList.remove("on");
+			void l.offsetWidth;
+			l.classList.add("on");
+		};
+	el.addEventListener("pointerdown", (e) => {
+		if (!e.target.closest(".cp-pad")) return;
+		e.preventDefault();
+		st.set(e.pointerId, [e.clientX, e.clientY]);
+	});
+	el.addEventListener("pointermove", (e) => {
+		const s = st.get(e.pointerId);
+		if (!s || Math.abs(e.clientX - s[0]) < 24) return;
+		st.set(e.pointerId, null);
+		step(e.clientX < s[0] ? 1 : -1);
+	});
+	el.addEventListener("pointerup", (e) => {
+		if (st.get(e.pointerId)) step(1);
+		st.delete(e.pointerId);
+	});
+	el.addEventListener("pointercancel", (e) => st.delete(e.pointerId));
 }
 /* the board's player panels, one in every corner (Mario Party style): players alternate left / right (teams: one side each, its
    totals on top), the first half of a side in its top corner, the rest in its bottom corner; right-hand panels are mirrored.
