@@ -4622,15 +4622,18 @@ function crowdGeo(lite) {
 		pocket: at(cb(P.pocketW, P.pocketH, P.pocketD, P.pocketBev), 0, P.pocketY, P.pocketZ),
 		/* the jacket replaces the body (same size as it): the shirt shows only as this strip down its front opening */
 		inner: at(chamferBox(P.innerW, P.innerH, P.innerD, P.bodyBev), 0, P.bodyY, 0),
-		/* puffer jacket: four quilted blocks open down the front, a back strip, the hoodie's hood split open */
-		jacket: merge([
+		/* puffer jacket: four quilted blocks open down the front (chest and belly pairs), a back strip, the hoodie's hood
+		   split open */
+		jkChest: merge([
 			at(chamferBox(P.jkUpW, P.jkUpH, P.jkUpD, P.jkBev), -P.jkUpX, P.jkUpY, 0),
 			at(chamferBox(P.jkUpW, P.jkUpH, P.jkUpD, P.jkBev), P.jkUpX, P.jkUpY, 0),
+		]),
+		jkBelly: merge([
 			at(chamferBox(P.jkLoW, P.jkLoH, P.jkLoD, P.jkBev), -P.jkLoX, P.jkLoY, 0),
 			at(chamferBox(P.jkLoW, P.jkLoH, P.jkLoD, P.jkBev), P.jkLoX, P.jkLoY, 0),
-			at(chamferBox(P.jkBackW, P.jkBackH, P.jkBackD, P.bodyBev), 0, P.bodyY, P.jkBackZ),
-			hoodRoll(P.jkGap),
 		]),
+		jkBack: merge([at(chamferBox(P.jkBackW, P.jkBackH, P.jkBackD, P.bodyBev), 0, P.bodyY, P.jkBackZ)]),
+		jkHood: hoodRoll(P.jkGap),
 		cap,
 		beanie,
 		bobble: new THREE.IcosahedronGeometry(P.bobR, 0).translate(0, H + P.bobY, 0),
@@ -4700,7 +4703,7 @@ function crowdParts(L) {
 		put("hood", L.col);
 		put("pocket", L.col);
 	}
-	if (L.jacket) put("jacket", L.jacket);
+	if (L.jacket) ["jkChest", "jkBelly", "jkBack", "jkHood"].forEach((n) => put(n, L.jacket));
 	if (L.hat === "cap" || L.hat === "beanie") put(L.hat, L.hatCol);
 	if (L.hat === "beanie" && L.bobble) put("bobble", L.hatCol);
 	if (tee) {
@@ -4803,7 +4806,10 @@ Object.assign(MDL, {
 			inner: "Shirt strip (under the jacket)",
 			hood: "Hood",
 			pocket: "Hoodie pocket",
-			jacket: "Puffer jacket",
+			jkChest: "Jacket chest pads",
+			jkBelly: "Jacket belly pads",
+			jkBack: "Jacket back strip",
+			jkHood: "Jacket hood (open)",
 			cap: "Cap",
 			beanie: "Beanie",
 			bobble: "Bobble",
@@ -4821,7 +4827,10 @@ Object.assign(MDL, {
 			inner: "top",
 			hood: "top",
 			pocket: "top",
-			jacket: "jacket",
+			jkChest: "jacket",
+			jkBelly: "jacket",
+			jkBack: "jacket",
+			jkHood: "jacket",
 			cap: "hat",
 			beanie: "hat",
 			bobble: "hat",
@@ -4833,7 +4842,10 @@ Object.assign(MDL, {
 		partOn: {
 			hood: "hoodie",
 			pocket: "hoodie",
-			jacket: "jacket",
+			jkChest: "jacket",
+			jkBelly: "jacket",
+			jkBack: "jacket",
+			jkHood: "jacket",
 			inner: "jacket",
 			cap: "cap",
 			beanie: "beanie",
@@ -4919,7 +4931,7 @@ Object.assign(MDL, {
 			],
 			[
 				"Hoodie",
-				["hood", "pocket"],
+				["hood", "pocket", "jkHood"],
 				[
 					["hoodR", "Hood ring size", "cm", 0.08, 0.22],
 					["hoodT", "Hood thickness", "cm", 0.02, 0.12],
@@ -4938,7 +4950,7 @@ Object.assign(MDL, {
 			],
 			[
 				"Jacket",
-				["jacket", "inner"],
+				["jkChest", "jkBelly", "jkBack", "jkHood", "inner"],
 				[
 					["jkUpW", "Chest pads: width", "cm", 0.08, 0.25],
 					["jkUpH", "Chest pads: height", "cm", 0.1, 0.35],
@@ -5054,6 +5066,10 @@ Object.assign(MDL, {
 					torso: { jk: false },
 					inner: { jk: true },
 					jacket: { jk: true },
+					jkChest: { jk: true },
+					jkBelly: { jk: true },
+					jkBack: { jk: true },
+					jkHood: { jk: true },
 					hood: { jk: false, top: "hoodie" },
 					pocket: { jk: false, top: "hoodie" },
 					hoodie: { jk: false, top: "hoodie" },
