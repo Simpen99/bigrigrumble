@@ -285,7 +285,7 @@ function handleAct(pl, act) {
 	if (act.t === "roll" && HG.phase === "turn" && c.key === pl.key) doRoll(pl, act.die === "char" ? "char" : "std");
 	else if (act.t === "item" && HG.phase === "turn" && c.key === pl.key) useItem(pl, act);
 	else if (act.t === "dsel" && HG.phase === "turn" && c.key === pl.key) {
-		HG.dsel = { k: pl.key, tid: String(act.tid), die: act.die === "char" ? "char" : "std" };
+		HG.dsel = { k: pl.key, tid: String(act.tid), die: /^(char|i[0-2])$/.test(act.die) ? act.die : "std" };
 		push();
 	} else if (HG.test && act.t === "troll" && HG.phase === "turn" && c.key === pl.key) {
 		HG.mod.fixed = Math.max(1, Math.min(20, act.n | 0));
@@ -1778,12 +1778,10 @@ function panelHTML() {
 			}
 			return `<div class="pan"><h3>${it.icon} Golden Die: pick your roll</h3>${factoryHint(c)}<div class="numgrid">${[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((v) => `<button class="numb" data-ival="${v}">${v}</button>`).join("")}</div>${cancel}</div>`;
 		}
-		const items = (c.items || []).length
-			? `<div class="itemrow">${c.items.map((k, i) => `<button class="itm" data-item="${i}" ${used ? "disabled" : ""}><b>${ITEMS[k].icon}</b><span>${esc(ITEMS[k].name)}<small>${esc(ITEMS[k].desc)}</small></span></button>`).join("")}</div>`
-			: "";
-		/* the dice themselves float over the truck (pickNow); flat in the card on a TV controller or without 3D */
-		const pk = (GFX.ctl || !GFX.ok) && pickNow();
-		return `<div class="pan">${c.local || hasLocal ? `<h3>${head}</h3>` : ""}${items}${used ? `<p class="panhint">Item used. Now roll!</p>` : factoryHint(c)}${pk ? `<div class="dpick flat">${pickHTML(pk)}</div>` : ""}${G.test ? testHTML(c) : ""}</div>`;
+		/* the dice and the bag's items float over the truck (pickNow); flat in the card without 3D, a pad on a TV controller
+		   (ctlPickHTML; test mode keeps the card for its buttons) */
+		const pk = ((!GFX.ok && !GFX.ctl) || (GFX.ctl && G.test)) && pickNow();
+		return `<div class="pan">${c.local || hasLocal ? `<h3>${head}</h3>` : ""}${used ? `<p class="panhint">Item used. Now roll!</p>` : factoryHint(c)}${pk ? `<div class="dpick flat">${pickHTML(pk)}</div>` : ""}${G.test ? testHTML(c) : ""}</div>`;
 	}
 	if (G.phase === "fork" && G.fork && ctrl(P_(G.fork.pid))) {
 		const p = P_(G.fork.pid),
@@ -1943,16 +1941,22 @@ function pcardHTML(p, now, o = {}) {
 /* ---------- dice picker ----------
    On a human's roll the die floats over their truck on a stone slab (setPick in part2), tumbling slowly so its faces come
    round (no face list: the die shows them). The player
-   flips through their dice with the arrows (DPICK on their device, shared as act "dsel" → HG.dsel so the TV shows the same
-   die) and taps the die to roll. Phones and PCs get the arrows and the tap area over the 3D die (#dpick); a TV controller
-   (or a device without 3D) gets them flat in its card. */
+   flips through their dice and then the items in their bag (each as its own model, itemModel; gone once an item is used
+   this turn) with the arrows (DPICK on their device, shared as act "dsel" → HG.dsel so the TV shows the same thing) and
+   taps the die to roll, or the item to use it (items that need a truck or a number open that choice in the card).
+   Phones and PCs get the arrows and the tap area over the 3D die (#dpick); a TV controller (or a device without 3D) gets
+   them flat in its card. */
 let DPICK = { tid: "", die: "std" };
 function pickDice(p) {
 	const t = TRUCKS[p.truck],
-		mul = diceMul();
+		mul = diceMul(),
+		used = G.mod && G.mod.used;
 	return [
 		{ k: "std", name: "Standard" + (mul !== 1 ? ` ×${mul}` : ""), faces: mulFaces(STD), col: DIE_STD },
 		{ k: "char", name: t.name, faces: mulFaces(t.faces), col: pcol(p) },
+		...(used ? [] : p.items || [])
+			.map((it, i) => ITEMS[it] && { k: "i" + i, idx: i, item: it, name: ITEMS[it].name, desc: ITEMS[it].desc })
+			.filter(Boolean),
 	];
 }
 /* what the picker shows right now: null, or {p, mine (this device picks), dice, i (the chosen one), tid (this turn)} */
@@ -1985,8 +1989,52 @@ function pickStep(dir) {
 	refreshPanel();
 }
 function pickHTML(s) {
+	const d = s.dice[s.i],
+		tap = d.item
+			? `<button class="dp-die" data-item="${d.idx}" aria-label="Use ${esc(d.name)}"></button>`
+			: `<button class="dp-die" data-roll="${d.k}" data-for="${esc(s.p.key)}" aria-label="Roll the ${esc(d.name)} die"></button>`,
+		info = d.item
+			? `<b>${ITEMS[d.item].icon} ${esc(d.name)}</b><small>${esc(d.desc)}</small>`
+			: `<b>${esc(d.name)}</b>`;
+	return `<button class="mm-arr l" data-dstep="-1" aria-label="Previous"></button>${tap}<button class="mm-arr r" data-dstep="1" aria-label="Next"></button><div class="dp-info${d.item ? " it" : ""}">${info}</div>`;
+}
+/* TV controller on your roll (#ctlpick, laid out like the minigame controllers; the TV shows the die or item): the left side
+   flips through them (swipe left = next, right = back, a tap = next), the right side is one big button that rolls the die
+   or uses the item */
+function ctlPickHTML(s) {
 	const d = s.dice[s.i];
-	return `<button class="mm-arr l" data-dstep="-1" aria-label="Previous die"></button><button class="dp-die" data-roll="${d.k}" data-for="${esc(s.p.key)}" aria-label="Roll the ${esc(d.name)} die"></button><button class="mm-arr r" data-dstep="1" aria-label="Next die"></button><div class="dp-info"><b>${esc(d.name)}</b></div>`;
+	return `<div class="cp-pad"><span class="tvchint">Swipe to choose</span><div class="swl sw-l" style="--bc:#FFC83D"><i>◀</i></div><div class="swl sw-r" style="--bc:#FFC83D"><i>▶</i></div></div>${
+		d.item
+			? `<button class="cp-go use" data-item="${d.idx}">USE</button>`
+			: `<button class="cp-go" data-roll="${d.k}" data-for="${esc(s.p.key)}">ROLL</button>`
+	}`;
+}
+function wireCtlPick(el) {
+	const st = new Map(),
+		step = (dir) => {
+			pickStep(dir);
+			const l = el.querySelector(dir > 0 ? ".sw-r" : ".sw-l");
+			if (!l) return;
+			l.classList.remove("on");
+			void l.offsetWidth;
+			l.classList.add("on");
+		};
+	el.addEventListener("pointerdown", (e) => {
+		if (!e.target.closest(".cp-pad")) return;
+		e.preventDefault();
+		st.set(e.pointerId, [e.clientX, e.clientY]);
+	});
+	el.addEventListener("pointermove", (e) => {
+		const s = st.get(e.pointerId);
+		if (!s || Math.abs(e.clientX - s[0]) < 24) return;
+		st.set(e.pointerId, null);
+		step(e.clientX < s[0] ? 1 : -1);
+	});
+	el.addEventListener("pointerup", (e) => {
+		if (st.get(e.pointerId)) step(1);
+		st.delete(e.pointerId);
+	});
+	el.addEventListener("pointercancel", (e) => st.delete(e.pointerId));
 }
 /* the board's player panels, one in every corner (Mario Party style): players alternate left / right (teams: one side each, its
    totals on top), the first half of a side in its top corner, the rest in its bottom corner; right-hand panels are mirrored.
