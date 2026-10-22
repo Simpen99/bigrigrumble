@@ -770,9 +770,18 @@ function tvLobbyHTML() {
 /* ---------- game view ---------- */
 function buildGame() {
 	$("#app").innerHTML =
-		`<div class="hudtop"><span class="chip" id="rnd"></span><span class="chip grow" id="turnchip"></span><button class="chip" data-a="snd" aria-label="Sound levels">${SFX.on ? "🔊" : "🔇"}</button><button class="chip" data-a="cam" id="cambtn">Board</button><button class="chip" data-a="peek" id="peekbtn">${GFX.peek ? "🎮 Controls" : "🗺 Board"}</button><button class="chip" data-a="${role === "host" ? "endask" : "leave"}" aria-label="Leave game">✕</button></div>
-  <div class="hudbot" id="hudbot"><div id="hostgone"></div><div id="ctlme"></div><div class="hcard"><div class="msg"><i></i><span id="msg" aria-live="polite"></span></div><div id="panel"></div><div class="pstrip" id="pstrip"></div></div></div>`;
-	render.lastPanel = render.lastStrip = render.lastMe = null;
+		`<div class="pstrip" id="pstrip"></div><div class="pstrip bot" id="pstripb"></div><div class="dpick" id="dpick" hidden></div><div class="hudtop"><span class="chip" id="rnd"></span><span class="chip grow" id="turnchip"></span><button class="chip" data-a="snd" aria-label="Sound levels">${SFX.on ? "🔊" : "🔇"}</button><button class="chip" data-a="cam" id="cambtn">Board</button><button class="chip" data-a="peek" id="peekbtn">${GFX.peek ? "🎮 Controls" : "🗺 Board"}</button><button class="chip" data-a="${role === "host" ? "endask" : "leave"}" aria-label="Leave game">✕</button></div>
+  <div class="hudbot" id="hudbot"><div id="hostgone"></div><div id="ctlme"></div><div class="hcard"><div class="msg"><i></i><span id="msg" aria-live="polite"></span></div><div id="panel"></div></div></div>`;
+	render.lastPanel = render.lastStrip = render.lastMe = render.lastPick = null;
+	/* portrait: the top panels sit under the top chips, so the roll label goes below them (--psh), and the bottom ones ride on the card (--hbh) */
+	if (window.ResizeObserver) {
+		const ro = (el, v) =>
+			new ResizeObserver((e) => document.documentElement.style.setProperty(v, e[0].target.offsetHeight + "px")).observe(
+				el,
+			);
+		ro($("#pstrip"), "--psh");
+		ro($("#hudbot"), "--hbh");
+	}
 }
 /* TV-mode phones: peek at the 3D board (follow cam, drag / pinch to look around); closes itself when it becomes your move */
 function togglePeek(on) {
@@ -790,8 +799,7 @@ function togglePeek(on) {
 function ctlMeHTML() {
 	const p = G.players.find((x) => x.key === me.key);
 	if (!p) return "";
-	const col = G.teams ? TEAMS[p.team || 0].col : pcol(p),
-		rank = standings(G.players).indexOf(p) + 1,
+	const rank = standings(G.players).indexOf(p) + 1,
 		c = G.players[G.turn];
 	const mine =
 		(G.phase === "turn" && c === p) ||
@@ -799,7 +807,7 @@ function ctlMeHTML() {
 		(G.phase === "shop" && G.shop && G.shop.pid === p.key) ||
 		(G.phase === "buy" && G.buy && G.buy.pid === p.key) ||
 		(G.phase === "duelpick" && G.duelPick && G.duelPick.pid === p.key);
-	return `<div class="ctlcard ${mine ? "now" : ""}" style="--c:${col}"><img alt="" src="${thumb(p.truck)}"><div class="who"><b>${esc(p.name)}</b><small>${G.teams ? esc(TEAMS[p.team || 0].name) : ordinal(rank) + " place"}</small></div><div class="stats"><span>${p.bat}${bIco()}</span><span>${p.coins}${coinIco}</span>${cargoHTML(p)}</div></div>${mine ? "" : `<div class="ctlidle">📺 Watch the TV</div>`}`;
+	return `<div class="ctlcard ${mine ? "now" : ""}">${pcardHTML(p, mine, { rank: G.teams ? 0 : rank })}</div>${mine ? "" : `<div class="ctlidle">📺 Watch the TV</div>`}`;
 }
 const ordinal = (n) =>
 	n +
@@ -854,10 +862,32 @@ function updateGame() {
 		render.lastPanel = ph;
 		$("#panel").innerHTML = ph;
 	}
+	{
+		/* dice picker: the slab over the truck everywhere, the arrows and tap area over it on the picking phone or PC */
+		const pk = pickNow(),
+			d = pk && pk.dice[pk.i],
+			el = $("#dpick"),
+			h = pk && pk.mine && GFX.ok && !GFX.ctl ? pickHTML(pk) : "";
+		setPick(
+			pk && {
+				key: pk.p.key,
+				dk: d.k,
+				faces: d.faces,
+				color: G.teams ? TEAMS[pk.p.team || 0].col : pcol(pk.p),
+				dcol: d.col,
+			},
+		);
+		if (h !== render.lastPick) {
+			render.lastPick = h;
+			el.innerHTML = h;
+			el.hidden = !h;
+		}
+	}
 	const st = stripHTML();
-	if (st !== render.lastStrip) {
-		render.lastStrip = st;
-		$("#pstrip").innerHTML = st;
+	if (st.join("|") !== render.lastStrip) {
+		render.lastStrip = st.join("|");
+		$("#pstrip").innerHTML = st[0];
+		$("#pstripb").innerHTML = st[1];
 	}
 }
 /* ---------- effects ---------- */
