@@ -122,16 +122,65 @@ button.chip{border:1px solid var(--hudline)}
 .diebtn:active{transform:translateY(2px)}
 .diebtn b{font-family:var(--display);font-weight:400;font-size:14px;display:block;margin-bottom:8px}
 .diebtn.char{background:var(--yellow);color:#151B24;border-color:transparent}
-.pstrip{display:flex;gap:8px;overflow-x:auto;padding:10px 12px 12px;border-top:1px solid var(--hudline)}
-.pstrip::-webkit-scrollbar{display:none}
-.pc{flex:none;display:flex;align-items:center;gap:6px;background:var(--hud2);border-radius:12px;padding:5px 9px 5px 5px;border:1.5px solid transparent;min-width:0}
-.pc.now{border-color:var(--yellow);background:rgba(255,200,61,.14)}
-.pc img{width:40px;height:28px;object-fit:contain}
-.pc .who b{display:block;font-size:13px;max-width:84px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.pc .stats{display:flex;gap:7px;font-weight:800;font-size:13px;align-items:center}
-.pc .stats span{display:inline-flex;align-items:center;gap:2px}
-.pc .off{font-size:10px;color:#ff9a9d;font-weight:700}
-.pc .cdot{width:8px;height:28px;border-radius:4px;flex:none}
+/* board player panels: the designer's art (silver; gold = whose move it is), every slot placed in % of the 767 x 272 art and sized in cqw */
+.pstrip{position:fixed;z-index:4;left:0;right:0;top:calc(env(safe-area-inset-top,0px) + 50px);max-width:560px;margin:0 auto;padding:0 10px;display:grid;grid-template-columns:1fr 1fr;gap:2px 6px;align-content:start;pointer-events:none;transition:opacity .4s}
+.pstrip>*{grid-column:var(--sc);grid-row:var(--sr);min-width:0}
+.pc{position:relative;aspect-ratio:767/272;container-type:inline-size;color:#fff;filter:drop-shadow(0 3px 4px rgba(0,0,0,.35))}
+.pc::before{content:"";position:absolute;inset:0;z-index:-1;background:var(--ui-panel-silver) center/100% 100% no-repeat}
+.pc.now::before{background-image:var(--ui-panel-gold)}
+.pc>*{position:absolute}
+.pc-oct{left:5.5%;top:22.8%;width:20.9%;height:58.8%}
+.pc-oct::before{content:"";position:absolute;inset:0;clip-path:polygon(100% 50%,85.36% 85.36%,50% 100%,14.64% 85.36%,0 50%,14.64% 14.64%,50% 0,85.36% 14.64%);background:radial-gradient(circle at 50% 26%,rgba(255,255,255,.5),rgba(255,255,255,0) 60%),linear-gradient(rgba(0,0,0,0) 55%,rgba(0,0,0,.28)),var(--c)}
+.pc-oct img{position:absolute;left:-7%;top:12%;width:114%;height:76%;object-fit:contain}
+.pc-oct em{position:absolute;left:50%;bottom:-11%;transform:translateX(-50%);font:400 4.2cqw/1 var(--display);background:#151B24;color:#fff;border:.5cqw solid #fff;border-radius:99px;padding:.8cqw 1.5cqw .5cqw;white-space:nowrap}
+.pc-nm{left:41.5%;width:32%;top:8.4%;font:400 clamp(3.2cqw,calc(40cqw / var(--nl,8)),5cqw)/5.6cqw var(--display);text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 .3cqw 0 rgba(0,0,0,.45)}
+.pc-it{inset:0}
+.pc-it span{position:absolute;top:36.4%;width:8.5%;height:30.1%;display:grid;place-items:center;font-size:5.6cqw;line-height:1}
+.pc-it span:nth-child(1){left:33%}
+.pc-it span:nth-child(2){left:43.3%}
+.pc-it span:nth-child(3){left:53.8%}
+.pc .stats{left:63.5%;width:32.3%;top:32%;height:42%;display:grid;align-content:center;justify-content:center;gap:.6cqw 2.4cqw;font:400 6.4cqw/1 var(--display);color:#1E2430}
+.pc .stats.four{grid-template-columns:auto auto;font-size:4.8cqw}
+.pc.now .stats{color:#4A3500}
+.pc .stats span{display:flex;align-items:center;gap:.7cqw}
+.pc .stats .ico{width:1.05em;height:1.05em}
+.pc-up{left:77%;top:1%;width:21%;height:20%;display:flex;align-items:center;justify-content:center;gap:.6cqw;font-size:4.8cqw;line-height:1}
+.pc-off{left:4%;top:7%;font:800 3.6cqw/1 var(--body);background:var(--red);color:#fff;border-radius:99px;padding:.7cqw 1.5cqw}
+.pc.off .pc-oct img{opacity:.45}
+/* right-hand corners: the art mirrored, every slot measured from the right instead */
+.pc.flip::before{transform:scaleX(-1)}
+.pc.flip .pc-oct{left:auto;right:5.5%}
+.pc.flip .pc-nm{left:auto;right:41.5%}
+.pc.flip .pc-it span:nth-child(1){left:auto;right:33%}
+.pc.flip .pc-it span:nth-child(2){left:auto;right:43.3%}
+.pc.flip .pc-it span:nth-child(3){left:auto;right:53.8%}
+.pc.flip .stats{left:auto;right:63.5%}
+.pc.flip .pc-up{left:auto;right:77%}
+.pc.flip .pc-off{left:auto;right:4%}
+.teamc{display:flex;align-items:center;justify-content:space-between;gap:8px;align-self:center;background:var(--hb,#1B2333);border:2.5px solid var(--tc);border-radius:12px;padding:3px 10px 2px;color:#fff;box-shadow:0 3px 0 var(--ledge,#0B0E14);font:400 13px/1.2 var(--display)}
+.teamc b{font-weight:400;color:var(--tc)}
+.teamc .stats{display:flex;gap:8px}
+.teamc .stats span{display:inline-flex;align-items:center;gap:2px}
+body.mglive .pstrip,body.mgres .pstrip{display:none}
+body.trout .pstrip{opacity:0}
+/* one panel in every corner (stripHTML: #pstrip = the top corners, #pstripb = the bottom ones); portrait: under the top chips and just above the card (--hbh) */
+@media (orientation:portrait){body:not(.ctl) .dlabel{top:calc(env(safe-area-inset-top,0px) + 58px + var(--psh,0px))}}
+.pstrip.bot{top:auto;bottom:calc(var(--hbh,120px) + 2px);align-content:end}
+/* phone on its side: the corners, the top chips and the card between them */
+@media (orientation:landscape) and (max-height:500px){
+  :root{--pw:min(172px,21vw);--pl:max(10px,env(safe-area-inset-left,0px));--pr:max(10px,env(safe-area-inset-right,0px))}
+  .pstrip{left:var(--pl);right:var(--pr);top:calc(env(safe-area-inset-top,0px) + 8px);max-width:none;margin:0;padding:0;grid-template-columns:var(--pw) var(--pw);justify-content:space-between;gap:4px}
+  .pstrip.bot{top:auto;bottom:calc(env(safe-area-inset-bottom,0px) + 8px)}
+  body:not(.ctl) .pstrip~.hudtop,body:not(.ctl) .pstrip~.hudbot{left:calc(var(--pl) + var(--pw));right:calc(var(--pr) + var(--pw))}
+}
+/* big screens on their side (TV, PC): the corners, the chips and the card between them (the TV zooms those by 1.5, offsets too) */
+@media (orientation:landscape) and (min-height:501px){
+  :root{--pw:clamp(260px,24vw,480px)}
+  .pstrip{left:12px;right:12px;top:calc(env(safe-area-inset-top,0px) + 12px);max-width:none;margin:0;padding:0;grid-template-columns:var(--pw) var(--pw);justify-content:space-between;gap:8px}
+  .pstrip.bot{top:auto;bottom:calc(env(safe-area-inset-bottom,0px) + 12px)}
+  body:not(.ctl) .pstrip~.hudtop,body:not(.ctl) .pstrip~.hudbot{left:calc(var(--pw) + 14px);right:calc(var(--pw) + 14px)}
+  body.tv .pstrip~.hudtop,body.tv .pstrip~.hudbot{left:calc((var(--pw) + 14px) / 1.5);right:calc((var(--pw) + 14px) / 1.5)}
+}
 .ico{width:15px;height:15px;flex:none}
 .hostgone{background:var(--red);color:#fff;border-radius:12px;padding:8px 12px;font-weight:700;margin-bottom:8px;font-size:14px}
 /* fx */
@@ -255,9 +304,6 @@ body.trin #mg .m3top{animation:trtop .6s .35s ease-out both}body.trin #mg .m3lb,
 .shopb b{font-size:24px;flex:none}.shopb span{flex:1;font-weight:800;font-size:14px}.shopb small{display:block;font-weight:500;font-size:11.5px;color:#b9c4d2;line-height:1.3}
 .shopb em{font-style:normal;flex:none;display:inline-flex;gap:3px;align-items:center;background:var(--yellow);color:#151B24;font-weight:800;border-radius:999px;padding:4px 9px;font-size:13px}
 .shopb:disabled{opacity:.42}
-.gear{font-size:12px;letter-spacing:1px}
-.teamc{flex:none;border-radius:12px;padding:6px 10px;background:rgba(255,255,255,.06);border:2px solid var(--tc);font-size:12px}
-.teamc b{display:block;color:var(--tc)}
 .mapgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .mapb{text-align:left;border:2px solid transparent;background:var(--panel2);border-radius:14px;padding:10px}
 .mapb b{display:block;font-family:var(--display);font-weight:400;font-size:15px}.mapb small{color:var(--muted);font-size:12px;line-height:1.3;display:block;margin-top:3px}
@@ -565,11 +611,6 @@ button.chip:active{transform:translateY(3px);box-shadow:0 1px 0 var(--ledge)}
 .diebtn b{font-size:15px}
 .diebtn.char{background:var(--yellow)!important;color:#151B24}
 .numb{border:2.5px solid #151B24;box-shadow:0 4px 0 var(--ledge)}
-.pstrip{border-top:0!important;background:rgba(10,14,20,.22);padding-bottom:14px!important}
-.pc{background:var(--hb2)!important;border:2.5px solid var(--c,#3A4150)!important;box-shadow:0 3px 0 var(--ledge)}
-.pc .cdot{display:none}
-.pc.now{background:rgba(255,200,61,.24)!important;box-shadow:0 3px 0 var(--ledge),0 0 0 3px var(--yellow)}
-.pc .stats{font-family:var(--display);font-weight:400;font-size:14px}
 .m3lb{background:none!important;border:0!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important;padding:0!important;min-width:0!important;display:grid;gap:6px}
 .m3lb div{background:var(--hb);border:2.5px solid var(--c,#F4F6F9);border-radius:12px;box-shadow:0 3px 0 var(--ledge);padding:2px 10px 1px 8px!important;gap:12px!important;color:#fff;justify-content:space-between}
 .m3lb div b{font-family:var(--display);font-weight:400;font-size:14px}
@@ -615,13 +656,6 @@ button.tp-mush{border:0;padding:0;cursor:pointer;touch-action:manipulation}butto
 .diebtn .f{min-width:19px;height:20px;padding:0 4px;border-radius:6px;font-family:var(--display);font-weight:400;font-size:11px;background:rgba(255,255,255,.13);color:#fff;box-shadow:none}
 .diebtn.char .f{background:rgba(21,27,36,.14);color:#151B24}
 .diebtn .f sub{font-family:var(--body);font-size:8px;right:-5px;bottom:-6px}
-.pstrip{gap:6px;padding:8px 10px 12px!important;background:rgba(12,17,28,.42)!important}
-.pc{padding:3px 9px 3px 4px;border-radius:12px;gap:5px}
-.pc img{width:30px;height:22px}
-.pc .who{display:flex;align-items:center;gap:7px}
-.pc .who b{font-size:12px;max-width:74px}
-.pc .stats{gap:6px;font-size:13px}
-.pc .stats .ico{width:13px;height:13px}
 
 /* TV mode: the PC shows the game on the big screen */
 body.tv #app{max-width:none;padding:0 3vw}
@@ -653,16 +687,9 @@ body.ctl #gl{display:none}
 body.ctl .hudbot{top:calc(env(safe-area-inset-top,0px) + 58px);display:flex;flex-direction:column;justify-content:flex-end;gap:12px}
 body.ctl .pstrip,body.ctl #cambtn,body.ctl.mglive .hudbot,body.ctl.mgres .hudbot{display:none}
 body.ctl .hcard{max-height:100%;overflow-y:auto}
-.ctlcard{display:flex;align-items:center;gap:12px;background:var(--hb);border:3px solid var(--c);border-radius:20px;padding:10px 16px 10px 10px;color:#fff;box-shadow:0 6px 0 var(--ledge)}
-.ctlcard.now{animation:ctlPulse 1.2s ease-in-out infinite alternate}
-@keyframes ctlPulse{to{box-shadow:0 6px 0 var(--ledge),0 0 0 6px color-mix(in srgb,var(--c) 45%,transparent)}}
-.ctlcard img{width:96px;height:64px;object-fit:contain}
-.ctlcard .who{flex:1;min-width:0}
-.ctlcard .who b{font-family:var(--display);font-weight:400;font-size:24px;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.ctlcard .who small{font-size:13px;font-weight:800;opacity:.75;text-transform:uppercase;letter-spacing:.06em}
-.ctlcard .stats{display:flex;flex-direction:column;gap:4px;font-family:var(--display);font-size:20px}
-.ctlcard .stats span{display:flex;align-items:center;gap:5px;justify-content:flex-end}
-.ctlcard .ico{width:22px;height:22px}
+.ctlcard{width:100%;max-width:360px;margin:0 auto}
+.ctlcard.now .pc{animation:ctlPulse 1.2s ease-in-out infinite alternate}
+@keyframes ctlPulse{to{filter:drop-shadow(0 3px 4px rgba(0,0,0,.35)) drop-shadow(0 0 10px rgba(255,200,61,.9))}}
 .ctlidle{text-align:center;color:#fff;font-family:var(--display);font-size:26px;opacity:.85;padding:5vh 0}
 body.ctl .msg{font-size:17px}
 body.ctl .dice2{gap:12px}
@@ -672,7 +699,7 @@ body.ctl .diebtn .f{min-width:26px;height:28px;font-size:14px}
 body.ctl .optb,body.ctl .shopb{padding:14px;font-size:17px}
 body.ctl .numb{min-height:56px;font-size:22px}
 body.ctl .btn{min-height:58px;font-size:18px}
-@media (prefers-reduced-motion:reduce){.ctlcard.now{animation-iteration-count:1}}
+@media (prefers-reduced-motion:reduce){.ctlcard.now .pc{animation-iteration-count:1}}
 
 /* TV minigames: phone controller */
 .tvc{position:absolute;inset:0}
@@ -816,7 +843,7 @@ body.ctl .hudbot{touch-action:none}body.ctl .hcard{touch-action:pan-y;overscroll
 /* battery purchase */
 .batlabel{border-color:var(--c)!important;box-shadow:0 0 0 3px var(--c),0 6px 0 var(--ledge)!important}
 .pc.batbump{animation:batBump .6s cubic-bezier(.3,1.8,.5,1)}
-@keyframes batBump{0%{transform:scale(1)}35%{transform:scale(1.18);box-shadow:0 0 0 4px #7CF0A8,0 3px 0 var(--ledge)}100%{transform:scale(1)}}
+@keyframes batBump{0%{transform:scale(1)}35%{transform:scale(1.12);filter:drop-shadow(0 3px 4px rgba(0,0,0,.35)) drop-shadow(0 0 8px #7CF0A8)}100%{transform:scale(1)}}
 
 /* Magnet Mike countdown: a die-cut sticker (white border + dark outline around the text panel and his truck together) */
 .mike{transform:translateY(-14vh);animation:mkIn .45s cubic-bezier(.2,1.4,.4,1) both,mkOut .35s ease-in 2.3s forwards;padding:0 12px}
@@ -947,8 +974,7 @@ body.ctl .itm span{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:
   body.ctl .hudbot{flex-direction:row;align-items:stretch;justify-content:center;gap:10px;max-width:none;top:calc(env(safe-area-inset-top,0px) + 50px);padding:0 12px calc(env(safe-area-inset-bottom,0px) + 8px)}
   body.ctl #hostgone:empty{display:none}
   body.ctl #ctlme{flex:0 0 30%;display:flex;flex-direction:column;justify-content:center;gap:8px}
-  body.ctl .ctlcard{flex-direction:column;text-align:center;gap:4px;padding:10px}
-  body.ctl .ctlcard .stats{flex-direction:row;gap:14px;justify-content:center}
+  body.ctl .ctlcard{max-width:none}
   body.ctl .ctlidle{padding:6px 0;font-size:18px}
   body.ctl .hcard{flex:1;min-width:0;max-width:620px;display:flex;flex-direction:column}
   body.ctl .msg{font-size:15px}
