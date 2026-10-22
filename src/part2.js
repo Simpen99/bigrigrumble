@@ -663,8 +663,8 @@ function nameTag(name, color) {
    and the number (+ coin badge) on it; side k in BoxGeometry order (+x, -x, +y, -y, +z, -z), upright as showDie3D turns it */
 const DIE_STD = "#5A6A88",
 	/* the die over the truck (the roll and the picker): its size and height, big like a party game's dice block */
-	DIE_S = 1.8,
-	DIE_Y = 4.6,
+	DIE_S = 1.44,
+	DIE_Y = 4.1,
 	/* the picker pops up this long after it starts, once the follow camera has swooped in (stepBoard) */
 	PICK_IN = 0.6;
 function dieNumTex(f) {
