@@ -770,9 +770,9 @@ function tvLobbyHTML() {
 /* ---------- game view ---------- */
 function buildGame() {
 	$("#app").innerHTML =
-		`<div class="pstrip" id="pstrip"></div><div class="pstrip bot" id="pstripb"></div><div class="hudtop"><span class="chip" id="rnd"></span><span class="chip grow" id="turnchip"></span><button class="chip" data-a="snd" aria-label="Sound levels">${SFX.on ? "🔊" : "🔇"}</button><button class="chip" data-a="cam" id="cambtn">Board</button><button class="chip" data-a="peek" id="peekbtn">${GFX.peek ? "🎮 Controls" : "🗺 Board"}</button><button class="chip" data-a="${role === "host" ? "endask" : "leave"}" aria-label="Leave game">✕</button></div>
+		`<div class="pstrip" id="pstrip"></div><div class="pstrip bot" id="pstripb"></div><div class="dpick" id="dpick" hidden></div><div class="hudtop"><span class="chip" id="rnd"></span><span class="chip grow" id="turnchip"></span><button class="chip" data-a="snd" aria-label="Sound levels">${SFX.on ? "🔊" : "🔇"}</button><button class="chip" data-a="cam" id="cambtn">Board</button><button class="chip" data-a="peek" id="peekbtn">${GFX.peek ? "🎮 Controls" : "🗺 Board"}</button><button class="chip" data-a="${role === "host" ? "endask" : "leave"}" aria-label="Leave game">✕</button></div>
   <div class="hudbot" id="hudbot"><div id="hostgone"></div><div id="ctlme"></div><div class="hcard"><div class="msg"><i></i><span id="msg" aria-live="polite"></span></div><div id="panel"></div></div></div>`;
-	render.lastPanel = render.lastStrip = render.lastMe = null;
+	render.lastPanel = render.lastStrip = render.lastMe = render.lastPick = null;
 	/* portrait: the top panels sit under the top chips, so the roll label goes below them (--psh), and the bottom ones ride on the card (--hbh) */
 	if (window.ResizeObserver) {
 		const ro = (el, v) =>
@@ -861,6 +861,27 @@ function updateGame() {
 	if (ph !== render.lastPanel) {
 		render.lastPanel = ph;
 		$("#panel").innerHTML = ph;
+	}
+	{
+		/* dice picker: the slab over the truck everywhere, the arrows and tap area over it on the picking phone or PC */
+		const pk = pickNow(),
+			d = pk && pk.dice[pk.i],
+			el = $("#dpick"),
+			h = pk && pk.mine && GFX.ok && !GFX.ctl ? pickHTML(pk) : "";
+		setPick(
+			pk && {
+				key: pk.p.key,
+				dk: d.k,
+				faces: d.faces,
+				color: G.teams ? TEAMS[pk.p.team || 0].col : pcol(pk.p),
+				dcol: d.col,
+			},
+		);
+		if (h !== render.lastPick) {
+			render.lastPick = h;
+			el.innerHTML = h;
+			el.hidden = !h;
+		}
 	}
 	const st = stripHTML();
 	if (st.join("|") !== render.lastStrip) {

@@ -51,10 +51,6 @@ label.field input,select.inp{display:block;width:100%;margin-top:6px;padding:12p
 .tc img{width:100%;height:62px;object-fit:contain;display:block}
 .tc span{display:block;font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .tc.sel{border-color:var(--yellow);background:color-mix(in srgb,var(--yellow) 22%,var(--panel2))}
-.faces{display:flex;gap:4px;flex-wrap:wrap}
-.f{position:relative;display:inline-grid;place-items:center;min-width:26px;height:26px;padding:0 4px;border-radius:7px;background:#fff;color:#151B24;box-shadow:inset 0 -2px 0 rgba(0,0,0,.15),0 1px 2px rgba(0,0,0,.2);font-weight:800;font-size:13px}
-.f sub{position:absolute;right:-6px;bottom:-7px;font-size:9px;line-height:1;padding:2px 3px;border-radius:5px;color:#fff;font-weight:800}
-.f sub.up{background:var(--green)}.f sub.dn{background:var(--red)}
 .btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;border:0;border-radius:14px;padding:15px 16px;font-family:var(--display);font-size:17px;box-shadow:inset 0 -4px 0 rgba(0,0,0,.18);transition:transform .08s}
 .btn:active{transform:translateY(2px)}
 .btn:disabled{opacity:.45;cursor:not-allowed}
@@ -117,11 +113,26 @@ button.chip{border:1px solid var(--hudline)}
 .pan{padding:12px 14px}
 .pan h3{font-size:17px;margin-bottom:8px;color:var(--yellow)}
 .pan p{color:#dfe6ef;font-size:15px}
-.dice2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.diebtn{background:var(--hud2);border:1px solid var(--hudline);border-radius:14px;padding:10px;text-align:left;color:#fff}
-.diebtn:active{transform:translateY(2px)}
-.diebtn b{font-family:var(--display);font-weight:400;font-size:14px;display:block;margin-bottom:8px}
-.diebtn.char{background:var(--yellow);color:#151B24;border-color:transparent}
+/* dice picker (pickHTML): over the 3D die, placed by stepPick (translate = the die's centre, --r = 0.9 m on screen); .flat = in a TV controller's card */
+.dpick{position:fixed;left:0;top:0;z-index:4;width:0;height:0;pointer-events:none;--r:60px}
+.dpick[hidden]{display:none}
+.dpick:not(.flat):not(.in){visibility:hidden}
+.dpick>*{position:absolute;pointer-events:auto}
+.dp-die{left:calc(var(--r) * -1.35);top:calc(var(--r) * -1);width:calc(var(--r) * 2.7);height:calc(var(--r) * 2.9);border:0;padding:0;border-radius:40%;background:none;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.dpick .mm-arr{top:-24px;width:48px;height:48px}
+.dpick .mm-arr.l{right:calc(var(--r) * 1.45)}
+.dpick .mm-arr.r{left:calc(var(--r) * 1.45)}
+.dp-info{pointer-events:none!important;left:0;bottom:calc(var(--r) * .9);transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:5px}
+.dp-info b{font:400 15px/1 var(--display);color:#fff;background:var(--hb,#1B2333);border:2.5px solid #151B24;border-radius:999px;padding:5px 12px 4px;white-space:nowrap;box-shadow:0 3px 0 var(--ledge,#0B0E14);animation:mmSwap .25s cubic-bezier(.2,1.5,.4,1) both}
+.dpick.flat{position:static;width:auto;height:auto;display:grid;grid-template-columns:56px minmax(0,1fr) 56px;align-items:center;gap:8px;margin-top:8px;pointer-events:auto}
+.dpick.flat>*{position:relative}
+.dpick.flat .mm-arr{grid-row:1;top:auto;left:auto;right:auto;width:56px;height:56px}
+.dpick.flat .mm-arr.l{grid-column:1}
+.dpick.flat .mm-arr.r{grid-column:3}
+.dpick.flat .dp-die{grid-column:2;grid-row:1;align-self:stretch;left:auto;top:auto;width:100%;height:auto;border-radius:16px;background:var(--yellow);border:2.5px solid #151B24;box-shadow:0 4px 0 var(--ledge,#0B0E14)}
+.dpick.flat .dp-die:active{transform:translateY(3px);box-shadow:0 1px 0 var(--ledge,#0B0E14)}
+.dpick.flat .dp-info{grid-column:2;grid-row:1;left:auto;bottom:auto;transform:none;padding:16px 6px 18px;z-index:1}
+.dpick.flat .dp-info b{background:none;border:0;box-shadow:none;color:#151B24;font-size:20px;padding:0}
 /* board player panels: the designer's art (silver; gold = whose move it is), every slot placed in % of the 767 x 272 art and sized in cqw */
 .pstrip{position:fixed;z-index:4;left:0;right:0;top:calc(env(safe-area-inset-top,0px) + 50px);max-width:560px;margin:0 auto;padding:0 10px;display:grid;grid-template-columns:1fr 1fr;gap:2px 6px;align-content:start;pointer-events:none;transition:opacity .4s}
 .pstrip>*{grid-column:var(--sc);grid-row:var(--sr);min-width:0}
@@ -606,10 +617,8 @@ button.chip:active{transform:translateY(3px);box-shadow:0 1px 0 var(--ledge)}
 .hcard{background:var(--hb)!important;border:3px solid #151B24!important;border-radius:20px!important;box-shadow:0 6px 0 var(--ledge),inset 0 0 0 2px rgba(255,255,255,.06)!important}
 .msg{background:rgba(52,68,100,.38);border-bottom:0!important;font-weight:800}
 .pan h3{font-weight:400}
-.diebtn,.itm,.optb,.shopb{background:var(--hb2)!important;border:2.5px solid #151B24!important;border-radius:14px!important;box-shadow:0 4px 0 var(--ledge)}
-.diebtn:active,.itm:active,.optb:active,.shopb:active,.numb:active{transform:translateY(3px);box-shadow:0 1px 0 var(--ledge)}
-.diebtn b{font-size:15px}
-.diebtn.char{background:var(--yellow)!important;color:#151B24}
+.itm,.optb,.shopb{background:var(--hb2)!important;border:2.5px solid #151B24!important;border-radius:14px!important;box-shadow:0 4px 0 var(--ledge)}
+.itm:active,.optb:active,.shopb:active,.numb:active{transform:translateY(3px);box-shadow:0 1px 0 var(--ledge)}
 .numb{border:2.5px solid #151B24;box-shadow:0 4px 0 var(--ledge)}
 .m3lb{background:none!important;border:0!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important;padding:0!important;min-width:0!important;display:grid;gap:6px}
 .m3lb div{background:var(--hb);border:2.5px solid var(--c,#F4F6F9);border-radius:12px;box-shadow:0 3px 0 var(--ledge);padding:2px 10px 1px 8px!important;gap:12px!important;color:#fff;justify-content:space-between}
@@ -649,13 +658,6 @@ button.tp-mush{border:0;padding:0;cursor:pointer;touch-action:manipulation}butto
 .pan{padding:9px 11px 11px}
 .pan h3{font-size:16px;margin-bottom:6px}
 .panhint{font-size:12px!important;margin:0 0 7px!important}
-.dice2{gap:8px}
-.diebtn{padding:7px 9px 8px}
-.diebtn b{font-size:13px;margin-bottom:5px}
-.diebtn .faces{gap:3px}
-.diebtn .f{min-width:19px;height:20px;padding:0 4px;border-radius:6px;font-family:var(--display);font-weight:400;font-size:11px;background:rgba(255,255,255,.13);color:#fff;box-shadow:none}
-.diebtn.char .f{background:rgba(21,27,36,.14);color:#151B24}
-.diebtn .f sub{font-family:var(--body);font-size:8px;right:-5px;bottom:-6px}
 
 /* TV mode: the PC shows the game on the big screen */
 body.tv #app{max-width:none;padding:0 3vw}
@@ -692,10 +694,6 @@ body.ctl .hcard{max-height:100%;overflow-y:auto}
 @keyframes ctlPulse{to{filter:drop-shadow(0 3px 4px rgba(0,0,0,.35)) drop-shadow(0 0 10px rgba(255,200,61,.9))}}
 .ctlidle{text-align:center;color:#fff;font-family:var(--display);font-size:26px;opacity:.85;padding:5vh 0}
 body.ctl .msg{font-size:17px}
-body.ctl .dice2{gap:12px}
-body.ctl .diebtn{padding:16px 12px 18px;min-height:120px}
-body.ctl .diebtn b{font-size:20px;margin-bottom:10px}
-body.ctl .diebtn .f{min-width:26px;height:28px;font-size:14px}
 body.ctl .optb,body.ctl .shopb{padding:14px;font-size:17px}
 body.ctl .numb{min-height:56px;font-size:22px}
 body.ctl .btn{min-height:58px;font-size:18px}
@@ -978,8 +976,6 @@ body.ctl .itm span{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:
   body.ctl .ctlidle{padding:6px 0;font-size:18px}
   body.ctl .hcard{flex:1;min-width:0;max-width:620px;display:flex;flex-direction:column}
   body.ctl .msg{font-size:15px}
-  body.ctl .diebtn{min-height:0;padding:8px 10px 10px}
-  body.ctl .diebtn b{font-size:16px;margin-bottom:6px}
   body.ctl .panhint{font-size:12px;margin:2px 0 6px}
 }
 @media (orientation:portrait){body.ctl .itm{flex-direction:column;justify-content:center;text-align:center;gap:3px!important;padding:7px 4px!important}body.ctl .itm span{white-space:normal;font-size:12px;line-height:1.1}}
@@ -1000,11 +996,6 @@ body.ctl .itm span{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:
 .tvrot{display:none!important}
 
 /* dice choice buttons: faces in a 3x2 grid, squarer buttons */
-.diebtn .faces{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px!important}
-.diebtn .f{min-width:0!important;width:auto;height:28px;padding:0!important}
-.diebtn b{text-align:center}
-body.ctl .diebtn .f{height:32px;font-size:15px}
-@media (orientation:landscape){body.ctl .diebtn .f{height:28px;font-size:14px}}
 body.ctl .pan{max-height:none!important;overflow:visible!important}
 
 /* TV lobby: practice a minigame */

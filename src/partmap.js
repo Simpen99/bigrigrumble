@@ -3536,10 +3536,7 @@ function syncBoard() {
 			});
 			disc.castShadow = false;
 			g.add(disc);
-			const tag = nameTag(p.name, G.teams ? TEAMS[p.team || 0].col : pcol(p));
-			tag.scale.multiplyScalar(1.5);
-			tag.position.y = 2.3;
-			g.add(tag);
+			/* no name tag over the truck (the corner panels and the coloured disc say whose it is) */
 			g.position.copy(tilePos(p.pos, [0, 0]));
 			bd.scene.add(g);
 			t = GFX.tok[p.key] = {
@@ -3839,10 +3836,13 @@ function stepBoard(dt, time) {
 		tgt = new THREE.Vector3(0, 2, 0);
 		pos = new THREE.Vector3(0, aspect < 1 ? 52 : 34, aspect < 1 ? 40 : 30);
 	} else if ((ct && !inMg && G.phase !== "rival") || (G.phase === "rival" && rv)) {
-		const rvl = G.phase === "rival";
+		const rvl = G.phase === "rival",
+			pk = !rvl && GFX.pick && GFX.pick.key === cur.key && !GFX.pick.out;
 		tgt = (rvl ? rv : ct.g).position.clone();
 		tgt.y = Math.max(0, tgt.y - 0.5);
-		pos = followCamPos(tgt, aspect, rvl ? 1.08 : 1);
+		/* dice picker: swoop in close on the truck and the slab over it (it pops up as the camera arrives, PICK_IN) */
+		if (pk) tgt.y += DIE_Y * 0.75;
+		pos = followCamPos(tgt, aspect, rvl ? 1.08 : pk ? 0.62 : 1);
 	} else {
 		const sz = MAP.size || 1;
 		tgt = new THREE.Vector3(0, MAP.camY || 0, 1.5);

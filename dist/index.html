@@ -51,10 +51,6 @@ label.field input,select.inp{display:block;width:100%;margin-top:6px;padding:12p
 .tc img{width:100%;height:62px;object-fit:contain;display:block}
 .tc span{display:block;font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .tc.sel{border-color:var(--yellow);background:color-mix(in srgb,var(--yellow) 22%,var(--panel2))}
-.faces{display:flex;gap:4px;flex-wrap:wrap}
-.f{position:relative;display:inline-grid;place-items:center;min-width:26px;height:26px;padding:0 4px;border-radius:7px;background:#fff;color:#151B24;box-shadow:inset 0 -2px 0 rgba(0,0,0,.15),0 1px 2px rgba(0,0,0,.2);font-weight:800;font-size:13px}
-.f sub{position:absolute;right:-6px;bottom:-7px;font-size:9px;line-height:1;padding:2px 3px;border-radius:5px;color:#fff;font-weight:800}
-.f sub.up{background:var(--green)}.f sub.dn{background:var(--red)}
 .btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;border:0;border-radius:14px;padding:15px 16px;font-family:var(--display);font-size:17px;box-shadow:inset 0 -4px 0 rgba(0,0,0,.18);transition:transform .08s}
 .btn:active{transform:translateY(2px)}
 .btn:disabled{opacity:.45;cursor:not-allowed}
@@ -117,11 +113,26 @@ button.chip{border:1px solid var(--hudline)}
 .pan{padding:12px 14px}
 .pan h3{font-size:17px;margin-bottom:8px;color:var(--yellow)}
 .pan p{color:#dfe6ef;font-size:15px}
-.dice2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.diebtn{background:var(--hud2);border:1px solid var(--hudline);border-radius:14px;padding:10px;text-align:left;color:#fff}
-.diebtn:active{transform:translateY(2px)}
-.diebtn b{font-family:var(--display);font-weight:400;font-size:14px;display:block;margin-bottom:8px}
-.diebtn.char{background:var(--yellow);color:#151B24;border-color:transparent}
+/* dice picker (pickHTML): over the 3D die, placed by stepPick (translate = the die's centre, --r = 0.9 m on screen); .flat = in a TV controller's card */
+.dpick{position:fixed;left:0;top:0;z-index:4;width:0;height:0;pointer-events:none;--r:60px}
+.dpick[hidden]{display:none}
+.dpick:not(.flat):not(.in){visibility:hidden}
+.dpick>*{position:absolute;pointer-events:auto}
+.dp-die{left:calc(var(--r) * -1.35);top:calc(var(--r) * -1);width:calc(var(--r) * 2.7);height:calc(var(--r) * 2.9);border:0;padding:0;border-radius:40%;background:none;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.dpick .mm-arr{top:-24px;width:48px;height:48px}
+.dpick .mm-arr.l{right:calc(var(--r) * 1.45)}
+.dpick .mm-arr.r{left:calc(var(--r) * 1.45)}
+.dp-info{pointer-events:none!important;left:0;bottom:calc(var(--r) * .9);transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:5px}
+.dp-info b{font:400 15px/1 var(--display);color:#fff;background:var(--hb,#1B2333);border:2.5px solid #151B24;border-radius:999px;padding:5px 12px 4px;white-space:nowrap;box-shadow:0 3px 0 var(--ledge,#0B0E14);animation:mmSwap .25s cubic-bezier(.2,1.5,.4,1) both}
+.dpick.flat{position:static;width:auto;height:auto;display:grid;grid-template-columns:56px minmax(0,1fr) 56px;align-items:center;gap:8px;margin-top:8px;pointer-events:auto}
+.dpick.flat>*{position:relative}
+.dpick.flat .mm-arr{grid-row:1;top:auto;left:auto;right:auto;width:56px;height:56px}
+.dpick.flat .mm-arr.l{grid-column:1}
+.dpick.flat .mm-arr.r{grid-column:3}
+.dpick.flat .dp-die{grid-column:2;grid-row:1;align-self:stretch;left:auto;top:auto;width:100%;height:auto;border-radius:16px;background:var(--yellow);border:2.5px solid #151B24;box-shadow:0 4px 0 var(--ledge,#0B0E14)}
+.dpick.flat .dp-die:active{transform:translateY(3px);box-shadow:0 1px 0 var(--ledge,#0B0E14)}
+.dpick.flat .dp-info{grid-column:2;grid-row:1;left:auto;bottom:auto;transform:none;padding:16px 6px 18px;z-index:1}
+.dpick.flat .dp-info b{background:none;border:0;box-shadow:none;color:#151B24;font-size:20px;padding:0}
 /* board player panels: the designer's art (silver; gold = whose move it is), every slot placed in % of the 767 x 272 art and sized in cqw */
 .pstrip{position:fixed;z-index:4;left:0;right:0;top:calc(env(safe-area-inset-top,0px) + 50px);max-width:560px;margin:0 auto;padding:0 10px;display:grid;grid-template-columns:1fr 1fr;gap:2px 6px;align-content:start;pointer-events:none;transition:opacity .4s}
 .pstrip>*{grid-column:var(--sc);grid-row:var(--sr);min-width:0}
@@ -606,10 +617,8 @@ button.chip:active{transform:translateY(3px);box-shadow:0 1px 0 var(--ledge)}
 .hcard{background:var(--hb)!important;border:3px solid #151B24!important;border-radius:20px!important;box-shadow:0 6px 0 var(--ledge),inset 0 0 0 2px rgba(255,255,255,.06)!important}
 .msg{background:rgba(52,68,100,.38);border-bottom:0!important;font-weight:800}
 .pan h3{font-weight:400}
-.diebtn,.itm,.optb,.shopb{background:var(--hb2)!important;border:2.5px solid #151B24!important;border-radius:14px!important;box-shadow:0 4px 0 var(--ledge)}
-.diebtn:active,.itm:active,.optb:active,.shopb:active,.numb:active{transform:translateY(3px);box-shadow:0 1px 0 var(--ledge)}
-.diebtn b{font-size:15px}
-.diebtn.char{background:var(--yellow)!important;color:#151B24}
+.itm,.optb,.shopb{background:var(--hb2)!important;border:2.5px solid #151B24!important;border-radius:14px!important;box-shadow:0 4px 0 var(--ledge)}
+.itm:active,.optb:active,.shopb:active,.numb:active{transform:translateY(3px);box-shadow:0 1px 0 var(--ledge)}
 .numb{border:2.5px solid #151B24;box-shadow:0 4px 0 var(--ledge)}
 .m3lb{background:none!important;border:0!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important;padding:0!important;min-width:0!important;display:grid;gap:6px}
 .m3lb div{background:var(--hb);border:2.5px solid var(--c,#F4F6F9);border-radius:12px;box-shadow:0 3px 0 var(--ledge);padding:2px 10px 1px 8px!important;gap:12px!important;color:#fff;justify-content:space-between}
@@ -649,13 +658,6 @@ button.tp-mush{border:0;padding:0;cursor:pointer;touch-action:manipulation}butto
 .pan{padding:9px 11px 11px}
 .pan h3{font-size:16px;margin-bottom:6px}
 .panhint{font-size:12px!important;margin:0 0 7px!important}
-.dice2{gap:8px}
-.diebtn{padding:7px 9px 8px}
-.diebtn b{font-size:13px;margin-bottom:5px}
-.diebtn .faces{gap:3px}
-.diebtn .f{min-width:19px;height:20px;padding:0 4px;border-radius:6px;font-family:var(--display);font-weight:400;font-size:11px;background:rgba(255,255,255,.13);color:#fff;box-shadow:none}
-.diebtn.char .f{background:rgba(21,27,36,.14);color:#151B24}
-.diebtn .f sub{font-family:var(--body);font-size:8px;right:-5px;bottom:-6px}
 
 /* TV mode: the PC shows the game on the big screen */
 body.tv #app{max-width:none;padding:0 3vw}
@@ -692,10 +694,6 @@ body.ctl .hcard{max-height:100%;overflow-y:auto}
 @keyframes ctlPulse{to{filter:drop-shadow(0 3px 4px rgba(0,0,0,.35)) drop-shadow(0 0 10px rgba(255,200,61,.9))}}
 .ctlidle{text-align:center;color:#fff;font-family:var(--display);font-size:26px;opacity:.85;padding:5vh 0}
 body.ctl .msg{font-size:17px}
-body.ctl .dice2{gap:12px}
-body.ctl .diebtn{padding:16px 12px 18px;min-height:120px}
-body.ctl .diebtn b{font-size:20px;margin-bottom:10px}
-body.ctl .diebtn .f{min-width:26px;height:28px;font-size:14px}
 body.ctl .optb,body.ctl .shopb{padding:14px;font-size:17px}
 body.ctl .numb{min-height:56px;font-size:22px}
 body.ctl .btn{min-height:58px;font-size:18px}
@@ -978,8 +976,6 @@ body.ctl .itm span{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:
   body.ctl .ctlidle{padding:6px 0;font-size:18px}
   body.ctl .hcard{flex:1;min-width:0;max-width:620px;display:flex;flex-direction:column}
   body.ctl .msg{font-size:15px}
-  body.ctl .diebtn{min-height:0;padding:8px 10px 10px}
-  body.ctl .diebtn b{font-size:16px;margin-bottom:6px}
   body.ctl .panhint{font-size:12px;margin:2px 0 6px}
 }
 @media (orientation:portrait){body.ctl .itm{flex-direction:column;justify-content:center;text-align:center;gap:3px!important;padding:7px 4px!important}body.ctl .itm span{white-space:normal;font-size:12px;line-height:1.1}}
@@ -1000,11 +996,6 @@ body.ctl .itm span{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:
 .tvrot{display:none!important}
 
 /* dice choice buttons: faces in a 3x2 grid, squarer buttons */
-.diebtn .faces{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px!important}
-.diebtn .f{min-width:0!important;width:auto;height:28px;padding:0!important}
-.diebtn b{text-align:center}
-body.ctl .diebtn .f{height:32px;font-size:15px}
-@media (orientation:landscape){body.ctl .diebtn .f{height:28px;font-size:14px}}
 body.ctl .pan{max-height:none!important;overflow:visible!important}
 
 /* TV lobby: practice a minigame */
@@ -1035,7 +1026,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-22 01:01 753b84e";
+const BUILD = "2026-10-22 03:28 c9862cf";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -1207,9 +1198,6 @@ function pcol(p) {
 		return PCOL[p.col];
 	return t.color;
 }
-const faceHTML = (f) =>
-	`<span class="f">${f.m}${f.c ? `<sub class="${f.c > 0 ? "up" : "dn"}">${f.c > 0 ? "+" : ""}${f.c}</sub>` : ""}</span>`;
-const facesHTML = (faces) => `<span class="faces">${faces.map(faceHTML).join("")}</span>`;
 const coinIco = `<svg class="ico" viewBox="0 0 20 20"><circle cx="10" cy="10" r="8.5" fill="#FFC83D"/><circle cx="10" cy="10" r="5.5" fill="none" stroke="#E0A800" stroke-width="2"/></svg>`;
 const batIco = `<svg class="ico" viewBox="0 0 20 20"><rect x="1.5" y="5" width="15" height="11" rx="2.5" fill="#1FA35C"/><rect x="16.5" y="8" width="2.5" height="5" rx="1" fill="#1FA35C"/><path d="M10 6.5 L6.5 11 H9.5 L8 14.5 L12 9.5 H9.5z" fill="#FFE27A"/></svg>`;
 const batIcoV = `<svg class="ico" viewBox="0 0 20 20"><rect x="1.5" y="5" width="15" height="11" rx="2.5" fill="#6A35D0"/><rect x="16.5" y="8" width="2.5" height="5" rx="1" fill="#6A35D0"/><path d="M10 6.5 L6.5 11 H9.5 L8 14.5 L12 9.5 H9.5z" fill="#F3E6FF"/></svg>`;
@@ -1698,29 +1686,87 @@ function nameTag(name, color) {
 	sp.renderOrder = 10;
 	return sp;
 }
-function faceTex(f, color) {
-	return canvasTex(256, 256, (x, w, h) => {
-		x.fillStyle = "#FBFBF7";
-		x.fillRect(0, 0, w, h);
-		x.fillStyle = color;
-		x.fillRect(0, 0, w, 18);
-		x.fillRect(0, h - 18, w, 18);
-		x.fillRect(0, 0, 18, h);
-		x.fillRect(w - 18, 0, 18, h);
-		x.fillStyle = "#151B24";
-		x.font = "900 150px Rubik, Arial";
+/* the board's die (the roll and the dice picker): a cube with small bevels in the die's colour, a slightly raised white tile on each side
+   and the number (+ coin badge) on it; side k in BoxGeometry order (+x, -x, +y, -y, +z, -z), upright as showDie3D turns it */
+const DIE_STD = "#5A6A88",
+	/* the die over the truck (the roll and the picker): its size and height, big like a party game's dice block */
+	DIE_S = 1.44,
+	DIE_Y = 4.1,
+	/* the picker pops up this long after it starts, once the follow camera has swooped in (stepBoard) */
+	PICK_IN = 0.6;
+function dieNumTex(f) {
+	return canvasTex(128, 128, (x, w, h) => {
+		x.font = "96px 'Lilita One', Rubik, Arial";
 		x.textAlign = "center";
 		x.textBaseline = "middle";
-		x.fillText(f.m, w / 2, h / 2 + (f.c ? -14 : 8));
+		x.lineJoin = "round";
+		x.lineWidth = 12;
+		x.strokeStyle = "#3A2A12";
+		x.fillStyle = "#FFC83D";
+		const y = f.c ? 54 : 68;
+		x.strokeText(f.m, w / 2, y);
+		x.fillText(f.m, w / 2, y);
 		if (f.c) {
 			x.fillStyle = f.c > 0 ? "#1FA35C" : "#E5484D";
-			rr(x, 58, 176, 140, 54, 27);
+			rr(x, 30, 94, 68, 28, 14);
 			x.fill();
 			x.fillStyle = "#fff";
-			x.font = "800 40px Rubik, Arial";
-			x.fillText((f.c > 0 ? "+" : "") + f.c + "c", w / 2, 204);
+			x.font = "800 22px Rubik, Arial";
+			x.fillText((f.c > 0 ? "+" : "") + f.c, w / 2, 109);
 		}
 	});
+}
+const DIE_SIDE = [
+	[0, Math.PI / 2, 0],
+	[0, -Math.PI / 2, 0],
+	[-Math.PI / 2, 0, 0],
+	[Math.PI / 2, 0, 0],
+	[0, 0, 0],
+	[0, Math.PI, 0],
+];
+function dieModel(faces, color, shadow) {
+	const g = new THREE.Group(),
+		body = mesh(chamferBox(1, 1, 1, 0.05), color);
+	body.castShadow = !!shadow;
+	g.add(body);
+	faces.forEach((f, k) => {
+		const s = new THREE.Group();
+		s.rotation.set(...DIE_SIDE[k]);
+		const tile = mesh(chamferBox(0.8, 0.8, 0.06, 0.02), "#F4F6F9");
+		tile.position.z = 0.495;
+		tile.castShadow = false;
+		const num = new THREE.Mesh(
+			new THREE.PlaneGeometry(0.7, 0.7),
+			new THREE.MeshStandardMaterial({
+				map: dieNumTex(f),
+				transparent: true,
+				roughness: 0.6,
+				depthWrite: false,
+				polygonOffset: true,
+				polygonOffsetFactor: -2,
+				polygonOffsetUnits: -2,
+			}),
+		);
+		num.position.z = 0.526;
+		s.add(tile, num);
+		g.add(s);
+	});
+	return g;
+}
+/* dice picker plinth: a floating stone slab with a trim in the player's colour and a rocky point underneath */
+function pickSlab(color) {
+	const g = new THREE.Group(),
+		base = mesh(chamferBox(1.7, 0.32, 1.7, 0.08), "#56627A"),
+		top = mesh(chamferBox(1.34, 0.08, 1.34, 0.03), "#6E7B96"),
+		trim = B(1.76, 0.07, 1.76, color, 0, -0.04, 0),
+		rock = Cy(0.82, 0.12, 0.62, 4, "#46506A", 0, -0.47, 0),
+		chip = Cy(0.3, 0.05, 0.3, 4, "#46506A", 0.55, -0.3, 0.2);
+	top.position.y = 0.18;
+	rock.rotation.y = Math.PI / 4;
+	chip.rotation.y = 0.3;
+	g.add(base, top, trim, rock, chip);
+	g.traverse((m) => m.isMesh && (m.castShadow = false));
+	return g;
 }
 function showDie3D(faces, idx, color, key) {
 	if (!GFX.ok || !GFX.board) return false;
@@ -1730,9 +1776,7 @@ function showDie3D(faces, idx, color, key) {
 		bd.scene.add(bd.dieHold);
 	}
 	if (GFX.die) bd.dieHold.remove(GFX.die.m);
-	const mats = faces.map((f) => new THREE.MeshStandardMaterial({ map: faceTex(f, color), roughness: 0.5 }));
-	const m = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.95, 0.95), mats);
-	m.castShadow = true;
+	const m = dieModel(faces, color, true);
 	bd.dieHold.add(m);
 	const E = [
 		[0, -Math.PI / 2, 0],
@@ -1759,7 +1803,7 @@ function stepDie(dt) {
 	d.t += dt;
 	const bd = GFX.board,
 		tk = GFX.tok[d.key];
-	if (tk) bd.dieHold.position.set(tk.g.position.x, tk.g.position.y + 3.2, tk.g.position.z);
+	if (tk) bd.dieHold.position.set(tk.g.position.x, tk.g.position.y + DIE_Y, tk.g.position.z);
 	bd.dieHold.quaternion.copy(GFX.cam.quaternion);
 	if (d.t < 1.1) {
 		d.m.rotation.x += d.spin.x * dt;
@@ -1771,10 +1815,100 @@ function stepDie(dt) {
 		d.m.position.y *= 0.8;
 	}
 	const sc = d.t < 0.15 ? d.t / 0.15 : d.t > 2.1 ? Math.max(0, 1 - (d.t - 2.1) / 0.2) : 1;
-	d.m.scale.setScalar(Math.max(0.001, sc));
+	d.m.scale.setScalar(Math.max(0.001, sc) * DIE_S);
 	if (d.t > 2.3) {
 		bd.dieHold.remove(d.m);
 		GFX.die = null;
+	}
+}
+/* ---------- dice picker (pickNow in partgame decides what it shows) ----------
+   setPick({key, dk, faces, color, dcol}) floats the stone slab over that truck (where the roll's die appears) with the die
+   tumbling slowly on it; a new dk swaps the die (the old one shrinks away, the new one grows in); null shrinks it all away
+   (now: the roll's die takes over, so the picker's die goes at once).
+   #dpick (the arrows and the die's tap area, part3) follows it on screen: translate to the die, --r = 0.9 of its size in px */
+function setPick(s, now) {
+	const bd = GFX.board;
+	if (!GFX.ok || !bd) return;
+	let P = GFX.pick;
+	if (!s) {
+		if (P && !P.out) P.out = 1e-3;
+		if (P && now) P.die.visible = false;
+		return;
+	}
+	if (!P || P.key !== s.key || P.color !== s.color) {
+		if (P) pickDrop(P);
+		const g = new THREE.Group(),
+			slab = pickSlab(s.color);
+		slab.position.y = -0.9;
+		g.scale.setScalar(DIE_S);
+		g.add(slab);
+		bd.scene.add(g);
+		P = GFX.pick = { g, slab, key: s.key, color: s.color, t: -PICK_IN, dk: null, die: null, old: [] };
+	}
+	P.out = 0;
+	if (P.dk !== s.dk) {
+		if (P.die) P.old.push({ m: P.die, t: 0 });
+		P.die = dieModel(s.faces, s.dcol, false);
+		P.die.scale.setScalar(1e-3);
+		P.g.add(P.die);
+		P.dk = s.dk;
+		/* the first die grows in just after the slab, a swapped one as the old one shrinks away */
+		P.swap = Math.min(0, P.t) - (P.old.length ? 0.1 : 0.15);
+	}
+}
+function pickDrop(P) {
+	GFX.board.scene.remove(P.g);
+	if (GFX.pick === P) GFX.pick = null;
+}
+const PV = [new THREE.Vector3(), new THREE.Vector3()],
+	/* ease in and out (cubic) over 0..1, and a grow from 0 to 1 over d seconds */
+	easeIO = (u) => ((u = Math.max(0, Math.min(1, u))) < 0.5 ? 4 * u * u * u : 1 - Math.pow(2 - 2 * u, 3) / 2),
+	popIn = (t, d = 0.45) => easeIO(t / d);
+function stepPick(dt, time) {
+	const P = GFX.pick,
+		el = $("#dpick");
+	if (!P) return;
+	const tk = GFX.tok[P.key];
+	P.t += dt;
+	P.swap += dt;
+	if (P.out) P.out += dt;
+	if (!tk || P.out > 0.3) return pickDrop(P);
+	/* the slab and the die each grow from their own centre, and shrink back into it */
+	const out = P.out ? 1 - easeIO(P.out / 0.3) : 1,
+		k = Math.max(1e-3, popIn(P.t) * out);
+	P.slab.scale.setScalar(0.85 * k);
+	P.g.position.set(tk.g.position.x, tk.g.position.y + DIE_Y + Math.sin(time * 1.6) * 0.08, tk.g.position.z);
+	const cp = GFX.cam.position,
+		yaw = Math.atan2(cp.x - P.g.position.x, cp.z - P.g.position.z);
+	P.slab.rotation.y = yaw + Math.PI / 4;
+	/* the die bobs and tumbles slowly so its faces come round; a new one spins a little as it grows */
+	const kd = popIn(P.swap, 0.4);
+	P.die.scale.setScalar(Math.max(1e-3, kd * out));
+	P.die.position.y = Math.sin(time * 2.2) * 0.07;
+	P.die.rotation.set(
+		Math.sin(time * 0.9) * 0.55,
+		yaw + time * 0.8 + (1 - Math.min(1, kd)) * 2,
+		Math.cos(time * 0.7) * 0.35,
+	);
+	P.old = P.old.filter((o) => {
+		o.t += dt;
+		o.m.scale.setScalar(Math.max(1e-3, 1 - easeIO(o.t / 0.22)));
+		if (o.t < 0.22) return true;
+		P.g.remove(o.m);
+		return false;
+	});
+	if (el) el.classList.toggle("in", P.t > 0.2 && !P.out);
+	if (el && !el.hidden) {
+		const v = PV[0].copy(P.g.position).project(GFX.cam),
+			r = PV[1]
+				.setFromMatrixColumn(GFX.cam.matrixWorld, 0)
+				.multiplyScalar(0.9 * DIE_S)
+				.add(P.g.position)
+				.project(GFX.cam),
+			x = ((v.x + 1) / 2) * GFX.w,
+			y = ((1 - v.y) / 2) * GFX.h;
+		el.style.transform = `translate(${x.toFixed(1)}px,${y.toFixed(1)}px)`;
+		el.style.setProperty("--r", (Math.max(30, Math.min(150, Math.abs(r.x - v.x) * 0.5 * GFX.w)) * k).toFixed(1) + "px");
 	}
 }
 /* ---------- podium ending ---------- */
@@ -2008,6 +2142,7 @@ function frame(t) {
 	if (GFX.mode === "board" && G && GFX.board) {
 		stepBoard(dt, time);
 		stepDie(dt);
+		stepPick(dt, time);
 		if (GFX.board.shadowDirty !== false) {
 			GFX.r.shadowMap.needsUpdate = true;
 		}
@@ -7004,10 +7139,7 @@ function syncBoard() {
 			});
 			disc.castShadow = false;
 			g.add(disc);
-			const tag = nameTag(p.name, G.teams ? TEAMS[p.team || 0].col : pcol(p));
-			tag.scale.multiplyScalar(1.5);
-			tag.position.y = 2.3;
-			g.add(tag);
+			/* no name tag over the truck (the corner panels and the coloured disc say whose it is) */
 			g.position.copy(tilePos(p.pos, [0, 0]));
 			bd.scene.add(g);
 			t = GFX.tok[p.key] = {
@@ -7307,10 +7439,13 @@ function stepBoard(dt, time) {
 		tgt = new THREE.Vector3(0, 2, 0);
 		pos = new THREE.Vector3(0, aspect < 1 ? 52 : 34, aspect < 1 ? 40 : 30);
 	} else if ((ct && !inMg && G.phase !== "rival") || (G.phase === "rival" && rv)) {
-		const rvl = G.phase === "rival";
+		const rvl = G.phase === "rival",
+			pk = !rvl && GFX.pick && GFX.pick.key === cur.key && !GFX.pick.out;
 		tgt = (rvl ? rv : ct.g).position.clone();
 		tgt.y = Math.max(0, tgt.y - 0.5);
-		pos = followCamPos(tgt, aspect, rvl ? 1.08 : 1);
+		/* dice picker: swoop in close on the truck and the slab over it (it pops up as the camera arrives, PICK_IN) */
+		if (pk) tgt.y += DIE_Y * 0.75;
+		pos = followCamPos(tgt, aspect, rvl ? 1.08 : pk ? 0.62 : 1);
 	} else {
 		const sz = MAP.size || 1;
 		tgt = new THREE.Vector3(0, MAP.camY || 0, 1.5);
@@ -11407,9 +11542,9 @@ function tvLobbyHTML() {
 /* ---------- game view ---------- */
 function buildGame() {
 	$("#app").innerHTML =
-		`<div class="pstrip" id="pstrip"></div><div class="pstrip bot" id="pstripb"></div><div class="hudtop"><span class="chip" id="rnd"></span><span class="chip grow" id="turnchip"></span><button class="chip" data-a="snd" aria-label="Sound levels">${SFX.on ? "🔊" : "🔇"}</button><button class="chip" data-a="cam" id="cambtn">Board</button><button class="chip" data-a="peek" id="peekbtn">${GFX.peek ? "🎮 Controls" : "🗺 Board"}</button><button class="chip" data-a="${role === "host" ? "endask" : "leave"}" aria-label="Leave game">✕</button></div>
+		`<div class="pstrip" id="pstrip"></div><div class="pstrip bot" id="pstripb"></div><div class="dpick" id="dpick" hidden></div><div class="hudtop"><span class="chip" id="rnd"></span><span class="chip grow" id="turnchip"></span><button class="chip" data-a="snd" aria-label="Sound levels">${SFX.on ? "🔊" : "🔇"}</button><button class="chip" data-a="cam" id="cambtn">Board</button><button class="chip" data-a="peek" id="peekbtn">${GFX.peek ? "🎮 Controls" : "🗺 Board"}</button><button class="chip" data-a="${role === "host" ? "endask" : "leave"}" aria-label="Leave game">✕</button></div>
   <div class="hudbot" id="hudbot"><div id="hostgone"></div><div id="ctlme"></div><div class="hcard"><div class="msg"><i></i><span id="msg" aria-live="polite"></span></div><div id="panel"></div></div></div>`;
-	render.lastPanel = render.lastStrip = render.lastMe = null;
+	render.lastPanel = render.lastStrip = render.lastMe = render.lastPick = null;
 	/* portrait: the top panels sit under the top chips, so the roll label goes below them (--psh), and the bottom ones ride on the card (--hbh) */
 	if (window.ResizeObserver) {
 		const ro = (el, v) =>
@@ -11498,6 +11633,27 @@ function updateGame() {
 	if (ph !== render.lastPanel) {
 		render.lastPanel = ph;
 		$("#panel").innerHTML = ph;
+	}
+	{
+		/* dice picker: the slab over the truck everywhere, the arrows and tap area over it on the picking phone or PC */
+		const pk = pickNow(),
+			d = pk && pk.dice[pk.i],
+			el = $("#dpick"),
+			h = pk && pk.mine && GFX.ok && !GFX.ctl ? pickHTML(pk) : "";
+		setPick(
+			pk && {
+				key: pk.p.key,
+				dk: d.k,
+				faces: d.faces,
+				color: G.teams ? TEAMS[pk.p.team || 0].col : pcol(pk.p),
+				dcol: d.col,
+			},
+		);
+		if (h !== render.lastPick) {
+			render.lastPick = h;
+			el.innerHTML = h;
+			el.hidden = !h;
+		}
 	}
 	const st = stripHTML();
 	if (st.join("|") !== render.lastStrip) {
@@ -11872,7 +12028,10 @@ function handleAct(pl, act) {
 	const c = cur();
 	if (act.t === "roll" && HG.phase === "turn" && c.key === pl.key) doRoll(pl, act.die === "char" ? "char" : "std");
 	else if (act.t === "item" && HG.phase === "turn" && c.key === pl.key) useItem(pl, act);
-	else if (HG.test && act.t === "troll" && HG.phase === "turn" && c.key === pl.key) {
+	else if (act.t === "dsel" && HG.phase === "turn" && c.key === pl.key) {
+		HG.dsel = { k: pl.key, tid: String(act.tid), die: act.die === "char" ? "char" : "std" };
+		push();
+	} else if (HG.test && act.t === "troll" && HG.phase === "turn" && c.key === pl.key) {
 		HG.mod.fixed = Math.max(1, Math.min(20, act.n | 0));
 		doRoll(pl, "std");
 	} else if (HG.test && act.t === "tjump" && HG.phase === "turn" && c.key === pl.key && MAP.nodes[act.to | 0]) {
@@ -13314,7 +13473,8 @@ function showDice(r) {
 		(f.m
 			? `Move ${f.m}${f.c ? `, ${f.c > 0 ? "+" : ""}${f.c} coins` : ""}`
 			: `No move${f.c ? `, ${f.c > 0 ? "+" : ""}${f.c} coins` : ""}`);
-	showDie3D(faces, r.idx, pcol(p), p.key);
+	setPick(null, true);
+	showDie3D(faces, r.idx, r.die === "char" ? pcol(p) : r.die === "gold" ? "#FFC83D" : DIE_STD, p.key);
 	sfx("dice");
 	musJingle("dice", MUS.song ? MUS.song.key : 0);
 	fxShow(`<div class="dlabel" id="dl">${esc(p.name)} is rolling…</div>`, 2400);
@@ -13349,8 +13509,7 @@ function panelHTML() {
 	if (G.phase === "turn" && c && G.intro)
 		return `<div class="pan"><p>Welcome to ${esc((MAPS[G.map] || JUNK).name)}! ${esc(c.name)} goes first.</p></div>`;
 	if (G.phase === "turn" && c && ctrl(c)) {
-		const t = TRUCKS[c.truck],
-			hasLocal = role === "host" && G.players.some((p) => p.local),
+		const hasLocal = role === "host" && G.players.some((p) => p.local),
 			used = G.mod && G.mod.used;
 		const head = c.local ? `Pass the phone to ${esc(c.name)}` : hasLocal ? `${esc(c.name)}, your turn` : "Your turn!";
 		if (uiPick && uiPick.key === c.key && ITEMS[(c.items || [])[uiPick.idx]]) {
@@ -13366,9 +13525,9 @@ function panelHTML() {
 		const items = (c.items || []).length
 			? `<div class="itemrow">${c.items.map((k, i) => `<button class="itm" data-item="${i}" ${used ? "disabled" : ""}><b>${ITEMS[k].icon}</b><span>${esc(ITEMS[k].name)}<small>${esc(ITEMS[k].desc)}</small></span></button>`).join("")}</div>`
 			: "";
-		return `<div class="pan">${c.local || hasLocal ? `<h3>${head}</h3>` : ""}${items}${used ? `<p class="panhint">Item used. Now roll!</p>` : factoryHint(c)}<div class="dice2">
-      <button class="diebtn" data-roll="std" data-for="${esc(c.key)}"><b>Standard${diceMul() !== 1 ? ` ×${diceMul()}` : ""}</b>${facesHTML(mulFaces(STD))}</button>
-      <button class="diebtn char" data-roll="char" data-for="${esc(c.key)}"><b>${esc(t.name)}</b>${facesHTML(mulFaces(t.faces))}</button></div>${G.test ? testHTML(c) : ""}</div>`;
+		/* the dice themselves float over the truck (pickNow); flat in the card on a TV controller or without 3D */
+		const pk = (GFX.ctl || !GFX.ok) && pickNow();
+		return `<div class="pan">${c.local || hasLocal ? `<h3>${head}</h3>` : ""}${items}${used ? `<p class="panhint">Item used. Now roll!</p>` : factoryHint(c)}${pk ? `<div class="dpick flat">${pickHTML(pk)}</div>` : ""}${G.test ? testHTML(c) : ""}</div>`;
 	}
 	if (G.phase === "fork" && G.fork && ctrl(P_(G.fork.pid))) {
 		const p = P_(G.fork.pid),
@@ -13524,6 +13683,54 @@ function pcardHTML(p, now, o = {}) {
 		bp = o.bump || [],
 		bc = (k) => (bp[k] ? ` class="bump"` : "");
 	return `<div class="pc${now ? " now" : ""}${o.off ? " off" : ""}${o.flip ? " flip" : ""}" data-k="${esc(p.key)}" style="--c:${col};${o.pos || ""}"><div class="pc-oct"><img alt="" src="${thumb(p.truck)}">${o.rank ? `<em>${ordinal(o.rank)}</em>` : ""}</div><b class="pc-nm" style="--nl:${Math.max(8, [...p.name].length)}">${esc(p.name)}</b><div class="pc-it">${[0, 1, 2].map((i) => `<span>${it[i] && ITEMS[it[i]] ? ITEMS[it[i]].icon : ""}</span>`).join("")}</div><div class="stats${shardMap() ? " four" : ""}"><span${bc(0)}>${p.bat}${bIco()}</span><span${bc(1)}>${p.coins}${coinIco}</span>${cargoHTML(p, bp[2], bp[3])}</div>${(p.up || []).length ? `<div class="pc-up">${p.up.map((u) => UPGRADES[u].icon).join("")}</div>` : ""}${o.off ? `<i class="pc-off">offline</i>` : ""}</div>`;
+}
+/* ---------- dice picker ----------
+   On a human's roll the die floats over their truck on a stone slab (setPick in part2), tumbling slowly so its faces come
+   round (no face list: the die shows them). The player
+   flips through their dice with the arrows (DPICK on their device, shared as act "dsel" → HG.dsel so the TV shows the same
+   die) and taps the die to roll. Phones and PCs get the arrows and the tap area over the 3D die (#dpick); a TV controller
+   (or a device without 3D) gets them flat in its card. */
+let DPICK = { tid: "", die: "std" };
+function pickDice(p) {
+	const t = TRUCKS[p.truck],
+		mul = diceMul();
+	return [
+		{ k: "std", name: "Standard" + (mul !== 1 ? ` ×${mul}` : ""), faces: mulFaces(STD), col: DIE_STD },
+		{ k: "char", name: t.name, faces: mulFaces(t.faces), col: pcol(p) },
+	];
+}
+/* what the picker shows right now: null, or {p, mine (this device picks), dice, i (the chosen one), tid (this turn)} */
+function pickNow() {
+	const c = G && G.players[G.turn];
+	if (view !== "game" || !c || c.bot || G.phase !== "turn" || G.hold || G.intro) return null;
+	if (uiPick && uiPick.key === c.key) return null;
+	const tid = G.round + "." + G.turn,
+		dice = pickDice(c),
+		mine = ctrl(c),
+		sel = mine ? DPICK : G.dsel && G.dsel.k === c.key ? G.dsel : null,
+		k = sel && sel.tid === tid ? sel.die : "std";
+	return {
+		p: c,
+		mine,
+		dice,
+		tid,
+		i: Math.max(
+			0,
+			dice.findIndex((d) => d.k === k),
+		),
+	};
+}
+function pickStep(dir) {
+	const s = pickNow();
+	if (!s || !s.mine) return;
+	const d = s.dice[(s.i + dir + s.dice.length) % s.dice.length];
+	DPICK = { tid: s.tid, die: d.k };
+	act({ t: "dsel", die: d.k, tid: s.tid, seq: G.seq }, s.p.key);
+	refreshPanel();
+}
+function pickHTML(s) {
+	const d = s.dice[s.i];
+	return `<button class="mm-arr l" data-dstep="-1" aria-label="Previous die"></button><button class="dp-die" data-roll="${d.k}" data-for="${esc(s.p.key)}" aria-label="Roll the ${esc(d.name)} die"></button><button class="mm-arr r" data-dstep="1" aria-label="Next die"></button><div class="dp-info"><b>${esc(d.name)}</b></div>`;
 }
 /* the board's player panels, one in every corner (Mario Party style): players alternate left / right (teams: one side each, its
    totals on top), the first half of a side in its top corner, the rest in its bottom corner; right-hand panels are mirrored.
@@ -47375,6 +47582,10 @@ document.addEventListener("click", (e) => {
 	if (b.dataset.rounds && role === "host") {
 		HG.rounds = +b.dataset.rounds;
 		push();
+		return;
+	}
+	if (b.dataset.dstep) {
+		pickStep(+b.dataset.dstep);
 		return;
 	}
 	if (b.dataset.roll) {
