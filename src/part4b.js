@@ -202,56 +202,156 @@ function grandstands(W, wid, z0, z1) {
 	});
 	crowdMeshes(W, ppl);
 }
+/* stand-ins for spectators far down a long stand (a few pixels tall there): faceted head, block body, legs, arms and
+   hat in the same colours, ~80 triangles instead of ~400; and boxes for the near crowd's small parts */
+let CROWD_F = null;
+function crowdFar() {
+	if (CROWD_F) return CROWD_F;
+	const H = CROWD_HEAD,
+		ico = (r, sy, y) => new THREE.IcosahedronGeometry(r, 0).scale(1, sy, 1).translate(0, y, 0);
+	return (CROWD_F = {
+		fHead: ico(0.2, 1.06, H),
+		fBody: new THREE.BoxGeometry(0.336, 0.42, 0.233).translate(0, 0.36, 0),
+		fLegs: new THREE.BoxGeometry(0.28, 0.17, 0.12).translate(0, 0.085, 0),
+		fHat: ico(0.22, 0.65, H + 0.11),
+		fArm: new THREE.BoxGeometry(0.1, 0.27, 0.11).translate(0, -0.105, 0),
+		/* near crowd: crowdGeo's small parts as plain boxes (a 2 cm bevel on a limb doesn't show at crowd distance, and
+		   costs 60 triangles instead of 12) */
+		legs: (() => {
+			const g = new THREE.BoxGeometry(0.11, 0.17, 0.12).toNonIndexed(),
+				a = g.attributes.position.array,
+				b = new Float32Array(a.length * 2);
+			for (let i = 0; i < a.length; i += 3) {
+				b.set([a[i] - 0.085, a[i + 1] + 0.085, a[i + 2]], i);
+				b.set([a[i] + 0.085, a[i + 1] + 0.085, a[i + 2]], a.length + i);
+			}
+			const l = new THREE.BufferGeometry();
+			l.setAttribute("position", new THREE.BufferAttribute(b, 3));
+			l.computeVertexNormals();
+			return l;
+		})(),
+		pocket: new THREE.BoxGeometry(0.2, 0.12, 0.05).translate(0, 0.26, -0.124),
+		arm: new THREE.BoxGeometry(0.1, 0.26, 0.11).translate(0, -0.1, 0),
+		sleeve: new THREE.BoxGeometry(0.13, 0.12, 0.14).translate(0, -0.02, 0),
+		longSleeve: new THREE.BoxGeometry(0.1, 0.23, 0.11).translate(0, -0.085, 0),
+		hand: new THREE.BoxGeometry(0.075, 0.06, 0.08).translate(0, -0.215, 0),
+	});
+}
+/* drop spectators standing closer than d m to one already kept on the same level (arms out, they'd clip) */
+function crowdSpace(ppl, d) {
+	const grid = new Map(),
+		cell = (x, z) => Math.floor(x / d) + "," + Math.floor(z / d);
+	return ppl.filter((q) => {
+		const cx = Math.floor(q.x / d),
+			cz = Math.floor(q.z / d);
+		for (let i = -1; i <= 1; i++)
+			for (let k = -1; k <= 1; k++)
+				for (const o of grid.get(cx + i + "," + (cz + k)) || [])
+					if (Math.abs(o.y - q.y) < 0.3 && Math.hypot(o.x - q.x, o.z - q.z) < d) return false;
+		const key = cell(q.x, q.z);
+		if (!grid.has(key)) grid.set(key, []);
+		grid.get(key).push(q);
+		return true;
+	});
+}
 function crowdMeshes(W, ppl) {
-	// instanced spectators; each q has x, y, z, ph, sp and either sd (side of a straight stand) or face (yaw)
+	/* instanced spectators (crowdPerson's parts, outfits from crowdLook); each q has x, y, z, ph, sp and either sd
+	   (side of a straight stand) or face (yaw, the way the person looks along +z). One InstancedMesh per part, refilled
+	   every frame by crowdStep: on stands longer than LODZ * 2.5 m the people further than LODZ m (along z) from the
+	   focus draw as crowdFar's stand-ins. Looks are cosmetic: a local seed. */
+	ppl = crowdSpace(ppl, 0.95);
 	const s = W.sc,
-		N = ppl.length,
-		SHIRT = ["#E5484D", "#2F7DE1", "#FFC83D", "#1FA35C", "#FF6FAE", "#8E5CF0", "#FF8A1F", "#F4F6F9", "#26C6DA"],
-		SKIN = ["#F2C9A0", "#D9A273", "#A8714A", "#6E4A2E", "#FFE0C2"];
-	const inst = (geo, n, cols) => {
-		const m = new THREE.InstancedMesh(geo, new THREE.MeshStandardMaterial({ flatShading: true, roughness: 0.8 }), n);
-		const c = new THREE.Color();
-		for (let i = 0; i < n; i++) m.setColorAt(i, c.set(cols(i)));
+		G = Object.assign({}, crowdGeo(), crowdFar()),
+		r = mulberry(ppl.length * 31 + 7),
+		mat = new THREE.MeshStandardMaterial({ flatShading: true, roughness: 0.8 }),
+		LODZ = 45,
+		cap = {},
+		zs = ppl.map((q) => q.z),
+		lod = Math.max(...zs) - Math.min(...zs) > LODZ * 2.5;
+	ppl.forEach((q) => {
+		const L = crowdLook(r),
+			tee = L.top === "tee" && !L.jacket,
+			outer = L.jacket || L.col,
+			near = [
+				["head", L.skin],
+				["legs", L.legs],
+				[L.jacket ? "inner" : "torso", L.col],
+			],
+			far = [
+				["fHead", L.skin],
+				["fLegs", L.legs],
+				["fBody", outer],
+				["fArm", tee ? L.skin : outer, 1],
+			];
+		if (L.top === "hoodie" && !L.jacket) near.push(["hood", L.col], ["pocket", L.col]);
+		if (L.jacket) near.push(["jacket", L.jacket]);
+		if (L.hat) near.push([L.hat, L.hatCol]) && far.push(["fHat", L.hatCol]);
+		if (L.hat === "beanie" && L.bobble) near.push(["bobble", L.hatCol]);
+		if (tee) near.push(["arm", L.skin, 1], ["sleeve", L.col, 1]);
+		else near.push(["longSleeve", outer, 1], ["hand", L.skin, 1]);
+		q.yaw = (q.face !== undefined ? q.face : (-q.sd * Math.PI) / 2) + Math.PI;
+		q.parts = [near, lod ? far : null];
+		[near, lod ? far : []].forEach((l) =>
+			l.forEach((e) => {
+				e[1] = new THREE.Color(e[1]);
+				cap[e[0]] = (cap[e[0]] || 0) + (e[2] ? 2 : 1);
+			}),
+		);
+	});
+	const meshes = {};
+	Object.keys(cap).forEach((n) => {
+		const m = new THREE.InstancedMesh(G[n], mat, cap[n]);
+		m.setColorAt(0, new THREE.Color());
 		m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+		m.instanceColor.setUsage(THREE.DynamicDrawUsage);
 		m.frustumCulled = false;
+		m.count = 0;
 		s.add(m);
-		return m;
+		meshes[n] = m;
+	});
+	ppl.forEach((q) => q.parts.forEach((l) => l && l.forEach((e) => (e[0] = meshes[e[0]]))));
+	W.crowd = {
+		ppl,
+		lod: lod ? LODZ : 0,
+		meshes: Object.values(meshes),
+		o: new THREE.Object3D(),
+		mb: new THREE.Matrix4(),
+		ma: [new THREE.Matrix4(), new THREE.Matrix4()],
+		ta: new THREE.Matrix4(),
 	};
-	const arm = new THREE.BoxGeometry(0.12, 0.5, 0.12);
-	arm.translate(0, -0.22, 0);
-	const body = inst(new THREE.BoxGeometry(0.34, 0.55, 0.46), N, (i) => SHIRT[(i * 7 + (i >> 3)) % SHIRT.length]);
-	const head = inst(new THREE.IcosahedronGeometry(0.18, 1), N, (i) => SKIN[(i * 5 + (i >> 2)) % SKIN.length]);
-	const arms = inst(arm, N * 2, (i) => SHIRT[((i >> 1) * 7 + (i >> 4)) % SHIRT.length]);
-	W.crowd = { ppl, body, head, arms, o: new THREE.Object3D() };
 }
 function crowdStep(W, focusZ, hype) {
 	// focusZ null: everyone equally excited
 	const C = W.crowd;
 	if (!C) return;
 	const o = C.o,
+		ta = C.ta,
+		mb = C.mb,
 		t = W.t;
-	C.ppl.forEach((q, i) => {
-		const near = focusZ === null ? 0.7 : Math.max(0, 1 - Math.abs(q.z - focusZ) / 45),
+	C.meshes.forEach((m) => (m.count = 0));
+	C.ppl.forEach((q) => {
+		const dz = focusZ === null ? 0 : Math.abs(q.z - focusZ),
+			near = focusZ === null ? 0.7 : Math.max(0, 1 - dz / 45),
 			ex = Math.min(1, 0.15 + near * (0.35 + hype * 0.65)),
 			j = Math.abs(Math.sin(t * q.sp + q.ph)) * 0.32 * ex,
-			y = q.y + j,
-			face = q.face !== undefined ? q.face : (-q.sd * Math.PI) / 2;
-		o.rotation.set(0, face, 0, "YXZ");
-		o.position.set(q.x, y + 0.28, q.z);
+			up = ex > 0.45 ? 2.6 + Math.sin(t * q.sp * 0.8 + q.ph) * 0.45 : CROWD_ARM + j * 0.6;
+		o.rotation.set(0, q.yaw, 0);
+		o.position.set(q.x, q.y + j, q.z);
 		o.updateMatrix();
-		C.body.setMatrixAt(i, o.matrix);
-		o.position.y = y + 0.72;
-		o.updateMatrix();
-		C.head.setMatrixAt(i, o.matrix);
-		const up = ex > 0.45 ? 2.6 + Math.sin(t * q.sp * 0.8 + q.ph) * 0.45 : 0.25 + j;
-		[-1, 1].forEach((a, k) => {
-			o.rotation.set(0, face, a * up, "YXZ");
-			o.position.set(q.x + Math.cos(face) * a * 0.24, y + 0.5, q.z - Math.sin(face) * a * 0.24);
-			o.updateMatrix();
-			C.arms.setMatrixAt(i * 2 + k, o.matrix);
+		mb.copy(o.matrix);
+		[-1, 1].forEach((sd, k) => {
+			ta.makeRotationZ(sd * up).setPosition(sd * CROWD_SH[0], CROWD_SH[1], 0);
+			C.ma[k].multiplyMatrices(mb, ta);
 		});
+		q.parts[C.lod && dz > C.lod ? 1 : 0].forEach(([m, col, arm]) =>
+			(arm ? C.ma : [mb]).forEach((mx) => {
+				const n = m.count++;
+				m.instanceMatrix.array.set(mx.elements, n * 16);
+				col.toArray(m.instanceColor.array, n * 3);
+			}),
+		);
 	});
-	C.body.instanceMatrix.needsUpdate = C.head.instanceMatrix.needsUpdate = C.arms.instanceMatrix.needsUpdate = true;
+	C.meshes.forEach((m) => (m.instanceMatrix.needsUpdate = m.instanceColor.needsUpdate = true));
 }
 /* looping synth engine + crowd noise, pitched by speed */
 /* Drag Race rev dial: a flat gauge that faces the camera (amber good zone with the green perfect band, red line,
@@ -790,10 +890,10 @@ const MG = {
 				top.rotation.x = -Math.PI / 2;
 				top.position.y = h - 0.1;
 				s.add(top);
-				const n = Math.floor((rr * 6.28) / 0.9);
+				const n = Math.floor((rr * 6.28) / 1.05);
 				for (let i = 0; i < n; i++) {
 					if (r() < 0.12) continue;
-					const a = (i / n) * 6.283 + r() * 0.05;
+					const a = ((i + (r() - 0.5) * 0.15) / n) * 6.283;
 					ppl.push({
 						x: Math.cos(a) * rr,
 						y: h - 0.1,
