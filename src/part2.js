@@ -659,7 +659,7 @@ function nameTag(name, color) {
 	sp.renderOrder = 10;
 	return sp;
 }
-/* the board's die (the roll and the dice picker): a rounded body in the die's colour with a raised white tile on each side
+/* the board's die (the roll and the dice picker): a cube with small bevels in the die's colour, a slightly raised white tile on each side
    and the number (+ coin badge) on it; side k in BoxGeometry order (+x, -x, +y, -y, +z, -z), upright as showDie3D turns it */
 const DIE_STD = "#5A6A88",
 	/* the die over the truck (the roll and the picker): its size and height, big like a party game's dice block */
@@ -699,17 +699,17 @@ const DIE_SIDE = [
 ];
 function dieModel(faces, color, shadow) {
 	const g = new THREE.Group(),
-		body = mesh(chamferBox(1, 1, 1, 0.16), color);
+		body = mesh(chamferBox(1, 1, 1, 0.05), color);
 	body.castShadow = !!shadow;
 	g.add(body);
 	faces.forEach((f, k) => {
 		const s = new THREE.Group();
 		s.rotation.set(...DIE_SIDE[k]);
-		const tile = mesh(chamferBox(0.74, 0.74, 0.08, 0.04), "#F4F6F9");
-		tile.position.z = 0.49;
+		const tile = mesh(chamferBox(0.8, 0.8, 0.06, 0.02), "#F4F6F9");
+		tile.position.z = 0.495;
 		tile.castShadow = false;
 		const num = new THREE.Mesh(
-			new THREE.PlaneGeometry(0.66, 0.66),
+			new THREE.PlaneGeometry(0.7, 0.7),
 			new THREE.MeshStandardMaterial({
 				map: dieNumTex(f),
 				transparent: true,
@@ -720,7 +720,7 @@ function dieModel(faces, color, shadow) {
 				polygonOffsetUnits: -2,
 			}),
 		);
-		num.position.z = 0.531;
+		num.position.z = 0.526;
 		s.add(tile, num);
 		g.add(s);
 	});
@@ -796,7 +796,7 @@ function stepDie(dt) {
 }
 /* ---------- dice picker (pickNow in partgame decides what it shows) ----------
    setPick({key, dk, faces, color, dcol}) floats the stone slab over that truck (where the roll's die appears) with the die
-   tumbling slowly on it, the name tags hidden meanwhile (close up they'd cover it; the corner panels say who's who); a new dk drops the new die in; null sinks it away
+   tumbling slowly on it; a new dk swaps the die (the old one shrinks away, the new one grows in); null shrinks it all away
    (now: the roll's die takes over, so the picker's die goes at once).
    #dpick (the arrows and the die's tap area, part3) follows it on screen: translate to the die, --r = 0.9 of its size in px */
 function setPick(s, now) {
@@ -812,51 +812,64 @@ function setPick(s, now) {
 		if (P) pickDrop(P);
 		const g = new THREE.Group(),
 			slab = pickSlab(s.color);
-		slab.position.y = -0.95;
+		slab.position.y = -0.9;
+		g.scale.setScalar(DIE_S);
 		g.add(slab);
 		bd.scene.add(g);
-		P = GFX.pick = { g, slab, key: s.key, color: s.color, t: -PICK_IN, dk: null, die: null };
+		P = GFX.pick = { g, slab, key: s.key, color: s.color, t: -PICK_IN, dk: null, die: null, old: [] };
 	}
 	P.out = 0;
 	if (P.dk !== s.dk) {
-		if (P.die) P.g.remove(P.die);
+		if (P.die) P.old.push({ m: P.die, t: 0 });
 		P.die = dieModel(s.faces, s.dcol, false);
+		P.die.scale.setScalar(1e-3);
 		P.g.add(P.die);
 		P.dk = s.dk;
-		P.swap = Math.min(0, P.t);
+		/* the first die grows in just after the slab, a swapped one as the old one shrinks away */
+		P.swap = Math.min(0, P.t) - (P.old.length ? 0.1 : 0.15);
 	}
 }
 function pickDrop(P) {
 	GFX.board.scene.remove(P.g);
-	pickTags(true);
 	if (GFX.pick === P) GFX.pick = null;
 }
-const PV = [new THREE.Vector3(), new THREE.Vector3()];
-const pickTags = (on) => Object.values(GFX.tok).forEach((t) => t.tag && (t.tag.visible = on));
+const PV = [new THREE.Vector3(), new THREE.Vector3()],
+	/* ease in and out (cubic) over 0..1, and a grow from 0 to 1 over d seconds */
+	easeIO = (u) => ((u = Math.max(0, Math.min(1, u))) < 0.5 ? 4 * u * u * u : 1 - Math.pow(2 - 2 * u, 3) / 2),
+	popIn = (t, d = 0.45) => easeIO(t / d);
 function stepPick(dt, time) {
 	const P = GFX.pick,
 		el = $("#dpick");
 	if (!P) return;
 	const tk = GFX.tok[P.key];
 	P.t += dt;
+	P.swap += dt;
 	if (P.out) P.out += dt;
-	if (!tk || P.out > 0.25) return pickDrop(P);
-	pickTags(!!P.out);
-	/* pops up with a little overshoot, sinks away quicker */
-	const a = P.out ? 1 - P.out / 0.25 : Math.max(0, Math.min(1, P.t / 0.35)),
-		k = P.out ? a * a : 1 + 2.2 * Math.pow(a - 1, 3) + 1.2 * Math.pow(a - 1, 2);
-	P.g.scale.setScalar(Math.max(1e-3, k) * DIE_S);
+	if (!tk || P.out > 0.3) return pickDrop(P);
+	/* the slab and the die each grow from their own centre, and shrink back into it */
+	const out = P.out ? 1 - easeIO(P.out / 0.3) : 1,
+		k = Math.max(1e-3, popIn(P.t) * out);
+	P.slab.scale.setScalar(0.85 * k);
 	P.g.position.set(tk.g.position.x, tk.g.position.y + DIE_Y + Math.sin(time * 1.6) * 0.08, tk.g.position.z);
 	const cp = GFX.cam.position,
 		yaw = Math.atan2(cp.x - P.g.position.x, cp.z - P.g.position.z);
 	P.slab.rotation.y = yaw + Math.PI / 4;
-	/* the die: drops in with a spin on a swap, then bobs and tumbles slowly so its faces come round */
-	P.swap += dt;
-	const sw = Math.max(0, Math.min(1, P.swap / 0.35)),
-		e = 1 - Math.pow(1 - sw, 3);
-	P.die.position.y = (1 - e) * 1.3 + Math.sin(time * 2.2) * 0.07;
-	P.die.scale.setScalar(Math.max(1e-3, sw < 1 ? 0.4 + 0.6 * e : 1));
-	P.die.rotation.set(Math.sin(time * 0.9) * 0.55 + (1 - e) * 4, yaw + time * 0.8, Math.cos(time * 0.7) * 0.35);
+	/* the die bobs and tumbles slowly so its faces come round; a new one spins a little as it grows */
+	const kd = popIn(P.swap, 0.4);
+	P.die.scale.setScalar(Math.max(1e-3, kd * out));
+	P.die.position.y = Math.sin(time * 2.2) * 0.07;
+	P.die.rotation.set(
+		Math.sin(time * 0.9) * 0.55,
+		yaw + time * 0.8 + (1 - Math.min(1, kd)) * 2,
+		Math.cos(time * 0.7) * 0.35,
+	);
+	P.old = P.old.filter((o) => {
+		o.t += dt;
+		o.m.scale.setScalar(Math.max(1e-3, 1 - easeIO(o.t / 0.22)));
+		if (o.t < 0.22) return true;
+		P.g.remove(o.m);
+		return false;
+	});
 	if (el) el.classList.toggle("in", P.t > 0.2 && !P.out);
 	if (el && !el.hidden) {
 		const v = PV[0].copy(P.g.position).project(GFX.cam),

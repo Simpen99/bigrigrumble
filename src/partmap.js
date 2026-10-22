@@ -3536,16 +3536,12 @@ function syncBoard() {
 			});
 			disc.castShadow = false;
 			g.add(disc);
-			const tag = nameTag(p.name, G.teams ? TEAMS[p.team || 0].col : pcol(p));
-			tag.scale.multiplyScalar(1.5);
-			tag.position.y = 2.3;
-			g.add(tag);
+			/* no name tag over the truck (the corner panels and the coloured disc say whose it is) */
 			g.position.copy(tilePos(p.pos, [0, 0]));
 			bd.scene.add(g);
 			t = GFX.tok[p.key] = {
 				g,
 				tr,
-				tag,
 				truck: p.truck,
 				target: p.pos,
 				shown: p.pos,
