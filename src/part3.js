@@ -838,14 +838,23 @@ function updateGame() {
 		c = players[G.turn];
 	$("#rnd").textContent =
 		`Round ${G.round}/${G.rounds}${MAP.lava && G.phase !== "lobby" ? " " + lavaChip(G.round) : ""}`;
-	$("#turnchip").textContent =
-		G.phase === "minigame" || G.phase === "mgres"
-			? "Minigame"
-			: c
-				? ctrl(c) && !c.local && !(role === "host" && G.players.some((p) => p.local))
-					? "Your turn"
-					: `${c.name}'s turn`
-				: "";
+	/* the top plate: on the big screen it also says what the game is waiting for (tvStatusHTML; the TV has no card) */
+	const tc = $("#turnchip"),
+		th =
+			(tvView() && tvStatusHTML()) ||
+			esc(
+				G.phase === "minigame" || G.phase === "mgres"
+					? "Minigame"
+					: c
+						? ctrl(c) && !c.local && !(role === "host" && G.players.some((p) => p.local))
+							? "Your turn"
+							: `${c.name}'s turn`
+						: "",
+			);
+	if (tc.dataset.h !== th) {
+		tc.dataset.h = th;
+		tc.innerHTML = th;
+	}
 	{
 		const c = G.players[G.turn];
 		let m = G.msg || "";

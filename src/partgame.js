@@ -1758,7 +1758,7 @@ const lavaHint = () => (MAP.lava ? `<p class="panhint">${lavaChip(G.round)} ${es
 function panelHTML() {
 	const c = G.players[G.turn],
 		mine = G.players.filter(ctrl);
-	if (tvView()) return tvPanelHTML();
+	if (tvView()) return "";
 	if (!mine.length) return `<div class="pan"><p>You're watching this game.</p></div>`;
 	if (G.phase === "turn" && c && G.hold && !G.intro)
 		return `<div class="pan"><p>${MAP.rival ? "🧲 Magnet Mike is watching…" : "🌋 Lava news…"} ${esc(c.name)} is up next.</p></div>`;
@@ -1843,44 +1843,28 @@ function panelHTML() {
 	const m = mine[0];
 	return "";
 }
-/* status line on the TV: says who the game is waiting for */
-function tvPanelHTML() {
+/* the big screen's status, in the top plate (#turnchip; no card under the board): says who the game is waiting for */
+function tvStatusHTML() {
 	const c = G.players[G.turn],
 		who = (k) => {
 			const p = P_(k);
-			return p ? `<b style="color:${pcol(p)}">${esc(p.name)}</b>` : "Someone";
+			return p ? `<i class="tdot" style="--c:${pcol(p)}"></i><b>${esc(p.name)}</b>` : "Someone";
 		},
-		ph = (k, what) => `<div class="pan tvst"><p>${who(k)} ${what}${P_(k) && P_(k).bot ? "" : " 📱"}</p></div>`;
+		ph = (k, what) => `${who(k)} ${what}${P_(k) && P_(k).bot ? "" : " 📱"}`;
 	if (G.phase === "turn" && c && G.hold && !G.intro)
-		return `<div class="pan tvst"><p>${MAP.rival ? "🧲 Magnet Mike is watching…" : "🌋 Lava news…"} ${esc(c.name)} is up next.</p></div>`;
+		return `${MAP.rival ? "🧲 Magnet Mike is watching…" : "🌋 Lava news…"} ${esc(c.name)} is up next.`;
 	if (G.phase === "turn" && c && G.intro)
-		return `<div class="pan tvst"><p>Welcome to ${esc((MAPS[G.map] || JUNK).name)}! ${esc(c.name)} goes first.</p></div>`;
+		return `Welcome to ${esc((MAPS[G.map] || JUNK).name)}! ${esc(c.name)} goes first.`;
 	if (G.phase === "turn" && c) return ph(c.key, c.bot ? "is thinking…" : "is rolling on their phone");
 	if (G.phase === "fork" && G.fork) return ph(G.fork.pid, "is choosing a road");
 	if (G.phase === "shop" && G.shop) return ph(G.shop.pid, "is browsing the Scrap Shop");
 	if (G.phase === "buy" && G.buy) return ph(G.buy.pid, "is at the battery factory");
 	if (G.phase === "duelpick" && G.duelPick) return ph(G.duelPick.pid, "is picking a duel opponent");
-	if (G.phase === "teams") return `<div class="pan tvst"><p>🤝 Team minigame coming up…</p></div>`;
-	if (G.phase === "rival") return `<div class="pan tvst"><p>🧲 Magnet Mike is on the move…</p></div>`;
-	if (G.phase === "erupt") return `<div class="pan tvst"><p>🌋 The volcano is erupting…</p></div>`;
-	if (G.phase === "minigame" && G.mg) {
-		const def = MG[G.mg.g],
-			ps = G.players.filter((p) => !G.mg.part || G.mg.part.includes(p.key));
-		const st = (p) =>
-			p.key in G.mg.res
-				? "done"
-				: G.mg.t0
-					? p.bot
-						? "cpu"
-						: "playing"
-					: p.bot
-						? "cpu"
-						: G.mg.ready[p.key]
-							? "ready"
-							: "wait";
-		const lbl = { done: "✓ Done", playing: "Playing", ready: "Ready", wait: "Loading…", cpu: "CPU" };
-		return `<div class="pan tvst tvmg"><h3>${G.mg.duel ? "Duel" : "Minigame"}: ${esc(def.name)}</h3><p class="panhint">Grab your phones! ${esc(def.how || "")}</p><div class="tvmgl">${ps.map((p) => `<span class="${st(p)}" style="--c:${pcol(p)}"><img alt="" src="${thumb(p.truck)}">${esc(p.name)}<em>${lbl[st(p)]}</em></span>`).join("")}</div></div>`;
-	}
+	if (G.phase === "teams") return "🤝 Team minigame coming up…";
+	if (G.phase === "rival") return "🧲 Magnet Mike is on the move…";
+	if (G.phase === "erupt") return "🌋 The volcano is erupting…";
+	if (G.phase === "minigame" && G.mg && MG[G.mg.g])
+		return `${G.mg.duel ? "Duel" : "Minigame"}: <b>${esc(MG[G.mg.g].name)}</b>. Grab your phones!`;
 	return "";
 }
 /* lobby: the selected map's own rules (Volcano Quarry) */

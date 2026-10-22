@@ -608,7 +608,10 @@ i.bi{font-style:normal}
 :root{--hb:rgba(24,32,50,.9);--hb2:rgba(40,51,74,.92);--ledge:rgba(11,14,20,.85)}
 .chip{background:var(--hb)!important;border:3px solid var(--c,#F4F6F9)!important;border-radius:14px!important;box-shadow:0 4px 0 var(--ledge);font-family:var(--display);font-weight:400;font-size:15px;padding:5px 12px 4px;color:#fff}
 .chip.name,#rnd{--c:#151B24;background:var(--yellow)!important;color:#151B24;font-size:13px}
-#turnchip{font-family:var(--body);font-weight:800;font-size:14px;min-width:0}
+/* the top status plate (art/ui/plate-silver: its ends with the notches keep their shape, the plain middle stretches) */
+#turnchip{min-width:0;height:32px;line-height:32px;padding:0 18px!important;background:none!important;border:0 solid transparent!important;border-radius:0!important;box-shadow:none!important;border-image:var(--ui-plate-silver) 0 232 fill / 0 54px!important;backdrop-filter:none;-webkit-backdrop-filter:none;color:#1B2333;font-family:var(--display);font-weight:400;font-size:14px}
+#turnchip b{font-weight:400}
+.tdot{display:inline-block;width:.7em;height:.7em;margin-right:5px;border-radius:50%;background:var(--c);box-shadow:0 0 0 2px #151B24;vertical-align:-1px}
 .hudtop{gap:6px!important}.hudtop .chip{font-size:13px;padding:4px 9px 3px;border-width:2.5px!important}.hudtop #rnd{font-size:11px;padding:5px 8px 4px}.hudtop button.chip{flex:none}
 #m3s{--c:var(--yellow)}
 button.chip:active{transform:translateY(3px);box-shadow:0 1px 0 var(--ledge)}
@@ -673,13 +676,8 @@ body.tv #app{max-width:none;padding:0 3vw}
 .tvlobby .plist img{width:clamp(58px,4.6vw,90px);height:auto}
 body.tv .hudtop,body.tv .hudbot{zoom:1.5;max-width:900px}
 body.tv #fx,body.tv #mg .resx{zoom:1.5}
-body.tv .pan.tvst p{font-size:15px}
-.tvmg h3{font-family:var(--display);font-weight:400;font-size:18px;margin-bottom:2px}
-.tvmgl{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
-.tvmgl span{display:flex;align-items:center;gap:5px;background:var(--hb2);border:2.5px solid var(--c);border-radius:12px;padding:3px 9px 3px 4px;font-weight:800;font-size:13px}
-.tvmgl img{width:34px;height:24px;object-fit:contain}
-.tvmgl em{font-style:normal;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;opacity:.7;margin-left:3px}
-.tvmgl .done em{color:#7CE38B;opacity:1}.tvmgl .playing em{color:#FFC83D;opacity:1}
+/* the big screen has no card under the board: its status is in the top plate (tvStatusHTML) */
+body.tv .hcard{display:none}
 /* phone as controller in a TV game: no 3D board, big buttons */
 body.ctl{min-height:100vh;background:radial-gradient(120% 80% at 50% 0%,#2B3A58,#121826) fixed}
 body.ctl #gl{display:none}
