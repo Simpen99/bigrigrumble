@@ -741,6 +741,76 @@ function pickSlab(color) {
 	g.traverse((m) => m.isMesh && (m.castShadow = false));
 	return g;
 }
+/* the bag's items as little models for the dice picker's slab, each about the die's size (1 m round its centre) */
+function itemModel(k) {
+	const g = new THREE.Group(),
+		add = (m, rx, ry, rz) => (m.rotation.set(rx || 0, ry || 0, rz || 0), g.add(m), m),
+		tor = (r, t, arc, c, x, y, z) => {
+			const m = mesh(new THREE.TorusGeometry(r, t, 10, 20, arc), c);
+			m.position.set(x, y, z);
+			return m;
+		};
+	if (k === "nitro") {
+		/* a nitrous bottle: blue body, white label between red stripes, shoulder, valve and knob */
+		add(Cy(0.26, 0.26, 0.8, 14, "#2F6FD6", 0, -0.07, 0));
+		add(Cy(0.29, 0.29, 0.24, 14, "#F4F6F9", 0, -0.12, 0));
+		[0.03, -0.27].forEach((y) => add(Cy(0.29, 0.29, 0.06, 14, "#E5484D", 0, y, 0)));
+		add(Cy(0.29, 0.29, 0.06, 14, "#1F4A96", 0, -0.48, 0));
+		add(Cy(0.11, 0.26, 0.16, 14, "#2F6FD6", 0, 0.41, 0));
+		add(Cy(0.08, 0.08, 0.12, 10, "#C9CED8", 0, 0.54, 0));
+		add(B(0.3, 0.1, 0.12, "#C9CED8", 0, 0.62, 0));
+		add(Cy(0.08, 0.08, 0.07, 10, "#E5484D", 0.18, 0.62, 0), 0, 0, Math.PI / 2);
+		g.children.forEach((m) => (m.position.y -= 0.08));
+	} else if (k === "turbo") {
+		/* two standard dice */
+		[
+			[-0.26, -0.14, 0.08, 0.3, 0.5, 0.1],
+			[0.27, 0.18, -0.08, -0.2, -0.4, 0.5],
+		].forEach(([x, y, z, rx, ry, rz]) => {
+			const d = add(dieModel(STD, DIE_STD, false), rx, ry, rz);
+			d.position.set(x, y, z);
+			d.scale.setScalar(0.56);
+		});
+	} else if (k === "golden") add(dieModel(Array(6).fill({ m: "?", c: 0 }), "#FFC83D", false));
+	else if (k === "tow") {
+		/* a crane hook: eye, shank, the curve with its point, a safety latch and two chain links */
+		add(Cy(0.075, 0.075, 0.56, 10, "#F2B233", 0.22, 0.1, 0));
+		add(tor(0.22, 0.075, Math.PI * 1.25, "#F2B233", 0, -0.18, 0), 0, 0, Math.PI * 0.75);
+		add(Cy(0, 0.075, 0.18, 10, "#F2B233", -0.09, 0.04, 0), 0, 0, -Math.PI / 4);
+		add(B(0.32, 0.035, 0.08, "#A9B1BE", 0.06, 0.13, 0), 0, 0, 0.16);
+		add(tor(0.09, 0.04, Math.PI * 2, "#A9B1BE", 0.22, 0.44, 0), 0, Math.PI / 2, 0);
+		add(tor(0.09, 0.04, Math.PI * 2, "#A9B1BE", 0.22, 0.6, 0));
+		g.children.forEach((m) => (m.position.y -= 0.1));
+	} else if (k === "magnet") {
+		/* a horseshoe magnet: red arch and legs, steel pole tips */
+		add(tor(0.24, 0.11, Math.PI, "#E5484D", 0, 0.1, 0));
+		[-0.24, 0.24].forEach((x) => {
+			add(Cy(0.11, 0.11, 0.3, 20, "#E5484D", x, -0.05, 0));
+			add(Cy(0.11, 0.11, 0.16, 20, "#D8DDE5", x, -0.28, 0));
+		});
+	} else if (k === "spikes") {
+		/* a hinged spike strip: four plates with two rows of spikes, yellow end caps */
+		[-0.36, -0.12, 0.12, 0.36].forEach((x) => {
+			add(B(0.22, 0.06, 0.32, "#2B3140", x, 0, 0));
+			[-0.08, 0.08].forEach((z) => add(Cy(0, 0.06, 0.22, 4, "#C9CED8", x, 0.14, z)));
+		});
+		[-0.24, 0, 0.24].forEach((x) => add(Cy(0.035, 0.035, 0.28, 8, "#59606E", x, 0, 0), Math.PI / 2, 0, 0));
+		[-0.5, 0.5].forEach((x) => add(B(0.06, 0.1, 0.34, "#FFC83D", x, 0, 0)));
+	} else if (k === "grinder") {
+		/* an angle grinder: motor body with grip rings, gear head, disc under a half guard, side handle */
+		add(Cy(0.15, 0.15, 0.58, 14, "#3C7DD9", -0.1, 0.08, 0), 0, 0, Math.PI / 2);
+		add(Cy(0.11, 0.15, 0.08, 14, "#2B3140", -0.43, 0.08, 0), 0, 0, Math.PI / 2);
+		[-0.3, -0.22, -0.14].forEach((x) => add(Cy(0.18, 0.18, 0.04, 14, "#2B3140", x, 0.08, 0), 0, 0, Math.PI / 2));
+		add(B(0.22, 0.22, 0.24, "#59606E", 0.3, 0.08, 0));
+		add(Cy(0.04, 0.04, 0.1, 8, "#59606E", 0.3, -0.07, 0));
+		add(Cy(0.32, 0.32, 0.04, 22, "#B7BEC9", 0.3, -0.14, 0));
+		add(
+			mesh(new THREE.CylinderGeometry(0.35, 0.35, 0.05, 22, 1, false, -Math.PI / 2, Math.PI), "#F2B233"),
+		).position.set(0.3, -0.06, 0);
+		add(Cy(0.05, 0.05, 0.3, 8, "#2B3140", 0.3, 0.08, 0.27), Math.PI / 2, 0, 0);
+	}
+	return g;
+}
 function showDie3D(faces, idx, color, key) {
 	if (!GFX.ok || !GFX.board) return false;
 	const bd = GFX.board;
@@ -795,8 +865,8 @@ function stepDie(dt) {
 	}
 }
 /* ---------- dice picker (pickNow in partgame decides what it shows) ----------
-   setPick({key, dk, faces, color, dcol}) floats the stone slab over that truck (where the roll's die appears) with the die
-   tumbling slowly on it; a new dk swaps the die (the old one shrinks away, the new one grows in); null shrinks it all away
+   setPick({key, dk, faces, color, dcol, item}) floats the stone slab over that truck (where the roll's die appears) with the die
+   (or the bag item's model, itemModel) tumbling slowly on it; a new dk swaps it (the old one shrinks away, the new one grows in); null shrinks it all away
    (now: the roll's die takes over, so the picker's die goes at once).
    #dpick (the arrows and the die's tap area, part3) follows it on screen: translate to the die, --r = 0.9 of its size in px */
 function setPick(s, now) {
@@ -821,7 +891,7 @@ function setPick(s, now) {
 	P.out = 0;
 	if (P.dk !== s.dk) {
 		if (P.die) P.old.push({ m: P.die, t: 0 });
-		P.die = dieModel(s.faces, s.dcol, false);
+		P.die = s.item ? itemModel(s.item) : dieModel(s.faces, s.dcol, false);
 		P.die.scale.setScalar(1e-3);
 		P.g.add(P.die);
 		P.dk = s.dk;

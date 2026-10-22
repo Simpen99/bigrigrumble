@@ -124,6 +124,7 @@ button.chip{border:1px solid var(--hudline)}
 .dpick .mm-arr.r{left:calc(var(--r) * 1.45)}
 .dp-info{pointer-events:none!important;left:0;bottom:calc(var(--r) * .9);transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:5px}
 .dp-info b{font:400 15px/1 var(--display);color:#fff;background:var(--hb,#1B2333);border:2.5px solid #151B24;border-radius:999px;padding:5px 12px 4px;white-space:nowrap;box-shadow:0 3px 0 var(--ledge,#0B0E14);animation:mmSwap .25s cubic-bezier(.2,1.5,.4,1) both}
+.dp-info small{font:700 12px/1.25 var(--body);color:#fff;background:rgba(21,27,36,.82);border-radius:10px;padding:4px 9px;width:max-content;max-width:190px;text-align:center}
 .dpick.flat{position:static;width:auto;height:auto;display:grid;grid-template-columns:56px minmax(0,1fr) 56px;align-items:center;gap:8px;margin-top:8px;pointer-events:auto}
 .dpick.flat>*{position:relative}
 .dpick.flat .mm-arr{grid-row:1;top:auto;left:auto;right:auto;width:56px;height:56px}
@@ -132,6 +133,7 @@ button.chip{border:1px solid var(--hudline)}
 .dpick.flat .dp-die{grid-column:2;grid-row:1;align-self:stretch;left:auto;top:auto;width:100%;height:auto;border-radius:16px;background:var(--yellow);border:2.5px solid #151B24;box-shadow:0 4px 0 var(--ledge,#0B0E14)}
 .dpick.flat .dp-die:active{transform:translateY(3px);box-shadow:0 1px 0 var(--ledge,#0B0E14)}
 .dpick.flat .dp-info{grid-column:2;grid-row:1;left:auto;bottom:auto;transform:none;padding:16px 6px 18px;z-index:1}
+.dpick.flat .dp-info small{background:none;color:#151B24;padding:0;width:auto;max-width:none}
 .dpick.flat .dp-info b{background:none;border:0;box-shadow:none;color:#151B24;font-size:20px;padding:0}
 /* board player panels: the designer's art (silver; gold = whose move it is), every slot placed in % of the 767 x 272 art and sized in cqw */
 .pstrip{position:fixed;z-index:4;left:0;right:0;top:calc(env(safe-area-inset-top,0px) + 50px);max-width:560px;margin:0 auto;padding:0 10px;display:grid;grid-template-columns:1fr 1fr;gap:2px 6px;align-content:start;pointer-events:none;transition:opacity .4s}
@@ -291,10 +293,6 @@ body.mgres .hudtop,body.mgres .hudbot{display:none}
 @keyframes slidein{from{opacity:0;transform:translateX(-24px)}to{opacity:1;transform:none}}
 .pan{max-height:48vh;overflow:auto}
 .panhint{font-size:13px!important;color:#b9c4d2!important;margin:0 0 8px!important}
-.itemrow{display:flex;gap:6px;overflow-x:auto;margin-bottom:8px}
-.itm{flex:none;display:flex;align-items:center;gap:6px;background:var(--hud2);border:1px solid var(--hudline);border-radius:12px;padding:6px 10px 6px 6px;color:#fff;text-align:left;max-width:190px}
-.itm b{font-size:22px}.itm span{font-weight:800;font-size:13px}.itm small{display:block;font-weight:500;font-size:11px;color:#b9c4d2;line-height:1.25}
-.itm:disabled{opacity:.4}
 .optgrid{display:grid;gap:8px}
 .optb{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:var(--hud2);border:1px solid var(--hudline);border-radius:14px;padding:9px 12px;color:#fff}
 .optb:active{background:rgba(255,200,61,.2)}
@@ -617,8 +615,8 @@ button.chip:active{transform:translateY(3px);box-shadow:0 1px 0 var(--ledge)}
 .hcard{background:var(--hb)!important;border:3px solid #151B24!important;border-radius:20px!important;box-shadow:0 6px 0 var(--ledge),inset 0 0 0 2px rgba(255,255,255,.06)!important}
 .msg{background:rgba(52,68,100,.38);border-bottom:0!important;font-weight:800}
 .pan h3{font-weight:400}
-.itm,.optb,.shopb{background:var(--hb2)!important;border:2.5px solid #151B24!important;border-radius:14px!important;box-shadow:0 4px 0 var(--ledge)}
-.itm:active,.optb:active,.shopb:active,.numb:active{transform:translateY(3px);box-shadow:0 1px 0 var(--ledge)}
+.optb,.shopb{background:var(--hb2)!important;border:2.5px solid #151B24!important;border-radius:14px!important;box-shadow:0 4px 0 var(--ledge)}
+.optb:active,.shopb:active,.numb:active{transform:translateY(3px);box-shadow:0 1px 0 var(--ledge)}
 .numb{border:2.5px solid #151B24;box-shadow:0 4px 0 var(--ledge)}
 .m3lb{background:none!important;border:0!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important;padding:0!important;min-width:0!important;display:grid;gap:6px}
 .m3lb div{background:var(--hb);border:2.5px solid var(--c,#F4F6F9);border-radius:12px;box-shadow:0 3px 0 var(--ledge);padding:2px 10px 1px 8px!important;gap:12px!important;color:#fff;justify-content:space-between}
@@ -964,10 +962,6 @@ body.mglive #fxs,body.mgres #fxs{display:none}
 }
 
 /* phone controller: dice panel fits without scrolling (items share the width; sideways = card on the left, panel on the right) */
-body.ctl .itemrow{display:grid!important;grid-template-columns:repeat(auto-fit,minmax(0,1fr));gap:6px;overflow:visible!important;padding-bottom:0!important}
-body.ctl .itm{min-width:0!important;width:auto!important;padding:7px 8px!important;gap:6px!important}
-body.ctl .itm small{display:none!important}
-body.ctl .itm span{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:13px}
 @media (orientation:landscape){
   body.ctl .hudbot{flex-direction:row;align-items:stretch;justify-content:center;gap:10px;max-width:none;top:calc(env(safe-area-inset-top,0px) + 50px);padding:0 12px calc(env(safe-area-inset-bottom,0px) + 8px)}
   body.ctl #hostgone:empty{display:none}
@@ -978,7 +972,6 @@ body.ctl .itm span{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:
   body.ctl .msg{font-size:15px}
   body.ctl .panhint{font-size:12px;margin:2px 0 6px}
 }
-@media (orientation:portrait){body.ctl .itm{flex-direction:column;justify-content:center;text-align:center;gap:3px!important;padding:7px 4px!important}body.ctl .itm span{white-space:normal;font-size:12px;line-height:1.1}}
 
 /* phones in a TV game: rotate overlay while upright */
 #rotov{display:none;position:fixed;inset:0;z-index:200;background:radial-gradient(120% 80% at 50% 20%,#2B3A58,#121826);color:#fff;place-items:center;padding:24px;text-align:center;touch-action:none}
@@ -1026,7 +1019,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-22 14:49 2b9c1aa";
+const BUILD = "2026-10-22 18:37 e3c566f";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -1768,6 +1761,76 @@ function pickSlab(color) {
 	g.traverse((m) => m.isMesh && (m.castShadow = false));
 	return g;
 }
+/* the bag's items as little models for the dice picker's slab, each about the die's size (1 m round its centre) */
+function itemModel(k) {
+	const g = new THREE.Group(),
+		add = (m, rx, ry, rz) => (m.rotation.set(rx || 0, ry || 0, rz || 0), g.add(m), m),
+		tor = (r, t, arc, c, x, y, z) => {
+			const m = mesh(new THREE.TorusGeometry(r, t, 10, 20, arc), c);
+			m.position.set(x, y, z);
+			return m;
+		};
+	if (k === "nitro") {
+		/* a nitrous bottle: blue body, white label between red stripes, shoulder, valve and knob */
+		add(Cy(0.26, 0.26, 0.8, 14, "#2F6FD6", 0, -0.07, 0));
+		add(Cy(0.29, 0.29, 0.24, 14, "#F4F6F9", 0, -0.12, 0));
+		[0.03, -0.27].forEach((y) => add(Cy(0.29, 0.29, 0.06, 14, "#E5484D", 0, y, 0)));
+		add(Cy(0.29, 0.29, 0.06, 14, "#1F4A96", 0, -0.48, 0));
+		add(Cy(0.11, 0.26, 0.16, 14, "#2F6FD6", 0, 0.41, 0));
+		add(Cy(0.08, 0.08, 0.12, 10, "#C9CED8", 0, 0.54, 0));
+		add(B(0.3, 0.1, 0.12, "#C9CED8", 0, 0.62, 0));
+		add(Cy(0.08, 0.08, 0.07, 10, "#E5484D", 0.18, 0.62, 0), 0, 0, Math.PI / 2);
+		g.children.forEach((m) => (m.position.y -= 0.08));
+	} else if (k === "turbo") {
+		/* two standard dice */
+		[
+			[-0.26, -0.14, 0.08, 0.3, 0.5, 0.1],
+			[0.27, 0.18, -0.08, -0.2, -0.4, 0.5],
+		].forEach(([x, y, z, rx, ry, rz]) => {
+			const d = add(dieModel(STD, DIE_STD, false), rx, ry, rz);
+			d.position.set(x, y, z);
+			d.scale.setScalar(0.56);
+		});
+	} else if (k === "golden") add(dieModel(Array(6).fill({ m: "?", c: 0 }), "#FFC83D", false));
+	else if (k === "tow") {
+		/* a crane hook: eye, shank, the curve with its point, a safety latch and two chain links */
+		add(Cy(0.075, 0.075, 0.56, 10, "#F2B233", 0.22, 0.1, 0));
+		add(tor(0.22, 0.075, Math.PI * 1.25, "#F2B233", 0, -0.18, 0), 0, 0, Math.PI * 0.75);
+		add(Cy(0, 0.075, 0.18, 10, "#F2B233", -0.09, 0.04, 0), 0, 0, -Math.PI / 4);
+		add(B(0.32, 0.035, 0.08, "#A9B1BE", 0.06, 0.13, 0), 0, 0, 0.16);
+		add(tor(0.09, 0.04, Math.PI * 2, "#A9B1BE", 0.22, 0.44, 0), 0, Math.PI / 2, 0);
+		add(tor(0.09, 0.04, Math.PI * 2, "#A9B1BE", 0.22, 0.6, 0));
+		g.children.forEach((m) => (m.position.y -= 0.1));
+	} else if (k === "magnet") {
+		/* a horseshoe magnet: red arch and legs, steel pole tips */
+		add(tor(0.24, 0.11, Math.PI, "#E5484D", 0, 0.1, 0));
+		[-0.24, 0.24].forEach((x) => {
+			add(Cy(0.11, 0.11, 0.3, 20, "#E5484D", x, -0.05, 0));
+			add(Cy(0.11, 0.11, 0.16, 20, "#D8DDE5", x, -0.28, 0));
+		});
+	} else if (k === "spikes") {
+		/* a hinged spike strip: four plates with two rows of spikes, yellow end caps */
+		[-0.36, -0.12, 0.12, 0.36].forEach((x) => {
+			add(B(0.22, 0.06, 0.32, "#2B3140", x, 0, 0));
+			[-0.08, 0.08].forEach((z) => add(Cy(0, 0.06, 0.22, 4, "#C9CED8", x, 0.14, z)));
+		});
+		[-0.24, 0, 0.24].forEach((x) => add(Cy(0.035, 0.035, 0.28, 8, "#59606E", x, 0, 0), Math.PI / 2, 0, 0));
+		[-0.5, 0.5].forEach((x) => add(B(0.06, 0.1, 0.34, "#FFC83D", x, 0, 0)));
+	} else if (k === "grinder") {
+		/* an angle grinder: motor body with grip rings, gear head, disc under a half guard, side handle */
+		add(Cy(0.15, 0.15, 0.58, 14, "#3C7DD9", -0.1, 0.08, 0), 0, 0, Math.PI / 2);
+		add(Cy(0.11, 0.15, 0.08, 14, "#2B3140", -0.43, 0.08, 0), 0, 0, Math.PI / 2);
+		[-0.3, -0.22, -0.14].forEach((x) => add(Cy(0.18, 0.18, 0.04, 14, "#2B3140", x, 0.08, 0), 0, 0, Math.PI / 2));
+		add(B(0.22, 0.22, 0.24, "#59606E", 0.3, 0.08, 0));
+		add(Cy(0.04, 0.04, 0.1, 8, "#59606E", 0.3, -0.07, 0));
+		add(Cy(0.32, 0.32, 0.04, 22, "#B7BEC9", 0.3, -0.14, 0));
+		add(
+			mesh(new THREE.CylinderGeometry(0.35, 0.35, 0.05, 22, 1, false, -Math.PI / 2, Math.PI), "#F2B233"),
+		).position.set(0.3, -0.06, 0);
+		add(Cy(0.05, 0.05, 0.3, 8, "#2B3140", 0.3, 0.08, 0.27), Math.PI / 2, 0, 0);
+	}
+	return g;
+}
 function showDie3D(faces, idx, color, key) {
 	if (!GFX.ok || !GFX.board) return false;
 	const bd = GFX.board;
@@ -1822,8 +1885,8 @@ function stepDie(dt) {
 	}
 }
 /* ---------- dice picker (pickNow in partgame decides what it shows) ----------
-   setPick({key, dk, faces, color, dcol}) floats the stone slab over that truck (where the roll's die appears) with the die
-   tumbling slowly on it; a new dk swaps the die (the old one shrinks away, the new one grows in); null shrinks it all away
+   setPick({key, dk, faces, color, dcol, item}) floats the stone slab over that truck (where the roll's die appears) with the die
+   (or the bag item's model, itemModel) tumbling slowly on it; a new dk swaps it (the old one shrinks away, the new one grows in); null shrinks it all away
    (now: the roll's die takes over, so the picker's die goes at once).
    #dpick (the arrows and the die's tap area, part3) follows it on screen: translate to the die, --r = 0.9 of its size in px */
 function setPick(s, now) {
@@ -1848,7 +1911,7 @@ function setPick(s, now) {
 	P.out = 0;
 	if (P.dk !== s.dk) {
 		if (P.die) P.old.push({ m: P.die, t: 0 });
-		P.die = dieModel(s.faces, s.dcol, false);
+		P.die = s.item ? itemModel(s.item) : dieModel(s.faces, s.dcol, false);
 		P.die.scale.setScalar(1e-3);
 		P.g.add(P.die);
 		P.dk = s.dk;
@@ -11666,6 +11729,7 @@ function updateGame() {
 				faces: d.faces,
 				color: G.teams ? TEAMS[pk.p.team || 0].col : pcol(pk.p),
 				dcol: d.col,
+				item: d.item,
 			},
 		);
 		if (h !== render.lastPick) {
@@ -12048,7 +12112,7 @@ function handleAct(pl, act) {
 	if (act.t === "roll" && HG.phase === "turn" && c.key === pl.key) doRoll(pl, act.die === "char" ? "char" : "std");
 	else if (act.t === "item" && HG.phase === "turn" && c.key === pl.key) useItem(pl, act);
 	else if (act.t === "dsel" && HG.phase === "turn" && c.key === pl.key) {
-		HG.dsel = { k: pl.key, tid: String(act.tid), die: act.die === "char" ? "char" : "std" };
+		HG.dsel = { k: pl.key, tid: String(act.tid), die: /^(char|i[0-2])$/.test(act.die) ? act.die : "std" };
 		push();
 	} else if (HG.test && act.t === "troll" && HG.phase === "turn" && c.key === pl.key) {
 		HG.mod.fixed = Math.max(1, Math.min(20, act.n | 0));
@@ -13541,12 +13605,9 @@ function panelHTML() {
 			}
 			return `<div class="pan"><h3>${it.icon} Golden Die: pick your roll</h3>${factoryHint(c)}<div class="numgrid">${[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((v) => `<button class="numb" data-ival="${v}">${v}</button>`).join("")}</div>${cancel}</div>`;
 		}
-		const items = (c.items || []).length
-			? `<div class="itemrow">${c.items.map((k, i) => `<button class="itm" data-item="${i}" ${used ? "disabled" : ""}><b>${ITEMS[k].icon}</b><span>${esc(ITEMS[k].name)}<small>${esc(ITEMS[k].desc)}</small></span></button>`).join("")}</div>`
-			: "";
-		/* the dice themselves float over the truck (pickNow); flat in the card on a TV controller or without 3D */
+		/* the dice and the bag's items float over the truck (pickNow); flat in the card on a TV controller or without 3D */
 		const pk = (GFX.ctl || !GFX.ok) && pickNow();
-		return `<div class="pan">${c.local || hasLocal ? `<h3>${head}</h3>` : ""}${items}${used ? `<p class="panhint">Item used. Now roll!</p>` : factoryHint(c)}${pk ? `<div class="dpick flat">${pickHTML(pk)}</div>` : ""}${G.test ? testHTML(c) : ""}</div>`;
+		return `<div class="pan">${c.local || hasLocal ? `<h3>${head}</h3>` : ""}${used ? `<p class="panhint">Item used. Now roll!</p>` : factoryHint(c)}${pk ? `<div class="dpick flat">${pickHTML(pk)}</div>` : ""}${G.test ? testHTML(c) : ""}</div>`;
 	}
 	if (G.phase === "fork" && G.fork && ctrl(P_(G.fork.pid))) {
 		const p = P_(G.fork.pid),
@@ -13706,16 +13767,22 @@ function pcardHTML(p, now, o = {}) {
 /* ---------- dice picker ----------
    On a human's roll the die floats over their truck on a stone slab (setPick in part2), tumbling slowly so its faces come
    round (no face list: the die shows them). The player
-   flips through their dice with the arrows (DPICK on their device, shared as act "dsel" → HG.dsel so the TV shows the same
-   die) and taps the die to roll. Phones and PCs get the arrows and the tap area over the 3D die (#dpick); a TV controller
-   (or a device without 3D) gets them flat in its card. */
+   flips through their dice and then the items in their bag (each as its own model, itemModel; gone once an item is used
+   this turn) with the arrows (DPICK on their device, shared as act "dsel" → HG.dsel so the TV shows the same thing) and
+   taps the die to roll, or the item to use it (items that need a truck or a number open that choice in the card).
+   Phones and PCs get the arrows and the tap area over the 3D die (#dpick); a TV controller (or a device without 3D) gets
+   them flat in its card. */
 let DPICK = { tid: "", die: "std" };
 function pickDice(p) {
 	const t = TRUCKS[p.truck],
-		mul = diceMul();
+		mul = diceMul(),
+		used = G.mod && G.mod.used;
 	return [
 		{ k: "std", name: "Standard" + (mul !== 1 ? ` ×${mul}` : ""), faces: mulFaces(STD), col: DIE_STD },
 		{ k: "char", name: t.name, faces: mulFaces(t.faces), col: pcol(p) },
+		...(used ? [] : p.items || [])
+			.map((it, i) => ITEMS[it] && { k: "i" + i, idx: i, item: it, name: ITEMS[it].name, desc: ITEMS[it].desc })
+			.filter(Boolean),
 	];
 }
 /* what the picker shows right now: null, or {p, mine (this device picks), dice, i (the chosen one), tid (this turn)} */
@@ -13748,8 +13815,14 @@ function pickStep(dir) {
 	refreshPanel();
 }
 function pickHTML(s) {
-	const d = s.dice[s.i];
-	return `<button class="mm-arr l" data-dstep="-1" aria-label="Previous die"></button><button class="dp-die" data-roll="${d.k}" data-for="${esc(s.p.key)}" aria-label="Roll the ${esc(d.name)} die"></button><button class="mm-arr r" data-dstep="1" aria-label="Next die"></button><div class="dp-info"><b>${esc(d.name)}</b></div>`;
+	const d = s.dice[s.i],
+		tap = d.item
+			? `<button class="dp-die" data-item="${d.idx}" aria-label="Use ${esc(d.name)}"></button>`
+			: `<button class="dp-die" data-roll="${d.k}" data-for="${esc(s.p.key)}" aria-label="Roll the ${esc(d.name)} die"></button>`,
+		info = d.item
+			? `<b>${ITEMS[d.item].icon} ${esc(d.name)}</b><small>${esc(d.desc)}</small>`
+			: `<b>${esc(d.name)}</b>`;
+	return `<button class="mm-arr l" data-dstep="-1" aria-label="Previous"></button>${tap}<button class="mm-arr r" data-dstep="1" aria-label="Next"></button><div class="dp-info${d.item ? " it" : ""}">${info}</div>`;
 }
 /* the board's player panels, one in every corner (Mario Party style): players alternate left / right (teams: one side each, its
    totals on top), the first half of a side in its top corner, the rest in its bottom corner; right-hand panels are mirrored.
