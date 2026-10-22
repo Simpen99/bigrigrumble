@@ -3545,6 +3545,7 @@ function syncBoard() {
 			t = GFX.tok[p.key] = {
 				g,
 				tr,
+				tag,
 				truck: p.truck,
 				target: p.pos,
 				shown: p.pos,
@@ -3839,10 +3840,13 @@ function stepBoard(dt, time) {
 		tgt = new THREE.Vector3(0, 2, 0);
 		pos = new THREE.Vector3(0, aspect < 1 ? 52 : 34, aspect < 1 ? 40 : 30);
 	} else if ((ct && !inMg && G.phase !== "rival") || (G.phase === "rival" && rv)) {
-		const rvl = G.phase === "rival";
+		const rvl = G.phase === "rival",
+			pk = !rvl && GFX.pick && GFX.pick.key === cur.key && !GFX.pick.out;
 		tgt = (rvl ? rv : ct.g).position.clone();
 		tgt.y = Math.max(0, tgt.y - 0.5);
-		pos = followCamPos(tgt, aspect, rvl ? 1.08 : 1);
+		/* dice picker: swoop in close on the truck and the slab over it (it pops up as the camera arrives, PICK_IN) */
+		if (pk) tgt.y += DIE_Y * 0.75;
+		pos = followCamPos(tgt, aspect, rvl ? 1.08 : pk ? 0.62 : 1);
 	} else {
 		const sz = MAP.size || 1;
 		tgt = new THREE.Vector3(0, MAP.camY || 0, 1.5);

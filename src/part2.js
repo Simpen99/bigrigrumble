@@ -171,9 +171,6 @@ function pcol(p) {
 		return PCOL[p.col];
 	return t.color;
 }
-const faceHTML = (f) =>
-	`<span class="f">${f.m}${f.c ? `<sub class="${f.c > 0 ? "up" : "dn"}">${f.c > 0 ? "+" : ""}${f.c}</sub>` : ""}</span>`;
-const facesHTML = (faces) => `<span class="faces">${faces.map(faceHTML).join("")}</span>`;
 const coinIco = `<svg class="ico" viewBox="0 0 20 20"><circle cx="10" cy="10" r="8.5" fill="#FFC83D"/><circle cx="10" cy="10" r="5.5" fill="none" stroke="#E0A800" stroke-width="2"/></svg>`;
 const batIco = `<svg class="ico" viewBox="0 0 20 20"><rect x="1.5" y="5" width="15" height="11" rx="2.5" fill="#1FA35C"/><rect x="16.5" y="8" width="2.5" height="5" rx="1" fill="#1FA35C"/><path d="M10 6.5 L6.5 11 H9.5 L8 14.5 L12 9.5 H9.5z" fill="#FFE27A"/></svg>`;
 const batIcoV = `<svg class="ico" viewBox="0 0 20 20"><rect x="1.5" y="5" width="15" height="11" rx="2.5" fill="#6A35D0"/><rect x="16.5" y="8" width="2.5" height="5" rx="1" fill="#6A35D0"/><path d="M10 6.5 L6.5 11 H9.5 L8 14.5 L12 9.5 H9.5z" fill="#F3E6FF"/></svg>`;
@@ -662,29 +659,87 @@ function nameTag(name, color) {
 	sp.renderOrder = 10;
 	return sp;
 }
-function faceTex(f, color) {
-	return canvasTex(256, 256, (x, w, h) => {
-		x.fillStyle = "#FBFBF7";
-		x.fillRect(0, 0, w, h);
-		x.fillStyle = color;
-		x.fillRect(0, 0, w, 18);
-		x.fillRect(0, h - 18, w, 18);
-		x.fillRect(0, 0, 18, h);
-		x.fillRect(w - 18, 0, 18, h);
-		x.fillStyle = "#151B24";
-		x.font = "900 150px Rubik, Arial";
+/* the board's die (the roll and the dice picker): a rounded body in the die's colour with a raised white tile on each side
+   and the number (+ coin badge) on it; side k in BoxGeometry order (+x, -x, +y, -y, +z, -z), upright as showDie3D turns it */
+const DIE_STD = "#5A6A88",
+	/* the die over the truck (the roll and the picker): its size and height, big like a party game's dice block */
+	DIE_S = 1.8,
+	DIE_Y = 4.6,
+	/* the picker pops up this long after it starts, once the follow camera has swooped in (stepBoard) */
+	PICK_IN = 0.6;
+function dieNumTex(f) {
+	return canvasTex(128, 128, (x, w, h) => {
+		x.font = "96px 'Lilita One', Rubik, Arial";
 		x.textAlign = "center";
 		x.textBaseline = "middle";
-		x.fillText(f.m, w / 2, h / 2 + (f.c ? -14 : 8));
+		x.lineJoin = "round";
+		x.lineWidth = 12;
+		x.strokeStyle = "#3A2A12";
+		x.fillStyle = "#FFC83D";
+		const y = f.c ? 54 : 68;
+		x.strokeText(f.m, w / 2, y);
+		x.fillText(f.m, w / 2, y);
 		if (f.c) {
 			x.fillStyle = f.c > 0 ? "#1FA35C" : "#E5484D";
-			rr(x, 58, 176, 140, 54, 27);
+			rr(x, 30, 94, 68, 28, 14);
 			x.fill();
 			x.fillStyle = "#fff";
-			x.font = "800 40px Rubik, Arial";
-			x.fillText((f.c > 0 ? "+" : "") + f.c + "c", w / 2, 204);
+			x.font = "800 22px Rubik, Arial";
+			x.fillText((f.c > 0 ? "+" : "") + f.c, w / 2, 109);
 		}
 	});
+}
+const DIE_SIDE = [
+	[0, Math.PI / 2, 0],
+	[0, -Math.PI / 2, 0],
+	[-Math.PI / 2, 0, 0],
+	[Math.PI / 2, 0, 0],
+	[0, 0, 0],
+	[0, Math.PI, 0],
+];
+function dieModel(faces, color, shadow) {
+	const g = new THREE.Group(),
+		body = mesh(chamferBox(1, 1, 1, 0.16), color);
+	body.castShadow = !!shadow;
+	g.add(body);
+	faces.forEach((f, k) => {
+		const s = new THREE.Group();
+		s.rotation.set(...DIE_SIDE[k]);
+		const tile = mesh(chamferBox(0.74, 0.74, 0.08, 0.04), "#F4F6F9");
+		tile.position.z = 0.49;
+		tile.castShadow = false;
+		const num = new THREE.Mesh(
+			new THREE.PlaneGeometry(0.66, 0.66),
+			new THREE.MeshStandardMaterial({
+				map: dieNumTex(f),
+				transparent: true,
+				roughness: 0.6,
+				depthWrite: false,
+				polygonOffset: true,
+				polygonOffsetFactor: -2,
+				polygonOffsetUnits: -2,
+			}),
+		);
+		num.position.z = 0.531;
+		s.add(tile, num);
+		g.add(s);
+	});
+	return g;
+}
+/* dice picker plinth: a floating stone slab with a trim in the player's colour and a rocky point underneath */
+function pickSlab(color) {
+	const g = new THREE.Group(),
+		base = mesh(chamferBox(1.7, 0.32, 1.7, 0.08), "#56627A"),
+		top = mesh(chamferBox(1.34, 0.08, 1.34, 0.03), "#6E7B96"),
+		trim = B(1.76, 0.07, 1.76, color, 0, -0.04, 0),
+		rock = Cy(0.82, 0.12, 0.62, 4, "#46506A", 0, -0.47, 0),
+		chip = Cy(0.3, 0.05, 0.3, 4, "#46506A", 0.55, -0.3, 0.2);
+	top.position.y = 0.18;
+	rock.rotation.y = Math.PI / 4;
+	chip.rotation.y = 0.3;
+	g.add(base, top, trim, rock, chip);
+	g.traverse((m) => m.isMesh && (m.castShadow = false));
+	return g;
 }
 function showDie3D(faces, idx, color, key) {
 	if (!GFX.ok || !GFX.board) return false;
@@ -694,9 +749,7 @@ function showDie3D(faces, idx, color, key) {
 		bd.scene.add(bd.dieHold);
 	}
 	if (GFX.die) bd.dieHold.remove(GFX.die.m);
-	const mats = faces.map((f) => new THREE.MeshStandardMaterial({ map: faceTex(f, color), roughness: 0.5 }));
-	const m = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.95, 0.95), mats);
-	m.castShadow = true;
+	const m = dieModel(faces, color, true);
 	bd.dieHold.add(m);
 	const E = [
 		[0, -Math.PI / 2, 0],
@@ -723,7 +776,7 @@ function stepDie(dt) {
 	d.t += dt;
 	const bd = GFX.board,
 		tk = GFX.tok[d.key];
-	if (tk) bd.dieHold.position.set(tk.g.position.x, tk.g.position.y + 3.2, tk.g.position.z);
+	if (tk) bd.dieHold.position.set(tk.g.position.x, tk.g.position.y + DIE_Y, tk.g.position.z);
 	bd.dieHold.quaternion.copy(GFX.cam.quaternion);
 	if (d.t < 1.1) {
 		d.m.rotation.x += d.spin.x * dt;
@@ -735,10 +788,87 @@ function stepDie(dt) {
 		d.m.position.y *= 0.8;
 	}
 	const sc = d.t < 0.15 ? d.t / 0.15 : d.t > 2.1 ? Math.max(0, 1 - (d.t - 2.1) / 0.2) : 1;
-	d.m.scale.setScalar(Math.max(0.001, sc));
+	d.m.scale.setScalar(Math.max(0.001, sc) * DIE_S);
 	if (d.t > 2.3) {
 		bd.dieHold.remove(d.m);
 		GFX.die = null;
+	}
+}
+/* ---------- dice picker (pickNow in partgame decides what it shows) ----------
+   setPick({key, dk, faces, color, dcol}) floats the stone slab over that truck (where the roll's die appears) with the die
+   tumbling slowly on it, the name tags hidden meanwhile (close up they'd cover it; the corner panels say who's who); a new dk drops the new die in; null sinks it away
+   (now: the roll's die takes over, so the picker's die goes at once).
+   #dpick (the arrows and the die's tap area, part3) follows it on screen: translate to the die, --r = 0.9 of its size in px */
+function setPick(s, now) {
+	const bd = GFX.board;
+	if (!GFX.ok || !bd) return;
+	let P = GFX.pick;
+	if (!s) {
+		if (P && !P.out) P.out = 1e-3;
+		if (P && now) P.die.visible = false;
+		return;
+	}
+	if (!P || P.key !== s.key || P.color !== s.color) {
+		if (P) pickDrop(P);
+		const g = new THREE.Group(),
+			slab = pickSlab(s.color);
+		slab.position.y = -0.95;
+		g.add(slab);
+		bd.scene.add(g);
+		P = GFX.pick = { g, slab, key: s.key, color: s.color, t: -PICK_IN, dk: null, die: null };
+	}
+	P.out = 0;
+	if (P.dk !== s.dk) {
+		if (P.die) P.g.remove(P.die);
+		P.die = dieModel(s.faces, s.dcol, false);
+		P.g.add(P.die);
+		P.dk = s.dk;
+		P.swap = Math.min(0, P.t);
+	}
+}
+function pickDrop(P) {
+	GFX.board.scene.remove(P.g);
+	pickTags(true);
+	if (GFX.pick === P) GFX.pick = null;
+}
+const PV = [new THREE.Vector3(), new THREE.Vector3()];
+const pickTags = (on) => Object.values(GFX.tok).forEach((t) => t.tag && (t.tag.visible = on));
+function stepPick(dt, time) {
+	const P = GFX.pick,
+		el = $("#dpick");
+	if (!P) return;
+	const tk = GFX.tok[P.key];
+	P.t += dt;
+	if (P.out) P.out += dt;
+	if (!tk || P.out > 0.25) return pickDrop(P);
+	pickTags(!!P.out);
+	/* pops up with a little overshoot, sinks away quicker */
+	const a = P.out ? 1 - P.out / 0.25 : Math.max(0, Math.min(1, P.t / 0.35)),
+		k = P.out ? a * a : 1 + 2.2 * Math.pow(a - 1, 3) + 1.2 * Math.pow(a - 1, 2);
+	P.g.scale.setScalar(Math.max(1e-3, k) * DIE_S);
+	P.g.position.set(tk.g.position.x, tk.g.position.y + DIE_Y + Math.sin(time * 1.6) * 0.08, tk.g.position.z);
+	const cp = GFX.cam.position,
+		yaw = Math.atan2(cp.x - P.g.position.x, cp.z - P.g.position.z);
+	P.slab.rotation.y = yaw + Math.PI / 4;
+	/* the die: drops in with a spin on a swap, then bobs and tumbles slowly so its faces come round */
+	P.swap += dt;
+	const sw = Math.max(0, Math.min(1, P.swap / 0.35)),
+		e = 1 - Math.pow(1 - sw, 3);
+	P.die.position.y = (1 - e) * 1.3 + Math.sin(time * 2.2) * 0.07;
+	P.die.scale.setScalar(Math.max(1e-3, sw < 1 ? 0.4 + 0.6 * e : 1));
+	P.die.rotation.set(Math.sin(time * 0.9) * 0.55 + (1 - e) * 4, yaw + time * 0.8, Math.cos(time * 0.7) * 0.35);
+	if (el) el.classList.toggle("in", P.t > 0.2 && !P.out);
+	if (el && !el.hidden) {
+		const v = PV[0].copy(P.g.position).project(GFX.cam),
+			r = PV[1]
+				.setFromMatrixColumn(GFX.cam.matrixWorld, 0)
+				.multiplyScalar(0.9 * DIE_S)
+				.add(P.g.position)
+				.project(GFX.cam),
+			x = ((v.x + 1) / 2) * GFX.w,
+			y = ((1 - v.y) / 2) * GFX.h;
+		el.style.transform = `translate(${x.toFixed(1)}px,${y.toFixed(1)}px)`;
+		el.style.setProperty("--r", (Math.max(30, Math.min(150, Math.abs(r.x - v.x) * 0.5 * GFX.w)) * k).toFixed(1) + "px");
 	}
 }
 /* ---------- podium ending ---------- */
@@ -972,6 +1102,7 @@ function frame(t) {
 	if (GFX.mode === "board" && G && GFX.board) {
 		stepBoard(dt, time);
 		stepDie(dt);
+		stepPick(dt, time);
 		if (GFX.board.shadowDirty !== false) {
 			GFX.r.shadowMap.needsUpdate = true;
 		}
