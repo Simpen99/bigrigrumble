@@ -4613,13 +4613,6 @@ function crowdGeo(lite) {
 	const beanie = new THREE.LatheGeometry(bp, 10, Math.PI / 10).translate(0, H, 0);
 	const head = new THREE.SphereGeometry(P.headR, P.headSides, P.headRings);
 	head.scale(1, P.headTall, 1).translate(0, H, 0);
-	/* the jacket's numbers are for the standard body (33.6 x 42 x 23.3 cm, middle 36 cm up): it grows and moves
-	   with the Body sliders */
-	const kw = P.bodyW / 0.336,
-		kh = P.bodyH / 0.42,
-		kd = P.bodyD / 0.233,
-		jy = (y) => (kh === 1 && P.bodyY === 0.36 ? y : P.bodyY + (y - 0.36) * kh),
-		jb = (w, h, d, r, x, y, z) => at(chamferBox(w * kw, h * kh, d * kd, r), x * kw, jy(y), z * kd);
 	const base = {
 		/* body frame */
 		head,
@@ -4628,18 +4621,18 @@ function crowdGeo(lite) {
 		hood: hoodRoll(0),
 		pocket: at(cb(P.pocketW, P.pocketH, P.pocketD, P.pocketBev), 0, P.pocketY, P.pocketZ),
 		/* the jacket replaces the body (same size as it): the shirt shows only as this strip down its front opening */
-		inner: jb(P.innerW, P.innerH, P.innerD, P.bodyBev, 0, 0.36, 0),
+		inner: at(chamferBox(P.innerW, P.innerH, P.innerD, P.bodyBev), 0, P.bodyY, 0),
 		/* puffer jacket: four quilted blocks open down the front (chest and belly pairs), a back strip, the hoodie's hood
 		   split open */
 		jkChest: merge([
-			jb(P.jkUpW, P.jkUpH, P.jkUpD, P.jkBev, -P.jkUpX, P.jkUpY, 0),
-			jb(P.jkUpW, P.jkUpH, P.jkUpD, P.jkBev, P.jkUpX, P.jkUpY, 0),
+			at(chamferBox(P.jkUpW, P.jkUpH, P.jkUpD, P.jkBev), -P.jkUpX, P.jkUpY, 0),
+			at(chamferBox(P.jkUpW, P.jkUpH, P.jkUpD, P.jkBev), P.jkUpX, P.jkUpY, 0),
 		]),
 		jkBelly: merge([
-			jb(P.jkLoW, P.jkLoH, P.jkLoD, P.jkBev, -P.jkLoX, P.jkLoY, 0),
-			jb(P.jkLoW, P.jkLoH, P.jkLoD, P.jkBev, P.jkLoX, P.jkLoY, 0),
+			at(chamferBox(P.jkLoW, P.jkLoH, P.jkLoD, P.jkBev), -P.jkLoX, P.jkLoY, 0),
+			at(chamferBox(P.jkLoW, P.jkLoH, P.jkLoD, P.jkBev), P.jkLoX, P.jkLoY, 0),
 		]),
-		jkBack: merge([jb(P.jkBackW, P.jkBackH, P.jkBackD, P.bodyBev, 0, 0.36, P.jkBackZ)]),
+		jkBack: merge([at(chamferBox(P.jkBackW, P.jkBackH, P.jkBackD, P.bodyBev), 0, P.bodyY, P.jkBackZ)]),
 		jkHood: hoodRoll(P.jkGap),
 		cap,
 		beanie,
@@ -4878,7 +4871,7 @@ Object.assign(MDL, {
 		ui: [
 			[
 				"Body",
-				["torso", "inner", "jkChest", "jkBelly", "jkBack"],
+				["torso", "inner"],
 				[
 					["bodyW", "Body width", "cm", 0.15, 0.6],
 					["bodyH", "Body height", "cm", 0.2, 0.7],
@@ -4959,14 +4952,7 @@ Object.assign(MDL, {
 				"Jacket",
 				["jkChest", "jkBelly", "jkBack", "jkHood", "inner"],
 				[
-					[
-						"jkUpW",
-						"Chest pads: width",
-						"cm",
-						0.08,
-						0.25,
-						"Jacket sizes are for the standard body: the Body sliders stretch the whole jacket too",
-					],
+					["jkUpW", "Chest pads: width", "cm", 0.08, 0.25],
 					["jkUpH", "Chest pads: height", "cm", 0.1, 0.35],
 					["jkUpD", "Chest pads: depth", "cm", 0.15, 0.35],
 					["jkUpX", "Chest pads: apart", "cm", 0.04, 0.15, "From the middle to each pad"],
