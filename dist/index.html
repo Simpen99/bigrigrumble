@@ -1037,7 +1037,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-23 03:12 3e33af5";
+const BUILD = "2026-10-23 03:23 d2f4d45";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -11703,16 +11703,21 @@ const ordinal = (n) =>
 			: n % 10 === 3 && n % 100 !== 13
 				? "rd"
 				: "th");
-function updateGame() {
-	if (uiPick && (uiPick.seq !== G.seq || G.phase !== "turn")) uiPick = null;
-	syncBoard();
-	const players = G.players,
-		c = players[G.turn];
-	$("#rnd").textContent =
-		`Round ${G.round}/${G.rounds}${MAP.lava && G.phase !== "lobby" ? " " + lavaChip(G.round) : ""}`;
-	/* the top plate: on the big screen it also says what the game is waiting for (tvStatusHTML; the TV has no card) */
-	const tc = $("#turnchip"),
+/* the status bar at the bottom: a short message while it lasts (barSay: the roll), otherwise whose turn it is; on the big
+   screen what the game is waiting for (tvStatusHTML; the TV has no card) */
+let BAR_SAY = null;
+function barSay(html, ms) {
+	BAR_SAY = { h: html, until: performance.now() + ms };
+	clearTimeout(barSay.t);
+	barSay.t = setTimeout(turnBar, ms + 20);
+	turnBar();
+}
+function turnBar() {
+	const tc = $("#turnchip");
+	if (!tc || !G) return;
+	const c = G.players[G.turn],
 		th =
+			(BAR_SAY && performance.now() < BAR_SAY.until && BAR_SAY.h) ||
 			(tvView() && tvStatusHTML()) ||
 			esc(
 				G.phase === "minigame" || G.phase === "mgres"
@@ -11727,6 +11732,15 @@ function updateGame() {
 		tc.dataset.h = th;
 		tc.innerHTML = th;
 	}
+}
+function updateGame() {
+	if (uiPick && (uiPick.seq !== G.seq || G.phase !== "turn")) uiPick = null;
+	syncBoard();
+	const players = G.players,
+		c = players[G.turn];
+	$("#rnd").textContent =
+		`Round ${G.round}/${G.rounds}${MAP.lava && G.phase !== "lobby" ? " " + lavaChip(G.round) : ""}`;
+	turnBar();
 	{
 		const c = G.players[G.turn];
 		let m = G.msg || "";
@@ -13609,10 +13623,10 @@ function showDice(r) {
 	showDie3D(faces, r.idx, r.die === "char" ? pcol(p) : r.die === "gold" ? "#FFC83D" : DIE_STD, p.key);
 	sfx("dice");
 	musJingle("dice", MUS.song ? MUS.song.key : 0);
-	fxShow(`<div class="dlabel" id="dl">${esc(p.name)} is rolling…</div>`, 2400);
+	/* "… is rolling", then the result, in the status bar */
+	barSay(`<i class="tdot" style="--c:${pcol(p)}"></i><b>${esc(p.name)}</b> is rolling…`, 2400);
 	setTimeout(() => {
-		const d = $("#dl");
-		if (d) d.textContent = label;
+		barSay(esc(label), 1250);
 		sfx("diceland");
 	}, 1150);
 }

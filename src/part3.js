@@ -831,16 +831,21 @@ const ordinal = (n) =>
 			: n % 10 === 3 && n % 100 !== 13
 				? "rd"
 				: "th");
-function updateGame() {
-	if (uiPick && (uiPick.seq !== G.seq || G.phase !== "turn")) uiPick = null;
-	syncBoard();
-	const players = G.players,
-		c = players[G.turn];
-	$("#rnd").textContent =
-		`Round ${G.round}/${G.rounds}${MAP.lava && G.phase !== "lobby" ? " " + lavaChip(G.round) : ""}`;
-	/* the top plate: on the big screen it also says what the game is waiting for (tvStatusHTML; the TV has no card) */
-	const tc = $("#turnchip"),
+/* the status bar at the bottom: a short message while it lasts (barSay: the roll), otherwise whose turn it is; on the big
+   screen what the game is waiting for (tvStatusHTML; the TV has no card) */
+let BAR_SAY = null;
+function barSay(html, ms) {
+	BAR_SAY = { h: html, until: performance.now() + ms };
+	clearTimeout(barSay.t);
+	barSay.t = setTimeout(turnBar, ms + 20);
+	turnBar();
+}
+function turnBar() {
+	const tc = $("#turnchip");
+	if (!tc || !G) return;
+	const c = G.players[G.turn],
 		th =
+			(BAR_SAY && performance.now() < BAR_SAY.until && BAR_SAY.h) ||
 			(tvView() && tvStatusHTML()) ||
 			esc(
 				G.phase === "minigame" || G.phase === "mgres"
@@ -855,6 +860,15 @@ function updateGame() {
 		tc.dataset.h = th;
 		tc.innerHTML = th;
 	}
+}
+function updateGame() {
+	if (uiPick && (uiPick.seq !== G.seq || G.phase !== "turn")) uiPick = null;
+	syncBoard();
+	const players = G.players,
+		c = players[G.turn];
+	$("#rnd").textContent =
+		`Round ${G.round}/${G.rounds}${MAP.lava && G.phase !== "lobby" ? " " + lavaChip(G.round) : ""}`;
+	turnBar();
 	{
 		const c = G.players[G.turn];
 		let m = G.msg || "";

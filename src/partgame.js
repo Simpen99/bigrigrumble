@@ -1733,10 +1733,10 @@ function showDice(r) {
 	showDie3D(faces, r.idx, r.die === "char" ? pcol(p) : r.die === "gold" ? "#FFC83D" : DIE_STD, p.key);
 	sfx("dice");
 	musJingle("dice", MUS.song ? MUS.song.key : 0);
-	fxShow(`<div class="dlabel" id="dl">${esc(p.name)} is rolling…</div>`, 2400);
+	/* "… is rolling", then the result, in the status bar */
+	barSay(`<i class="tdot" style="--c:${pcol(p)}"></i><b>${esc(p.name)}</b> is rolling…`, 2400);
 	setTimeout(() => {
-		const d = $("#dl");
-		if (d) d.textContent = label;
+		barSay(esc(label), 1250);
 		sfx("diceland");
 	}, 1150);
 }
