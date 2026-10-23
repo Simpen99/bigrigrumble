@@ -911,6 +911,7 @@ function updateGame() {
 				color: G.teams ? TEAMS[pk.p.team || 0].col : pcol(pk.p),
 				dcol: d.col,
 				item: d.item,
+				spin: pk.spin,
 			},
 		);
 		if (h !== render.lastPick) {

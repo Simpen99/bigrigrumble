@@ -817,10 +817,11 @@ function itemModel(k) {
 	return g;
 }
 /* the roll, party-game style: the truck crouches, hops and bonks the die over it with its roof (DIE_HIT s in), the die kicks up, spins and
-   settles on the rolled face, then bursts into confetti (DIE_POP s in) before the truck drives off (the host moves it 2.6 s after the roll).
-   The die carries on from the picker's die where there was one (same spot, same turn), else it pops in. #dietag = its name over it. */
+   settles on the rolled face, shows it 1.5 s, then bursts into confetti (DIE_POP s in) before the truck drives off (the host moves it 2.8 s
+   after the roll). The die carries on from the picker's die where there was one (same spot, same turn, still spinning if it was), else it
+   pops in. #dietag = its name over it. */
 const DIE_HIT = 0.36,
-	DIE_POP = 1.9,
+	DIE_POP = DIE_HIT + 0.3 + 1.5,
 	DQ = new THREE.Quaternion();
 function showDie3D(faces, idx, color, key, tagHTML) {
 	if (!GFX.ok || !GFX.board) return false;
@@ -843,7 +844,8 @@ function showDie3D(faces, idx, color, key, tagHTML) {
 	const base = new THREE.Quaternion().setFromEuler(new THREE.Euler(E[0], E[1], E[2])),
 		tilt = new THREE.Quaternion().setFromEuler(new THREE.Euler(0.22, -0.3, 0)),
 		P = GFX.pick,
-		cont = !!(P && P.key === key && P.die && P.die.parent);
+		cont = !!(P && P.key === key && P.die && P.die.parent),
+		fast = cont && !!P.spin;
 	if (cont) {
 		/* pick up the picker die's turn so the swap doesn't show */
 		bd.dieHold.quaternion.copy(GFX.cam.quaternion);
@@ -861,7 +863,7 @@ function showDie3D(faces, idx, color, key, tagHTML) {
 		key,
 		color,
 		cont,
-		ph: 0,
+		fast,
 		target: tilt.multiply(base),
 		spin: new THREE.Vector3(7 + Math.random() * 4, 9 + Math.random() * 4, 3),
 	};
@@ -949,7 +951,7 @@ function stepDie(dt) {
 			shape: "ico",
 		});
 	}
-	if (T < DIE_HIT) {
+	if (T < DIE_HIT && !d.fast) {
 		d.m.rotation.x += 0.9 * dt;
 		d.m.rotation.y += 1.4 * dt;
 	} else if (T < DIE_HIT + 0.3) {
@@ -1021,6 +1023,9 @@ function setPick(s, now) {
 		P = GFX.pick = { g, slab, key: s.key, color: s.color, t: -PICK_IN, dk: null, die: null, old: [] };
 	}
 	P.out = 0;
+	/* picked: it spins fast (ramping up from here), waiting to be hit */
+	if (s.spin && !P.spin) P.spinT = P.t;
+	P.spin = !!s.spin;
 	if (P.dk !== s.dk) {
 		if (P.die) P.old.push({ m: P.die, t: 0 });
 		P.die = s.item ? itemModel(s.item) : dieModel(s.faces, s.dcol, false);
@@ -1056,14 +1061,15 @@ function stepPick(dt, time) {
 	const cp = GFX.cam.position,
 		yaw = Math.atan2(cp.x - P.g.position.x, cp.z - P.g.position.z);
 	P.slab.rotation.y = yaw + Math.PI / 4;
-	/* the die bobs and tumbles slowly so its faces come round; a new one spins a little as it grows */
+	/* the die bobs and tumbles slowly so its faces come round; a new one spins a little as it grows; once picked it spins fast */
 	const kd = popIn(P.swap, 0.4);
 	P.die.scale.setScalar(Math.max(1e-3, kd * out));
 	P.die.position.y = Math.sin(time * 2.2) * 0.07;
+	P.ang = (P.ang || 0) + (P.spin ? dt * Math.min(1, (P.t - P.spinT) / 0.35) : 0);
 	P.die.rotation.set(
-		Math.sin(time * 0.9) * 0.55,
-		yaw + time * 0.8 + (1 - Math.min(1, kd)) * 2,
-		Math.cos(time * 0.7) * 0.35,
+		Math.sin(time * 0.9) * 0.55 + P.ang * 9,
+		yaw + time * 0.8 + (1 - Math.min(1, kd)) * 2 + P.ang * 11,
+		Math.cos(time * 0.7) * 0.35 + P.ang * 4,
 	);
 	P.old = P.old.filter((o) => {
 		o.t += dt;

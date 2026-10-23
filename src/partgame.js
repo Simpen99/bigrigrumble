@@ -285,7 +285,12 @@ function handleAct(pl, act) {
 	if (act.t === "roll" && HG.phase === "turn" && c.key === pl.key) doRoll(pl, act.die === "char" ? "char" : "std");
 	else if (act.t === "item" && HG.phase === "turn" && c.key === pl.key) useItem(pl, act);
 	else if (act.t === "dsel" && HG.phase === "turn" && c.key === pl.key) {
-		HG.dsel = { k: pl.key, tid: String(act.tid), die: /^(char|i[0-2])$/.test(act.die) ? act.die : "std" };
+		HG.dsel = {
+			k: pl.key,
+			tid: String(act.tid),
+			die: /^(char|i[0-2])$/.test(act.die) ? act.die : "std",
+			spin: !!act.spin,
+		};
 		push();
 	} else if (HG.test && act.t === "troll" && HG.phase === "turn" && c.key === pl.key) {
 		HG.mod.fixed = Math.max(1, Math.min(20, act.n | 0));
@@ -549,7 +554,7 @@ function doRoll(p, die) {
 		}
 		HG.msg = total ? `${p.name} drives ${total} space${total > 1 ? "s" : ""}${ct}.` : `${p.name} stays parked${ct}.`;
 		move(p, total, () => land(p, total > 0));
-	}, 2600);
+	}, 2800);
 }
 function move(p, steps, done) {
 	HG.phase = "moving";
@@ -1937,7 +1942,8 @@ function pcardHTML(p, now, o = {}) {
    round (no face list: the die shows them). The player
    flips through their dice and then the items in their bag (each as its own model, itemModel; gone once an item is used
    this turn) with the arrows (DPICK on their device, shared as act "dsel" → HG.dsel so the TV shows the same thing) and
-   taps the die to roll, or the item to use it (items that need a truck or a number open that choice in the card).
+   taps the die to pick it, which sets it spinning fast (shared as dsel's spin; no more switching), then taps again to hit it: the roll,
+   where the truck hops and bonks it (showDie3D). An item is used with one tap (items that need a truck or a number open that choice in the card).
    Phones and PCs get the arrows and the tap area over the 3D die (#dpick); a TV controller (or a device without 3D) gets
    them flat in its card. */
 let DPICK = { tid: "", die: "std" };
@@ -1953,7 +1959,7 @@ function pickDice(p) {
 			.filter(Boolean),
 	];
 }
-/* what the picker shows right now: null, or {p, mine (this device picks), dice, i (the chosen one), tid (this turn)} */
+/* what the picker shows right now: null, or {p, mine (this device picks), dice, i (the chosen one), tid (this turn), spin (picked, spinning, waiting for the hit)} */
 function pickNow() {
 	const c = G && G.players[G.turn];
 	if (view !== "game" || !c || c.bot || G.phase !== "turn" || G.hold || G.intro) return null;
@@ -1962,21 +1968,25 @@ function pickNow() {
 		dice = pickDice(c),
 		mine = ctrl(c),
 		sel = mine ? DPICK : G.dsel && G.dsel.k === c.key ? G.dsel : null,
-		k = sel && sel.tid === tid ? sel.die : "std";
-	return {
-		p: c,
-		mine,
-		dice,
-		tid,
-		i: Math.max(
+		k = sel && sel.tid === tid ? sel.die : "std",
+		i = Math.max(
 			0,
 			dice.findIndex((d) => d.k === k),
-		),
-	};
+		);
+	return { p: c, mine, dice, tid, i, spin: !!(sel && sel.tid === tid && sel.spin && !dice[i].item) };
+}
+/* the first tap on a die: it starts spinning, ready to be hit */
+function pickSpin() {
+	const s = pickNow();
+	if (!s || !s.mine || s.spin || s.dice[s.i].item) return;
+	const d = s.dice[s.i];
+	DPICK = { tid: s.tid, die: d.k, spin: 1 };
+	act({ t: "dsel", die: d.k, tid: s.tid, spin: 1, seq: G.seq }, s.p.key);
+	refreshPanel();
 }
 function pickStep(dir) {
 	const s = pickNow();
-	if (!s || !s.mine) return;
+	if (!s || !s.mine || s.spin) return;
 	const d = s.dice[(s.i + dir + s.dice.length) % s.dice.length];
 	DPICK = { tid: s.tid, die: d.k };
 	act({ t: "dsel", die: d.k, tid: s.tid, seq: G.seq }, s.p.key);
@@ -1985,7 +1995,7 @@ function pickStep(dir) {
 /* the name pill over the die (and an item's line under it); everyone watching sees it, only the picker gets the arrows and the tap area */
 function pickInfoHTML(s) {
 	const d = s.dice[s.i];
-	return `<div class="dp-info${d.item ? " it" : ""}">${d.item ? `<b>${ITEMS[d.item].icon} ${esc(d.name)}</b><small>${esc(d.desc)}</small>` : `<b>${esc(d.name)}</b>`}</div>${d.faces ? facesHTML(d.faces, d.col) : ""}`;
+	return `<div class="dp-info${d.item ? " it" : ""}">${d.item ? `<b>${ITEMS[d.item].icon} ${esc(d.name)}</b><small>${esc(d.desc)}</small>` : `<b>${esc(d.name)}</b>`}</div>${d.faces && !s.spin ? facesHTML(d.faces, d.col) : ""}`;
 }
 /* a die's six faces in a row under it while picking (like its faces: yellow number, coin pill), framed in the die's colour */
 function facesHTML(faces, col) {
@@ -1994,21 +2004,25 @@ function facesHTML(faces, col) {
 		.join("")}</div>`;
 }
 function pickHTML(s) {
-	const d = s.dice[s.i],
-		tap = d.item
-			? `<button class="dp-die" data-item="${d.idx}" aria-label="Use ${esc(d.name)}"></button>`
-			: `<button class="dp-die" data-roll="${d.k}" data-for="${esc(s.p.key)}" aria-label="Roll the ${esc(d.name)} die"></button>`;
+	const d = s.dice[s.i];
+	if (s.spin)
+		return `<button class="dp-die" data-roll="${d.k}" data-for="${esc(s.p.key)}" aria-label="Hit the ${esc(d.name)} die"></button>${pickInfoHTML(s)}`;
+	const tap = d.item
+		? `<button class="dp-die" data-item="${d.idx}" aria-label="Use ${esc(d.name)}"></button>`
+		: `<button class="dp-die" data-spin="1" aria-label="Pick the ${esc(d.name)} die"></button>`;
 	return `<button class="mm-arr l" data-dstep="-1" aria-label="Previous"></button>${tap}<button class="mm-arr r" data-dstep="1" aria-label="Next"></button>${pickInfoHTML(s)}`;
 }
 /* TV controller on your roll (#ctlpick, laid out like the minigame controllers; the TV shows the die or item): the left side
-   flips through them (swipe left = next, right = back, a tap = next), the right side is one big button that rolls the die
-   or uses the item */
+   flips through them (swipe left = next, right = back, a tap = next), the right side is one big button that picks the die (ROLL:
+   it starts spinning), then hits it (HIT!), or uses the item */
 function ctlPickHTML(s) {
 	const d = s.dice[s.i];
 	return `<div class="cp-pad"><span class="tvchint">Swipe to choose</span><div class="swl sw-l" style="--bc:#FFC83D"><i>◀</i></div><div class="swl sw-r" style="--bc:#FFC83D"><i>▶</i></div></div>${
 		d.item
 			? `<button class="cp-go use" data-item="${d.idx}">USE</button>`
-			: `<button class="cp-go" data-roll="${d.k}" data-for="${esc(s.p.key)}">ROLL</button>`
+			: s.spin
+				? `<button class="cp-go" data-roll="${d.k}" data-for="${esc(s.p.key)}">HIT!</button>`
+				: `<button class="cp-go" data-spin="1">ROLL</button>`
 	}`;
 }
 function wireCtlPick(el) {
