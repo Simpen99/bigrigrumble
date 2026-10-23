@@ -781,8 +781,8 @@ function tvLobbyHTML() {
 /* ---------- game view ---------- */
 function buildGame() {
 	$("#app").innerHTML =
-		`<div class="pstrip" id="pstrip"></div><div class="pstrip bot" id="pstripb"></div><div class="dpick" id="dpick" hidden></div><div class="ctlpick" id="ctlpick" hidden></div><div class="hudtop"><span class="chip" id="rnd"></span><span class="chip grow" id="turnchip"></span><button class="chip" data-a="snd" aria-label="Sound levels">${SFX.on ? "🔊" : "🔇"}</button><button class="chip" data-a="cam" id="cambtn">Board</button><button class="chip" data-a="peek" id="peekbtn">${GFX.peek ? "🎮 Controls" : "🗺 Board"}</button><button class="chip" data-a="${role === "host" ? "endask" : "leave"}" aria-label="Leave game">✕</button></div>
-  <div class="hudbot" id="hudbot"><div id="hostgone"></div><div id="ctlme"></div><div class="hcard"><div class="msg"><i></i><span id="msg" aria-live="polite"></span></div><div id="panel"></div></div></div>`;
+		`<div class="pstrip" id="pstrip"></div><div class="pstrip bot" id="pstripb"></div><div class="dpick" id="dpick" hidden></div><div class="ctlpick" id="ctlpick" hidden></div><div class="hudtop"><span class="chip" id="rnd"></span><button class="chip" data-a="snd" aria-label="Sound levels">${SFX.on ? "🔊" : "🔇"}</button><button class="chip" data-a="cam" id="cambtn">Board</button><button class="chip" data-a="peek" id="peekbtn">${GFX.peek ? "🎮 Controls" : "🗺 Board"}</button><button class="chip" data-a="${role === "host" ? "endask" : "leave"}" aria-label="Leave game">✕</button></div>
+  <div class="hudbot" id="hudbot"><div id="hostgone"></div><div id="ctlme"></div><div class="hcard"><div class="msg"><i></i><span id="msg" aria-live="polite"></span></div><div id="panel"></div></div><div class="turnbar" id="turnchip"></div></div>`;
 	render.lastPanel = render.lastStrip = render.lastMe = render.lastPick = render.lastCtlPick = null;
 	document.body.classList.remove("ctlpk");
 	wireCtlPick($("#ctlpick"));
