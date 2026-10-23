@@ -1,5 +1,5 @@
-/* Designer art on a magenta background (JPG) -> transparent PNG for art/ui/: keys out the magenta (soft edges, the magenta
-   taken back out of the edge pixels), brightens by --bright (1 = as is), crops to the art.
+/* Designer art on a magenta background (JPG) -> transparent PNG for art/ui/: keys out the magenta (soft edges: each edge pixel
+   gets the colour of the solid art beside it and an alpha from how much magenta is blended in), brightens by --bright (1 = as is), crops to the art.
    node tools/keyart.mjs <in.jpg> <out.png> [--bright 1.12] */
 import { chromium } from "playwright";
 import fs from "fs";
@@ -27,36 +27,65 @@ const res = await pg.evaluate(
 		x.drawImage(im, 0, 0);
 		const d = x.getImageData(0, 0, c.width, c.height),
 			p = d.data;
-		let x0 = c.width,
-			y0 = c.height,
+		const W = c.width,
+			H = c.height,
+			n = W * H,
+			/* how magenta each pixel is: red and blue high, green low (the background ~255, the art far lower) */
+			m = new Float32Array(n),
+			solid = new Uint8Array(n);
+		for (let j = 0; j < n; j++) m[j] = Math.min(p[j * 4], p[j * 4 + 2]) - p[j * 4 + 1];
+		/* solid art: clearly not magenta, with no background pixel within 2 px (edge pixels are blends) */
+		const art = (j) => m[j] < 120;
+		for (let y = 2; y < H - 2; y++)
+			for (let xx = 2; xx < W - 2; xx++) {
+				const j = y * W + xx;
+				if (!art(j)) continue;
+				let ok = 1;
+				for (let dy = -2; dy <= 2 && ok; dy++) for (let dx = -2; dx <= 2; dx++) if (!art(j + dy * W + dx)) ok = 0;
+				solid[j] = ok;
+			}
+		const out = new Uint8ClampedArray(p.length);
+		let x0 = W,
+			y0 = H,
 			x1 = 0,
 			y1 = 0;
-		for (let i = 0; i < p.length; i += 4) {
-			const r = p[i],
-				g = p[i + 1],
-				b = p[i + 2],
-				/* how magenta: red and blue high, green low */
-				m = Math.min(r, b) - g,
-				a = Math.max(0, Math.min(1, (250 - m) / 235));
-			if (a <= 0.06) {
-				p[i + 3] = 0;
-				continue;
+		for (let y = 0; y < H; y++)
+			for (let xx = 0; xx < W; xx++) {
+				const j = y * W + xx,
+					i = j * 4;
+				let q = j;
+				if (!solid[j]) {
+					if (m[j] > 235) continue;
+					/* an edge pixel: a blend of the art beside it and the magenta; take the nearest solid pixel's colour and work
+					   out how much of it is in the blend from how magenta each is */
+					q = -1;
+					for (let r = 1; r <= 5 && q < 0; r++)
+						for (let dy = -r; dy <= r && q < 0; dy++)
+							for (let dx = -r; dx <= r; dx++) {
+								const yy = y + dy,
+									xq = xx + dx;
+								if (yy < 0 || yy >= H || xq < 0 || xq >= W) continue;
+								if (solid[yy * W + xq]) {
+									q = yy * W + xq;
+									break;
+								}
+							}
+					if (q < 0) continue;
+				}
+				const a = q === j ? 1 : Math.max(0, Math.min(1, (255 - m[j]) / (255 - m[q])));
+				if (a <= 0.04) continue;
+				out[i] = p[q * 4] * k;
+				out[i + 1] = p[q * 4 + 1] * k;
+				out[i + 2] = p[q * 4 + 2] * k;
+				out[i + 3] = a * 255;
+				if (q === j || a > 0.5) {
+					x0 = Math.min(x0, xx);
+					y0 = Math.min(y0, y);
+					x1 = Math.max(x1, xx);
+					y1 = Math.max(y1, y);
+				}
 			}
-			/* un-mix the magenta from the edge pixels, then brighten */
-			const un = (v, bg) => Math.max(0, Math.min(255, ((v - (1 - a) * bg) / a) * k));
-			p[i] = un(r, 255);
-			p[i + 1] = un(g, 0);
-			p[i + 2] = un(b, 255);
-			p[i + 3] = Math.round(a * 255);
-			const px = (i / 4) % c.width,
-				py = Math.floor(i / 4 / c.width);
-			if (a > 0.5) {
-				x0 = Math.min(x0, px);
-				y0 = Math.min(y0, py);
-				x1 = Math.max(x1, px);
-				y1 = Math.max(y1, py);
-			}
-		}
+		p.set(out);
 		x.putImageData(d, 0, 0);
 		const o = document.createElement("canvas");
 		o.width = x1 - x0 + 3;

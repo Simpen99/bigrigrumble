@@ -184,6 +184,8 @@ body.mglive .pstrip,body.mgres .pstrip{display:none}
 body.trout .pstrip{opacity:0}
 /* one panel in every corner (stripHTML: #pstrip = the top corners, #pstripb = the bottom ones); portrait: under the top chips and just above the card (--hbh) */
 @media (orientation:portrait){body:not(.ctl) .dlabel{top:calc(env(safe-area-inset-top,0px) + 58px + var(--psh,0px))}}
+/* portrait: the top panels go under the round counter's rock */
+@media (orientation:portrait){body:not(.ctl) .pstrip:not(.bot){top:calc(env(safe-area-inset-top,0px) + 72px)}}
 .pstrip.bot{top:auto;bottom:calc(var(--hbh,120px) + 2px);align-content:end}
 /* phone on its side: the corners, the top chips and the card between them */
 @media (orientation:landscape) and (max-height:500px){
@@ -619,9 +621,12 @@ i.bi{font-style:normal}
 .turnbar:empty{display:none}
 body.tv .turnbar{font-size:clamp(16px,1.25vw,24px)}
 .turnbar b{font-weight:400}
-.hudtop [data-a="snd"]{margin-left:auto}
+/* top row: the round counter on the designer's yellow rock in the middle (art/ui/plate-round, centred on its own), sound on the left, the rest on the right */
+.hudtop{justify-content:space-between;align-items:flex-start}
+.hudbtns{display:flex;gap:6px;align-items:center}
+.hudtop #rnd{position:absolute;left:50%;transform:translateX(-50%);background:var(--ui-plate-round) center/100% 100% no-repeat!important;border:0!important;border-radius:0!important;box-shadow:none!important;backdrop-filter:none;-webkit-backdrop-filter:none;color:#3A2A00;font:400 18px/1 var(--display);padding:.85em 1.35em 1.05em;filter:drop-shadow(0 3px 3px rgba(0,0,0,.3));white-space:nowrap}
 .tdot{display:inline-block;width:.7em;height:.7em;margin-right:5px;border-radius:50%;background:var(--c);box-shadow:0 0 0 2px #fff;vertical-align:-1px}
-.hudtop{gap:6px!important}.hudtop .chip{font-size:13px;padding:4px 9px 3px;border-width:2.5px!important}.hudtop #rnd{font-size:11px;padding:5px 8px 4px}.hudtop button.chip{flex:none}
+.hudtop{gap:6px!important}.hudtop .chip{font-size:13px;padding:4px 9px 3px;border-width:2.5px!important}.hudtop button.chip{flex:none}
 #m3s{--c:var(--yellow)}
 button.chip:active{transform:translateY(3px);box-shadow:0 1px 0 var(--ledge)}
 .hcard{background:var(--hb)!important;border:3px solid #151B24!important;border-radius:20px!important;box-shadow:0 6px 0 var(--ledge),inset 0 0 0 2px rgba(255,255,255,.06)!important}
@@ -720,7 +725,7 @@ body.ctl .hudbot{top:calc(env(safe-area-inset-top,0px) + 58px);display:flex;flex
 body.ctl .pstrip,body.ctl #cambtn,body.ctl.mglive .hudbot,body.ctl.mgres .hudbot{display:none}
 /* TV controller: the round, status and your panel are on the TV, and so is the sound */
 body.ctl #rnd,body.ctl #turnchip,body.ctl .hudtop [data-a="snd"],body.ctl #ctlme:has(.ctlnow){display:none}
-body.ctl .hudtop{justify-content:flex-end;max-width:none}
+body.ctl .hudtop{max-width:none}
 /* TV controller on your roll (ctlPickHTML): the left side flips through the dice and items, the right side rolls / uses */
 .ctlpick{position:fixed;inset:0;z-index:4;display:flex;touch-action:none;-webkit-user-select:none;user-select:none}
 .ctlpick[hidden],body.ctl.peek .ctlpick,body.ctl.ctlpk .hudbot{display:none}
