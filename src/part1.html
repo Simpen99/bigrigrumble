@@ -135,15 +135,15 @@ button.chip{border:1px solid var(--hudline)}
 .dpick.flat .dp-info{grid-column:2;grid-row:1;left:auto;bottom:auto;transform:none;padding:16px 6px 18px;z-index:1}
 .dpick.flat .dp-info small{background:none;color:#151B24;padding:0;width:auto;max-width:none}
 .dpick.flat .dp-info b{background:none;border:0;box-shadow:none;color:#151B24;font-size:20px;padding:0}
-/* board player panels: the designer's navy art (art/ui/panel-navy), every slot placed in % of the 1873 x 586 art and sized in cqw; whose move it is (.now) pops out a little with an octagon pulsing out of its own */
+/* board player panels: the designer's panel art recoloured beige (art/ui/panel-beige, from art/ui-navy/panel-navy by tools/recolor.mjs) so the icons pop; dark text, every slot placed in % of the 1873 x 586 art and sized in cqw; whose move it is (.now) pops out a little with an octagon pulsing out of its own */
 .pstrip{position:fixed;z-index:4;left:0;right:0;top:calc(env(safe-area-inset-top,0px) + 50px);max-width:560px;margin:0 auto;padding:0 10px;display:grid;grid-template-columns:1fr 1fr;gap:2px 6px;align-content:start;pointer-events:none;transition:opacity .4s}
 .pstrip>*{grid-column:var(--sc);grid-row:var(--sr);min-width:0}
-.pc{position:relative;aspect-ratio:1873/586;container-type:inline-size;color:#fff;filter:drop-shadow(0 3px 4px rgba(0,0,0,.35));transform-origin:0 50%;transition:transform .35s cubic-bezier(.3,1.6,.5,1)}
-.pc::before{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;background:var(--ui-panel-navy) center/100% 100% no-repeat}
+.pc{position:relative;aspect-ratio:1873/586;container-type:inline-size;color:#3A2812;filter:drop-shadow(0 3px 4px rgba(0,0,0,.35));transform-origin:0 50%;transition:transform .35s cubic-bezier(.3,1.6,.5,1)}
+.pc::before{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;background:var(--ui-panel-beige) center/100% 100% no-repeat}
 .pc.now{transform:scale(1.06)}
-/* whose move it is: a navy octagon pulsing out of the octagon (pcardHTML adds it) */
+/* whose move it is: a beige octagon pulsing out of the octagon (pcardHTML adds it) */
 .pc-rip{position:absolute;inset:-18%;pointer-events:none;background:center/100% 100% no-repeat}
-.pc-rip{background-image:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Cpolygon points=%2294,50 81.1,81.1 50,94 18.9,81.1 6,50 18.9,18.9 50,6 81.1,18.9%22 fill=%22none%22 stroke=%22%230E1B3A%22 stroke-width=%226%22 stroke-linejoin=%22round%22/%3E%3Cpolygon points=%2294,50 81.1,81.1 50,94 18.9,81.1 6,50 18.9,18.9 50,6 81.1,18.9%22 fill=%22none%22 stroke=%22%234C70C4%22 stroke-width=%223.4%22 stroke-linejoin=%22round%22/%3E%3C/svg%3E");animation:pcRip 1.6s ease-out infinite}
+.pc-rip{background-image:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Cpolygon points=%2294,50 81.1,81.1 50,94 18.9,81.1 6,50 18.9,18.9 50,6 81.1,18.9%22 fill=%22none%22 stroke=%22%233E2C1A%22 stroke-width=%226%22 stroke-linejoin=%22round%22/%3E%3Cpolygon points=%2294,50 81.1,81.1 50,94 18.9,81.1 6,50 18.9,18.9 50,6 81.1,18.9%22 fill=%22none%22 stroke=%22%23E6D7B4%22 stroke-width=%223.4%22 stroke-linejoin=%22round%22/%3E%3C/svg%3E");animation:pcRip 1.6s ease-out infinite}
 @keyframes pcRip{0%{transform:scale(.92);opacity:.9}100%{transform:scale(1.3);opacity:0}}
 @media (prefers-reduced-motion:reduce){.pc-rip{animation-iteration-count:1}}
 .pc>*{position:absolute}
@@ -151,13 +151,13 @@ button.chip{border:1px solid var(--hudline)}
 .pc-oct::before{content:"";position:absolute;inset:0;clip-path:polygon(100% 50%,85.36% 85.36%,50% 100%,14.64% 85.36%,0 50%,14.64% 14.64%,50% 0,85.36% 14.64%);background:radial-gradient(circle at 50% 26%,rgba(255,255,255,.5),rgba(255,255,255,0) 60%),linear-gradient(rgba(0,0,0,0) 55%,rgba(0,0,0,.28)),var(--c)}
 .pc-oct img{position:absolute;left:-7%;top:12%;width:114%;height:76%;object-fit:contain}
 .pc-oct em{position:absolute;left:50%;bottom:-6%;transform:translateX(-50%);font:400 4.2cqw/1 var(--display);background:#151B24;color:#fff;border:.5cqw solid #fff;border-radius:99px;padding:.8cqw 1.5cqw .5cqw;white-space:nowrap}
-.pc-nm{left:39.8%;width:35.2%;top:4.6%;height:19.6%;font:400 clamp(3.2cqw,calc(44cqw / var(--nl,8)),5.4cqw)/6.1cqw var(--display);text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 .3cqw 0 rgba(0,0,0,.45)}
+.pc-nm{left:39.8%;width:35.2%;top:4.6%;height:19.6%;font:400 clamp(3.2cqw,calc(44cqw / var(--nl,8)),5.4cqw)/6.1cqw var(--display);text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 .3cqw 0 rgba(255,255,255,.55)}
 .pc-it{inset:0}
 .pc-it span{position:absolute;top:39.6%;width:8.4%;height:33.3%;display:grid;place-items:center;font-size:5.6cqw;line-height:1}
 .pc-it span:nth-child(1){left:31.4%}
 .pc-it span:nth-child(2){left:42.4%}
 .pc-it span:nth-child(3){left:53.8%}
-.pc .stats{left:64.4%;width:33.6%;top:32.8%;height:47.8%;display:grid;align-content:center;justify-content:center;gap:.6cqw 2.4cqw;font:400 6.4cqw/1 var(--display);color:#fff;text-shadow:0 .3cqw 0 rgba(0,0,0,.45)}
+.pc .stats{left:64.4%;width:33.6%;top:32.8%;height:47.8%;display:grid;align-content:center;justify-content:center;gap:.6cqw 2.4cqw;font:400 6.4cqw/1 var(--display);color:#3A2812;text-shadow:0 .3cqw 0 rgba(255,255,255,.55)}
 .pc .stats.four{grid-template-columns:auto auto;font-size:4.8cqw}
 .pc .stats span{display:flex;align-items:center;gap:.7cqw}
 .pc .stats .ico{width:1.25em;height:1.25em}
@@ -616,8 +616,8 @@ i.bi{font-style:normal}
 :root{--hb:rgba(24,32,50,.9);--hb2:rgba(40,51,74,.92);--ledge:rgba(11,14,20,.85)}
 .chip{background:var(--hb)!important;border:3px solid var(--c,#F4F6F9)!important;border-radius:14px!important;box-shadow:0 4px 0 var(--ledge);font-family:var(--display);font-weight:400;font-size:15px;padding:5px 12px 4px;color:#fff}
 .chip.name,#rnd{--c:#151B24;background:var(--yellow)!important;color:#151B24;font-size:13px}
-/* the status bar at the bottom (art/ui/plate-navy: its pointed ends keep their shape, the plain middle stretches; everything in em, so it all grows with font-size) */
-.turnbar{display:block;width:fit-content;min-width:clamp(240px,30vw,640px);max-width:100%;box-sizing:border-box;margin:8px auto 0;height:2.6em;padding:0 1.7em;border:0 solid transparent;border-image:var(--ui-plate-navy) 0 76 fill / 0 1.5em;color:#fff;text-shadow:0 .1em 0 rgba(0,0,0,.4);font:400 clamp(18px,2.2vw,32px)/2.6 var(--display);text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
+/* the status bar at the bottom (art/ui/plate-beige, recoloured like the panels: its pointed ends keep their shape, the plain middle stretches; everything in em, so it all grows with font-size) */
+.turnbar{display:block;width:fit-content;min-width:clamp(240px,30vw,640px);max-width:100%;box-sizing:border-box;margin:8px auto 0;height:2.6em;padding:0 1.7em;border:0 solid transparent;border-image:var(--ui-plate-beige) 0 76 fill / 0 1.5em;color:#3A2812;text-shadow:0 .1em 0 rgba(255,255,255,.55);font:400 clamp(18px,2.2vw,32px)/2.6 var(--display);text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
 .turnbar:empty{display:none}
 body.tv .turnbar{font-size:clamp(16px,1.25vw,24px)}
 .turnbar b{font-weight:400}
@@ -692,17 +692,18 @@ body.tv .hudtop,body.tv .hudbot{zoom:1.5;max-width:900px}
 body.tv #fx,body.tv #mg .resx{zoom:1.5}
 /* the card under the board only shows when it has something to press (a road, the shop, a pick); the status is in the bar under it. The big screen never shows it (its status: tvStatusHTML in the bar) */
 body.tv .hcard,.hcard:not(:has(#panel button)){display:none}
-/* the card in the navy look of the panels and the bar: a chamfered slab (dark outline, light rim, navy face: the card and its
+/* the card in the beige look of the panels and the bar (its buttons stay navy): a chamfered slab (dark outline, light rim, beige face: the card and its
    two pseudo layers; square at the bottom, where it meets the bar) that slides up out of the status bar (.hslot clips it, its bottom edge tucked behind the bar) */
-.hcard{position:relative;isolation:isolate;background:#091330!important;border:0!important;border-radius:0!important;box-shadow:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;clip-path:polygon(14px 0,calc(100% - 14px) 0,100% 14px,100% 100%,100% 100%,0 100%,0 100%,0 14px);animation:cardUp .4s cubic-bezier(.2,.9,.3,1) both}
+.hcard{position:relative;isolation:isolate;background:#3E2C1A!important;border:0!important;border-radius:0!important;box-shadow:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;clip-path:polygon(14px 0,calc(100% - 14px) 0,100% 14px,100% 100%,100% 100%,0 100%,0 100%,0 14px);animation:cardUp .4s cubic-bezier(.2,.9,.3,1) both}
 .hcard::before,.hcard::after{content:"";position:absolute;z-index:-1;pointer-events:none}
-.hcard::before{inset:2.5px 2.5px 0;background:linear-gradient(#5677C4,#2C4A8E);clip-path:polygon(12.5px 0,calc(100% - 12.5px) 0,100% 12.5px,100% 100%,100% 100%,0 100%,0 100%,0 12.5px)}
-.hcard::after{inset:5px 5px 0;background:linear-gradient(#213A70,#13244B);clip-path:polygon(11px 0,calc(100% - 11px) 0,100% 11px,100% 100%,100% 100%,0 100%,0 100%,0 11px)}
+.hcard::before{inset:2.5px 2.5px 0;background:linear-gradient(#FFF8E6,#CDB98F);clip-path:polygon(12.5px 0,calc(100% - 12.5px) 0,100% 12.5px,100% 100%,100% 100%,0 100%,0 100%,0 12.5px)}
+.hcard::after{inset:5px 5px 0;background:linear-gradient(#EFE3C6,#DCCBA4);clip-path:polygon(11px 0,calc(100% - 11px) 0,100% 11px,100% 100%,100% 100%,0 100%,0 100%,0 11px)}
 @keyframes cardUp{from{transform:translateY(100%)}to{transform:none}}
 .hcard .msg{display:none}
 .hcard .pan{padding:12px 16px 14px}
-.hcard .pan h3{color:#fff;text-shadow:0 2px 0 rgba(0,0,0,.35)}
-.hcard .panhint{color:#C3D2F2!important}
+.hcard .pan h3{color:#3A2812;text-shadow:0 2px 0 rgba(255,255,255,.55)}
+.hcard .panhint{color:#6B5232!important}
+.hcard .pan p{color:#3A2812}
 .hcard .optb,.hcard .shopb,.hcard .numb{background:linear-gradient(#3D60AB,#2A4689)!important;color:#fff;border:2.5px solid #0E1B3A!important;border-radius:5px!important;box-shadow:inset 0 2px 0 rgba(255,255,255,.2),0 4px 0 #0B1430}
 .hcard .optb:active,.hcard .shopb:active,.hcard .numb:active{box-shadow:inset 0 2px 0 rgba(255,255,255,.2),0 1px 0 #0B1430}
 .hcard .optb small,.hcard .shopb small{color:#C3D2F2}

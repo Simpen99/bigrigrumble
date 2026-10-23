@@ -1911,7 +1911,7 @@ const cargoHTML = (p, bs, bc) =>
 	shardMap()
 		? `<span class="cargo${bs ? " bump" : ""}">${p.shards | 0}${shardIco}</span><span class="cargo${bc ? " bump" : ""}">${p.dust | 0}${dustIco}</span>`
 		: "";
-/* a player's panel (the designer's navy art, UI_ART panel-navy; whose move it is gets an octagon pulsing out of its own, .now): the truck in the octagon
+/* a player's panel (the designer's panel art in beige, UI_ART panel-beige; whose move it is gets an octagon pulsing out of its own, .now): the truck in the octagon
    over the player's (or team's) colour, place badge under it, items in the three boxes, name on the tab (long names smaller), batteries and coins
    (+ shards and dust on Volcano Quarry) on the right, upgrades right of the tab. Every size is in cqw, so it scales with the panel.
    o: {rank, off, bump: [bat, coins, shards, dust], flip: mirrored (right-hand side), pos: grid style} */
