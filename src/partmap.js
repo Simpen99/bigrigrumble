@@ -3119,13 +3119,6 @@ function buildBoardFor(map) {
 		s.add(c);
 		clouds.push(c);
 	}
-	const hl = new THREE.Mesh(
-		new THREE.RingGeometry(1.25, 1.55, 24),
-		new THREE.MeshBasicMaterial({ color: "#FFFFFF", transparent: true, opacity: 0.8 }),
-	);
-	hl.rotation.x = -Math.PI / 2;
-	hl.position.y = 0.53;
-	s.add(hl);
 	/* fork choices: a big floating number over each road's first space (matches the numbered buttons) */
 	const arrows = [0, 1, 2].map((k) => {
 		const g = new THREE.Group(),
@@ -3168,7 +3161,6 @@ function buildBoardFor(map) {
 		bld,
 		puffs,
 		clouds,
-		hl,
 		belts,
 		crushers,
 		arrows,
@@ -3529,14 +3521,7 @@ function syncBoard() {
 				tr = buildTruck(p.truck);
 			tr.scale.setScalar(0.62);
 			g.add(tr);
-			const disc = Cy(0.72, 0.72, 0.06, 20, pcol(p), 0, 0.03, 0, {
-				transparent: true,
-				opacity: 0.4,
-				depthWrite: false,
-			});
-			disc.castShadow = false;
-			g.add(disc);
-			/* no name tag over the truck (the corner panels and the coloured disc say whose it is) */
+			/* no name tag, ring or coloured disc under the truck: the corner panels say whose it is */
 			g.position.copy(tilePos(p.pos, [0, 0]));
 			bd.scene.add(g);
 			t = GFX.tok[p.key] = {
@@ -3762,13 +3747,6 @@ function stepBoard(dt, time) {
 		ct = cur && GFX.tok[cur.key],
 		inMg = G.phase === "minigame" || G.phase === "mgres" || G.phase === "teams";
 	stepBadgeFor(bd, ct, time);
-	bd.hl.visible = !!ct && !inMg;
-	if (ct) {
-		bd.hl.position.x = ct.g.position.x;
-		bd.hl.position.z = ct.g.position.z;
-		bd.hl.position.y = (MAP.nodes[ct.shownT] ? MAP.nodes[ct.shownT].y || 0 : 0) + 0.53;
-		bd.hl.scale.setScalar(1 + Math.sin(time * 4) * 0.08);
-	}
 	const fo = G.phase === "fork" && G.fork ? G.fork.opts : [];
 	bd.arrows.forEach((a, k) => {
 		const n = nd[fo[k]];

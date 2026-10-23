@@ -92,6 +92,10 @@ document.addEventListener("click", (e) => {
 		pickStep(+b.dataset.dstep);
 		return;
 	}
+	if (b.dataset.spin) {
+		pickSpin();
+		return;
+	}
 	if (b.dataset.roll) {
 		if (!G) return;
 		b.disabled = true;

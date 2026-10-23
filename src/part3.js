@@ -781,7 +781,7 @@ function tvLobbyHTML() {
 /* ---------- game view ---------- */
 function buildGame() {
 	$("#app").innerHTML =
-		`<div class="pstrip" id="pstrip"></div><div class="pstrip bot" id="pstripb"></div><div class="dpick" id="dpick" hidden></div><div class="ctlpick" id="ctlpick" hidden></div><div class="hudtop"><div class="hudbtns l"><button class="chip" data-a="snd" aria-label="Sound levels">${SFX.on ? "🔊" : "🔇"}</button></div><span class="chip" id="rnd"></span><div class="hudbtns"><button class="chip" data-a="cam" id="cambtn">Board</button><button class="chip" data-a="peek" id="peekbtn">${GFX.peek ? "🎮 Controls" : "🗺 Board"}</button><button class="chip" data-a="${role === "host" ? "endask" : "leave"}" aria-label="Leave game">✕</button></div></div>
+		`<div class="pstrip" id="pstrip"></div><div class="pstrip bot" id="pstripb"></div><div class="dpick" id="dpick" hidden></div><div class="dpick in" id="dietag" hidden></div><div class="ctlpick" id="ctlpick" hidden></div><div class="hudtop"><div class="hudbtns l"><button class="chip" data-a="snd" aria-label="Sound levels">${SFX.on ? "🔊" : "🔇"}</button></div><span class="chip" id="rnd"></span><div class="hudbtns"><button class="chip" data-a="cam" id="cambtn">Board</button><button class="chip" data-a="peek" id="peekbtn">${GFX.peek ? "🎮 Controls" : "🗺 Board"}</button><button class="chip" data-a="${role === "host" ? "endask" : "leave"}" aria-label="Leave game">✕</button></div></div>
   <div class="hudbot" id="hudbot"><div id="hostgone"></div><div id="ctlme"></div><div class="hslot"><div class="hcard"><div class="msg"><i></i><span id="msg" aria-live="polite"></span></div><div id="panel"></div></div></div><div class="turnbar" id="turnchip"></div></div>`;
 	render.lastPanel = render.lastStrip = render.lastMe = render.lastPick = render.lastCtlPick = null;
 	document.body.classList.remove("ctlpk");
@@ -866,8 +866,7 @@ function updateGame() {
 	syncBoard();
 	const players = G.players,
 		c = players[G.turn];
-	$("#rnd").textContent =
-		`Round ${G.round}/${G.rounds}${MAP.lava && G.phase !== "lobby" ? " " + lavaChip(G.round) : ""}`;
+	$("#rnd").textContent = `Round ${G.round}/${G.rounds}`;
 	turnBar();
 	{
 		const c = G.players[G.turn];
@@ -899,11 +898,11 @@ function updateGame() {
 		$("#panel").innerHTML = ph;
 	}
 	{
-		/* dice picker: the slab over the truck everywhere, the arrows and tap area over it on the picking phone or PC */
+		/* dice picker: the die over the truck everywhere with its name, the arrows and tap area over it on the picking phone or PC */
 		const pk = pickNow(),
 			d = pk && pk.dice[pk.i],
 			el = $("#dpick"),
-			h = pk && pk.mine && GFX.ok && !GFX.ctl ? pickHTML(pk) : "";
+			h = pk && GFX.ok && !GFX.ctl ? (pk.mine ? pickHTML(pk) : pickInfoHTML(pk)) : "";
 		setPick(
 			pk && {
 				key: pk.p.key,
@@ -912,6 +911,7 @@ function updateGame() {
 				color: G.teams ? TEAMS[pk.p.team || 0].col : pcol(pk.p),
 				dcol: d.col,
 				item: d.item,
+				spin: pk.spin,
 			},
 		);
 		if (h !== render.lastPick) {

@@ -171,11 +171,14 @@ function pcol(p) {
 		return PCOL[p.col];
 	return t.color;
 }
-const coinIco = `<svg class="ico" viewBox="0 0 20 20"><circle cx="10" cy="10" r="8.5" fill="#FFC83D"/><circle cx="10" cy="10" r="5.5" fill="none" stroke="#E0A800" stroke-width="2"/></svg>`;
-const batIco = `<svg class="ico" viewBox="0 0 20 20"><rect x="1.5" y="5" width="15" height="11" rx="2.5" fill="#1FA35C"/><rect x="16.5" y="8" width="2.5" height="5" rx="1" fill="#1FA35C"/><path d="M10 6.5 L6.5 11 H9.5 L8 14.5 L12 9.5 H9.5z" fill="#FFE27A"/></svg>`;
-const batIcoV = `<svg class="ico" viewBox="0 0 20 20"><rect x="1.5" y="5" width="15" height="11" rx="2.5" fill="#6A35D0"/><rect x="16.5" y="8" width="2.5" height="5" rx="1" fill="#6A35D0"/><path d="M10 6.5 L6.5 11 H9.5 L8 14.5 L12 9.5 H9.5z" fill="#F3E6FF"/></svg>`;
-const shardIco = `<svg class="ico" viewBox="0 0 20 20"><path d="M10 1.5 L16 8 L10 18.5 L4 8z" fill="#7A3CFF"/><path d="M10 1.5 L13 8 L10 18.5 L7 8z" fill="#B78CFF"/></svg>`;
-const dustIco = `<svg class="ico" viewBox="0 0 20 20"><path d="M1.5 16.5 Q4.5 8 10 7 Q15.5 8 18.5 16.5 Z" fill="#6A5A8A"/><path d="M5 16.5 Q7.5 10.5 10 10 Q12.5 10.5 15 16.5 Z" fill="#8C7AB0"/><circle cx="7" cy="12.5" r="1.1" fill="#D9C8FF"/><circle cx="11.5" cy="9.8" r=".9" fill="#D9C8FF"/><circle cx="13.5" cy="13.5" r="1" fill="#B78CFF"/></svg>`;
+/* resource icons: chunky cartoon style to match the navy panel art (thick navy outline, a shade on the lower part, a white glint) */
+const coinIco = `<svg class="ico" viewBox="0 0 40 40"><circle cx="20" cy="22.5" r="15" fill="#B87A00" stroke="#0B1530" stroke-width="2.6"/><circle cx="20" cy="19" r="15" fill="#FFC83D" stroke="#0B1530" stroke-width="2.6"/><circle cx="20" cy="19" r="10" fill="#FFD866" stroke="#D99A00" stroke-width="2"/><path d="M20 12.5 L21.9 16.6 L26.3 17.1 L23 20.1 L23.9 24.5 L20 22.3 L16.1 24.5 L17 20.1 L13.7 17.1 L18.1 16.6z" fill="#E0A000"/><path d="M9.5 14 Q12 8.5 18 7.5" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" opacity=".7"/></svg>`;
+const batSvg = (body, shade, cap) =>
+	`<svg class="ico" viewBox="0 0 40 40"><rect x="3.5" y="10" width="29" height="22" rx="5" fill="${body}" stroke="#0B1530" stroke-width="2.6"/><path d="M5 24 H31 V27 Q31 30.5 27.5 30.5 H8.5 Q5 30.5 5 27z" fill="${shade}"/><rect x="32.5" y="16" width="4.5" height="10" rx="1.8" fill="${cap}" stroke="#0B1530" stroke-width="2.6"/><rect x="8" y="13" width="13" height="3" rx="1.5" fill="#fff" opacity=".45"/><path d="M21 11.5 L11.5 23.5 H17.5 L14.5 32 L26 18.5 H20 L23.5 11.5z" fill="#FFE14D" stroke="#0B1530" stroke-width="2.2" stroke-linejoin="round"/></svg>`;
+const batIco = batSvg("#22B865", "#168A4A", "#127040");
+const batIcoV = batSvg("#7B45E0", "#5A2FB8", "#4B2A99");
+const shardIco = `<svg class="ico" viewBox="0 0 40 40"><path d="M28 17 L35 24 L33 36 L25 36 L24 23z" fill="#5E28C8" stroke="#0B1530" stroke-width="2.4" stroke-linejoin="round"/><path d="M18 3 L27 13 L24 36 L12 36 L9 13z" fill="#8A4DFF"/><path d="M18 3 L9 13 L12 36 L17 36 L15.5 13z" fill="#C3A0FF"/><path d="M18 3 L15.5 13 L17 36 L24 36 L27 13z" fill="#9B66FF" opacity=".55"/><path d="M18 3 L27 13 L24 36 L12 36 L9 13z" fill="none" stroke="#0B1530" stroke-width="2.6" stroke-linejoin="round"/><path d="M32 4 L33.2 7.8 L37 9 L33.2 10.2 L32 14 L30.8 10.2 L27 9 L30.8 7.8z" fill="#fff"/></svg>`;
+const dustIco = `<svg class="ico" viewBox="0 0 40 40"><ellipse cx="20" cy="35" rx="16" ry="2.5" fill="#000" opacity=".25"/><path d="M3.5 34 Q6 25 12 22.5 Q15 15 21 15.5 Q27 15 29.5 21.5 Q35 24 36.5 34z" fill="#4A3A75" stroke="#0B1530" stroke-width="2.6" stroke-linejoin="round"/><path d="M8 32 Q10 26 14.5 25 Q17 19 21.5 19.5 Q25 20 26 24 Q22 23 19.5 27 Q14 27.5 12.5 32z" fill="#6E58A8"/><path d="M14 22 L15.6 24 L14 26 L12.4 24z M24 27 L25.4 28.8 L24 30.6 L22.6 28.8z M30 25 L31 26.4 L30 27.8 L29 26.4z" fill="#D9C8FF"/><path d="M20 9 L21 12 L24 13 L21 14 L20 17 L19 14 L16 13 L19 12z" fill="#fff"/></svg>`;
 const bigBattery = `<svg viewBox="0 0 90 56"><rect x="3" y="6" width="74" height="46" rx="10" fill="#1FA35C"/><rect x="77" y="18" width="10" height="20" rx="3" fill="#157A44"/><path d="M44 10 L28 31 H42 L36 48 L56 24 H43z" fill="#FFE27A"/></svg>`;
 
 /* ---------- 2D board layout ---------- */
@@ -813,14 +816,21 @@ function itemModel(k) {
 	}
 	return g;
 }
-function showDie3D(faces, idx, color, key) {
+/* the roll, party-game style: the truck crouches, hops and bonks the die over it with its roof (DIE_HIT s in), the die kicks up, spins and
+   settles on the rolled face, shows it 1.5 s, then bursts into confetti (DIE_POP s in) before the truck drives off (the host moves it 2.8 s
+   after the roll). The die carries on from the picker's die where there was one (same spot, same turn, still spinning if it was), else it
+   pops in. #dietag = its name over it. */
+const DIE_HIT = 0.36,
+	DIE_POP = DIE_HIT + 0.3 + 1.5,
+	DQ = new THREE.Quaternion();
+function showDie3D(faces, idx, color, key, tagHTML) {
 	if (!GFX.ok || !GFX.board) return false;
 	const bd = GFX.board;
 	if (!bd.dieHold) {
 		bd.dieHold = new THREE.Group();
 		bd.scene.add(bd.dieHold);
 	}
-	if (GFX.die) bd.dieHold.remove(GFX.die.m);
+	if (GFX.die) dieDone(GFX.die);
 	const m = dieModel(faces, color, true);
 	bd.dieHold.add(m);
 	const E = [
@@ -832,38 +842,159 @@ function showDie3D(faces, idx, color, key) {
 		[0, Math.PI, 0],
 	][idx];
 	const base = new THREE.Quaternion().setFromEuler(new THREE.Euler(E[0], E[1], E[2])),
-		tilt = new THREE.Quaternion().setFromEuler(new THREE.Euler(0.22, -0.3, 0));
+		tilt = new THREE.Quaternion().setFromEuler(new THREE.Euler(0.22, -0.3, 0)),
+		P = GFX.pick,
+		cont = !!(P && P.key === key && P.die && P.die.parent),
+		fast = cont && !!P.spin;
+	if (cont) {
+		/* pick up the picker die's turn so the swap doesn't show */
+		bd.dieHold.quaternion.copy(GFX.cam.quaternion);
+		P.die.getWorldQuaternion(DQ);
+		m.quaternion.copy(bd.dieHold.quaternion).invert().multiply(DQ);
+	}
+	const tag = $("#dietag");
+	if (tag) {
+		tag.innerHTML = tagHTML || "";
+		tag.hidden = !tagHTML;
+	}
 	GFX.die = {
 		m,
 		t: 0,
 		key,
+		color,
+		cont,
+		fast,
 		target: tilt.multiply(base),
 		spin: new THREE.Vector3(7 + Math.random() * 4, 9 + Math.random() * 4, 3),
 	};
 	return true;
 }
+/* the die's gone (burst, or a new roll took over): put its truck back to rest */
+function dieDone(d) {
+	const tk = GFX.tok[d.key];
+	if (tk && tk.trS) {
+		tk.tr.position.y = 0;
+		tk.tr.scale.setScalar(tk.trS);
+	}
+	if (d.m.parent) d.m.parent.remove(d.m);
+	if (GFX.die === d) GFX.die = null;
+}
 function stepDie(dt) {
 	const d = GFX.die;
 	if (!d) return;
+	const T0 = d.t;
 	d.t += dt;
-	const bd = GFX.board,
+	const T = d.t,
+		past = (x) => T0 < x && T >= x,
+		bd = GFX.board,
 		tk = GFX.tok[d.key];
 	if (tk) bd.dieHold.position.set(tk.g.position.x, tk.g.position.y + DIE_Y, tk.g.position.z);
 	bd.dieHold.quaternion.copy(GFX.cam.quaternion);
-	if (d.t < 1.1) {
+	/* the truck: crouch, hop up to the die (H = its roof to the die's bottom), fall back, squash on landing */
+	if (tk) {
+		if (!tk.trS) {
+			tk.trS = tk.tr.scale.x;
+			tk.tr.position.y = 0;
+			tk.roofH = new THREE.Box3().setFromObject(tk.tr).max.y - tk.g.position.y;
+		}
+		const H = Math.max(0.5, DIE_Y - 0.5 * DIE_S - tk.roofH + 0.06),
+			UP = 0.14,
+			FALL = 0.42,
+			SQ = 0.2;
+		let y = 0,
+			sy = 1,
+			sx = 1;
+		if (T < UP) {
+			const u = T / UP;
+			sy = 1 - 0.22 * u;
+			sx = 1 + 0.1 * u;
+		} else if (T < DIE_HIT) {
+			const u = (T - UP) / (DIE_HIT - UP);
+			y = H * (1 - (1 - u) * (1 - u));
+			sy = 1 + 0.16 * (1 - u);
+			sx = 1 - 0.06 * (1 - u);
+		} else if (T < DIE_HIT + FALL) {
+			const u = (T - DIE_HIT) / FALL;
+			y = H * (1 - u * u);
+			sy = 1 - 0.1 * (1 - u) + 0.08 * u;
+		} else if (T < DIE_HIT + FALL + SQ) {
+			const w = Math.sin(((T - DIE_HIT - FALL) / SQ) * Math.PI);
+			sy = 1 - 0.24 * w;
+			sx = 1 + 0.12 * w;
+		}
+		tk.tr.position.y = y;
+		tk.tr.scale.set(tk.trS * sx, tk.trS * sy, tk.trS * sx);
+		const gp = tk.g.position;
+		if (past(UP)) sfx("hop");
+		if (past(DIE_HIT + FALL)) {
+			sfx("land");
+			burst(bd.scene, gp.x, gp.y + 0.15, gp.z, {
+				cols: ["#C9B79A", "#A8957A"],
+				n: 10,
+				spd: 2.4,
+				up: 1.4,
+				life: 0.5,
+				vary: 1,
+			});
+		}
+	}
+	/* the die: drifting slowly until the bonk, then kicked up spinning, then it settles on the rolled face */
+	if (past(DIE_HIT)) {
+		sfx("bonk");
+		const p = bd.dieHold.position;
+		burst(bd.scene, p.x, p.y - 0.5 * DIE_S, p.z, {
+			cols: ["#FFFFFF", "#FFE14D"],
+			n: 12,
+			spd: 4.5,
+			up: 2,
+			life: 0.45,
+			shape: "ico",
+		});
+	}
+	if (T < DIE_HIT && !d.fast) {
+		d.m.rotation.x += 0.9 * dt;
+		d.m.rotation.y += 1.4 * dt;
+	} else if (T < DIE_HIT + 0.3) {
 		d.m.rotation.x += d.spin.x * dt;
 		d.m.rotation.y += d.spin.y * dt;
 		d.m.rotation.z += d.spin.z * dt;
-		d.m.position.y = Math.abs(Math.sin(d.t * 9)) * 0.5 * (1.1 - d.t);
-	} else {
-		d.m.quaternion.slerp(d.target, Math.min(1, dt * 10));
-		d.m.position.y *= 0.8;
-	}
-	const sc = d.t < 0.15 ? d.t / 0.15 : d.t > 2.1 ? Math.max(0, 1 - (d.t - 2.1) / 0.2) : 1;
+	} else d.m.quaternion.slerp(d.target, Math.min(1, dt * 12));
+	const kick = T > DIE_HIT ? Math.min(1, (T - DIE_HIT) / 0.5) : 0;
+	d.m.position.y = kick > 0 && kick < 1 ? Math.sin(kick * Math.PI) * 0.8 : 0;
+	/* pops in (unless it carries on from the picker's die), a punch on the bonk, a swell just before it bursts */
+	const pop = T > DIE_POP - 0.1 ? 1 + Math.min(1, (T - DIE_POP + 0.1) / 0.1) * 0.22 : 1,
+		punch = T > DIE_HIT && T < DIE_HIT + 0.2 ? 1 + Math.sin(((T - DIE_HIT) / 0.2) * Math.PI) * 0.16 : 1,
+		sc = (d.cont || T > 0.15 ? 1 : T / 0.15) * pop * punch;
 	d.m.scale.setScalar(Math.max(0.001, sc) * DIE_S);
-	if (d.t > 2.3) {
-		bd.dieHold.remove(d.m);
-		GFX.die = null;
+	/* the die's name over it (#dietag, filled by showDie3D), gone when it bursts */
+	const tag = $("#dietag");
+	if (tag && !tag.hidden) {
+		const v = PV[0].copy(bd.dieHold.position).project(GFX.cam),
+			r = PV[1]
+				.setFromMatrixColumn(GFX.cam.matrixWorld, 0)
+				.multiplyScalar(0.9 * DIE_S)
+				.add(bd.dieHold.position)
+				.project(GFX.cam);
+		tag.style.transform = `translate(${(((v.x + 1) / 2) * GFX.w).toFixed(1)}px,${(((1 - v.y) / 2) * GFX.h).toFixed(1)}px)`;
+		tag.style.setProperty(
+			"--r",
+			(Math.max(30, Math.min(150, Math.abs(r.x - v.x) * 0.5 * GFX.w)) * sc).toFixed(1) + "px",
+		);
+		if (T >= DIE_POP) tag.hidden = true;
+	}
+	if (T >= DIE_POP) {
+		sfx("dicepop");
+		const p = PV[0].copy(d.m.position).applyQuaternion(bd.dieHold.quaternion).add(bd.dieHold.position);
+		burst(bd.scene, p.x, p.y, p.z, {
+			cols: [d.color, "#FFFFFF", "#FFC83D"],
+			n: 30,
+			spd: 5,
+			up: 4.5,
+			life: 0.9,
+			vary: 1,
+			size: 1.3,
+		});
+		dieDone(d);
 	}
 }
 /* ---------- dice picker (pickNow in partgame decides what it shows) ----------
@@ -892,6 +1023,9 @@ function setPick(s, now) {
 		P = GFX.pick = { g, slab, key: s.key, color: s.color, t: -PICK_IN, dk: null, die: null, old: [] };
 	}
 	P.out = 0;
+	/* picked: it spins fast (ramping up from here), waiting to be hit */
+	if (s.spin && !P.spin) P.spinT = P.t;
+	P.spin = !!s.spin;
 	if (P.dk !== s.dk) {
 		if (P.die) P.old.push({ m: P.die, t: 0 });
 		P.die = s.item ? itemModel(s.item) : dieModel(s.faces, s.dcol, false);
@@ -927,14 +1061,15 @@ function stepPick(dt, time) {
 	const cp = GFX.cam.position,
 		yaw = Math.atan2(cp.x - P.g.position.x, cp.z - P.g.position.z);
 	P.slab.rotation.y = yaw + Math.PI / 4;
-	/* the die bobs and tumbles slowly so its faces come round; a new one spins a little as it grows */
+	/* the die bobs and tumbles slowly so its faces come round; a new one spins a little as it grows; once picked it spins fast */
 	const kd = popIn(P.swap, 0.4);
 	P.die.scale.setScalar(Math.max(1e-3, kd * out));
 	P.die.position.y = Math.sin(time * 2.2) * 0.07;
+	P.ang = (P.ang || 0) + (P.spin ? dt * Math.min(1, (P.t - P.spinT) / 0.35) : 0);
 	P.die.rotation.set(
-		Math.sin(time * 0.9) * 0.55,
-		yaw + time * 0.8 + (1 - Math.min(1, kd)) * 2,
-		Math.cos(time * 0.7) * 0.35,
+		Math.sin(time * 0.9) * 0.55 + P.ang * 9,
+		yaw + time * 0.8 + (1 - Math.min(1, kd)) * 2 + P.ang * 11,
+		Math.cos(time * 0.7) * 0.35 + P.ang * 4,
 	);
 	P.old = P.old.filter((o) => {
 		o.t += dt;

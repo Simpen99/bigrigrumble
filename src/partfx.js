@@ -1451,6 +1451,22 @@ function sfx(n) {
 				noiseHit(0.08, 0.3, 1800, 600, 0, 2);
 				tone(660, 0.12, "triangle", 0.1);
 				break;
+			case "hop":
+				/* the truck springs up at the die (showDie3D) */
+				tone(260, 0.16, "sine", 0.16, 620);
+				noiseHit(0.06, 0.1, 900, 300, 0, 1);
+				break;
+			case "bonk":
+				/* its roof hits the die */
+				tone(392, 0.09, "square", 0.09, 330);
+				tone(1046, 0.12, "triangle", 0.1, 0, 0.02);
+				noiseHit(0.05, 0.25, 2600, 900, 0, 2);
+				break;
+			case "dicepop":
+				/* the die bursts into confetti */
+				noiseHit(0.14, 0.22, 3200, 800, 0, 1.2);
+				[784, 1175, 1568].forEach((f, i) => tone(f, 0.1, "triangle", 0.07, 0, i * 0.04));
+				break;
 			case "step":
 				tone(180 + Math.random() * 40, 0.06, "triangle", 0.06);
 				break;
