@@ -816,6 +816,12 @@ function itemModel(k) {
 	}
 	return g;
 }
+/* the roll, party-game style: the truck crouches, hops and bonks the die over it with its roof (DIE_HIT s in), the die kicks up, spins and
+   settles on the rolled face, then bursts into confetti (DIE_POP s in) before the truck drives off (the host moves it 2.6 s after the roll).
+   The die carries on from the picker's die where there was one (same spot, same turn), else it pops in. #dietag = its name over it. */
+const DIE_HIT = 0.36,
+	DIE_POP = 1.9,
+	DQ = new THREE.Quaternion();
 function showDie3D(faces, idx, color, key, tagHTML) {
 	if (!GFX.ok || !GFX.board) return false;
 	const bd = GFX.board;
@@ -823,7 +829,7 @@ function showDie3D(faces, idx, color, key, tagHTML) {
 		bd.dieHold = new THREE.Group();
 		bd.scene.add(bd.dieHold);
 	}
-	if (GFX.die) bd.dieHold.remove(GFX.die.m);
+	if (GFX.die) dieDone(GFX.die);
 	const m = dieModel(faces, color, true);
 	bd.dieHold.add(m);
 	const E = [
@@ -835,7 +841,15 @@ function showDie3D(faces, idx, color, key, tagHTML) {
 		[0, Math.PI, 0],
 	][idx];
 	const base = new THREE.Quaternion().setFromEuler(new THREE.Euler(E[0], E[1], E[2])),
-		tilt = new THREE.Quaternion().setFromEuler(new THREE.Euler(0.22, -0.3, 0));
+		tilt = new THREE.Quaternion().setFromEuler(new THREE.Euler(0.22, -0.3, 0)),
+		P = GFX.pick,
+		cont = !!(P && P.key === key && P.die && P.die.parent);
+	if (cont) {
+		/* pick up the picker die's turn so the swap doesn't show */
+		bd.dieHold.quaternion.copy(GFX.cam.quaternion);
+		P.die.getWorldQuaternion(DQ);
+		m.quaternion.copy(bd.dieHold.quaternion).invert().multiply(DQ);
+	}
 	const tag = $("#dietag");
 	if (tag) {
 		tag.innerHTML = tagHTML || "";
@@ -845,31 +859,112 @@ function showDie3D(faces, idx, color, key, tagHTML) {
 		m,
 		t: 0,
 		key,
+		color,
+		cont,
+		ph: 0,
 		target: tilt.multiply(base),
 		spin: new THREE.Vector3(7 + Math.random() * 4, 9 + Math.random() * 4, 3),
 	};
 	return true;
 }
+/* the die's gone (burst, or a new roll took over): put its truck back to rest */
+function dieDone(d) {
+	const tk = GFX.tok[d.key];
+	if (tk && tk.trS) {
+		tk.tr.position.y = 0;
+		tk.tr.scale.setScalar(tk.trS);
+	}
+	if (d.m.parent) d.m.parent.remove(d.m);
+	if (GFX.die === d) GFX.die = null;
+}
 function stepDie(dt) {
 	const d = GFX.die;
 	if (!d) return;
+	const T0 = d.t;
 	d.t += dt;
-	const bd = GFX.board,
+	const T = d.t,
+		past = (x) => T0 < x && T >= x,
+		bd = GFX.board,
 		tk = GFX.tok[d.key];
 	if (tk) bd.dieHold.position.set(tk.g.position.x, tk.g.position.y + DIE_Y, tk.g.position.z);
 	bd.dieHold.quaternion.copy(GFX.cam.quaternion);
-	if (d.t < 1.1) {
+	/* the truck: crouch, hop up to the die (H = its roof to the die's bottom), fall back, squash on landing */
+	if (tk) {
+		if (!tk.trS) {
+			tk.trS = tk.tr.scale.x;
+			tk.tr.position.y = 0;
+			tk.roofH = new THREE.Box3().setFromObject(tk.tr).max.y - tk.g.position.y;
+		}
+		const H = Math.max(0.5, DIE_Y - 0.5 * DIE_S - tk.roofH + 0.06),
+			UP = 0.14,
+			FALL = 0.42,
+			SQ = 0.2;
+		let y = 0,
+			sy = 1,
+			sx = 1;
+		if (T < UP) {
+			const u = T / UP;
+			sy = 1 - 0.22 * u;
+			sx = 1 + 0.1 * u;
+		} else if (T < DIE_HIT) {
+			const u = (T - UP) / (DIE_HIT - UP);
+			y = H * (1 - (1 - u) * (1 - u));
+			sy = 1 + 0.16 * (1 - u);
+			sx = 1 - 0.06 * (1 - u);
+		} else if (T < DIE_HIT + FALL) {
+			const u = (T - DIE_HIT) / FALL;
+			y = H * (1 - u * u);
+			sy = 1 - 0.1 * (1 - u) + 0.08 * u;
+		} else if (T < DIE_HIT + FALL + SQ) {
+			const w = Math.sin(((T - DIE_HIT - FALL) / SQ) * Math.PI);
+			sy = 1 - 0.24 * w;
+			sx = 1 + 0.12 * w;
+		}
+		tk.tr.position.y = y;
+		tk.tr.scale.set(tk.trS * sx, tk.trS * sy, tk.trS * sx);
+		const gp = tk.g.position;
+		if (past(UP)) sfx("hop");
+		if (past(DIE_HIT + FALL)) {
+			sfx("land");
+			burst(bd.scene, gp.x, gp.y + 0.15, gp.z, {
+				cols: ["#C9B79A", "#A8957A"],
+				n: 10,
+				spd: 2.4,
+				up: 1.4,
+				life: 0.5,
+				vary: 1,
+			});
+		}
+	}
+	/* the die: drifting slowly until the bonk, then kicked up spinning, then it settles on the rolled face */
+	if (past(DIE_HIT)) {
+		sfx("bonk");
+		const p = bd.dieHold.position;
+		burst(bd.scene, p.x, p.y - 0.5 * DIE_S, p.z, {
+			cols: ["#FFFFFF", "#FFE14D"],
+			n: 12,
+			spd: 4.5,
+			up: 2,
+			life: 0.45,
+			shape: "ico",
+		});
+	}
+	if (T < DIE_HIT) {
+		d.m.rotation.x += 0.9 * dt;
+		d.m.rotation.y += 1.4 * dt;
+	} else if (T < DIE_HIT + 0.3) {
 		d.m.rotation.x += d.spin.x * dt;
 		d.m.rotation.y += d.spin.y * dt;
 		d.m.rotation.z += d.spin.z * dt;
-		d.m.position.y = Math.abs(Math.sin(d.t * 9)) * 0.5 * (1.1 - d.t);
-	} else {
-		d.m.quaternion.slerp(d.target, Math.min(1, dt * 10));
-		d.m.position.y *= 0.8;
-	}
-	const sc = d.t < 0.15 ? d.t / 0.15 : d.t > 2.1 ? Math.max(0, 1 - (d.t - 2.1) / 0.2) : 1;
+	} else d.m.quaternion.slerp(d.target, Math.min(1, dt * 12));
+	const kick = T > DIE_HIT ? Math.min(1, (T - DIE_HIT) / 0.5) : 0;
+	d.m.position.y = kick > 0 && kick < 1 ? Math.sin(kick * Math.PI) * 0.8 : 0;
+	/* pops in (unless it carries on from the picker's die), a punch on the bonk, a swell just before it bursts */
+	const pop = T > DIE_POP - 0.1 ? 1 + Math.min(1, (T - DIE_POP + 0.1) / 0.1) * 0.22 : 1,
+		punch = T > DIE_HIT && T < DIE_HIT + 0.2 ? 1 + Math.sin(((T - DIE_HIT) / 0.2) * Math.PI) * 0.16 : 1,
+		sc = (d.cont || T > 0.15 ? 1 : T / 0.15) * pop * punch;
 	d.m.scale.setScalar(Math.max(0.001, sc) * DIE_S);
-	/* the die's name and faces round it (#dietag, filled by showDie3D), gone as the die shrinks away */
+	/* the die's name over it (#dietag, filled by showDie3D), gone when it bursts */
 	const tag = $("#dietag");
 	if (tag && !tag.hidden) {
 		const v = PV[0].copy(bd.dieHold.position).project(GFX.cam),
@@ -883,11 +978,21 @@ function stepDie(dt) {
 			"--r",
 			(Math.max(30, Math.min(150, Math.abs(r.x - v.x) * 0.5 * GFX.w)) * sc).toFixed(1) + "px",
 		);
-		if (d.t > 2.1) tag.hidden = true;
+		if (T >= DIE_POP) tag.hidden = true;
 	}
-	if (d.t > 2.3) {
-		bd.dieHold.remove(d.m);
-		GFX.die = null;
+	if (T >= DIE_POP) {
+		sfx("dicepop");
+		const p = PV[0].copy(d.m.position).applyQuaternion(bd.dieHold.quaternion).add(bd.dieHold.position);
+		burst(bd.scene, p.x, p.y, p.z, {
+			cols: [d.color, "#FFFFFF", "#FFC83D"],
+			n: 30,
+			spd: 5,
+			up: 4.5,
+			life: 0.9,
+			vary: 1,
+			size: 1.3,
+		});
+		dieDone(d);
 	}
 }
 /* ---------- dice picker (pickNow in partgame decides what it shows) ----------

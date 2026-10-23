@@ -125,14 +125,12 @@ button.chip{border:1px solid var(--hudline)}
 .dp-info{pointer-events:none!important;left:0;bottom:calc(var(--r) * .9);transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:5px}
 .dp-info b{font:400 15px/1 var(--display);color:#fff;background:var(--hb,#1B2333);border:2.5px solid #151B24;border-radius:999px;padding:5px 12px 4px;white-space:nowrap;box-shadow:0 3px 0 var(--ledge,#0B0E14);animation:mmSwap .25s cubic-bezier(.2,1.5,.4,1) both}
 .dp-info small{font:700 12px/1.25 var(--body);color:#fff;background:rgba(21,27,36,.82);border-radius:10px;padding:4px 9px;width:max-content;max-width:190px;text-align:center}
-/* the die's six faces in a row under it (facesHTML): white tiles framed in the die's colour, yellow numbers, coin pills; .hit = the face it landed on */
+/* the die's six faces in a row under it while picking (facesHTML): white tiles framed in the die's colour, yellow numbers, coin pills */
 .dp-faces{pointer-events:none!important;left:0;top:calc(var(--r) * 1.1);transform:translateX(-50%);display:flex;gap:4px;padding:5px;background:var(--hb,#1B2333);border:2.5px solid #151B24;border-radius:12px;box-shadow:0 3px 0 var(--ledge,#0B0E14)}
-.dp-faces i{animation:dpIn .25s ease-out backwards;position:relative;width:30px;height:33px;box-sizing:border-box;border:3px solid var(--dc);border-radius:7px;background:#fff;box-shadow:inset 0 -3px 0 rgba(0,0,0,.12);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;font:400 19px/1 var(--display);font-style:normal;color:#FFC83D;text-shadow:1.5px 0 0 #3A2A12,-1.5px 0 0 #3A2A12,0 1.5px 0 #3A2A12,0 -1.5px 0 #3A2A12,1px 1px 0 #3A2A12,-1px 1px 0 #3A2A12,1px -1px 0 #3A2A12,-1px -1px 0 #3A2A12;transition:transform .2s cubic-bezier(.3,1.6,.5,1),opacity .2s}
+.dp-faces i{animation:dpIn .25s ease-out backwards;position:relative;width:30px;height:33px;box-sizing:border-box;border:3px solid var(--dc);border-radius:7px;background:#fff;box-shadow:inset 0 -3px 0 rgba(0,0,0,.12);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;font:400 19px/1 var(--display);font-style:normal;color:#FFC83D;text-shadow:1.5px 0 0 #3A2A12,-1.5px 0 0 #3A2A12,0 1.5px 0 #3A2A12,0 -1.5px 0 #3A2A12,1px 1px 0 #3A2A12,-1px 1px 0 #3A2A12,1px -1px 0 #3A2A12,-1px -1px 0 #3A2A12}
 @keyframes dpIn{from{opacity:0;transform:translateY(-6px)}}
 .dp-faces i b{font:800 9px/1 var(--body);color:#fff;background:#1FA35C;border-radius:99px;padding:1px 3px;text-shadow:none}
 .dp-faces i b.neg{background:#E5484D}
-.dp-faces.hitting i{opacity:.4}
-.dp-faces.hitting i.hit{opacity:1;transform:scale(1.25);z-index:1;box-shadow:0 0 0 2.5px #FFC83D,inset 0 -3px 0 rgba(0,0,0,.12)}
 .dpick.flat{position:static;width:auto;height:auto;display:grid;grid-template-columns:56px minmax(0,1fr) 56px;align-items:center;gap:8px;margin-top:8px;pointer-events:auto}
 .dpick.flat>*{position:relative}
 .dpick.flat .mm-arr{grid-row:1;top:auto;left:auto;right:auto;width:56px;height:56px}
@@ -1077,7 +1075,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-23 14:05 1c60dd5";
+const BUILD = "2026-10-23 14:17 2b358b9";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -1894,6 +1892,12 @@ function itemModel(k) {
 	}
 	return g;
 }
+/* the roll, party-game style: the truck crouches, hops and bonks the die over it with its roof (DIE_HIT s in), the die kicks up, spins and
+   settles on the rolled face, then bursts into confetti (DIE_POP s in) before the truck drives off (the host moves it 2.6 s after the roll).
+   The die carries on from the picker's die where there was one (same spot, same turn), else it pops in. #dietag = its name over it. */
+const DIE_HIT = 0.36,
+	DIE_POP = 1.9,
+	DQ = new THREE.Quaternion();
 function showDie3D(faces, idx, color, key, tagHTML) {
 	if (!GFX.ok || !GFX.board) return false;
 	const bd = GFX.board;
@@ -1901,7 +1905,7 @@ function showDie3D(faces, idx, color, key, tagHTML) {
 		bd.dieHold = new THREE.Group();
 		bd.scene.add(bd.dieHold);
 	}
-	if (GFX.die) bd.dieHold.remove(GFX.die.m);
+	if (GFX.die) dieDone(GFX.die);
 	const m = dieModel(faces, color, true);
 	bd.dieHold.add(m);
 	const E = [
@@ -1913,7 +1917,15 @@ function showDie3D(faces, idx, color, key, tagHTML) {
 		[0, Math.PI, 0],
 	][idx];
 	const base = new THREE.Quaternion().setFromEuler(new THREE.Euler(E[0], E[1], E[2])),
-		tilt = new THREE.Quaternion().setFromEuler(new THREE.Euler(0.22, -0.3, 0));
+		tilt = new THREE.Quaternion().setFromEuler(new THREE.Euler(0.22, -0.3, 0)),
+		P = GFX.pick,
+		cont = !!(P && P.key === key && P.die && P.die.parent);
+	if (cont) {
+		/* pick up the picker die's turn so the swap doesn't show */
+		bd.dieHold.quaternion.copy(GFX.cam.quaternion);
+		P.die.getWorldQuaternion(DQ);
+		m.quaternion.copy(bd.dieHold.quaternion).invert().multiply(DQ);
+	}
 	const tag = $("#dietag");
 	if (tag) {
 		tag.innerHTML = tagHTML || "";
@@ -1923,31 +1935,112 @@ function showDie3D(faces, idx, color, key, tagHTML) {
 		m,
 		t: 0,
 		key,
+		color,
+		cont,
+		ph: 0,
 		target: tilt.multiply(base),
 		spin: new THREE.Vector3(7 + Math.random() * 4, 9 + Math.random() * 4, 3),
 	};
 	return true;
 }
+/* the die's gone (burst, or a new roll took over): put its truck back to rest */
+function dieDone(d) {
+	const tk = GFX.tok[d.key];
+	if (tk && tk.trS) {
+		tk.tr.position.y = 0;
+		tk.tr.scale.setScalar(tk.trS);
+	}
+	if (d.m.parent) d.m.parent.remove(d.m);
+	if (GFX.die === d) GFX.die = null;
+}
 function stepDie(dt) {
 	const d = GFX.die;
 	if (!d) return;
+	const T0 = d.t;
 	d.t += dt;
-	const bd = GFX.board,
+	const T = d.t,
+		past = (x) => T0 < x && T >= x,
+		bd = GFX.board,
 		tk = GFX.tok[d.key];
 	if (tk) bd.dieHold.position.set(tk.g.position.x, tk.g.position.y + DIE_Y, tk.g.position.z);
 	bd.dieHold.quaternion.copy(GFX.cam.quaternion);
-	if (d.t < 1.1) {
+	/* the truck: crouch, hop up to the die (H = its roof to the die's bottom), fall back, squash on landing */
+	if (tk) {
+		if (!tk.trS) {
+			tk.trS = tk.tr.scale.x;
+			tk.tr.position.y = 0;
+			tk.roofH = new THREE.Box3().setFromObject(tk.tr).max.y - tk.g.position.y;
+		}
+		const H = Math.max(0.5, DIE_Y - 0.5 * DIE_S - tk.roofH + 0.06),
+			UP = 0.14,
+			FALL = 0.42,
+			SQ = 0.2;
+		let y = 0,
+			sy = 1,
+			sx = 1;
+		if (T < UP) {
+			const u = T / UP;
+			sy = 1 - 0.22 * u;
+			sx = 1 + 0.1 * u;
+		} else if (T < DIE_HIT) {
+			const u = (T - UP) / (DIE_HIT - UP);
+			y = H * (1 - (1 - u) * (1 - u));
+			sy = 1 + 0.16 * (1 - u);
+			sx = 1 - 0.06 * (1 - u);
+		} else if (T < DIE_HIT + FALL) {
+			const u = (T - DIE_HIT) / FALL;
+			y = H * (1 - u * u);
+			sy = 1 - 0.1 * (1 - u) + 0.08 * u;
+		} else if (T < DIE_HIT + FALL + SQ) {
+			const w = Math.sin(((T - DIE_HIT - FALL) / SQ) * Math.PI);
+			sy = 1 - 0.24 * w;
+			sx = 1 + 0.12 * w;
+		}
+		tk.tr.position.y = y;
+		tk.tr.scale.set(tk.trS * sx, tk.trS * sy, tk.trS * sx);
+		const gp = tk.g.position;
+		if (past(UP)) sfx("hop");
+		if (past(DIE_HIT + FALL)) {
+			sfx("land");
+			burst(bd.scene, gp.x, gp.y + 0.15, gp.z, {
+				cols: ["#C9B79A", "#A8957A"],
+				n: 10,
+				spd: 2.4,
+				up: 1.4,
+				life: 0.5,
+				vary: 1,
+			});
+		}
+	}
+	/* the die: drifting slowly until the bonk, then kicked up spinning, then it settles on the rolled face */
+	if (past(DIE_HIT)) {
+		sfx("bonk");
+		const p = bd.dieHold.position;
+		burst(bd.scene, p.x, p.y - 0.5 * DIE_S, p.z, {
+			cols: ["#FFFFFF", "#FFE14D"],
+			n: 12,
+			spd: 4.5,
+			up: 2,
+			life: 0.45,
+			shape: "ico",
+		});
+	}
+	if (T < DIE_HIT) {
+		d.m.rotation.x += 0.9 * dt;
+		d.m.rotation.y += 1.4 * dt;
+	} else if (T < DIE_HIT + 0.3) {
 		d.m.rotation.x += d.spin.x * dt;
 		d.m.rotation.y += d.spin.y * dt;
 		d.m.rotation.z += d.spin.z * dt;
-		d.m.position.y = Math.abs(Math.sin(d.t * 9)) * 0.5 * (1.1 - d.t);
-	} else {
-		d.m.quaternion.slerp(d.target, Math.min(1, dt * 10));
-		d.m.position.y *= 0.8;
-	}
-	const sc = d.t < 0.15 ? d.t / 0.15 : d.t > 2.1 ? Math.max(0, 1 - (d.t - 2.1) / 0.2) : 1;
+	} else d.m.quaternion.slerp(d.target, Math.min(1, dt * 12));
+	const kick = T > DIE_HIT ? Math.min(1, (T - DIE_HIT) / 0.5) : 0;
+	d.m.position.y = kick > 0 && kick < 1 ? Math.sin(kick * Math.PI) * 0.8 : 0;
+	/* pops in (unless it carries on from the picker's die), a punch on the bonk, a swell just before it bursts */
+	const pop = T > DIE_POP - 0.1 ? 1 + Math.min(1, (T - DIE_POP + 0.1) / 0.1) * 0.22 : 1,
+		punch = T > DIE_HIT && T < DIE_HIT + 0.2 ? 1 + Math.sin(((T - DIE_HIT) / 0.2) * Math.PI) * 0.16 : 1,
+		sc = (d.cont || T > 0.15 ? 1 : T / 0.15) * pop * punch;
 	d.m.scale.setScalar(Math.max(0.001, sc) * DIE_S);
-	/* the die's name and faces round it (#dietag, filled by showDie3D), gone as the die shrinks away */
+	/* the die's name over it (#dietag, filled by showDie3D), gone when it bursts */
 	const tag = $("#dietag");
 	if (tag && !tag.hidden) {
 		const v = PV[0].copy(bd.dieHold.position).project(GFX.cam),
@@ -1961,11 +2054,21 @@ function stepDie(dt) {
 			"--r",
 			(Math.max(30, Math.min(150, Math.abs(r.x - v.x) * 0.5 * GFX.w)) * sc).toFixed(1) + "px",
 		);
-		if (d.t > 2.1) tag.hidden = true;
+		if (T >= DIE_POP) tag.hidden = true;
 	}
-	if (d.t > 2.3) {
-		bd.dieHold.remove(d.m);
-		GFX.die = null;
+	if (T >= DIE_POP) {
+		sfx("dicepop");
+		const p = PV[0].copy(d.m.position).applyQuaternion(bd.dieHold.quaternion).add(bd.dieHold.position);
+		burst(bd.scene, p.x, p.y, p.z, {
+			cols: [d.color, "#FFFFFF", "#FFC83D"],
+			n: 30,
+			spd: 5,
+			up: 4.5,
+			life: 0.9,
+			vary: 1,
+			size: 1.3,
+		});
+		dieDone(d);
 	}
 }
 /* ---------- dice picker (pickNow in partgame decides what it shows) ----------
@@ -9989,6 +10092,22 @@ function sfx(n) {
 				noiseHit(0.08, 0.3, 1800, 600, 0, 2);
 				tone(660, 0.12, "triangle", 0.1);
 				break;
+			case "hop":
+				/* the truck springs up at the die (showDie3D) */
+				tone(260, 0.16, "sine", 0.16, 620);
+				noiseHit(0.06, 0.1, 900, 300, 0, 1);
+				break;
+			case "bonk":
+				/* its roof hits the die */
+				tone(392, 0.09, "square", 0.09, 330);
+				tone(1046, 0.12, "triangle", 0.1, 0, 0.02);
+				noiseHit(0.05, 0.25, 2600, 900, 0, 2);
+				break;
+			case "dicepop":
+				/* the die bursts into confetti */
+				noiseHit(0.14, 0.22, 3200, 800, 0, 1.2);
+				[784, 1175, 1568].forEach((f, i) => tone(f, 0.1, "triangle", 0.07, 0, i * 0.04));
+				break;
 			case "step":
 				tone(180 + Math.random() * 40, 0.06, "triangle", 0.06);
 				break;
@@ -13664,7 +13783,7 @@ function showDice(r) {
 			? `Move ${f.m}${f.c ? `, ${f.c > 0 ? "+" : ""}${f.c} coins` : ""}`
 			: `No move${f.c ? `, ${f.c > 0 ? "+" : ""}${f.c} coins` : ""}`);
 	setPick(null, true);
-	/* the die's name over it and its faces under it while it rolls (#dietag, stepDie); the face it lands on lights up */
+	/* the truck hops and bonks the die (showDie3D), its name riding over it (#dietag); the result shows once it has settled */
 	const nm =
 			r.die === "char"
 				? TRUCKS[p.truck].name
@@ -13672,21 +13791,17 @@ function showDice(r) {
 					? "Golden Die"
 					: "Standard" + (diceMul() !== 1 ? ` ×${diceMul()}` : ""),
 		col = r.die === "char" ? pcol(p) : r.die === "gold" ? "#FFC83D" : DIE_STD;
-	showDie3D(faces, r.idx, col, p.key, `<div class="dp-info"><b>${esc(nm)}</b></div>${facesHTML(faces, col)}`);
-	sfx("dice");
+	showDie3D(faces, r.idx, col, p.key, `<div class="dp-info"><b>${esc(nm)}</b></div>`);
 	musJingle("dice", MUS.song ? MUS.song.key : 0);
 	/* "… is rolling", then the result, in the status bar */
-	barSay(`<i class="tdot" style="--c:${pcol(p)}"></i><b>${esc(p.name)}</b> is rolling…`, 2400);
-	setTimeout(() => {
-		barSay(esc(label), 1250);
-		sfx("diceland");
-		/* turbo and the golden die don't land on one of the shown faces */
-		const row = !r.lbl && $("#dietag .dp-faces");
-		if (row && row.children[r.idx]) {
-			row.classList.add("hitting");
-			row.children[r.idx].classList.add("hit");
-		}
-	}, 1150);
+	barSay(`<i class="tdot" style="--c:${pcol(p)}"></i><b>${esc(p.name)}</b> is rolling…`, (DIE_HIT + 0.3) * 1000 + 50);
+	setTimeout(
+		() => {
+			barSay(esc(label), 1700);
+			sfx("diceland");
+		},
+		(DIE_HIT + 0.3) * 1000,
+	);
 }
 const P_ = (k) => G.players.find((p) => p.key === k);
 const refDist = (from, o) => {
@@ -13925,7 +14040,7 @@ function pickInfoHTML(s) {
 	const d = s.dice[s.i];
 	return `<div class="dp-info${d.item ? " it" : ""}">${d.item ? `<b>${ITEMS[d.item].icon} ${esc(d.name)}</b><small>${esc(d.desc)}</small>` : `<b>${esc(d.name)}</b>`}</div>${d.faces ? facesHTML(d.faces, d.col) : ""}`;
 }
-/* a die's six faces in a row under it (like its faces: yellow number, coin pill), framed in the die's colour; hit = the face it landed on */
+/* a die's six faces in a row under it while picking (like its faces: yellow number, coin pill), framed in the die's colour */
 function facesHTML(faces, col) {
 	return `<div class="dp-faces" style="--dc:${col}">${faces
 		.map((f) => `<i>${f.m}${f.c ? `<b${f.c < 0 ? ' class="neg"' : ""}>${f.c > 0 ? "+" : ""}${f.c}</b>` : ""}</i>`)
