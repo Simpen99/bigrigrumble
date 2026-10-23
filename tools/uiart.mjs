@@ -1,4 +1,4 @@
-/* Main menu and board HUD art: art/ui/*.png (designer's final art; panel-gold / panel-silver = the board's player panels, panel-silver made from the gold one) → src/partui.js, each scaled to about twice its size on the 1280 x 720 menu and embedded as WebP (UI_ART, set as CSS variables --ui-<name> by part3).
+/* Main menu and board HUD art: art/ui/*.png (designer's final art; panel-navy = the board's player panels, plate-navy = the board's status bar (#turnchip), plate-round = the round counter's yellow rock (#rnd); both keyed off the designer's magenta JPGs and brightened 15% by tools/keyart.mjs) → src/partui.js, each scaled to about twice its size on the 1280 x 720 menu and embedded as WebP (UI_ART, set as CSS variables --ui-<name> by part3).
    Roster rocks: dark rock-d1 / d2 / d4 / d5, and a white version of each shape (rock-w1 / w2 / w4 / w5, the selected truck's slab).
    node tools/uiart.mjs */
 import { chromium } from "playwright";
@@ -20,8 +20,9 @@ const W = {
 	"rock-w2": 180,
 	"rock-w4": 185,
 	"rock-w5": 185,
-	"panel-gold": 600,
-	"panel-silver": 600,
+	"panel-navy": 1000,
+	"plate-navy": 1200,
+	"plate-round": 600,
 };
 for (let i = 1; i <= 6; i++) W["dtile-" + i] = 112;
 const dir = new URL("../art/ui/", import.meta.url);

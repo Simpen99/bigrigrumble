@@ -781,8 +781,8 @@ function tvLobbyHTML() {
 /* ---------- game view ---------- */
 function buildGame() {
 	$("#app").innerHTML =
-		`<div class="pstrip" id="pstrip"></div><div class="pstrip bot" id="pstripb"></div><div class="dpick" id="dpick" hidden></div><div class="ctlpick" id="ctlpick" hidden></div><div class="hudtop"><span class="chip" id="rnd"></span><span class="chip grow" id="turnchip"></span><button class="chip" data-a="snd" aria-label="Sound levels">${SFX.on ? "🔊" : "🔇"}</button><button class="chip" data-a="cam" id="cambtn">Board</button><button class="chip" data-a="peek" id="peekbtn">${GFX.peek ? "🎮 Controls" : "🗺 Board"}</button><button class="chip" data-a="${role === "host" ? "endask" : "leave"}" aria-label="Leave game">✕</button></div>
-  <div class="hudbot" id="hudbot"><div id="hostgone"></div><div id="ctlme"></div><div class="hcard"><div class="msg"><i></i><span id="msg" aria-live="polite"></span></div><div id="panel"></div></div></div>`;
+		`<div class="pstrip" id="pstrip"></div><div class="pstrip bot" id="pstripb"></div><div class="dpick" id="dpick" hidden></div><div class="ctlpick" id="ctlpick" hidden></div><div class="hudtop"><div class="hudbtns l"><button class="chip" data-a="snd" aria-label="Sound levels">${SFX.on ? "🔊" : "🔇"}</button></div><span class="chip" id="rnd"></span><div class="hudbtns"><button class="chip" data-a="cam" id="cambtn">Board</button><button class="chip" data-a="peek" id="peekbtn">${GFX.peek ? "🎮 Controls" : "🗺 Board"}</button><button class="chip" data-a="${role === "host" ? "endask" : "leave"}" aria-label="Leave game">✕</button></div></div>
+  <div class="hudbot" id="hudbot"><div id="hostgone"></div><div id="ctlme"></div><div class="hslot"><div class="hcard"><div class="msg"><i></i><span id="msg" aria-live="polite"></span></div><div id="panel"></div></div></div><div class="turnbar" id="turnchip"></div></div>`;
 	render.lastPanel = render.lastStrip = render.lastMe = render.lastPick = render.lastCtlPick = null;
 	document.body.classList.remove("ctlpk");
 	wireCtlPick($("#ctlpick"));
@@ -831,6 +831,36 @@ const ordinal = (n) =>
 			: n % 10 === 3 && n % 100 !== 13
 				? "rd"
 				: "th");
+/* the status bar at the bottom: a short message while it lasts (barSay: the roll), otherwise whose turn it is; on the big
+   screen what the game is waiting for (tvStatusHTML; the TV has no card) */
+let BAR_SAY = null;
+function barSay(html, ms) {
+	BAR_SAY = { h: html, until: performance.now() + ms };
+	clearTimeout(barSay.t);
+	barSay.t = setTimeout(turnBar, ms + 20);
+	turnBar();
+}
+function turnBar() {
+	const tc = $("#turnchip");
+	if (!tc || !G) return;
+	const c = G.players[G.turn],
+		th =
+			(BAR_SAY && performance.now() < BAR_SAY.until && BAR_SAY.h) ||
+			(tvView() && tvStatusHTML()) ||
+			esc(
+				G.phase === "minigame" || G.phase === "mgres"
+					? "Minigame"
+					: c
+						? ctrl(c) && !c.local && !(role === "host" && G.players.some((p) => p.local))
+							? "Your turn"
+							: `${c.name}'s turn`
+						: "",
+			);
+	if (tc.dataset.h !== th) {
+		tc.dataset.h = th;
+		tc.innerHTML = th;
+	}
+}
 function updateGame() {
 	if (uiPick && (uiPick.seq !== G.seq || G.phase !== "turn")) uiPick = null;
 	syncBoard();
@@ -838,14 +868,7 @@ function updateGame() {
 		c = players[G.turn];
 	$("#rnd").textContent =
 		`Round ${G.round}/${G.rounds}${MAP.lava && G.phase !== "lobby" ? " " + lavaChip(G.round) : ""}`;
-	$("#turnchip").textContent =
-		G.phase === "minigame" || G.phase === "mgres"
-			? "Minigame"
-			: c
-				? ctrl(c) && !c.local && !(role === "host" && G.players.some((p) => p.local))
-					? "Your turn"
-					: `${c.name}'s turn`
-				: "";
+	turnBar();
 	{
 		const c = G.players[G.turn];
 		let m = G.msg || "";
