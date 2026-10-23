@@ -693,11 +693,11 @@ body.tv #fx,body.tv #mg .resx{zoom:1.5}
 /* the card under the board only shows when it has something to press (a road, the shop, a pick); the status is in the bar under it. The big screen never shows it (its status: tvStatusHTML in the bar) */
 body.tv .hcard,.hcard:not(:has(#panel button)){display:none}
 /* the card in the navy look of the panels and the bar: a chamfered slab (dark outline, light rim, navy face: the card and its
-   two pseudo layers) that slides up out of the status bar (.hslot clips it, its bottom edge tucked behind the bar) */
-.hcard{position:relative;isolation:isolate;background:#0E1B3A!important;border:0!important;border-radius:0!important;box-shadow:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;clip-path:polygon(14px 0,calc(100% - 14px) 0,100% 14px,100% calc(100% - 14px),calc(100% - 14px) 100%,14px 100%,0 calc(100% - 14px),0 14px);animation:cardUp .4s cubic-bezier(.2,.9,.3,1) both}
+   two pseudo layers; square at the bottom, where it meets the bar) that slides up out of the status bar (.hslot clips it, its bottom edge tucked behind the bar) */
+.hcard{position:relative;isolation:isolate;background:#091330!important;border:0!important;border-radius:0!important;box-shadow:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;clip-path:polygon(14px 0,calc(100% - 14px) 0,100% 14px,100% 100%,100% 100%,0 100%,0 100%,0 14px);animation:cardUp .4s cubic-bezier(.2,.9,.3,1) both}
 .hcard::before,.hcard::after{content:"";position:absolute;z-index:-1;pointer-events:none}
-.hcard::before{inset:2.5px;background:linear-gradient(#6F90DB,#3B5CA5);clip-path:polygon(12.5px 0,calc(100% - 12.5px) 0,100% 12.5px,100% calc(100% - 12.5px),calc(100% - 12.5px) 100%,12.5px 100%,0 calc(100% - 12.5px),0 12.5px)}
-.hcard::after{inset:5px;background:linear-gradient(#2E4D90,#1C3167);clip-path:polygon(11px 0,calc(100% - 11px) 0,100% 11px,100% calc(100% - 11px),calc(100% - 11px) 100%,11px 100%,0 calc(100% - 11px),0 11px)}
+.hcard::before{inset:2.5px 2.5px 0;background:linear-gradient(#5677C4,#2C4A8E);clip-path:polygon(12.5px 0,calc(100% - 12.5px) 0,100% 12.5px,100% 100%,100% 100%,0 100%,0 100%,0 12.5px)}
+.hcard::after{inset:5px 5px 0;background:linear-gradient(#213A70,#13244B);clip-path:polygon(11px 0,calc(100% - 11px) 0,100% 11px,100% 100%,100% 100%,0 100%,0 100%,0 11px)}
 @keyframes cardUp{from{transform:translateY(100%)}to{transform:none}}
 .hcard .msg{display:none}
 .hcard .pan{padding:12px 16px 14px}

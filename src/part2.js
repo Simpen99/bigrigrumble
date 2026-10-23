@@ -666,7 +666,9 @@ const DIE_STD = "#5A6A88",
 	DIE_S = 1.44,
 	DIE_Y = 4.1,
 	/* the picker pops up this long after it starts, once the follow camera has swooped in (stepBoard) */
-	PICK_IN = 0.6;
+	PICK_IN = 0.6,
+	/* the stone slab under the picker's die (pickSlab): off for now, the die and items float on their own */
+	PICK_SLAB = false;
 function dieNumTex(f) {
 	return canvasTex(128, 128, (x, w, h) => {
 		x.font = "96px 'Lilita One', Rubik, Arial";
@@ -883,6 +885,7 @@ function setPick(s, now) {
 		const g = new THREE.Group(),
 			slab = pickSlab(s.color);
 		slab.position.y = -0.9;
+		slab.visible = PICK_SLAB;
 		g.scale.setScalar(DIE_S);
 		g.add(slab);
 		bd.scene.add(g);
