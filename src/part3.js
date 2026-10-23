@@ -866,8 +866,7 @@ function updateGame() {
 	syncBoard();
 	const players = G.players,
 		c = players[G.turn];
-	$("#rnd").textContent =
-		`Round ${G.round}/${G.rounds}${MAP.lava && G.phase !== "lobby" ? " " + lavaChip(G.round) : ""}`;
+	$("#rnd").textContent = `Round ${G.round}/${G.rounds}`;
 	turnBar();
 	{
 		const c = G.players[G.turn];
