@@ -1730,7 +1730,14 @@ function showDice(r) {
 			? `Move ${f.m}${f.c ? `, ${f.c > 0 ? "+" : ""}${f.c} coins` : ""}`
 			: `No move${f.c ? `, ${f.c > 0 ? "+" : ""}${f.c} coins` : ""}`);
 	setPick(null, true);
-	showDie3D(faces, r.idx, r.die === "char" ? pcol(p) : r.die === "gold" ? "#FFC83D" : DIE_STD, p.key);
+	/* the die's name rides over it while it rolls (#dietag, stepDie) */
+	const nm =
+		r.die === "char"
+			? TRUCKS[p.truck].name
+			: r.die === "gold"
+				? "Golden Die"
+				: "Standard" + (diceMul() !== 1 ? ` ×${diceMul()}` : "");
+	showDie3D(faces, r.idx, r.die === "char" ? pcol(p) : r.die === "gold" ? "#FFC83D" : DIE_STD, p.key, nm);
 	sfx("dice");
 	musJingle("dice", MUS.song ? MUS.song.key : 0);
 	/* "… is rolling", then the result, in the status bar */
@@ -1972,15 +1979,17 @@ function pickStep(dir) {
 	act({ t: "dsel", die: d.k, tid: s.tid, seq: G.seq }, s.p.key);
 	refreshPanel();
 }
+/* the name pill over the die (and an item's line under it); everyone watching sees it, only the picker gets the arrows and the tap area */
+function pickInfoHTML(s) {
+	const d = s.dice[s.i];
+	return `<div class="dp-info${d.item ? " it" : ""}">${d.item ? `<b>${ITEMS[d.item].icon} ${esc(d.name)}</b><small>${esc(d.desc)}</small>` : `<b>${esc(d.name)}</b>`}</div>`;
+}
 function pickHTML(s) {
 	const d = s.dice[s.i],
 		tap = d.item
 			? `<button class="dp-die" data-item="${d.idx}" aria-label="Use ${esc(d.name)}"></button>`
-			: `<button class="dp-die" data-roll="${d.k}" data-for="${esc(s.p.key)}" aria-label="Roll the ${esc(d.name)} die"></button>`,
-		info = d.item
-			? `<b>${ITEMS[d.item].icon} ${esc(d.name)}</b><small>${esc(d.desc)}</small>`
-			: `<b>${esc(d.name)}</b>`;
-	return `<button class="mm-arr l" data-dstep="-1" aria-label="Previous"></button>${tap}<button class="mm-arr r" data-dstep="1" aria-label="Next"></button><div class="dp-info${d.item ? " it" : ""}">${info}</div>`;
+			: `<button class="dp-die" data-roll="${d.k}" data-for="${esc(s.p.key)}" aria-label="Roll the ${esc(d.name)} die"></button>`;
+	return `<button class="mm-arr l" data-dstep="-1" aria-label="Previous"></button>${tap}<button class="mm-arr r" data-dstep="1" aria-label="Next"></button>${pickInfoHTML(s)}`;
 }
 /* TV controller on your roll (#ctlpick, laid out like the minigame controllers; the TV shows the die or item): the left side
    flips through them (swipe left = next, right = back, a tap = next), the right side is one big button that rolls the die

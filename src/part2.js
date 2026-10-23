@@ -816,7 +816,7 @@ function itemModel(k) {
 	}
 	return g;
 }
-function showDie3D(faces, idx, color, key) {
+function showDie3D(faces, idx, color, key, name) {
 	if (!GFX.ok || !GFX.board) return false;
 	const bd = GFX.board;
 	if (!bd.dieHold) {
@@ -836,6 +836,11 @@ function showDie3D(faces, idx, color, key) {
 	][idx];
 	const base = new THREE.Quaternion().setFromEuler(new THREE.Euler(E[0], E[1], E[2])),
 		tilt = new THREE.Quaternion().setFromEuler(new THREE.Euler(0.22, -0.3, 0));
+	const tag = $("#dietag");
+	if (tag) {
+		tag.innerHTML = name ? `<div class="dp-info"><b>${esc(name)}</b></div>` : "";
+		tag.hidden = !name;
+	}
 	GFX.die = {
 		m,
 		t: 0,
@@ -864,6 +869,22 @@ function stepDie(dt) {
 	}
 	const sc = d.t < 0.15 ? d.t / 0.15 : d.t > 2.1 ? Math.max(0, 1 - (d.t - 2.1) / 0.2) : 1;
 	d.m.scale.setScalar(Math.max(0.001, sc) * DIE_S);
+	/* the die's name over it (#dietag, filled by showDie3D), gone as the die shrinks away */
+	const tag = $("#dietag");
+	if (tag && !tag.hidden) {
+		const v = PV[0].copy(bd.dieHold.position).project(GFX.cam),
+			r = PV[1]
+				.setFromMatrixColumn(GFX.cam.matrixWorld, 0)
+				.multiplyScalar(0.9 * DIE_S)
+				.add(bd.dieHold.position)
+				.project(GFX.cam);
+		tag.style.transform = `translate(${(((v.x + 1) / 2) * GFX.w).toFixed(1)}px,${(((1 - v.y) / 2) * GFX.h).toFixed(1)}px)`;
+		tag.style.setProperty(
+			"--r",
+			(Math.max(30, Math.min(150, Math.abs(r.x - v.x) * 0.5 * GFX.w)) * sc).toFixed(1) + "px",
+		);
+		if (d.t > 2.1) tag.hidden = true;
+	}
 	if (d.t > 2.3) {
 		bd.dieHold.remove(d.m);
 		GFX.die = null;

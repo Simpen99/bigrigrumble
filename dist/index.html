@@ -1068,7 +1068,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-23 13:37 9533f85";
+const BUILD = "2026-10-23 13:48 a98acfa";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -1885,7 +1885,7 @@ function itemModel(k) {
 	}
 	return g;
 }
-function showDie3D(faces, idx, color, key) {
+function showDie3D(faces, idx, color, key, name) {
 	if (!GFX.ok || !GFX.board) return false;
 	const bd = GFX.board;
 	if (!bd.dieHold) {
@@ -1905,6 +1905,11 @@ function showDie3D(faces, idx, color, key) {
 	][idx];
 	const base = new THREE.Quaternion().setFromEuler(new THREE.Euler(E[0], E[1], E[2])),
 		tilt = new THREE.Quaternion().setFromEuler(new THREE.Euler(0.22, -0.3, 0));
+	const tag = $("#dietag");
+	if (tag) {
+		tag.innerHTML = name ? `<div class="dp-info"><b>${esc(name)}</b></div>` : "";
+		tag.hidden = !name;
+	}
 	GFX.die = {
 		m,
 		t: 0,
@@ -1933,6 +1938,22 @@ function stepDie(dt) {
 	}
 	const sc = d.t < 0.15 ? d.t / 0.15 : d.t > 2.1 ? Math.max(0, 1 - (d.t - 2.1) / 0.2) : 1;
 	d.m.scale.setScalar(Math.max(0.001, sc) * DIE_S);
+	/* the die's name over it (#dietag, filled by showDie3D), gone as the die shrinks away */
+	const tag = $("#dietag");
+	if (tag && !tag.hidden) {
+		const v = PV[0].copy(bd.dieHold.position).project(GFX.cam),
+			r = PV[1]
+				.setFromMatrixColumn(GFX.cam.matrixWorld, 0)
+				.multiplyScalar(0.9 * DIE_S)
+				.add(bd.dieHold.position)
+				.project(GFX.cam);
+		tag.style.transform = `translate(${(((v.x + 1) / 2) * GFX.w).toFixed(1)}px,${(((1 - v.y) / 2) * GFX.h).toFixed(1)}px)`;
+		tag.style.setProperty(
+			"--r",
+			(Math.max(30, Math.min(150, Math.abs(r.x - v.x) * 0.5 * GFX.w)) * sc).toFixed(1) + "px",
+		);
+		if (d.t > 2.1) tag.hidden = true;
+	}
 	if (d.t > 2.3) {
 		bd.dieHold.remove(d.m);
 		GFX.die = null;
@@ -11690,7 +11711,7 @@ function tvLobbyHTML() {
 /* ---------- game view ---------- */
 function buildGame() {
 	$("#app").innerHTML =
-		`<div class="pstrip" id="pstrip"></div><div class="pstrip bot" id="pstripb"></div><div class="dpick" id="dpick" hidden></div><div class="ctlpick" id="ctlpick" hidden></div><div class="hudtop"><div class="hudbtns l"><button class="chip" data-a="snd" aria-label="Sound levels">${SFX.on ? "🔊" : "🔇"}</button></div><span class="chip" id="rnd"></span><div class="hudbtns"><button class="chip" data-a="cam" id="cambtn">Board</button><button class="chip" data-a="peek" id="peekbtn">${GFX.peek ? "🎮 Controls" : "🗺 Board"}</button><button class="chip" data-a="${role === "host" ? "endask" : "leave"}" aria-label="Leave game">✕</button></div></div>
+		`<div class="pstrip" id="pstrip"></div><div class="pstrip bot" id="pstripb"></div><div class="dpick" id="dpick" hidden></div><div class="dpick in" id="dietag" hidden></div><div class="ctlpick" id="ctlpick" hidden></div><div class="hudtop"><div class="hudbtns l"><button class="chip" data-a="snd" aria-label="Sound levels">${SFX.on ? "🔊" : "🔇"}</button></div><span class="chip" id="rnd"></span><div class="hudbtns"><button class="chip" data-a="cam" id="cambtn">Board</button><button class="chip" data-a="peek" id="peekbtn">${GFX.peek ? "🎮 Controls" : "🗺 Board"}</button><button class="chip" data-a="${role === "host" ? "endask" : "leave"}" aria-label="Leave game">✕</button></div></div>
   <div class="hudbot" id="hudbot"><div id="hostgone"></div><div id="ctlme"></div><div class="hslot"><div class="hcard"><div class="msg"><i></i><span id="msg" aria-live="polite"></span></div><div id="panel"></div></div></div><div class="turnbar" id="turnchip"></div></div>`;
 	render.lastPanel = render.lastStrip = render.lastMe = render.lastPick = render.lastCtlPick = null;
 	document.body.classList.remove("ctlpk");
@@ -11807,11 +11828,11 @@ function updateGame() {
 		$("#panel").innerHTML = ph;
 	}
 	{
-		/* dice picker: the slab over the truck everywhere, the arrows and tap area over it on the picking phone or PC */
+		/* dice picker: the die over the truck everywhere with its name, the arrows and tap area over it on the picking phone or PC */
 		const pk = pickNow(),
 			d = pk && pk.dice[pk.i],
 			el = $("#dpick"),
-			h = pk && pk.mine && GFX.ok && !GFX.ctl ? pickHTML(pk) : "";
+			h = pk && GFX.ok && !GFX.ctl ? (pk.mine ? pickHTML(pk) : pickInfoHTML(pk)) : "";
 		setPick(
 			pk && {
 				key: pk.p.key,
@@ -13656,7 +13677,14 @@ function showDice(r) {
 			? `Move ${f.m}${f.c ? `, ${f.c > 0 ? "+" : ""}${f.c} coins` : ""}`
 			: `No move${f.c ? `, ${f.c > 0 ? "+" : ""}${f.c} coins` : ""}`);
 	setPick(null, true);
-	showDie3D(faces, r.idx, r.die === "char" ? pcol(p) : r.die === "gold" ? "#FFC83D" : DIE_STD, p.key);
+	/* the die's name rides over it while it rolls (#dietag, stepDie) */
+	const nm =
+		r.die === "char"
+			? TRUCKS[p.truck].name
+			: r.die === "gold"
+				? "Golden Die"
+				: "Standard" + (diceMul() !== 1 ? ` ×${diceMul()}` : "");
+	showDie3D(faces, r.idx, r.die === "char" ? pcol(p) : r.die === "gold" ? "#FFC83D" : DIE_STD, p.key, nm);
 	sfx("dice");
 	musJingle("dice", MUS.song ? MUS.song.key : 0);
 	/* "… is rolling", then the result, in the status bar */
@@ -13898,15 +13926,17 @@ function pickStep(dir) {
 	act({ t: "dsel", die: d.k, tid: s.tid, seq: G.seq }, s.p.key);
 	refreshPanel();
 }
+/* the name pill over the die (and an item's line under it); everyone watching sees it, only the picker gets the arrows and the tap area */
+function pickInfoHTML(s) {
+	const d = s.dice[s.i];
+	return `<div class="dp-info${d.item ? " it" : ""}">${d.item ? `<b>${ITEMS[d.item].icon} ${esc(d.name)}</b><small>${esc(d.desc)}</small>` : `<b>${esc(d.name)}</b>`}</div>`;
+}
 function pickHTML(s) {
 	const d = s.dice[s.i],
 		tap = d.item
 			? `<button class="dp-die" data-item="${d.idx}" aria-label="Use ${esc(d.name)}"></button>`
-			: `<button class="dp-die" data-roll="${d.k}" data-for="${esc(s.p.key)}" aria-label="Roll the ${esc(d.name)} die"></button>`,
-		info = d.item
-			? `<b>${ITEMS[d.item].icon} ${esc(d.name)}</b><small>${esc(d.desc)}</small>`
-			: `<b>${esc(d.name)}</b>`;
-	return `<button class="mm-arr l" data-dstep="-1" aria-label="Previous"></button>${tap}<button class="mm-arr r" data-dstep="1" aria-label="Next"></button><div class="dp-info${d.item ? " it" : ""}">${info}</div>`;
+			: `<button class="dp-die" data-roll="${d.k}" data-for="${esc(s.p.key)}" aria-label="Roll the ${esc(d.name)} die"></button>`;
+	return `<button class="mm-arr l" data-dstep="-1" aria-label="Previous"></button>${tap}<button class="mm-arr r" data-dstep="1" aria-label="Next"></button>${pickInfoHTML(s)}`;
 }
 /* TV controller on your roll (#ctlpick, laid out like the minigame controllers; the TV shows the die or item): the left side
    flips through them (swipe left = next, right = back, a tap = next), the right side is one big button that rolls the die
