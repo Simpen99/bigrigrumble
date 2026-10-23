@@ -717,13 +717,15 @@ body.tv .hcard,.hcard:not(:has(#panel button)){display:none}
 .hcard .optn{border-radius:0;clip-path:polygon(29.3% 0,calc(100% - 29.3%) 0,100% 29.3%,100% calc(100% - 29.3%),calc(100% - 29.3%) 100%,29.3% 100%,0 calc(100% - 29.3%),0 29.3%);background:linear-gradient(#FFD75E,#F0A800)}
 .hcard .btn.ghost{background:#13234D;color:#fff;border-radius:5px;box-shadow:inset 0 0 0 2px #0B1430}
 @media (prefers-reduced-motion:reduce){.hcard{animation-duration:.01s}}
-/* phone and PC: the card and the bar centred together, the card a little narrower than the bar and tucked behind its top edge */
+/* phone and PC: the card and the bar centred together, the card narrower than the bar (the bar widens while the card shows) and running
+   18px down behind it, so its bottom edge never shows between them */
 body:not(.ctl):not(.tv) .hudbot{max-width:none;display:flex;flex-direction:column;align-items:center}
-body:not(.ctl):not(.tv) .hslot{overflow:hidden;padding-bottom:6px;margin-bottom:-6px}
+body:not(.ctl):not(.tv) .hslot{overflow:hidden;padding-bottom:24px;margin-bottom:-24px}
 body.ctl .hslot{display:contents}
 body.ctl .hcard{animation:none}
-body:not(.ctl):not(.tv) .hcard{width:min(calc(100vw - 20px),max(340px,calc(clamp(240px,30vw,640px) * .92)))}
-.turnbar{position:relative;z-index:1}
+body:not(.ctl):not(.tv) .hcard{width:min(calc(100vw - 44px),max(340px,calc(clamp(240px,30vw,640px) * .88)));margin-bottom:-18px;padding-bottom:18px}
+body:not(.ctl):not(.tv) .hslot:has(#panel button)~.turnbar{min-width:min(calc(100vw - 20px),max(clamp(240px,30vw,640px),390px))}
+.turnbar{position:relative;z-index:1;filter:drop-shadow(0 3px 4px rgba(0,0,0,.35))}
 body:not(.ctl):not(.tv) .hslot~.turnbar{margin-top:0}
 /* phone as controller in a TV game: no 3D board, big buttons */
 body.ctl{min-height:100vh;background:radial-gradient(120% 80% at 50% 0%,#2B3A58,#121826) fixed}
@@ -1075,7 +1077,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-23 14:29 1da4fc9";
+const BUILD = "2026-10-23 15:17 eabee8c";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
