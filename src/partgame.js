@@ -1911,7 +1911,7 @@ const cargoHTML = (p, bs, bc) =>
 	shardMap()
 		? `<span class="cargo${bs ? " bump" : ""}">${p.shards | 0}${shardIco}</span><span class="cargo${bc ? " bump" : ""}">${p.dust | 0}${dustIco}</span>`
 		: "";
-/* a player's panel (the designer's navy art, UI_ART panel-navy; whose move it is gets a ring round its octagon, .now): the truck in the octagon
+/* a player's panel (the designer's navy art, UI_ART panel-navy; whose move it is gets an octagon pulsing out of its own, .now): the truck in the octagon
    over the player's (or team's) colour, place badge under it, items in the three boxes, name on the tab (long names smaller), batteries and coins
    (+ shards and dust on Volcano Quarry) on the right, upgrades right of the tab. Every size is in cqw, so it scales with the panel.
    o: {rank, off, bump: [bat, coins, shards, dust], flip: mirrored (right-hand side), pos: grid style} */
@@ -1920,7 +1920,7 @@ function pcardHTML(p, now, o = {}) {
 		it = p.items || [],
 		bp = o.bump || [],
 		bc = (k) => (bp[k] ? ` class="bump"` : "");
-	return `<div class="pc${now ? " now" : ""}${o.off ? " off" : ""}${o.flip ? " flip" : ""}" data-k="${esc(p.key)}" style="--c:${col};${o.pos || ""}"><div class="pc-oct">${now ? `<i class="pc-rip"></i><i class="pc-ring"></i>` : ""}<img alt="" src="${thumb(p.truck)}">${o.rank ? `<em>${ordinal(o.rank)}</em>` : ""}</div><b class="pc-nm" style="--nl:${Math.max(8, [...p.name].length)}">${esc(p.name)}</b><div class="pc-it">${[0, 1, 2].map((i) => `<span>${it[i] && ITEMS[it[i]] ? ITEMS[it[i]].icon : ""}</span>`).join("")}</div><div class="stats${shardMap() ? " four" : ""}"><span${bc(0)}>${p.bat}${bIco()}</span><span${bc(1)}>${p.coins}${coinIco}</span>${cargoHTML(p, bp[2], bp[3])}</div>${(p.up || []).length ? `<div class="pc-up">${p.up.map((u) => UPGRADES[u].icon).join("")}</div>` : ""}${o.off ? `<i class="pc-off">offline</i>` : ""}</div>`;
+	return `<div class="pc${now ? " now" : ""}${o.off ? " off" : ""}${o.flip ? " flip" : ""}" data-k="${esc(p.key)}" style="--c:${col};${o.pos || ""}"><div class="pc-oct">${now ? `<i class="pc-rip"></i>` : ""}<img alt="" src="${thumb(p.truck)}">${o.rank ? `<em>${ordinal(o.rank)}</em>` : ""}</div><b class="pc-nm" style="--nl:${Math.max(8, [...p.name].length)}">${esc(p.name)}</b><div class="pc-it">${[0, 1, 2].map((i) => `<span>${it[i] && ITEMS[it[i]] ? ITEMS[it[i]].icon : ""}</span>`).join("")}</div><div class="stats${shardMap() ? " four" : ""}"><span${bc(0)}>${p.bat}${bIco()}</span><span${bc(1)}>${p.coins}${coinIco}</span>${cargoHTML(p, bp[2], bp[3])}</div>${(p.up || []).length ? `<div class="pc-up">${p.up.map((u) => UPGRADES[u].icon).join("")}</div>` : ""}${o.off ? `<i class="pc-off">offline</i>` : ""}</div>`;
 }
 /* ---------- dice picker ----------
    On a human's roll the die floats over their truck on a stone slab (setPick in part2), tumbling slowly so its faces come
