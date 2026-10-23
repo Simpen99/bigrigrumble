@@ -10,6 +10,7 @@ cd tools && npm i            # once: playwright + three@0.128.0 (served instead 
 | Command | What it does |
 |---|---|
 | `node rig.mjs <models>` | Renders each model from front, back, side and 3/4 above, one row per model -> `out/rig.png` |
+| `node keyart.mjs <in.jpg> <out.png> [--bright 1.15]` | Designer art on a magenta background -> transparent PNG for `art/ui/` (soft edges un-mixed from the magenta, brightened, cropped); then `node uiart.mjs` |
 | `node check.mjs <models>` | Automatic model checks (z-fighting, overhanging panels, floating parts, buried parts); problem parts painted magenta -> `out/check.png`. Exit code 1 if anything is found |
 | `node clip.mjs garage|<expr> [--solid 0]` | Props clipping into each other or below the ground: every top-level child of the given groups is a prop, sampled over its faces and tested against the other props' parts (`garage` = the main menu room, its shell solid) |
 | `node menu.mjs [--layout b] [--truck N]` | The main menu at iPhone landscape, iPhone portrait and PC size on one sheet (`out/menu.png`), with each screen's draw calls and triangles |
