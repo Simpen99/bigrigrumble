@@ -1730,14 +1730,15 @@ function showDice(r) {
 			? `Move ${f.m}${f.c ? `, ${f.c > 0 ? "+" : ""}${f.c} coins` : ""}`
 			: `No move${f.c ? `, ${f.c > 0 ? "+" : ""}${f.c} coins` : ""}`);
 	setPick(null, true);
-	/* the die's name rides over it while it rolls (#dietag, stepDie) */
+	/* the die's name over it and its faces under it while it rolls (#dietag, stepDie); the face it lands on lights up */
 	const nm =
-		r.die === "char"
-			? TRUCKS[p.truck].name
-			: r.die === "gold"
-				? "Golden Die"
-				: "Standard" + (diceMul() !== 1 ? ` ×${diceMul()}` : "");
-	showDie3D(faces, r.idx, r.die === "char" ? pcol(p) : r.die === "gold" ? "#FFC83D" : DIE_STD, p.key, nm);
+			r.die === "char"
+				? TRUCKS[p.truck].name
+				: r.die === "gold"
+					? "Golden Die"
+					: "Standard" + (diceMul() !== 1 ? ` ×${diceMul()}` : ""),
+		col = r.die === "char" ? pcol(p) : r.die === "gold" ? "#FFC83D" : DIE_STD;
+	showDie3D(faces, r.idx, col, p.key, `<div class="dp-info"><b>${esc(nm)}</b></div>${facesHTML(faces, col)}`);
 	sfx("dice");
 	musJingle("dice", MUS.song ? MUS.song.key : 0);
 	/* "… is rolling", then the result, in the status bar */
@@ -1745,6 +1746,12 @@ function showDice(r) {
 	setTimeout(() => {
 		barSay(esc(label), 1250);
 		sfx("diceland");
+		/* turbo and the golden die don't land on one of the shown faces */
+		const row = !r.lbl && $("#dietag .dp-faces");
+		if (row && row.children[r.idx]) {
+			row.classList.add("hitting");
+			row.children[r.idx].classList.add("hit");
+		}
 	}, 1150);
 }
 const P_ = (k) => G.players.find((p) => p.key === k);
@@ -1982,7 +1989,13 @@ function pickStep(dir) {
 /* the name pill over the die (and an item's line under it); everyone watching sees it, only the picker gets the arrows and the tap area */
 function pickInfoHTML(s) {
 	const d = s.dice[s.i];
-	return `<div class="dp-info${d.item ? " it" : ""}">${d.item ? `<b>${ITEMS[d.item].icon} ${esc(d.name)}</b><small>${esc(d.desc)}</small>` : `<b>${esc(d.name)}</b>`}</div>`;
+	return `<div class="dp-info${d.item ? " it" : ""}">${d.item ? `<b>${ITEMS[d.item].icon} ${esc(d.name)}</b><small>${esc(d.desc)}</small>` : `<b>${esc(d.name)}</b>`}</div>${d.faces ? facesHTML(d.faces, d.col) : ""}`;
+}
+/* a die's six faces in a row under it (like its faces: yellow number, coin pill), framed in the die's colour; hit = the face it landed on */
+function facesHTML(faces, col) {
+	return `<div class="dp-faces" style="--dc:${col}">${faces
+		.map((f) => `<i>${f.m}${f.c ? `<b${f.c < 0 ? ' class="neg"' : ""}>${f.c > 0 ? "+" : ""}${f.c}</b>` : ""}</i>`)
+		.join("")}</div>`;
 }
 function pickHTML(s) {
 	const d = s.dice[s.i],

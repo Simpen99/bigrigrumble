@@ -816,7 +816,7 @@ function itemModel(k) {
 	}
 	return g;
 }
-function showDie3D(faces, idx, color, key, name) {
+function showDie3D(faces, idx, color, key, tagHTML) {
 	if (!GFX.ok || !GFX.board) return false;
 	const bd = GFX.board;
 	if (!bd.dieHold) {
@@ -838,8 +838,8 @@ function showDie3D(faces, idx, color, key, name) {
 		tilt = new THREE.Quaternion().setFromEuler(new THREE.Euler(0.22, -0.3, 0));
 	const tag = $("#dietag");
 	if (tag) {
-		tag.innerHTML = name ? `<div class="dp-info"><b>${esc(name)}</b></div>` : "";
-		tag.hidden = !name;
+		tag.innerHTML = tagHTML || "";
+		tag.hidden = !tagHTML;
 	}
 	GFX.die = {
 		m,
@@ -869,7 +869,7 @@ function stepDie(dt) {
 	}
 	const sc = d.t < 0.15 ? d.t / 0.15 : d.t > 2.1 ? Math.max(0, 1 - (d.t - 2.1) / 0.2) : 1;
 	d.m.scale.setScalar(Math.max(0.001, sc) * DIE_S);
-	/* the die's name over it (#dietag, filled by showDie3D), gone as the die shrinks away */
+	/* the die's name and faces round it (#dietag, filled by showDie3D), gone as the die shrinks away */
 	const tag = $("#dietag");
 	if (tag && !tag.hidden) {
 		const v = PV[0].copy(bd.dieHold.position).project(GFX.cam),
