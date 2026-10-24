@@ -822,14 +822,15 @@ Object.assign(MG, {
 					}
 				}
 				if (!t) return wander(W, e, dt, 7);
-				const s = steer(e, t.x + t.vx * 0.25, t.z + t.vz * 0.25, 1);
-				if (td < 4.5 && e.bcd <= 0 && Math.random() < 0.06) s.boost = true;
+				const ld = skv(e, 0, 0.25, 0.45),
+					s = steer(e, t.x + t.vx * ld, t.z + t.vz * ld, skv(e, 0.8, 1, 1));
+				if (td < 4.5 && e.bcd <= 0 && Math.random() < skv(e, 0.02, 0.06, 0.1)) s.boost = true;
 				return s;
 			}
 			const dx = e.x - h.x,
 				dz = e.z - h.z,
 				d = Math.hypot(dx, dz) || 1;
-			if (!e.fear) e.fear = 5.5 + (e.i % 3) * 1.2;
+			if (!e.fear) e.fear = skv(e, 4, 5.5, 6.5) + (e.i % 3) * 1.2;
 			if (d > e.fear) return wander(W, e, dt, 7);
 			let ux = dx / d,
 				uz = dz / d;
@@ -840,7 +841,7 @@ Object.assign(MG, {
 				uz = uz * 0.3 + (dx / d) * left;
 			}
 			const s = steer(e, e.x + ux * 5, e.z + uz * 5, 1);
-			if (d < 2.8 && e.bcd <= 0 && Math.random() < 0.05) {
+			if (d < 2.8 && e.bcd <= 0 && Math.random() < skv(e, 0.015, 0.05, 0.1)) {
 				s.x = -uz;
 				s.y = ux;
 				s.boost = true;
@@ -1737,7 +1738,7 @@ Object.assign(MG, {
 				}
 			}
 			if (W.t > (e.huntT || 0)) {
-				e.hunt = Math.random() < 0.3;
+				e.hunt = Math.random() < skv(e, 0.15, 0.3, 0.45);
 				e.huntT = W.t + 2.5 + Math.random() * 2;
 			}
 			if (e.hunt && best && bd < 2.5 + (e.i % 3) * 0.8 && pl.cells.length < 12) {
@@ -3430,7 +3431,7 @@ Object.assign(MG, {
 		/* CPUs: aim the magnet at a slot (usually the middle), then lean towards the best slot in reach as they fall,
 		   counting the x3 sign where it will be when they get there; hop when stuck or now and then off a peg */
 		bot(W, e, dt) {
-			e.sk = e.sk ?? 0.3 + Math.random() * 0.7;
+			e.sk = e.sk ?? 0.3 + 0.7 * cpuSk(e);
 			if (e.st === 0) {
 				if (W.t < 0) return null;
 				if (e.aimX === undefined)
@@ -5725,7 +5726,7 @@ Object.assign(MG, {
 		},
 		/* CPUs: aim for the middle-ish, then steer towards the best slot (counting the x3) and hop when stuck */
 		bot(W, e, dt) {
-			e.sk = e.sk ?? 0.3 + Math.random() * 0.7;
+			e.sk = e.sk ?? 0.3 + 0.7 * cpuSk(e);
 			const S = this.sched(W);
 			if (S.plan) return null;
 			if (e.st === 0) {
@@ -7394,9 +7395,10 @@ Object.assign(MG, {
 						sv.sort((a, b) => near(a) - near(b))[0],
 					out = { x: 0, y: 0, fire: false, pound: false };
 				if (tg) {
+					/* difficulty: aim error, how well it leads a target, how quickly it fires once lined up */
 					if (e.aimErr === undefined) {
-						e.aimErr = (Math.random() - 0.5) * 0.6;
-						e.lead = 0.2 + Math.random() * 1.2;
+						e.aimErr = (Math.random() - 0.5) * skv(e, 1, 0.6, 0.3);
+						e.lead = skv(e, 0.1, 0.2, 0.5) + Math.random() * skv(e, 1.4, 1.2, 0.7);
 					}
 					const T = ((near(tg) / MM.TV) * 0.6 + 0.1) * e.lead,
 						dx = tg.x + tg.vx * T - e.x,
@@ -7405,7 +7407,7 @@ Object.assign(MG, {
 					const a = Math.atan2(-dz, dx) + e.aimErr;
 					out.x = W.ph === 3 ? dx / l : Math.cos(a);
 					out.y = W.ph === 3 ? dz / l : -Math.sin(a);
-					out.fire = Math.abs(wrapA(a - e.yaw)) < 0.14 && Math.random() < dt * 5;
+					out.fire = Math.abs(wrapA(a - e.yaw)) < 0.14 && Math.random() < dt * skv(e, 2.5, 5, 8);
 					if (out.fire) e.aimErr = undefined;
 				}
 				const crowd = sv.filter((o) => near(o) < 7.5).length,
@@ -7417,7 +7419,12 @@ Object.assign(MG, {
 			}
 			/* survivors: fetch TNT and deliver it, keep clear of the monster otherwise, sidestep tyres, dash through rings */
 			/* a CPU mashes to break free at 3-5 taps a second (7 within 1.6 s gets it out) */
-			if (e.gr) return { x: 0, y: 0, boost: Math.random() < dt * (e.mashR || (e.mashR = 3 + Math.random() * 2)) };
+			if (e.gr)
+				return {
+					x: 0,
+					y: 0,
+					boost: Math.random() < dt * (e.mashR || (e.mashR = skv(e, 2.5, 3, 4.5) + Math.random() * 2)),
+				};
 			let x = 0,
 				z = 0;
 			const go = (tx, tz, w) => {
@@ -7455,7 +7462,7 @@ Object.assign(MG, {
 					ahead = rx * t.dx + rz * t.dz,
 					side = rx * -t.dz + rz * t.dx;
 				if (ahead > 0 && ahead < 4.5 && Math.abs(side) < MM.TYR + 0.4) {
-					if (e.tyNote[t.id] === undefined) e.tyNote[t.id] = Math.random() < 0.5;
+					if (e.tyNote[t.id] === undefined) e.tyNote[t.id] = Math.random() < skv(e, 0.3, 0.5, 0.7);
 					if (!e.tyNote[t.id]) continue;
 					const sg = side >= 0 ? 1 : -1;
 					x += -t.dz * sg * 1.6;
@@ -7465,7 +7472,7 @@ Object.assign(MG, {
 			e.gyNote = e.gyNote || {};
 			for (const q of W.gyLive || []) {
 				if (W.t > q.t + 0.4 || Math.hypot(e.x - q.x, e.z - q.z) > 3.6) continue;
-				if (e.gyNote[q.id] === undefined) e.gyNote[q.id] = Math.random() < 0.7;
+				if (e.gyNote[q.id] === undefined) e.gyNote[q.id] = Math.random() < skv(e, 0.45, 0.7, 0.85);
 				if (e.gyNote[q.id]) go(q.x, q.z, -2.2);
 			}
 			const r = Math.hypot(e.x, e.z),
@@ -7478,7 +7485,7 @@ Object.assign(MG, {
 					eta = g.r > 0 ? (d - g.r) / MM.RING : g.slam - W.t + (d - 2.6) / MM.RING;
 				if (e.dodgeId !== g.id) {
 					e.dodgeId = g.id;
-					e.dodgeRoll = Math.random() < 0.6;
+					e.dodgeRoll = Math.random() < skv(e, 0.35, 0.6, 0.8);
 					e.dodgeAt = -0.05 + Math.random() * 0.7;
 				}
 				if (e.dodgeRoll && eta < e.dodgeAt) {
@@ -10668,7 +10675,7 @@ Object.assign(MG, {
 		bot(W, e) {
 			const o = { x: 0, y: -1, boost: false };
 			if (W.t < 0 || e.d) return o;
-			e.sk = e.sk ?? 0.4 + Math.random() * 0.6;
+			e.sk = e.sk ?? 0.4 + 0.6 * cpuSk(e);
 			const T = this.solo(W),
 				oil = (T && T.f && T.f.oil) || [],
 				blocked = (x, far) =>

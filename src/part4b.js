@@ -68,7 +68,7 @@ function wander(W, e, dt, r) {
 }
 function botRam(W, e, inp, r = 3.2) {
 	const t = W.list.find((o) => o !== e && !o.gone && o.al && !o.d && Math.hypot(o.x - e.x, o.z - e.z) < r);
-	if (t && e.bcd <= 0 && W.t > 2.5 && Math.random() < 0.012) {
+	if (t && e.bcd <= 0 && W.t > 2.5 && Math.random() < skv(e, 0.004, 0.012, 0.02)) {
 		const s = steer(e, t.x + (Math.random() - 0.5) * 2.2, t.z + (Math.random() - 0.5) * 2.2, 1);
 		s.boost = true;
 		return s;
@@ -1132,13 +1132,15 @@ const MG = {
 		bot(W, e, dt) {
 			const R = this.R(W.t),
 				d = Math.hypot(e.x, e.z);
-			if (d > R * 0.7) return steer(e, 0, 0, 1);
+			/* difficulty: how close to the rim it strays, how far it leads its target, how soon it rams once close */
+			if (d > R * skv(e, 0.8, 0.7, 0.66)) return steer(e, 0, 0, 1);
 			const t = W.list
 				.filter((o) => o !== e && !o.gone && o.al && !o.d)
 				.sort((a, b) => Math.hypot(a.x - e.x, a.z - e.z) - Math.hypot(b.x - e.x, b.z - e.z))[0];
 			if (!t) return steer(e, 0, 0, 0.5);
-			const s = steer(e, t.x, t.z, 0.85);
-			if (Math.hypot(t.x - e.x, t.z - e.z) < 3.5 && e.bcd <= 0 && Math.random() < 0.05) s.boost = true;
+			const ld = skv(e, 0, 0.1, 0.3),
+				s = steer(e, t.x + t.vx * ld, t.z + t.vz * ld, 0.85);
+			if (Math.hypot(t.x - e.x, t.z - e.z) < 3.5 && e.bcd <= 0 && Math.random() < dt * skv(e, 1, 3, 6)) s.boost = true;
 			return s;
 		},
 		botScore: () => 100 + rnd(300),
@@ -1195,12 +1197,12 @@ const MG = {
 		bot(W, e) {
 			const it = nearestItem(W, e, W.items, (i) => W.t >= i.t && !W.claimed.has(i.id));
 			const rich = W.list.find((o) => o !== e && !o.gone && o.al && o.sc >= 4 && Math.hypot(o.x - e.x, o.z - e.z) < 4);
-			if (rich && e.bcd <= 0 && W.t > 2.5 && Math.random() < 0.02) {
+			if (rich && e.bcd <= 0 && W.t > 2.5 && Math.random() < skv(e, 0.006, 0.02, 0.035)) {
 				const s2 = steer(e, rich.x + (Math.random() - 0.5) * 2, rich.z + (Math.random() - 0.5) * 2, 1);
 				s2.boost = true;
 				return s2;
 			}
-			return botRam(W, e, it ? steer(e, it.x, it.z, 0.8) : wander(W, e, 0.016, 8));
+			return botRam(W, e, it ? steer(e, it.x, it.z, skv(e, 0.58, 0.72, 0.92)) : wander(W, e, 0.016, 8));
 		},
 		botScore: () => 4 + rnd(12),
 	},
@@ -1930,9 +1932,9 @@ const MG = {
 			if (!f) return wander(W, e, 0.016, 6);
 			/* drive within hose reach, then aim at it with a wandering error (sometimes off target) */
 			const d = Math.hypot(f.x - e.x, f.z - e.z),
-				inp = d < 3.8 ? { x: 0, y: 0 } : steer(e, f.x, f.z, 0.85);
+				inp = d < 3.8 ? { x: 0, y: 0 } : steer(e, f.x, f.z, skv(e, 0.65, 0.85, 1));
 			if (d < this.HOSE + 0.4) {
-				const a = Math.atan2(f.z - e.z, f.x - e.x) + Math.sin(W.t * 1.3 + e.i * 2.1) * 0.3;
+				const a = Math.atan2(f.z - e.z, f.x - e.x) + Math.sin(W.t * 1.3 + e.i * 2.1) * skv(e, 0.6, 0.3, 0.15);
 				inp.ax = Math.cos(a);
 				inp.ay = Math.sin(a);
 			}
@@ -2448,8 +2450,9 @@ const MG = {
 				sp = Math.hypot(e.vx, e.vz) || 1,
 				ah = this.under(W, e.x + (e.vx / sp) * 1.1, e.z + (e.vz / sp) * 1.1),
 				cur = this.under(W, e.x, e.z);
-			if (cur && (!ah || (ah.at !== undefined && W.t - ah.at > this.HOLD * 0.65))) {
-				if (t2 && e.bcd <= 0 && e.y <= 0.05 && Math.random() < 0.08) {
+			/* difficulty: how long a cracked slab ahead has been going before it notices, how soon it hops a gap */
+			if (cur && (!ah || (ah.at !== undefined && W.t - ah.at > this.HOLD * skv(e, 0.85, 0.65, 0.5)))) {
+				if (t2 && e.bcd <= 0 && e.y <= 0.05 && Math.random() < skv(e, 0.03, 0.08, 0.15)) {
 					const j = steer(e, t2.x, t2.z, 1);
 					j.boost = true;
 					return j;
@@ -2923,21 +2926,67 @@ const MG = {
 		timeUp(W, e) {
 			if (e.al) e.sc = this.dur * 10 + 100;
 		},
+		/* CPUs: score the spot it is on and 8 spots round it for danger (a boulder shadow it has noticed, the path a
+		   roller will take, the deck edge) and drive to the safest; otherwise wander near the middle of the deck.
+		   Difficulty: how early it reads a shadow, how far off it notices a roller */
 		bot(W, e, dt) {
-			const th = W.rk.find((r) => W.t > r.t - 1.3 && W.t < r.t && Math.hypot(r.x - e.x, r.z - e.z) < 2.8);
-			if (th) {
-				const s = steer(e, e.x + (e.x - th.x), e.z + (e.z - th.z), 1);
-				return s;
-			}
-			for (const r of W.rk)
-				if (r.rolling) {
-					const q = this.rollPos(r, W.t),
-						w = this.toWorld(W.pl, q.lx, q.lz);
-					if (q.y > 0 && Math.hypot(w[0] - e.x, w[1] - e.z) < 5)
-						return steer(e, e.x + (e.x - w[0]), e.z + (e.z - w[1]), 1);
+			const wn = skv(e, 0.8, 1.3, 1.6),
+				rr = skv(e, 4, 6, 8),
+				P = W.pl,
+				rocks = W.rk.filter(
+					(r) =>
+						(W.t > r.t - wn && W.t < r.t && Math.hypot(r.x - e.x, r.z - e.z) < 7) ||
+						(r.rolling && this.rollPos(r, W.t).y > 0),
+				),
+				danger = (x, z) => {
+					const l = this.toLocal(P, x, z);
+					let d = Math.max(0, Math.max(Math.abs(l[0]), Math.abs(l[1])) - 7.5) * 3;
+					for (const r of rocks) {
+						if (!r.rolling) {
+							const k = Math.hypot(r.x - x, r.z - z);
+							if (k < 4) d += 4 - k;
+							continue;
+						}
+						const q0 = this.rollPos(r, W.t),
+							w0 = this.toWorld(P, q0.lx, q0.lz);
+						if (Math.hypot(w0[0] - e.x, w0[1] - e.z) > rr) continue;
+						for (let t = 0; t <= 1.2; t += 0.3) {
+							const q = this.rollPos(r, W.t + t);
+							if (q.y <= 0) break;
+							const w = this.toWorld(P, q.lx, q.lz),
+								k = Math.hypot(w[0] - x, w[1] - z);
+							if (k < 3.2) d += 3.2 - k;
+						}
+					}
+					return d;
+				};
+			/* judged from where it will be in a moment (it can't stop or turn on the spot); a dodge it picked is kept a
+			   short while so it doesn't flip between two ways out */
+			const px = e.x + e.vx * 0.3,
+				pz = e.z + e.vz * 0.3;
+			if (e.dgT > W.t && e.dg) return steer(e, e.x + e.dg[0], e.z + e.dg[1], 1);
+			let bd = rocks.length ? Math.max(danger(e.x, e.z), danger(px, pz)) : 0;
+			if (bd > 0) {
+				let best = null;
+				const hx = Math.cos(e.yaw),
+					hz = -Math.sin(e.yaw);
+				for (let k = 0; k < 8; k++) {
+					const a = (k * Math.PI) / 4,
+						dx = Math.cos(a),
+						dz = Math.sin(a),
+						d = danger(px + dx * 4, pz + dz * 4) + 0.4 * (1 - (dx * hx + dz * hz));
+					if (d < bd - 0.01) {
+						bd = d;
+						best = [dx * 4, dz * 4];
+					}
 				}
-			const P = W.pl,
-				l = this.toLocal(P, e.x, e.z);
+				if (best) {
+					e.dg = best;
+					e.dgT = W.t + 0.35;
+					return steer(e, e.x + best[0], e.z + best[1], 1);
+				}
+			}
+			const l = this.toLocal(P, e.x, e.z);
 			if (Math.abs(l[0]) > 6.5 || Math.abs(l[1]) > 6.5) return steer(e, P.x, P.z, 0.8);
 			wander(W, e, dt, 5);
 			const w = this.toWorld(P, e.wp[0], e.wp[1]);
@@ -3760,7 +3809,7 @@ const MG = {
 				return d < 1 ? { x: 0, y: 0 } : steer(e, b.px, b.pz, d < 3 ? 0.45 : 0.9);
 			}
 			const it = nearestItem(W, e, W.items, (i) => this.avail(W, i));
-			return botRam(W, e, it ? steer(e, it.x, it.z, 0.8) : wander(W, e, 0.016, 9));
+			return botRam(W, e, it ? steer(e, it.x, it.z, skv(e, 0.6, 0.72, 0.92)) : wander(W, e, 0.016, 9));
 		},
 		botScore: () => 30 + rnd(70),
 	},
@@ -4041,7 +4090,7 @@ const MG = {
 					/* CPUs: a target needle per step from their skill (a red is rare: it costs the whole charge) */
 					if (bo.tb !== b) {
 						const q = Math.random(),
-							sk = e.sk === undefined ? (e.sk = 0.35 + Math.random() * 0.6) : e.sk;
+							sk = e.sk === undefined ? (e.sk = 0.35 + 0.6 * cpuSk(e)) : e.sk;
 						bo.tb = b;
 						bo.tg =
 							q < sk * 0.6
@@ -4369,7 +4418,7 @@ const MG = {
 		/* CPUs: their burnout taps come from pre(); in the race each has its own tap rate */
 		bot(W, e) {
 			if (e.d || e.crossed) return;
-			if (e.bR === undefined) e.bR = 4.5 + Math.random() * 4.5;
+			if (e.bR === undefined) e.bR = skv(e, 5, 6.75, 8.5) + (Math.random() - 0.5) * 1.5;
 			if (e.nt === undefined) e.nt = W.t;
 			/* several taps in one long frame still count */
 			for (let k = 0; k < 6 && W.t >= e.nt; k++) {
@@ -4726,10 +4775,20 @@ const MG = {
 		bot(W, e) {
 			const L = this.light(W, W.t),
 				c = W.cyc.findIndex((c) => W.t < c.r);
+			if (c < 0) return;
 			e.plan = e.plan || {};
-			if (e.plan[c] === undefined) e.plan[c] = Math.random() < 0.12 ? 1.1 : 0.1 + Math.random() * 0.45;
+			e.gd = e.gd || {};
+			/* per light: when it lets go on yellow (or a gamble on running the red), and its reaction to green (a person
+			   needs about 0.3 s; letting go later than ~0.65 s into yellow gets caught) */
+			if (e.plan[c] === undefined) {
+				e.plan[c] =
+					Math.random() < skv(e, 0.12, 0.08, 0.03)
+						? 1.1
+						: skv(e, 0.35, 0.25, 0.12) + Math.random() * skv(e, 0.4, 0.35, 0.25);
+				e.gd[c] = skv(e, 0.45, 0.3, 0.15) + Math.random() * 0.15;
+			}
 			e.hold =
-				L === "g" ||
+				(L === "g" && W.t - (c > 0 ? W.cyc[c - 1].r : 0) >= e.gd[c]) ||
 				(L === "y" && W.t - W.cyc[c].g < e.plan[c]) ||
 				(L === "r" && e.plan[c] > 1 && this.redFor(W, W.t) < 0.5);
 		},
@@ -5552,13 +5611,14 @@ const MG = {
 		},
 		bot(W, e) {
 			if (e.ph === "load") {
-				e.want = e.want ?? 3 + Math.floor(Math.random() * 4);
+				e.want = e.want ?? Math.min(this.MAXL, Math.round(skv(e, 2.5, 3, 4.5) + Math.random() * skv(e, 3, 3, 1.6)));
 				if (e.load >= e.want) {
 					e.want = undefined;
 					this.go(W, e);
 				}
 			} else if (e.ph === "drive") {
-				e.err = e.err ?? Math.random() * 2.2 - 0.6;
+				/* where it brakes: off by err metres (Normal -0.6 .. 1.6) */
+				e.err = e.err ?? skv(e, 0.9, 0.5, 0.3) + (Math.random() - 0.5) * skv(e, 3, 2.2, 1.3);
 				if (e.z - 1 - this.EDGE <= (e.v * e.v) / 28 + 2 * this.PIV + e.err) {
 					e.err = undefined;
 					this.go(W, e);
@@ -5853,8 +5913,9 @@ const MG = {
 			const lane = e.lane,
 				near = (l) => W.cars.some((c) => c.l === l && this.carZ(W, c) < e.z + 3 && this.carZ(W, c) > e.z - 16);
 			if (e.think <= 0 && near(lane)) {
-				e.think = 0.25 + Math.random() * 0.3;
-				if (Math.random() < 0.88) {
+				/* difficulty: reaction time, how often it dodges in time, goes for parcels, spots a pothole */
+				e.think = skv(e, 0.45, 0.3, 0.15) + Math.random() * 0.3;
+				if (Math.random() < skv(e, 0.65, 0.8, 0.93)) {
 					const opts = [lane - 1, lane + 1].filter((l) => l >= 0 && l < this.LANES && !near(l));
 					if (opts.length) e.lane = opts[Math.floor(Math.random() * opts.length)];
 				}
@@ -5863,10 +5924,12 @@ const MG = {
 				const p = W.parcels.find(
 					(p) => !e.got.has(p.id) && p.z < e.z && p.z > e.z - 14 && Math.abs(p.l - lane) === 1 && !near(p.l),
 				);
-				if (p && Math.random() < 0.5) e.lane = p.l;
+				if (p && Math.random() < skv(e, 0.25, 0.4, 0.7)) e.lane = p.l;
 			}
 			const h = W.holes.find((h) => h.l === lane && h.z < e.z && h.z > e.z - 4);
-			if (h && e.y <= 0 && Math.random() < 0.9) this.jump(W, e);
+			e.hNote = e.hNote || new Map();
+			if (h && !e.hNote.has(h)) e.hNote.set(h, Math.random() < skv(e, 0.6, 0.8, 0.95));
+			if (h && e.y <= 0 && e.hNote.get(h)) this.jump(W, e);
 		},
 		ctlHTML() {
 			return `<div class="cx"><div class="rhpad"><button class="cxbin" data-rh="-1" style="--bc:#2F5DE1"><i>◀</i><b>Left</b></button><button class="cxbin" data-rh="0" style="--bc:#E5A800"><i>▲</i><b>Jump</b></button><button class="cxbin" data-rh="1" style="--bc:#2F5DE1"><i>▶</i><b>Right</b></button></div></div>`;
@@ -6224,7 +6287,8 @@ const MG = {
 		bot(W, e, dt) {
 			if (!e.st) {
 				if (e.pl !== undefined) return;
-				e.pt = e.pt ?? (Math.random() < 0.2 ? 0.5 + Math.random() * 0.3 : 0.82 + Math.random() * 0.16);
+				e.pt =
+					e.pt ?? (Math.random() < skv(e, 0.35, 0.2, 0.08) ? 0.5 + Math.random() * 0.3 : 0.82 + Math.random() * 0.16);
 				const m = this.pm(W.t),
 					up = this.pm(W.t + 0.05) > m;
 				if (m >= e.pt && (up || m > 0.95)) this.tap(W, e);
@@ -6233,7 +6297,7 @@ const MG = {
 			if (e.st !== "air") return;
 			/* aim for level with some lag and wobble; a few CPUs overcorrect */
 			/* a skill per CPU: slower hands and a sloppier idea of level the lower it is */
-			e.sk = e.sk ?? 0.25 + Math.random() * 0.75;
+			e.sk = e.sk ?? 0.25 + 0.75 * cpuSk(e);
 			e.aim = e.aim ?? (Math.random() - 0.5) * (0.12 + 0.7 * (1 - e.sk));
 			e.bt = (e.bt || 0) - dt;
 			if (e.bt <= 0) {
@@ -7192,7 +7256,7 @@ const MG = {
 		bot(W, e, dt) {
 			if (W.t < 0 || !e.pw) return;
 			if (e.plan === undefined || e.plan.n !== e.n) {
-				e.sk = e.sk ?? 0.3 + Math.random() * 0.7;
+				e.sk = e.sk ?? 0.3 + 0.7 * cpuSk(e);
 				const t = this.pieceAt(W, e.n),
 					rots = this.PIECES[t].rot ? [0, 1, 2, 3] : [0],
 					base = this.model(e),

@@ -1713,12 +1713,14 @@ Object.assign(MG, {
 			const T = TS,
 				b = W.bs;
 			if (!b || W.t < W.koT) return { x: 0, y: 0, boost: false };
+			/* difficulty: how far ahead it reads the ball, how hard it drives, how freely it boosts */
 			const sd = e.side === 1 ? 1 : 0,
 				dir = sd === 0 ? -1 : 1,
 				gx = 0,
 				gz = dir * (T.FZ + 1),
-				px = b.x + b.vx * 0.25,
-				pz = b.z + b.vz * 0.25,
+				ld = skv(e, 0.05, 0.25, 0.4),
+				px = b.x + b.vx * ld,
+				pz = b.z + b.vz * ld,
 				mates = W.list.filter((o) => !o.gone && (o.side === 1 ? 1 : 0) === sd),
 				near = mates.slice().sort((p, q) => Math.hypot(p.x - px, p.z - pz) - Math.hypot(q.x - px, q.z - pz))[0];
 			if (near !== e) {
@@ -1746,8 +1748,8 @@ Object.assign(MG, {
 				td = Math.hypot(tx, tz) || 1,
 				lined = (tx * ux + tz * uz) / td;
 			if (lined > 0.75) {
-				const o = steer(e, px + ux * 2, pz + uz * 2, 1);
-				o.hold = e.bst > 5 && td < 9;
+				const o = steer(e, px + ux * 2, pz + uz * 2, skv(e, 0.8, 1, 1));
+				o.hold = e.bst > 5 && td < skv(e, 5, 9, 12);
 				/* a ball up in the air just ahead: jump for it, and flip into it once close */
 				if (!e.air && b.y - T.BR > 1 && td < 6 && W.rng() < 0.15) o.b2 = true;
 				else if (e.air && e.flipOk && td < 3.6 && W.t - e.jumpT > 0.2) o.b2 = true;
@@ -1759,8 +1761,8 @@ Object.assign(MG, {
 				side = sx * -uz + sz * ux > 0 ? 1 : -1,
 				ox = ax + -uz * side * (lined < 0 ? 2.5 : 0),
 				oz = az + ux * side * (lined < 0 ? 2.5 : 0);
-			const o = steer(e, ox, oz, 1);
-			o.hold = e.bst > 40 && Math.hypot(ox - e.x, oz - e.z) > 14;
+			const o = steer(e, ox, oz, skv(e, 0.8, 1, 1));
+			o.hold = e.bst > 40 && Math.hypot(ox - e.x, oz - e.z) > skv(e, 20, 14, 10);
 			return o;
 		},
 		humanBot(W, e, dt) {

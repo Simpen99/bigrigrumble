@@ -1077,7 +1077,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-23 15:17 eabee8c";
+const BUILD = "2026-10-24 23:19 d361484";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -11199,6 +11199,8 @@ function hostCreate(tv) {
 		rounds: 8,
 		/* minigames left out of the pool (lobby "Minigames" setting, remembered on this device) */
 		mgOff: (LS.get("trp_mgoff", []) || []).filter((k) => MG[k]),
+		/* CPU difficulty: 0 Easy, 1 Normal, 2 Hard (lobby setting, remembered on this device) */
+		cpu: LS.get("trp_cpu", 1),
 		round: 1,
 		turn: 0,
 		seq: 1,
@@ -11740,10 +11742,11 @@ function lobbyHTML() {
     <section class="sheet"><h2>Test mode</h2><div class="seg"><button data-test="off" class="${!G.test ? "on" : ""}">Off</button><button data-test="on" class="${G.test ? "on" : ""}">On</button></div>${G.test ? `<p class="note">On your turn you can pick your exact roll, tap any space to jump there and trigger it, and top up coins, shards and dust.</p>` : ""}</section>
     <section class="sheet"><h2>Rounds</h2><div class="seg">${[4, 6, 8, 10, 12, 16].map((r) => `<button data-rounds="${r}" class="${G.rounds === r ? "on" : ""}">${r}</button>`).join("")}</div></section>
     <section class="sheet">${mgPoolHTML()}</section>
+    <section class="sheet"><h2>CPU difficulty</h2>${cpuSegHTML()}</section>
     <section class="sheet stack"><button class="btn go" data-a="start" ${G.players.length < 2 ? "disabled" : ""}>${G.players.length < 2 ? "Waiting for another driver" : "Start the race"}</button><button class="btn ghost" data-a="quit">Close game</button></section>`
 		: G.tv
 			? `${IOS_SAFARI && !LS.get("trp_tbtip", false) ? `<section class="sheet tbsheet"><h2>📱 Play fullscreen</h2>${tbTipHTML()}<button class="btn ghost small" data-a="tbtip">Got it</button></section>` : ""}<section class="sheet"><h2>📺 You're in! Watch the TV</h2><p class="note" style="margin-top:0">Game ${esc(G.code || "")}: ${esc((MAPS[G.map] || JUNK).name)}, ${G.rounds} rounds${G.teams ? ", teams" : ""}. You're driving ${esc(TRUCKS[me.truck].name)}. This phone is your controller.</p>
-       ${tvLead() && tvLead().key === me.key ? `<div class="stack" style="margin-top:10px"><button class="btn go" data-a="tvstart" ${G.players.length < 2 ? "disabled" : ""}>${G.players.length < 2 ? "Waiting for another driver" : "Start the race"}</button><button class="btn ghost small" data-a="tvcpu" ${G.players.length >= 8 ? "disabled" : ""}>+ CPU truck</button></div><h2 style="margin-top:14px">Practice a minigame</h2>${pracHTML()}` : `<p class="note">${esc((tvLead() || {}).name || "The first driver")} starts the race.</p>`}
+       ${tvLead() && tvLead().key === me.key ? `<div class="stack" style="margin-top:10px"><button class="btn go" data-a="tvstart" ${G.players.length < 2 ? "disabled" : ""}>${G.players.length < 2 ? "Waiting for another driver" : "Start the race"}</button><button class="btn ghost small" data-a="tvcpu" ${G.players.length >= 8 ? "disabled" : ""}>+ CPU truck</button></div><h2 style="margin-top:14px">CPU difficulty</h2>${cpuSegHTML()}<h2 style="margin-top:14px">Practice a minigame</h2>${pracHTML()}` : `<p class="note">${esc((tvLead() || {}).name || "The first driver")} starts the race.</p>`}
        <button class="btn ghost" data-a="changetruck" style="margin-top:10px">${changingTruck ? "Done" : "Change truck"}</button>${changingTruck ? `<div style="margin-top:10px">${carouselHTML(me.truck)}</div>` : ""}</section>
        <button class="btn ghost" data-a="leave" style="margin-top:12px">Leave game</button>`
 			: `<section class="sheet"><h2>Waiting for ${esc(G.hostName || "the host")} to start</h2><p class="note" style="margin-top:0">Game ${esc(G.code || "")}: ${esc((MAPS[G.map] || JUNK).name)}, ${G.rounds} rounds${G.teams ? ", teams" : ""}. You're driving ${esc(TRUCKS[me.truck].name)}.</p>
@@ -11797,6 +11800,15 @@ function mgPoolHTML() {
 			: ""
 	}`;
 }
+/* lobby / practice "CPU difficulty" setting (HG.cpu; practice and new games take the last pick on this device, trp_cpu) */
+const cpuSegHTML = (cur = cpuLevel()) =>
+	`<div class="seg">${CPU_LV.map((t, i) => `<button data-cpulv="${i}" class="${cur === i ? "on" : ""}">${t}</button>`).join("")}</div>`;
+function setCpuLv(v) {
+	v = Math.max(0, Math.min(2, Math.round(+v) || 0));
+	HG.cpu = v;
+	LS.set("trp_cpu", v);
+	push();
+}
 /* TV lobby: the PC hosts and shows the game on the big screen, phones join as controllers */
 const tvLead = () => G && G.players.find((p) => !p.bot);
 const pracHTML = () =>
@@ -11820,6 +11832,7 @@ function tvLobbyHTML() {
     <h2 style="margin-top:14px">Rounds</h2><div class="seg">${[4, 6, 8, 10, 12, 16].map((r) => `<button data-rounds="${r}" class="${G.rounds === r ? "on" : ""}">${r}</button>`).join("")}</div>
     <h2 style="margin-top:14px">Mode</h2><div class="seg"><button data-mode="ffa" class="${!G.teams ? "on" : ""}">Free-for-all</button><button data-mode="teams" class="${G.teams ? "on" : ""}">Teams</button></div>
     <div style="margin-top:14px">${mgPoolHTML()}</div>
+    <h2 style="margin-top:14px">CPU difficulty</h2>${cpuSegHTML()}
     <div class="stack" style="margin-top:14px"><button class="btn go" data-a="start" ${n < 2 ? "disabled" : ""}>${n < 2 ? "Waiting for drivers" : "Start the race"}</button>${lead ? `<p class="note" style="margin:0">${esc(lead.name)} can also start from their phone.</p>` : ""}<button class="btn ghost" data-a="quit">Close game</button></div></section></div>`;
 }
 /* ---------- game view ---------- */
@@ -12330,12 +12343,17 @@ function handleAct(pl, act) {
 		}
 		return;
 	}
-	if ((act.t === "start" || act.t === "addcpu" || act.t === "prac") && HG.tv && HG.phase === "lobby") {
+	if (
+		(act.t === "start" || act.t === "addcpu" || act.t === "prac" || act.t === "cpulv") &&
+		HG.tv &&
+		HG.phase === "lobby"
+	) {
 		const lead = HG.players.find((p) => !p.bot);
 		if (lead === pl) {
 			processed[pl.key] = act.id;
 			if (act.t === "start") hostStart();
 			else if (act.t === "prac") tvPractice(String(act.g));
+			else if (act.t === "cpulv") setCpuLv(act.v);
 			else addCpu();
 		}
 		return;
@@ -12505,8 +12523,10 @@ function startTurn() {
 		later(go, 1300);
 	}
 }
+/* CPU difficulty on the board (skv(null, easy, normal, hard)): how often a CPU uses an item, takes the best road at a
+   fork, and picks the richest rival to duel */
 function botItem(p) {
-	if (!p.items || !p.items.length || Math.random() < 0.3) return;
+	if (!p.items || !p.items.length || Math.random() < skv(null, 0.5, 0.3, 0.15)) return;
 	const opp = HG.players.filter((o) => o !== p && !mate(p, o)),
 		idx = rnd(p.items.length),
 		it = p.items[idx],
@@ -12729,7 +12749,7 @@ function botDist(p, o) {
 function askFork(p, opts, go) {
 	if (p.bot) {
 		const s = opts.slice().sort((a, b) => botDist(p, a) + lavaRisk(p.pos, a) - botDist(p, b) - lavaRisk(p.pos, b));
-		const ch = Math.random() < 0.75 ? s[0] : opts[rnd(opts.length)];
+		const ch = Math.random() < skv(null, 0.5, 0.75, 0.95) ? s[0] : opts[rnd(opts.length)];
 		HG.msg = `${p.name} picks a road…`;
 		push();
 		later(() => go(ch), 700);
@@ -13143,7 +13163,8 @@ function duelStart(p, done) {
 		return;
 	}
 	if (p.bot) {
-		startDuel(p, opps[rnd(opps.length)], done);
+		const rich = opps.slice().sort((x, y) => y.coins - x.coins)[0];
+		startDuel(p, Math.random() < skv(null, 0, 0.3, 0.8) ? rich : opps[rnd(opps.length)], done);
 		return;
 	}
 	HG.phase = "duelpick";
@@ -14311,6 +14332,7 @@ function practiceHTML() {
 			.join("");
 	return `<div class="stage short"><div class="brand"><i></i>Minigame practice</div></div>
   <section class="sheet"><h2>CPU opponents</h2><div class="seg">${[0, 1, 2, 3].map((n) => `<button data-pcpu="${n}" class="${practiceCpu === n ? "on" : ""}">${n}</button>`).join("")}</div>
+  <h2 style="margin-top:14px">CPU difficulty</h2>${cpuSegHTML(LS.get("trp_cpu", 1))}
   <h2 style="margin-top:14px">1 vs 3 games: play as</h2><div class="seg">${[
 		[-1, "Random"],
 		[0, "Solo"],
@@ -14332,6 +14354,7 @@ function startPractice(g) {
 	HG = {
 		id: "practice",
 		practice: true,
+		cpu: LS.get("trp_cpu", 1),
 		map: "junk",
 		teams: false,
 		traps: {},
@@ -14650,6 +14673,20 @@ const steer = (e, tx, tz, m = 1) => {
 		l = Math.hypot(dx, dz) || 1;
 	return { x: (dx / l) * m, y: (dz / l) * m, boost: false };
 };
+/* CPU difficulty: the lobby / practice setting, shared in HG.cpu (0 Easy, 1 Normal, 2 Hard) so the device that runs the
+   CPUs (host or simDev) reads the same one. Each CPU gets its own skill e.cs 0..1 round its level (Easy 0, Normal 0.5,
+   Hard 1, ±0.12), and bots read their numbers through skv(e, easy, normal, hard). */
+const CPU_LV = ["Easy", "Normal", "Hard"];
+const cpuLevel = () => (G && (G.cpu === 0 || G.cpu === 2) ? G.cpu : 1);
+const botSkill = () => cpuLevel() / 2;
+function cpuSk(e) {
+	if (e.cs === undefined) e.cs = Math.max(0, Math.min(1, botSkill() + (Math.random() - 0.5) * 0.24));
+	return e.cs;
+}
+function skv(e, easy, normal, hard) {
+	const t = (e ? cpuSk(e) : botSkill()) * 2;
+	return t < 1 ? easy + (normal - easy) * t : normal + (hard - normal) * (t - 1);
+}
 /* play-by-play for tools/watch.mjs: games call mgLog(W, text) and set e.lastHit = {k: cause, t: W.t} when they knock a
    truck; the engine logs knockouts (with the cause) and finishes. Off unless a tool sets MG_LOG. */
 var MG_LOG = false;
@@ -18226,7 +18263,7 @@ function wander(W, e, dt, r) {
 }
 function botRam(W, e, inp, r = 3.2) {
 	const t = W.list.find((o) => o !== e && !o.gone && o.al && !o.d && Math.hypot(o.x - e.x, o.z - e.z) < r);
-	if (t && e.bcd <= 0 && W.t > 2.5 && Math.random() < 0.012) {
+	if (t && e.bcd <= 0 && W.t > 2.5 && Math.random() < skv(e, 0.004, 0.012, 0.02)) {
 		const s = steer(e, t.x + (Math.random() - 0.5) * 2.2, t.z + (Math.random() - 0.5) * 2.2, 1);
 		s.boost = true;
 		return s;
@@ -19290,13 +19327,15 @@ const MG = {
 		bot(W, e, dt) {
 			const R = this.R(W.t),
 				d = Math.hypot(e.x, e.z);
-			if (d > R * 0.7) return steer(e, 0, 0, 1);
+			/* difficulty: how close to the rim it strays, how far it leads its target, how soon it rams once close */
+			if (d > R * skv(e, 0.8, 0.7, 0.66)) return steer(e, 0, 0, 1);
 			const t = W.list
 				.filter((o) => o !== e && !o.gone && o.al && !o.d)
 				.sort((a, b) => Math.hypot(a.x - e.x, a.z - e.z) - Math.hypot(b.x - e.x, b.z - e.z))[0];
 			if (!t) return steer(e, 0, 0, 0.5);
-			const s = steer(e, t.x, t.z, 0.85);
-			if (Math.hypot(t.x - e.x, t.z - e.z) < 3.5 && e.bcd <= 0 && Math.random() < 0.05) s.boost = true;
+			const ld = skv(e, 0, 0.1, 0.3),
+				s = steer(e, t.x + t.vx * ld, t.z + t.vz * ld, 0.85);
+			if (Math.hypot(t.x - e.x, t.z - e.z) < 3.5 && e.bcd <= 0 && Math.random() < dt * skv(e, 1, 3, 6)) s.boost = true;
 			return s;
 		},
 		botScore: () => 100 + rnd(300),
@@ -19353,12 +19392,12 @@ const MG = {
 		bot(W, e) {
 			const it = nearestItem(W, e, W.items, (i) => W.t >= i.t && !W.claimed.has(i.id));
 			const rich = W.list.find((o) => o !== e && !o.gone && o.al && o.sc >= 4 && Math.hypot(o.x - e.x, o.z - e.z) < 4);
-			if (rich && e.bcd <= 0 && W.t > 2.5 && Math.random() < 0.02) {
+			if (rich && e.bcd <= 0 && W.t > 2.5 && Math.random() < skv(e, 0.006, 0.02, 0.035)) {
 				const s2 = steer(e, rich.x + (Math.random() - 0.5) * 2, rich.z + (Math.random() - 0.5) * 2, 1);
 				s2.boost = true;
 				return s2;
 			}
-			return botRam(W, e, it ? steer(e, it.x, it.z, 0.8) : wander(W, e, 0.016, 8));
+			return botRam(W, e, it ? steer(e, it.x, it.z, skv(e, 0.58, 0.72, 0.92)) : wander(W, e, 0.016, 8));
 		},
 		botScore: () => 4 + rnd(12),
 	},
@@ -20088,9 +20127,9 @@ const MG = {
 			if (!f) return wander(W, e, 0.016, 6);
 			/* drive within hose reach, then aim at it with a wandering error (sometimes off target) */
 			const d = Math.hypot(f.x - e.x, f.z - e.z),
-				inp = d < 3.8 ? { x: 0, y: 0 } : steer(e, f.x, f.z, 0.85);
+				inp = d < 3.8 ? { x: 0, y: 0 } : steer(e, f.x, f.z, skv(e, 0.65, 0.85, 1));
 			if (d < this.HOSE + 0.4) {
-				const a = Math.atan2(f.z - e.z, f.x - e.x) + Math.sin(W.t * 1.3 + e.i * 2.1) * 0.3;
+				const a = Math.atan2(f.z - e.z, f.x - e.x) + Math.sin(W.t * 1.3 + e.i * 2.1) * skv(e, 0.6, 0.3, 0.15);
 				inp.ax = Math.cos(a);
 				inp.ay = Math.sin(a);
 			}
@@ -20606,8 +20645,9 @@ const MG = {
 				sp = Math.hypot(e.vx, e.vz) || 1,
 				ah = this.under(W, e.x + (e.vx / sp) * 1.1, e.z + (e.vz / sp) * 1.1),
 				cur = this.under(W, e.x, e.z);
-			if (cur && (!ah || (ah.at !== undefined && W.t - ah.at > this.HOLD * 0.65))) {
-				if (t2 && e.bcd <= 0 && e.y <= 0.05 && Math.random() < 0.08) {
+			/* difficulty: how long a cracked slab ahead has been going before it notices, how soon it hops a gap */
+			if (cur && (!ah || (ah.at !== undefined && W.t - ah.at > this.HOLD * skv(e, 0.85, 0.65, 0.5)))) {
+				if (t2 && e.bcd <= 0 && e.y <= 0.05 && Math.random() < skv(e, 0.03, 0.08, 0.15)) {
 					const j = steer(e, t2.x, t2.z, 1);
 					j.boost = true;
 					return j;
@@ -21081,21 +21121,67 @@ const MG = {
 		timeUp(W, e) {
 			if (e.al) e.sc = this.dur * 10 + 100;
 		},
+		/* CPUs: score the spot it is on and 8 spots round it for danger (a boulder shadow it has noticed, the path a
+		   roller will take, the deck edge) and drive to the safest; otherwise wander near the middle of the deck.
+		   Difficulty: how early it reads a shadow, how far off it notices a roller */
 		bot(W, e, dt) {
-			const th = W.rk.find((r) => W.t > r.t - 1.3 && W.t < r.t && Math.hypot(r.x - e.x, r.z - e.z) < 2.8);
-			if (th) {
-				const s = steer(e, e.x + (e.x - th.x), e.z + (e.z - th.z), 1);
-				return s;
-			}
-			for (const r of W.rk)
-				if (r.rolling) {
-					const q = this.rollPos(r, W.t),
-						w = this.toWorld(W.pl, q.lx, q.lz);
-					if (q.y > 0 && Math.hypot(w[0] - e.x, w[1] - e.z) < 5)
-						return steer(e, e.x + (e.x - w[0]), e.z + (e.z - w[1]), 1);
+			const wn = skv(e, 0.8, 1.3, 1.6),
+				rr = skv(e, 4, 6, 8),
+				P = W.pl,
+				rocks = W.rk.filter(
+					(r) =>
+						(W.t > r.t - wn && W.t < r.t && Math.hypot(r.x - e.x, r.z - e.z) < 7) ||
+						(r.rolling && this.rollPos(r, W.t).y > 0),
+				),
+				danger = (x, z) => {
+					const l = this.toLocal(P, x, z);
+					let d = Math.max(0, Math.max(Math.abs(l[0]), Math.abs(l[1])) - 7.5) * 3;
+					for (const r of rocks) {
+						if (!r.rolling) {
+							const k = Math.hypot(r.x - x, r.z - z);
+							if (k < 4) d += 4 - k;
+							continue;
+						}
+						const q0 = this.rollPos(r, W.t),
+							w0 = this.toWorld(P, q0.lx, q0.lz);
+						if (Math.hypot(w0[0] - e.x, w0[1] - e.z) > rr) continue;
+						for (let t = 0; t <= 1.2; t += 0.3) {
+							const q = this.rollPos(r, W.t + t);
+							if (q.y <= 0) break;
+							const w = this.toWorld(P, q.lx, q.lz),
+								k = Math.hypot(w[0] - x, w[1] - z);
+							if (k < 3.2) d += 3.2 - k;
+						}
+					}
+					return d;
+				};
+			/* judged from where it will be in a moment (it can't stop or turn on the spot); a dodge it picked is kept a
+			   short while so it doesn't flip between two ways out */
+			const px = e.x + e.vx * 0.3,
+				pz = e.z + e.vz * 0.3;
+			if (e.dgT > W.t && e.dg) return steer(e, e.x + e.dg[0], e.z + e.dg[1], 1);
+			let bd = rocks.length ? Math.max(danger(e.x, e.z), danger(px, pz)) : 0;
+			if (bd > 0) {
+				let best = null;
+				const hx = Math.cos(e.yaw),
+					hz = -Math.sin(e.yaw);
+				for (let k = 0; k < 8; k++) {
+					const a = (k * Math.PI) / 4,
+						dx = Math.cos(a),
+						dz = Math.sin(a),
+						d = danger(px + dx * 4, pz + dz * 4) + 0.4 * (1 - (dx * hx + dz * hz));
+					if (d < bd - 0.01) {
+						bd = d;
+						best = [dx * 4, dz * 4];
+					}
 				}
-			const P = W.pl,
-				l = this.toLocal(P, e.x, e.z);
+				if (best) {
+					e.dg = best;
+					e.dgT = W.t + 0.35;
+					return steer(e, e.x + best[0], e.z + best[1], 1);
+				}
+			}
+			const l = this.toLocal(P, e.x, e.z);
 			if (Math.abs(l[0]) > 6.5 || Math.abs(l[1]) > 6.5) return steer(e, P.x, P.z, 0.8);
 			wander(W, e, dt, 5);
 			const w = this.toWorld(P, e.wp[0], e.wp[1]);
@@ -21918,7 +22004,7 @@ const MG = {
 				return d < 1 ? { x: 0, y: 0 } : steer(e, b.px, b.pz, d < 3 ? 0.45 : 0.9);
 			}
 			const it = nearestItem(W, e, W.items, (i) => this.avail(W, i));
-			return botRam(W, e, it ? steer(e, it.x, it.z, 0.8) : wander(W, e, 0.016, 9));
+			return botRam(W, e, it ? steer(e, it.x, it.z, skv(e, 0.6, 0.72, 0.92)) : wander(W, e, 0.016, 9));
 		},
 		botScore: () => 30 + rnd(70),
 	},
@@ -22199,7 +22285,7 @@ const MG = {
 					/* CPUs: a target needle per step from their skill (a red is rare: it costs the whole charge) */
 					if (bo.tb !== b) {
 						const q = Math.random(),
-							sk = e.sk === undefined ? (e.sk = 0.35 + Math.random() * 0.6) : e.sk;
+							sk = e.sk === undefined ? (e.sk = 0.35 + 0.6 * cpuSk(e)) : e.sk;
 						bo.tb = b;
 						bo.tg =
 							q < sk * 0.6
@@ -22527,7 +22613,7 @@ const MG = {
 		/* CPUs: their burnout taps come from pre(); in the race each has its own tap rate */
 		bot(W, e) {
 			if (e.d || e.crossed) return;
-			if (e.bR === undefined) e.bR = 4.5 + Math.random() * 4.5;
+			if (e.bR === undefined) e.bR = skv(e, 5, 6.75, 8.5) + (Math.random() - 0.5) * 1.5;
 			if (e.nt === undefined) e.nt = W.t;
 			/* several taps in one long frame still count */
 			for (let k = 0; k < 6 && W.t >= e.nt; k++) {
@@ -22884,10 +22970,20 @@ const MG = {
 		bot(W, e) {
 			const L = this.light(W, W.t),
 				c = W.cyc.findIndex((c) => W.t < c.r);
+			if (c < 0) return;
 			e.plan = e.plan || {};
-			if (e.plan[c] === undefined) e.plan[c] = Math.random() < 0.12 ? 1.1 : 0.1 + Math.random() * 0.45;
+			e.gd = e.gd || {};
+			/* per light: when it lets go on yellow (or a gamble on running the red), and its reaction to green (a person
+			   needs about 0.3 s; letting go later than ~0.65 s into yellow gets caught) */
+			if (e.plan[c] === undefined) {
+				e.plan[c] =
+					Math.random() < skv(e, 0.12, 0.08, 0.03)
+						? 1.1
+						: skv(e, 0.35, 0.25, 0.12) + Math.random() * skv(e, 0.4, 0.35, 0.25);
+				e.gd[c] = skv(e, 0.45, 0.3, 0.15) + Math.random() * 0.15;
+			}
 			e.hold =
-				L === "g" ||
+				(L === "g" && W.t - (c > 0 ? W.cyc[c - 1].r : 0) >= e.gd[c]) ||
 				(L === "y" && W.t - W.cyc[c].g < e.plan[c]) ||
 				(L === "r" && e.plan[c] > 1 && this.redFor(W, W.t) < 0.5);
 		},
@@ -23710,13 +23806,14 @@ const MG = {
 		},
 		bot(W, e) {
 			if (e.ph === "load") {
-				e.want = e.want ?? 3 + Math.floor(Math.random() * 4);
+				e.want = e.want ?? Math.min(this.MAXL, Math.round(skv(e, 2.5, 3, 4.5) + Math.random() * skv(e, 3, 3, 1.6)));
 				if (e.load >= e.want) {
 					e.want = undefined;
 					this.go(W, e);
 				}
 			} else if (e.ph === "drive") {
-				e.err = e.err ?? Math.random() * 2.2 - 0.6;
+				/* where it brakes: off by err metres (Normal -0.6 .. 1.6) */
+				e.err = e.err ?? skv(e, 0.9, 0.5, 0.3) + (Math.random() - 0.5) * skv(e, 3, 2.2, 1.3);
 				if (e.z - 1 - this.EDGE <= (e.v * e.v) / 28 + 2 * this.PIV + e.err) {
 					e.err = undefined;
 					this.go(W, e);
@@ -24011,8 +24108,9 @@ const MG = {
 			const lane = e.lane,
 				near = (l) => W.cars.some((c) => c.l === l && this.carZ(W, c) < e.z + 3 && this.carZ(W, c) > e.z - 16);
 			if (e.think <= 0 && near(lane)) {
-				e.think = 0.25 + Math.random() * 0.3;
-				if (Math.random() < 0.88) {
+				/* difficulty: reaction time, how often it dodges in time, goes for parcels, spots a pothole */
+				e.think = skv(e, 0.45, 0.3, 0.15) + Math.random() * 0.3;
+				if (Math.random() < skv(e, 0.65, 0.8, 0.93)) {
 					const opts = [lane - 1, lane + 1].filter((l) => l >= 0 && l < this.LANES && !near(l));
 					if (opts.length) e.lane = opts[Math.floor(Math.random() * opts.length)];
 				}
@@ -24021,10 +24119,12 @@ const MG = {
 				const p = W.parcels.find(
 					(p) => !e.got.has(p.id) && p.z < e.z && p.z > e.z - 14 && Math.abs(p.l - lane) === 1 && !near(p.l),
 				);
-				if (p && Math.random() < 0.5) e.lane = p.l;
+				if (p && Math.random() < skv(e, 0.25, 0.4, 0.7)) e.lane = p.l;
 			}
 			const h = W.holes.find((h) => h.l === lane && h.z < e.z && h.z > e.z - 4);
-			if (h && e.y <= 0 && Math.random() < 0.9) this.jump(W, e);
+			e.hNote = e.hNote || new Map();
+			if (h && !e.hNote.has(h)) e.hNote.set(h, Math.random() < skv(e, 0.6, 0.8, 0.95));
+			if (h && e.y <= 0 && e.hNote.get(h)) this.jump(W, e);
 		},
 		ctlHTML() {
 			return `<div class="cx"><div class="rhpad"><button class="cxbin" data-rh="-1" style="--bc:#2F5DE1"><i>◀</i><b>Left</b></button><button class="cxbin" data-rh="0" style="--bc:#E5A800"><i>▲</i><b>Jump</b></button><button class="cxbin" data-rh="1" style="--bc:#2F5DE1"><i>▶</i><b>Right</b></button></div></div>`;
@@ -24382,7 +24482,8 @@ const MG = {
 		bot(W, e, dt) {
 			if (!e.st) {
 				if (e.pl !== undefined) return;
-				e.pt = e.pt ?? (Math.random() < 0.2 ? 0.5 + Math.random() * 0.3 : 0.82 + Math.random() * 0.16);
+				e.pt =
+					e.pt ?? (Math.random() < skv(e, 0.35, 0.2, 0.08) ? 0.5 + Math.random() * 0.3 : 0.82 + Math.random() * 0.16);
 				const m = this.pm(W.t),
 					up = this.pm(W.t + 0.05) > m;
 				if (m >= e.pt && (up || m > 0.95)) this.tap(W, e);
@@ -24391,7 +24492,7 @@ const MG = {
 			if (e.st !== "air") return;
 			/* aim for level with some lag and wobble; a few CPUs overcorrect */
 			/* a skill per CPU: slower hands and a sloppier idea of level the lower it is */
-			e.sk = e.sk ?? 0.25 + Math.random() * 0.75;
+			e.sk = e.sk ?? 0.25 + 0.75 * cpuSk(e);
 			e.aim = e.aim ?? (Math.random() - 0.5) * (0.12 + 0.7 * (1 - e.sk));
 			e.bt = (e.bt || 0) - dt;
 			if (e.bt <= 0) {
@@ -25350,7 +25451,7 @@ const MG = {
 		bot(W, e, dt) {
 			if (W.t < 0 || !e.pw) return;
 			if (e.plan === undefined || e.plan.n !== e.n) {
-				e.sk = e.sk ?? 0.3 + Math.random() * 0.7;
+				e.sk = e.sk ?? 0.3 + 0.7 * cpuSk(e);
 				const t = this.pieceAt(W, e.n),
 					rots = this.PIECES[t].rot ? [0, 1, 2, 3] : [0],
 					base = this.model(e),
@@ -26891,7 +26992,7 @@ Object.assign(MG, {
 				bi.boost = true;
 				return out();
 			}
-			e.sk = e.sk ?? 0.35 + Math.random() * 0.65;
+			e.sk = e.sk ?? 0.35 + 0.65 * cpuSk(e);
 			const X = this.xs(e.st),
 				top = n ? X[n - 1] : 0,
 				yl = this.topY(n + 1),
@@ -27206,11 +27307,12 @@ Object.assign(MG, {
 		cam: (W, t, p, far) => [new THREE.Vector3(0, 0.2, 0.6), new THREE.Vector3(0, 10.5 * far, 8.3 * far)],
 		bot(W, e, dt) {
 			if (!e.cur) return;
-			e.bt = (e.bt ?? 0.55 + Math.random() * 0.7) - dt;
+			/* difficulty: time to sort an item (Normal 0.55-1.25 s) and how often it picks the right bin */
+			e.bt = (e.bt ?? skv(e, 0.75, 0.55, 0.4) + Math.random() * skv(e, 0.8, 0.7, 0.45)) - dt;
 			if (e.bt > 0) return;
 			e.bt = undefined;
 			const right = this.CATS.findIndex((c) => c.k === e.cur.cat);
-			this.sortTo(W, e, Math.random() < 0.87 ? right : rnd(4));
+			this.sortTo(W, e, Math.random() < skv(e, 0.75, 0.87, 0.95) ? right : rnd(4));
 		},
 		ctlHTML() {
 			const b = (i) => {
@@ -27715,11 +27817,12 @@ Object.assign(MG, {
 		},
 		cam: (W, t, p, far) => [new THREE.Vector3(0, 1.7, -0.3), new THREE.Vector3(0, 1.7 + 4.3 * far, 6.4 * far)], // flatter angle so the market shows behind the counter
 		bot(W, e, dt) {
-			e.bt = (e.bt ?? 0.6 + Math.random() * 0.7) - dt;
+			/* difficulty: time per step (Normal 0.6-1.3 s) and how often it picks the right ingredient */
+			e.bt = (e.bt ?? skv(e, 0.8, 0.6, 0.45) + Math.random() * skv(e, 0.8, 0.7, 0.45)) - dt;
 			if (e.bt > 0) return;
 			e.bt = undefined;
 			const need = e.rec[e.step],
-				ing = Math.random() < 0.88 ? need : this.ORDER[rnd(6)];
+				ing = Math.random() < skv(e, 0.76, 0.88, 0.95) ? need : this.ORDER[rnd(6)];
 			this.apply(W, e, ing, this.ING[ing].hold ? 0.45 + Math.random() * 0.55 : null);
 		},
 		ctlHTML() {
@@ -28767,14 +28870,14 @@ Object.assign(MG, {
 			const rival = W.list.find(
 				(o) => o !== e && !o.gone && o.al && o.f && o.f.tow && Math.hypot(o.x - e.x, o.z - e.z) < 4.5,
 			);
-			if (rival && !f.tow && e.bcd <= 0 && W.t > 2.5 && Math.random() < 0.03) {
+			if (rival && !f.tow && e.bcd <= 0 && W.t > 2.5 && Math.random() < skv(e, 0.01, 0.03, 0.05)) {
 				const s = steer(e, rival.x + (Math.random() - 0.5) * 1.5, rival.z + (Math.random() - 0.5) * 1.5, 1);
 				s.boost = true;
 				return s;
 			}
 			if (f.tow) {
 				const G = this.GAR[(W.cars[f.tow - 1] || {}).gi || 0];
-				return steer(e, G[0], G[1], 0.85);
+				return steer(e, G[0], G[1], skv(e, 0.7, 0.85, 1));
 			}
 			const c = W.cars
 				.filter((c) => W.t >= c.t && !W.claimed.has(c.id) && !this.towedBy(W, c.id))
@@ -28783,7 +28886,7 @@ Object.assign(MG, {
 					return { x, z };
 				})
 				.sort((a, b) => Math.hypot(a.x - e.x, a.z - e.z) - Math.hypot(b.x - e.x, b.z - e.z))[0];
-			return c ? steer(e, c.x, c.z, 0.82) : wander(W, e, dt, 8);
+			return c ? steer(e, c.x, c.z, skv(e, 0.68, 0.82, 0.97)) : wander(W, e, dt, 8);
 		},
 		botScore: () => 1 + rnd(5),
 	},
@@ -28934,8 +29037,7 @@ Object.assign(MG, {
 				st.castShadow = false;
 				s.add(st);
 				for (let x = -H - 1.5; x < H + 1.5; x += 0.85 + r() * 0.3)
-					if (r() > 0.12)
-						ppl.push({ x, y: h, z: z + (r() - 0.5) * 0.25, face: 0, ph: r() * 6.28, sp: 7 + r() * 5 });
+					if (r() > 0.12) ppl.push({ x, y: h, z: z + (r() - 0.5) * 0.25, face: 0, ph: r() * 6.28, sp: 7 + r() * 5 });
 			}
 			s.add(B(2 * H + 4, 4.6, 0.4, "#5A6272", 0, 2.3, SZ - 5.4), B(2 * H + 6, 0.25, 6.6, "#FF6FAE", 0, 5.6, SZ - 2.2));
 			[-H - 2.5, H + 2.5].forEach((x) => s.add(B(0.25, 5.5, 0.25, "#D9DEE7", x, 2.75, SZ + 0.8)));
@@ -29228,7 +29330,7 @@ Object.assign(MG, {
 		bot(W, e, dt) {
 			if (!e.bs)
 				e.bs = {
-					sk: 0.7 + Math.random() * 0.3,
+					sk: skv(e, 0.45, 0.7, 1),
 					k: Math.floor(Math.random() * 3),
 					dir: Math.random() < 0.5 ? 1 : -1,
 					sw: 4 + Math.random() * 5,
@@ -29241,6 +29343,17 @@ Object.assign(MG, {
 				b.k = [0, 1, 2].filter((j) => j !== b.k).sort((x, y) => busy(x) - busy(y) + Math.random() - 0.5)[0];
 				b.dir = -b.dir;
 				b.sw = 5 + Math.random() * 5;
+			}
+			/* like a person it can't hold one drift forever: now and then it straightens out for a second (the combo banks
+			   at a lower multiplier), more often the easier it is */
+			b.lap = (b.lap ?? skv(e, 3, 5, 12) * (0.5 + Math.random())) - dt;
+			if (b.lap <= 0) {
+				b.lt = 0.9 + Math.random() * 0.4;
+				b.lap = undefined;
+			}
+			if (b.lt > 0) {
+				b.lt -= dt;
+				return steer(e, e.x + Math.cos(e.yaw) * 5 - e.x * 0.15, e.z - Math.sin(e.yaw) * 5 - e.z * 0.15, 0.8);
 			}
 			const [sx, sz] = this.STK[b.k],
 				a = Math.atan2(e.z - sz, e.x - sx),
@@ -30100,7 +30213,7 @@ Object.assign(MG, {
 		},
 		bot(W, e, dt) {
 			const { S, N } = this.trk();
-			if (!e.bs) e.bs = { sk: 0.75 + Math.random() * 0.25, off: (Math.random() - 0.5) * 3, ot: 0 };
+			if (!e.bs) e.bs = { sk: skv(e, 0.5, 0.8, 1), off: (Math.random() - 0.5) * 3, ot: 0 };
 			const b = e.bs;
 			b.ot -= dt;
 			if (b.ot <= 0) {
@@ -30969,14 +31082,15 @@ Object.assign(MG, {
 					}
 				}
 				if (!t) return wander(W, e, dt, 7);
-				const s = steer(e, t.x + t.vx * 0.25, t.z + t.vz * 0.25, 1);
-				if (td < 4.5 && e.bcd <= 0 && Math.random() < 0.06) s.boost = true;
+				const ld = skv(e, 0, 0.25, 0.45),
+					s = steer(e, t.x + t.vx * ld, t.z + t.vz * ld, skv(e, 0.8, 1, 1));
+				if (td < 4.5 && e.bcd <= 0 && Math.random() < skv(e, 0.02, 0.06, 0.1)) s.boost = true;
 				return s;
 			}
 			const dx = e.x - h.x,
 				dz = e.z - h.z,
 				d = Math.hypot(dx, dz) || 1;
-			if (!e.fear) e.fear = 5.5 + (e.i % 3) * 1.2;
+			if (!e.fear) e.fear = skv(e, 4, 5.5, 6.5) + (e.i % 3) * 1.2;
 			if (d > e.fear) return wander(W, e, dt, 7);
 			let ux = dx / d,
 				uz = dz / d;
@@ -30987,7 +31101,7 @@ Object.assign(MG, {
 				uz = uz * 0.3 + (dx / d) * left;
 			}
 			const s = steer(e, e.x + ux * 5, e.z + uz * 5, 1);
-			if (d < 2.8 && e.bcd <= 0 && Math.random() < 0.05) {
+			if (d < 2.8 && e.bcd <= 0 && Math.random() < skv(e, 0.015, 0.05, 0.1)) {
 				s.x = -uz;
 				s.y = ux;
 				s.boost = true;
@@ -31884,7 +31998,7 @@ Object.assign(MG, {
 				}
 			}
 			if (W.t > (e.huntT || 0)) {
-				e.hunt = Math.random() < 0.3;
+				e.hunt = Math.random() < skv(e, 0.15, 0.3, 0.45);
 				e.huntT = W.t + 2.5 + Math.random() * 2;
 			}
 			if (e.hunt && best && bd < 2.5 + (e.i % 3) * 0.8 && pl.cells.length < 12) {
@@ -33577,7 +33691,7 @@ Object.assign(MG, {
 		/* CPUs: aim the magnet at a slot (usually the middle), then lean towards the best slot in reach as they fall,
 		   counting the x3 sign where it will be when they get there; hop when stuck or now and then off a peg */
 		bot(W, e, dt) {
-			e.sk = e.sk ?? 0.3 + Math.random() * 0.7;
+			e.sk = e.sk ?? 0.3 + 0.7 * cpuSk(e);
 			if (e.st === 0) {
 				if (W.t < 0) return null;
 				if (e.aimX === undefined)
@@ -35872,7 +35986,7 @@ Object.assign(MG, {
 		},
 		/* CPUs: aim for the middle-ish, then steer towards the best slot (counting the x3) and hop when stuck */
 		bot(W, e, dt) {
-			e.sk = e.sk ?? 0.3 + Math.random() * 0.7;
+			e.sk = e.sk ?? 0.3 + 0.7 * cpuSk(e);
 			const S = this.sched(W);
 			if (S.plan) return null;
 			if (e.st === 0) {
@@ -37541,9 +37655,10 @@ Object.assign(MG, {
 						sv.sort((a, b) => near(a) - near(b))[0],
 					out = { x: 0, y: 0, fire: false, pound: false };
 				if (tg) {
+					/* difficulty: aim error, how well it leads a target, how quickly it fires once lined up */
 					if (e.aimErr === undefined) {
-						e.aimErr = (Math.random() - 0.5) * 0.6;
-						e.lead = 0.2 + Math.random() * 1.2;
+						e.aimErr = (Math.random() - 0.5) * skv(e, 1, 0.6, 0.3);
+						e.lead = skv(e, 0.1, 0.2, 0.5) + Math.random() * skv(e, 1.4, 1.2, 0.7);
 					}
 					const T = ((near(tg) / MM.TV) * 0.6 + 0.1) * e.lead,
 						dx = tg.x + tg.vx * T - e.x,
@@ -37552,7 +37667,7 @@ Object.assign(MG, {
 					const a = Math.atan2(-dz, dx) + e.aimErr;
 					out.x = W.ph === 3 ? dx / l : Math.cos(a);
 					out.y = W.ph === 3 ? dz / l : -Math.sin(a);
-					out.fire = Math.abs(wrapA(a - e.yaw)) < 0.14 && Math.random() < dt * 5;
+					out.fire = Math.abs(wrapA(a - e.yaw)) < 0.14 && Math.random() < dt * skv(e, 2.5, 5, 8);
 					if (out.fire) e.aimErr = undefined;
 				}
 				const crowd = sv.filter((o) => near(o) < 7.5).length,
@@ -37564,7 +37679,12 @@ Object.assign(MG, {
 			}
 			/* survivors: fetch TNT and deliver it, keep clear of the monster otherwise, sidestep tyres, dash through rings */
 			/* a CPU mashes to break free at 3-5 taps a second (7 within 1.6 s gets it out) */
-			if (e.gr) return { x: 0, y: 0, boost: Math.random() < dt * (e.mashR || (e.mashR = 3 + Math.random() * 2)) };
+			if (e.gr)
+				return {
+					x: 0,
+					y: 0,
+					boost: Math.random() < dt * (e.mashR || (e.mashR = skv(e, 2.5, 3, 4.5) + Math.random() * 2)),
+				};
 			let x = 0,
 				z = 0;
 			const go = (tx, tz, w) => {
@@ -37602,7 +37722,7 @@ Object.assign(MG, {
 					ahead = rx * t.dx + rz * t.dz,
 					side = rx * -t.dz + rz * t.dx;
 				if (ahead > 0 && ahead < 4.5 && Math.abs(side) < MM.TYR + 0.4) {
-					if (e.tyNote[t.id] === undefined) e.tyNote[t.id] = Math.random() < 0.5;
+					if (e.tyNote[t.id] === undefined) e.tyNote[t.id] = Math.random() < skv(e, 0.3, 0.5, 0.7);
 					if (!e.tyNote[t.id]) continue;
 					const sg = side >= 0 ? 1 : -1;
 					x += -t.dz * sg * 1.6;
@@ -37612,7 +37732,7 @@ Object.assign(MG, {
 			e.gyNote = e.gyNote || {};
 			for (const q of W.gyLive || []) {
 				if (W.t > q.t + 0.4 || Math.hypot(e.x - q.x, e.z - q.z) > 3.6) continue;
-				if (e.gyNote[q.id] === undefined) e.gyNote[q.id] = Math.random() < 0.7;
+				if (e.gyNote[q.id] === undefined) e.gyNote[q.id] = Math.random() < skv(e, 0.45, 0.7, 0.85);
 				if (e.gyNote[q.id]) go(q.x, q.z, -2.2);
 			}
 			const r = Math.hypot(e.x, e.z),
@@ -37625,7 +37745,7 @@ Object.assign(MG, {
 					eta = g.r > 0 ? (d - g.r) / MM.RING : g.slam - W.t + (d - 2.6) / MM.RING;
 				if (e.dodgeId !== g.id) {
 					e.dodgeId = g.id;
-					e.dodgeRoll = Math.random() < 0.6;
+					e.dodgeRoll = Math.random() < skv(e, 0.35, 0.6, 0.8);
 					e.dodgeAt = -0.05 + Math.random() * 0.7;
 				}
 				if (e.dodgeRoll && eta < e.dodgeAt) {
@@ -40815,7 +40935,7 @@ Object.assign(MG, {
 		bot(W, e) {
 			const o = { x: 0, y: -1, boost: false };
 			if (W.t < 0 || e.d) return o;
-			e.sk = e.sk ?? 0.4 + Math.random() * 0.6;
+			e.sk = e.sk ?? 0.4 + 0.6 * cpuSk(e);
 			const T = this.solo(W),
 				oil = (T && T.f && T.f.oil) || [],
 				blocked = (x, far) =>
@@ -42738,12 +42858,14 @@ Object.assign(MG, {
 			const T = TS,
 				b = W.bs;
 			if (!b || W.t < W.koT) return { x: 0, y: 0, boost: false };
+			/* difficulty: how far ahead it reads the ball, how hard it drives, how freely it boosts */
 			const sd = e.side === 1 ? 1 : 0,
 				dir = sd === 0 ? -1 : 1,
 				gx = 0,
 				gz = dir * (T.FZ + 1),
-				px = b.x + b.vx * 0.25,
-				pz = b.z + b.vz * 0.25,
+				ld = skv(e, 0.05, 0.25, 0.4),
+				px = b.x + b.vx * ld,
+				pz = b.z + b.vz * ld,
 				mates = W.list.filter((o) => !o.gone && (o.side === 1 ? 1 : 0) === sd),
 				near = mates.slice().sort((p, q) => Math.hypot(p.x - px, p.z - pz) - Math.hypot(q.x - px, q.z - pz))[0];
 			if (near !== e) {
@@ -42771,8 +42893,8 @@ Object.assign(MG, {
 				td = Math.hypot(tx, tz) || 1,
 				lined = (tx * ux + tz * uz) / td;
 			if (lined > 0.75) {
-				const o = steer(e, px + ux * 2, pz + uz * 2, 1);
-				o.hold = e.bst > 5 && td < 9;
+				const o = steer(e, px + ux * 2, pz + uz * 2, skv(e, 0.8, 1, 1));
+				o.hold = e.bst > 5 && td < skv(e, 5, 9, 12);
 				/* a ball up in the air just ahead: jump for it, and flip into it once close */
 				if (!e.air && b.y - T.BR > 1 && td < 6 && W.rng() < 0.15) o.b2 = true;
 				else if (e.air && e.flipOk && td < 3.6 && W.t - e.jumpT > 0.2) o.b2 = true;
@@ -42784,8 +42906,8 @@ Object.assign(MG, {
 				side = sx * -uz + sz * ux > 0 ? 1 : -1,
 				ox = ax + -uz * side * (lined < 0 ? 2.5 : 0),
 				oz = az + ux * side * (lined < 0 ? 2.5 : 0);
-			const o = steer(e, ox, oz, 1);
-			o.hold = e.bst > 40 && Math.hypot(ox - e.x, oz - e.z) > 14;
+			const o = steer(e, ox, oz, skv(e, 0.8, 1, 1));
+			o.hold = e.bst > 40 && Math.hypot(ox - e.x, oz - e.z) > skv(e, 20, 14, 10);
 			return o;
 		},
 		humanBot(W, e, dt) {
@@ -50642,6 +50764,16 @@ document.addEventListener("click", (e) => {
 	}
 	if (b.dataset.step) {
 		pickTruck(me.truck + +b.dataset.step);
+		return;
+	}
+	if (b.dataset.cpulv) {
+		if (role === "host" && HG && !HG.practice) setCpuLv(b.dataset.cpulv);
+		else if (role === "client" && G && G.tv) act({ t: "cpulv", v: +b.dataset.cpulv });
+		else {
+			LS.set("trp_cpu", +b.dataset.cpulv);
+			render.last = null;
+			render();
+		}
 		return;
 	}
 	if (b.dataset.tvprac) {
