@@ -1077,7 +1077,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-25 02:51 72e7faa";
+const BUILD = "2026-10-25 03:20 7d19fb4";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -37912,17 +37912,18 @@ Object.assign(MG, {
 		   of it that's still in the chase (or winched by the helicopter if there's none) and slung up the road in an arc
 		   TOWH m high, landing TOWB m behind that cop (never closer than TOWHB m behind the truck); its buttons wait
 		   TOWCD s after landing and it can't be towed again for TOWAG s */
-		TOWZ: 34,
+		TOWZ: 30 /* was 34 (the TV's camera drops cops TVB m behind the truck) */,
 		TOWW: 1.5,
 		TOWB: 7,
 		TOWHB: 16,
 		TOWH: 5,
 		TOWCD: 1,
 		TOWAG: 3,
-		/* the TV's camera (see cam): from the side, TVTILT rad down, through a TVFOV degree lens; it frames the trucks TVA m
-		   ahead of the cash truck to TVB m behind it */
+		/* the TV's camera (see cam): from the side, TVTILT rad down, through a TVFOV degree lens; centred TVC m ahead of the
+		   cash truck, it frames the trucks TVA m ahead of it to TVB m behind it (was 40) */
+		TVC: 9,
 		TVA: 28,
-		TVB: 40,
+		TVB: 22,
 		TVTILT: 1.05,
 		TVFOV: 30,
 		/* cooldowns by how hard a trick hits: self buffs and light knocks 7-8 s, slows and obstacles 11-12 s, the ones that
@@ -38648,6 +38649,13 @@ Object.assign(MG, {
 		},
 		/* driving: cruise up the road; the stick steers and sets the speed; the button rams (cops) or drops oil (truck) */
 		phys(W, e, inp, dt) {
+			/* the TV looks at the road from the side (cam): a TV player's stick turns with it (screen right = up the road,
+			   -z; screen up = -x); the button flags go with the copy, so they still fire once */
+			const raw = W.tv && e.rem && inp;
+			if (raw) {
+				inp = Object.assign({}, raw, { x: raw.y, y: -raw.x });
+				raw.boost = raw.b2 = raw.b3 = false;
+			}
 			const solo = e.side === 0,
 				T = solo ? null : this.solo(W),
 				/* catch-up: a cop more than 30 m behind the truck cruises faster and gets extra top speed (up to 8 m/s; was 12
@@ -39497,20 +39505,24 @@ Object.assign(MG, {
 		/* cameras: yours from behind and above, looking up the road; the TV follows the whole pack */
 		cam(W, tgt, pos, far) {
 			if (W.tv) {
-				/* the TV looks at the road from the side, from high over its right-hand verge (TVTILT down, a TVFOV lens): the
-				   road runs left to right across the wide screen the way the trucks drive, so a long pack fits the screen's long
-				   side (it looked down the road from behind, and a long pack left the trucks tiny). The chase is about the cash
-				   truck: it frames the trucks TVA m ahead of it to TVB m behind it (a cop racing far ahead or a straggler far back
-				   drops out with a pill at the screen's edge, edgePill; the truck never does; a cop that far back gets towed up:
-				   TOWZ) and the road's width, as close as both fit (found by projecting them through a scratch camera); the haze
-				   moves back with the camera so the pack stays clear of it. The tall things on that verge (the bridge's pylons and
-				   lamps, the overhead signs) aren't built on the TV */
+				/* the TV looks at the road from the side, from high over its right-hand verge (TVTILT down, a TVFOV
+				   lens): the road runs left to right across the wide screen the way the trucks drive, so a long pack
+				   fits the screen's long side (it looked down the road from behind, and a long pack left the trucks
+				   tiny). The chase is about the cash truck: it's centred TVC m ahead of it (where it's heading, so the
+				   truck sits left of the middle; from the start on, so the ready screen shows them all) and frames the
+				   trucks TVA m ahead of it to TVB m behind it (a cop racing far ahead or a straggler far back drops out
+				   with a pill at the screen's edge, edgePill; the truck never does; a bit further back a cop gets towed
+				   up: TOWZ) and the road's width, as close as all of it fits (found by projecting them through a
+				   scratch camera); the haze moves back with the camera so the pack stays clear of it. The tall things
+				   on that verge (the bridge's pylons and lamps, the overhead signs) aren't built on the TV */
 				const T = this.solo(W),
 					L = W.list.filter((e) => !e.gone && (!T || (e.z > T.z - this.TVA && e.z < T.z + this.TVB))),
 					zs = (L.length ? L : W.list).map((e) => e.z),
-					z0 = Math.min(...zs) - 6,
-					z1 = Math.max(...zs) + 6,
-					zc = (z0 + z1) / 2,
+					zm = T && W.t > 0 ? T.z - this.TVC : (Math.min(...zs) + Math.max(...zs)) / 2,
+					hs = Math.max(...zs.map((z) => Math.abs(z - zm))) + 6,
+					z0 = zm - hs,
+					z1 = zm + hs,
+					zc = zm,
 					a = this.TVTILT,
 					rw = (this.LANES * this.LW) / 2 + 1,
 					at = (D) => [new THREE.Vector3(0, 0, zc), new THREE.Vector3(D * Math.cos(a), D * Math.sin(a), zc)],
