@@ -1077,7 +1077,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-24 23:19 d361484";
+const BUILD = "2026-10-25 02:55 dc1cbe0";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -37908,6 +37908,23 @@ Object.assign(MG, {
 		VLV: 26.4,
 		VLX: 8.4,
 		VLTH: 3.2,
+		/* the tow (catch-up): a cop more than TOWZ m behind the cash truck for TOWW s is harpooned by the nearest cop ahead
+		   of it that's still in the chase (or winched by the helicopter if there's none) and slung up the road in an arc
+		   TOWH m high, landing TOWB m behind that cop (never closer than TOWHB m behind the truck); its buttons wait
+		   TOWCD s after landing and it can't be towed again for TOWAG s */
+		TOWZ: 34,
+		TOWW: 1.5,
+		TOWB: 7,
+		TOWHB: 16,
+		TOWH: 5,
+		TOWCD: 1,
+		TOWAG: 3,
+		/* the TV's camera: the trucks TVA m ahead of the cash truck to TVB m behind it, half the pack framed up to TVHL m,
+		   through a TVFOV degree lens (see cam) */
+		TVA: 28,
+		TVB: 40,
+		TVHL: 34,
+		TVFOV: 30,
 		/* cooldowns by how hard a trick hits: self buffs and light knocks 7-8 s, slows and obstacles 11-12 s, the ones that
 		   take the truck's control or spin it out 13-15 s (was 8-11 s for all) */
 		AB: {
@@ -38655,6 +38672,10 @@ Object.assign(MG, {
 				if (inp) inp.boost = inp.b2 = inp.b3 = false;
 				return;
 			}
+			if (!solo && T && this.towStep(W, e, T, dt)) {
+				if (inp) inp.boost = inp.b2 = inp.b3 = false;
+				return;
+			}
 			let fv = -e.vz;
 			const thr = on ? -(inp.y || 0) : 0,
 				want = Math.min(
@@ -38750,7 +38771,8 @@ Object.assign(MG, {
 				e.vz *= Math.exp(-0.25 * dt);
 			}
 			e.yaw = spin ? e.yaw + 11 * dt : lerpA(e.yaw, Math.atan2(-e.vz, e.vx), Math.min(1, dt * 8));
-			if (!air) this.traffic(W, e);
+			/* (just landed from a tow: a moment to get clear of any car it came down beside) */
+			if (!air && W.t - (e.towEnd ?? -9) > 0.4) this.traffic(W, e);
 			if (solo) this.hazards(W, e, dt);
 			e.f.t = Math.round(W.t * 100) / 100;
 		},
@@ -38816,9 +38838,103 @@ Object.assign(MG, {
 			e.z = T.z + Y.z0 + (nose - Y.z0) * k * k;
 			return true;
 		},
+		/* the tow (on the cop's own device): it counts how long the cop has been far behind; after TOWW s the line flies 0.3 s
+		   (it keeps driving), then it's slung up the road to its goal (towGoal), shared as e.f.tw = [shot, pull, dur, who]
+		   (who = the towing cop's key, or "H" for the helicopter); true while it flies */
+		towStep(W, e, T, dt) {
+			const w = e.tow;
+			if (!w) {
+				const far =
+					e.z - T.z > this.TOWZ &&
+					W.t > this.ARM &&
+					!(T.f && T.f.esc) &&
+					!e.vault &&
+					W.t >= (e.jumpT ?? -9) + this.JMPT &&
+					W.t >= (e.spinT || 0) &&
+					W.t - (e.towEnd ?? -9) > this.TOWAG;
+				e.lagT = far ? (e.lagT || 0) + dt : 0;
+				if (e.lagT < this.TOWW) return false;
+				e.lagT = 0;
+				/* the nearest cop ahead that's in the chase itself (not far behind, not on a tow of its own) */
+				let by = null;
+				for (const o of W.list)
+					if (
+						o !== e &&
+						o.side === 1 &&
+						!o.gone &&
+						o.z < e.z - 20 &&
+						o.z - T.z < this.TOWZ - 10 &&
+						!this.towing(W, o) &&
+						(!by || o.z > by.z)
+					)
+						by = o;
+				const who = by ? by.k : "H",
+					rd = (v) => Math.round(v * 100) / 100,
+					dur = rd(Math.max(0.9, Math.min(1.8, (e.z - this.towGoal(W, who).z) / 40)));
+				e.tow = { pull: W.t + 0.3, dur, who };
+				e.f.tw = [rd(W.t), rd(W.t + 0.3), dur, who];
+				this.letGo(W, e, "towed");
+				mgLog(
+					W,
+					`${mgName(e)} towed up from ${Math.round(e.z - T.z)} m behind by ${by ? mgName(by) : "the helicopter"}`,
+				);
+				return false;
+			}
+			if (W.t < w.pull) return false;
+			const G = this.towGoal(W, w.who),
+				k = Math.min(1, (W.t - w.pull) / w.dur);
+			if (w.x0 === undefined) {
+				w.x0 = e.x;
+				w.dz0 = e.z - G.z;
+			}
+			/* eased along, relative to the goal (it moves at highway speed); the height is drawn from e.f.tw in towFx */
+			const s = k * k * (3 - 2 * k),
+				nx = w.x0 + (G.x - w.x0) * s,
+				nz = G.z + w.dz0 * (1 - s),
+				st = Math.max(dt, 0.001);
+			e.vx = (nx - e.x) / st;
+			e.vz = (nz - e.z) / st;
+			e.x = nx;
+			e.z = nz;
+			e.yaw = lerpA(e.yaw, Math.PI / 2, Math.min(1, dt * 6));
+			e.f.t = Math.round(W.t * 100) / 100;
+			if (k >= 1) {
+				e.tow = null;
+				e.towEnd = W.t;
+				e.vx = 0;
+				e.vz = G.vz;
+				e.hpCd = Math.max(e.hpCd || 0, W.t + this.TOWCD);
+				e.abCd = Math.max(e.abCd || 0, W.t + this.TOWCD);
+				W.tows = (W.tows || 0) + 1;
+				mgLog(W, `${mgName(e)} lands from the tow ${Math.round(e.z - T.z)} m behind the truck`);
+			}
+			return true;
+		},
+		/* where a tow lands: TOWB m behind the towing cop, or from the helicopter a lane to the side of the cash truck (towards
+		   the middle of the road); never closer than TOWHB m behind the truck (out of harpoon reach: the tow is no shortcut) */
+		towGoal(W, who) {
+			const T = this.solo(W),
+				m = who !== "H" && W.ents[who];
+			if (m && !m.gone && m.z + this.TOWB > T.z + this.TOWHB)
+				return { x: m.x, z: m.z + this.TOWB, vz: m.vz || T.vz || -20 };
+			if (m && !m.gone) return { x: m.x, z: T.z + this.TOWHB, vz: T.vz || -20 };
+			const z = T.z + this.TOWHB,
+				[lo, hi] = this.edges(z);
+			return {
+				x: Math.max(lo + 1.5, Math.min(hi - 1.5, T.x + (T.x > (lo + hi) / 2 ? -1 : 1) * this.LW)),
+				z,
+				vz: T.vz || -20,
+			};
+		},
+		/* a cop on a tow (from the shot; air = only while it flies) */
+		towing(W, o, air) {
+			const w = o.f && o.f.tw;
+			return !!(w && W.t >= (air ? w[1] : w[0]) && W.t < w[1] + w[2]);
+		},
 		/* the engine's truck-to-truck pushes leave the cash truck and the cop its claw has alone (it holds it right against
-		   its nose) */
+		   its nose), and a cop flying on a tow */
 		noCollide(W, a, b) {
+			if (this.towing(W, a, 1) || this.towing(W, b, 1)) return true;
 			const T = this.solo(W),
 				sr = T && T.f && T.f.sr,
 				c = a === T ? b : b === T ? a : null;
@@ -39330,7 +39446,8 @@ Object.assign(MG, {
 				}
 				/* oil slicks */
 				(tf.oil || []).forEach(([id, x, z, t]) => {
-					if (W.t - t > this.OILT || e.oilHit[id] || Math.hypot(e.x - x, e.z - z) > this.OILR) return;
+					if (W.t - t > this.OILT || e.oilHit[id] || Math.hypot(e.x - x, e.z - z) > this.OILR || this.towing(W, e, 1))
+						return;
 					e.oilHit[id] = 1;
 					e.spinT = W.t + 1.1;
 					e.vz *= 0.6;
@@ -39375,22 +39492,32 @@ Object.assign(MG, {
 		/* cameras: yours from behind and above, looking up the road; the TV follows the whole pack */
 		cam(W, tgt, pos, far) {
 			if (W.tv) {
-				/* the chase is about the cash truck: the trucks within 25 m ahead of it to 60 m behind it (a cop racing far
-				   ahead or a straggler far back drops out of the shot, the truck never does) */
+				/* the chase is about the cash truck: the trucks within TVA m ahead of it to TVB m behind it (a cop racing far
+				   ahead or a straggler far back drops out of the shot with a pill at the screen's edge, edgePill; the truck
+				   never does; was 25 / 60 m, and a cop that far back gets towed up: TOWZ) */
 				const T = this.solo(W),
-					L = W.list.filter((e) => !e.gone && (!T || (e.z > T.z - 25 && e.z < T.z + 60))),
+					L = W.list.filter((e) => !e.gone && (!T || (e.z > T.z - this.TVA && e.z < T.z + this.TVB))),
 					zs = (L.length ? L : W.list).map((e) => e.z),
 					z0 = Math.min(...zs),
 					z1 = Math.max(...zs),
 					sp = z1 - z0;
 				/* a fixed tilt (35 degrees down) at the middle of the pack, pulled back as its length grows (hl = half the
-				   pack) so both ends stay in view */
-				const hl = Math.min(sp / 2 + 6, 48),
+				   pack, up to TVHL) so both ends stay in view; a longer lens (TVFOV, was 40) from further back keeps the
+				   framing but flattens the depth, so the trucks far up the road (the cash truck) draw bigger; the haze moves
+				   back with the camera so the pack stays clear of it */
+				const hl = Math.min(sp / 2 + 6, this.TVHL),
 					zc = (z0 + z1) / 2,
 					a = 0.62,
-					D = Math.max(26, hl * 2 + 6),
+					D = (Math.max(26, hl * 2 + 6) * Math.tan((20 * Math.PI) / 180)) / Math.tan((this.TVFOV * Math.PI) / 360),
 					t = new THREE.Vector3(0, 0, zc),
 					p = new THREE.Vector3(0, D * Math.sin(a), zc + D * Math.cos(a));
+				camFov(this.TVFOV);
+				const fog = W.sc.fog;
+				if (fog) {
+					if (W.hz0 === undefined) W.hz0 = fog.near;
+					fog.near = W.hz0 + Math.max(0, D - 30);
+					fog.far = fog.near + W.hz0 * 2.8;
+				}
 				return [t, p];
 			}
 			const e = W.me,
@@ -39402,6 +39529,7 @@ Object.assign(MG, {
 		/* visuals: traffic moving, the bags on the truck's roof, light bars on the cops, oil slicks, lost bags */
 		render(W, e, dt) {
 			this.scene(W, dt);
+			this.edgePill(W, e);
 			const f = e.f || {};
 			this.truckLights(W, e);
 			/* grinding along the guardrail: sparks (and a grind for your own truck) */
@@ -39528,6 +39656,7 @@ Object.assign(MG, {
 				}
 			} else {
 				if (!e.bar) e.bar = this.copBar(e.tr);
+				this.towFx(W, e);
 				this.harpoonFx(W, e);
 				this.spearFx(W, e);
 				/* ahead of the cash truck with the button ready, it drops spikes: a mini SPIKES button by the truck says so
@@ -40135,6 +40264,107 @@ Object.assign(MG, {
 				if (h[2] && (this.heard(W, c) || T.isMe)) sfxPack("hit", 0.6);
 			}
 			if (v.clank && v.clank !== h[0]) v.clank = 0;
+		},
+		/* the TV: a truck off the top or bottom of the screen gets a pill at that edge, above its own spot across the road, in
+		   its colour, with its name and how far it is behind (▼) or ahead of (▲) the cash truck */
+		edgePill(W, e) {
+			const cam = W.cam,
+				T = this.solo(W);
+			let show = false;
+			if (W.tv && cam && T && e !== T && !e.gone && W.t > 0) {
+				const p = new THREE.Vector3(e.x, 1, e.z).project(cam);
+				if (Math.abs(p.y) > 1.02 && p.z < 1) {
+					const back = e.z > T.z,
+						d = Math.round(Math.abs(e.z - T.z));
+					/* walk along its line up / down the road to where it meets the screen edge */
+					let a = e.z,
+						b = GFX.mgCam ? GFX.mgCam.t.z : T.z;
+					for (let k = 0; k < 14; k++) {
+						const m = (a + b) / 2;
+						if (Math.abs(new THREE.Vector3(e.x, 1.2, m).project(cam).y) > 0.84) a = m;
+						else b = m;
+					}
+					if (!e.pill) {
+						e.pill = pillSprite();
+						W.sc.add(e.pill.sp);
+					}
+					e.pill.set(`${e.p.name} ${d} m ${back ? "▼" : "▲"}`, pcol(e.p));
+					e.pill.sp.position.set(e.x, 1.2, b);
+					/* the same size on screen whatever the lens */
+					const h =
+						(cam.position.distanceTo(e.pill.sp.position) * 0.035 * Math.tan((cam.fov * Math.PI) / 360)) /
+						Math.tan((20 * Math.PI) / 180);
+					e.pill.sp.scale.set(h * 3, h, 1);
+					show = true;
+				}
+			}
+			if (e.pill) e.pill.sp.visible = show;
+		},
+		/* a tow (e.f.tw = [shot, pull, dur, who]): the line flies out from the towing cop's harpoon gun (or the helicopter's
+		   winch) to the towed cop's roof in 0.3 s and holds it while it's slung up the road TOWH m high, dust where it lands */
+		towFx(W, c) {
+			const w = c.f && c.f.tw;
+			W.twV = W.twV || {};
+			let v = W.twV[c.k];
+			if (w && W.t >= w[1] + w[2] && W.t < w[1] + w[2] + 0.5 && c.twSeen !== w[0]) {
+				c.twSeen = w[0];
+				burst(W.sc, c.x, 0.4, c.z, {
+					n: 14,
+					shape: "ico",
+					cols: ["#9DA0A6", "#C9CED8"],
+					spd: 4,
+					up: 3,
+					grav: 12,
+					life: 0.6,
+					size: 1.1,
+				});
+				if (this.heard(W, c)) sfx("land");
+			}
+			const on = !!(w && W.t >= w[0] && W.t < w[1] + w[2] && !c.gone);
+			if (!on) {
+				if (v) v.line.visible = v.head.visible = false;
+				return;
+			}
+			if (!v) {
+				v = W.twV[c.k] = {
+					line: mesh(new THREE.CylinderGeometry(0.035, 0.035, 1, 5), "#2E323A"),
+					head: Cy(0, 0.12, 0.34, 6, "#FFC83D", 0, 0, 0),
+				};
+				W.sc.add(v.line, v.head);
+			}
+			if (v.shot !== w[0]) {
+				v.shot = w[0];
+				v.up = false;
+				if (this.heard(W, c)) sfxPack("whip");
+			}
+			const k = (W.t - w[1]) / w[2];
+			if (k >= 0) {
+				if (!v.up) {
+					v.up = true;
+					if (this.heard(W, c)) sfxPack("jump");
+				}
+				c.g.position.y += Math.sin(k * Math.PI) * this.TOWH;
+				c.tr.rotation.z += Math.sin(k * Math.PI * 2) * 0.3;
+			}
+			const m = w[3] !== "H" && W.ents[w[3]],
+				H = W.heli,
+				a = new THREE.Vector3();
+			if (m && m.bar) {
+				m.tr.updateMatrixWorld(true);
+				m.bar.tip.getWorldPosition(a);
+			} else if (m) a.set(m.x, 2, m.z);
+			else if (H) a.set(H.p.x, H.p.y - 0.9, H.p.z);
+			else a.set(c.x, 12, c.z - 20);
+			const roof = new THREE.Vector3(c.x, c.g.position.y + 1.8, c.z),
+				b = k < 0 ? a.clone().lerp(roof, Math.min(1, (W.t - w[0]) / Math.max(0.05, w[1] - w[0]))) : roof,
+				d = b.clone().sub(a),
+				len = Math.max(0.01, d.length());
+			v.line.visible = v.head.visible = true;
+			v.line.position.copy(a).addScaledVector(d, 0.5);
+			v.line.scale.y = len;
+			v.line.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.clone().normalize());
+			v.head.position.copy(b);
+			v.head.quaternion.copy(v.line.quaternion);
 		},
 		/* a bag knocked off the truck: thrown from where it sat, it tumbles, bounces and lies on the road a while (only for
 		   show: nobody picks it up) */
@@ -41129,7 +41359,7 @@ Object.assign(MG, {
 		watchSum(W) {
 			const T = this.solo(W);
 			return T
-				? `cash truck: ${T.f.bg} bags${T.f.esc ? ", escaped" : ""}, at ${Math.round(-T.z)} m; cops in front of it ${Math.round(W.blockT || 0)} s, a cop got up to ${Math.round(W.maxAhead || 0)} m ahead; s far behind / behind / alongside / ahead: ${Object.entries(
+				? `cash truck: ${T.f.bg} bags${T.f.esc ? ", escaped" : ""}, at ${Math.round(-T.z)} m; cops in front of it ${Math.round(W.blockT || 0)} s, ${W.tows || 0} tows, a cop got up to ${Math.round(W.maxAhead || 0)} m ahead; s far behind / behind / alongside / ahead: ${Object.entries(
 						W.copT || {},
 					)
 						.map(([k, q]) => `${k} ${q.map(Math.round).join("/")}`)
