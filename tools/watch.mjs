@@ -42,7 +42,7 @@ for (let r = 1; r <= runs; r++) {
 		/* drive the player's truck: the CPU brain, a human stand-in (reaction lag), or nothing */
 		const q = [];
 		window.__drv = setInterval(() => {
-			if (!W || W.t < 0 || W.me.d || as === "idle" || !W.def.bot) return;
+			if (!W || W.prac || W.t < 0 || W.me.d || as === "idle" || !W.def.bot) return;
 			if (as === "human" && W.me.cs === undefined) W.me.cs = 0.5;
 			const fn = as === "human" && W.def.humanBot ? W.def.humanBot : W.def.bot,
 				o = fn.call(W.def, W, W.me, 0.05);

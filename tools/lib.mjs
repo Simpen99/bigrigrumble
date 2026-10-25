@@ -57,7 +57,21 @@ export async function openGame(browser, { width = 390, height = 844, mobile = fa
 	await p.route(/peerjs/, (r) => r.fulfill({ body: peerjs, contentType: "text/javascript" }));
 	await p.route(/qrcode/, (r) => r.fulfill({ body: "", contentType: "text/javascript" }));
 	if (before) await before(p);
-	await p.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
+	/* web fonts are blocked (no waiting on the network); FONTS=1 fetches them in node for screenshots that should show the real look */
+	await p.route(/fonts\.(googleapis|gstatic)\.com/, async (r) => {
+		if (!process.env.FONTS) return r.abort();
+		try {
+			const q = r.request(),
+				res = await fetch(q.url(), { headers: { "user-agent": q.headers()["user-agent"] } });
+			await r.fulfill({
+				status: res.status,
+				body: Buffer.from(await res.arrayBuffer()),
+				contentType: res.headers.get("content-type") || "",
+			});
+		} catch (e) {
+			await r.abort();
+		}
+	});
 	await p.goto("file://" + path.join(ROOT, "dist/index.html"), { timeout: 90000 });
 	await p.waitForFunction(() => typeof GFX !== "undefined" && GFX.ok, null, { timeout: 90000 });
 	await p.evaluate(() => {

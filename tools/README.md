@@ -28,3 +28,4 @@ cd tools && npm i            # once: playwright + three@0.128.0 (served instead 
 that face +x in `faceZ(...)` (the `trucks` preset does) and ones that face +z in `turn(...)` (`houses`, `buildings`).
 
 Options: `--out name.png` for rig/check/sheet. Set `CHROMIUM=/path/to/chrome` if Playwright's own browser is not installed.
+Web fonts are blocked so pages load without the network; `FONTS=1` fetches them through node (for screenshots that should show the real look).

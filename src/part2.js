@@ -1243,11 +1243,16 @@ function stepPodium(dt) {
 }
 function gfxResize() {
 	if (!GFX.ok) return;
-	const w = innerWidth,
-		h = innerHeight;
+	/* the minigame ready screen draws the game in a window: the canvas moves under its frame (GFX.rdy, rdyFit in part4a) */
+	const R = GFX.mode === "mg" && GFX.rdy,
+		w = R ? R.w : innerWidth,
+		h = R ? R.h : innerHeight,
+		cs = GFX.r.domElement.style;
 	GFX.w = w;
 	GFX.h = h;
 	GFX.r.setSize(w, h, false);
+	if (R) Object.assign(cs, { left: R.x + "px", top: R.y + "px", width: w + "px", height: h + "px" });
+	else if (cs.left) Object.assign(cs, { left: "", top: "", width: "", height: "" });
 	GFX.cam.aspect = w / h;
 	const oy =
 		GFX.mode === "board" ? h * (w > h ? 0.1 : 0.2) : GFX.mode === "mg" ? 0 : GFX.mode === "podium" ? h * 0.2 : h * 0.28;
@@ -1304,6 +1309,13 @@ function frame(t) {
 		return;
 	}
 	if (GFX.mode === "mg") {
+		/* the ready screen: the canvas under the window frame, and the practice world's swaps */
+		try {
+			rdyFit();
+			pracCheck();
+		} catch (e) {
+			console.error(e);
+		}
 		if (TVS) {
 			try {
 				tvsFrame();

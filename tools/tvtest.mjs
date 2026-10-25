@@ -5,14 +5,14 @@
    - phone controller: layout that changes during the game (e.g. something redrawing the controls), buttons partly off
      screen, smaller than 44 px or covering each other
    - TV camera: trucks off screen, and how big a truck is on the TV (share of the view's height); on the ready
-     screen, trucks hidden under the intro card or the ready panel
+     screen, trucks outside the practice window or under its clock and "Practice time!" tag
    - screens that never reach the results, page errors on any device
    node tools/tvtest.mjs sort                 2 phones + 1 CPU
    node tools/tvtest.mjs mash --phones 3 --cpu 1 --lag 80
    --screen adds a linked big screen (another PC joining as a screen) and pairs the last phone to it; it reports
    the minigame worlds each screen runs, how far apart the two screens draw the same truck, and whether the screen's
    player gets a result
-   --early stops after the first in-game screenshots; --ready only checks the ready screen (trucks under the intro card / ready panel) and stops; --no-shots skips
+   --early stops after the first in-game screenshots; --ready only checks the ready screen (trucks outside the practice window or under its clock / tag) and stops; --no-shots skips
    the contact sheet; --probe "<js>" prints that expression, evaluated on the TV, once a second (--sprobe: on the linked screen, --pprobe: on the last phone, --rprobe: on the TV at the ready screen)
    (e.g. --probe "TVS.worlds.map((s) => s.W.me.sc)"). --snap N saves a TV screenshot every N s of game time, --snapif "<js>"
    one whenever that expression is true on the TV (at most every 1.5 s); TVW / TVH env = the TV's size (default 960 x 540). */
@@ -253,11 +253,14 @@ await TV.p.waitForTimeout(800);
 await shoot("1ready");
 /* --rprobe "<js>": that expression, evaluated on the TV at the ready screen */
 if (opt.rprobe) console.log(`  ready probe: ${await TV.p.evaluate((x) => { try { return JSON.stringify((0, eval)(x)); } catch (e) { return String(e); } }, opt.rprobe)}`);
-/* the ready screen: no truck may hide under the intro card or the ready panel (the camera settles first) */
+/* the ready screen: the practice run shows in its window (the canvas, GFX.rdy); every truck should be in the window and not
+   under its clock or the "Practice time!" tag (the camera settles first) */
 await new Promise((r) => setTimeout(r, 2500));
 const covered = await TV.p.evaluate(() => {
-	const fw = innerWidth,
-		fh = innerHeight,
+	if (!document.getElementById("rdywin") || !GFX.rdy) return [["the ready screen's practice window is missing"], []];
+	const R = GFX.rdy,
+		fw = R.w,
+		fh = R.h,
 		views = [];
 	if (typeof TVS !== "undefined" && TVS) {
 		if (TVS.mode === "grid") {
@@ -270,9 +273,9 @@ const covered = await TV.p.evaluate(() => {
 				r: TVS.mode === "dyn" ? [0, 0, fw / 2, fh] : [0, 0, fw, fh],
 			});
 	} else if (W) views.push({ cam: W.cam, list: W.list, r: [0, 0, fw, fh] });
-	const boxes = [...document.querySelectorAll("#mg .m3intro, #mg .m3ready")]
-		.filter((el) => !el.hidden && el.offsetParent !== null)
-		.map((el) => [el.classList.contains("m3intro") ? "intro card" : "ready panel", el.getBoundingClientRect()]);
+	const boxes = [...document.querySelectorAll("#mg .rdy-clk, #mg .rdy-prac")]
+		.filter((el) => el.getClientRects().length)
+		.map((el) => [el.classList.contains("rdy-clk") ? "practice clock" : "Practice time! tag", el.getBoundingClientRect()]);
 	const out = new Set(),
 		dbg = [
 			fw,
@@ -285,9 +288,12 @@ const covered = await TV.p.evaluate(() => {
 		v.list.forEach((e) => {
 			if (!e || e.gone || !e.g.visible) return;
 			const c = new THREE.Vector3(e.x, (e.y || 0) + 0.8, e.z).project(v.cam);
-			if (Math.abs(c.x) > 1 || Math.abs(c.y) > 1 || c.z > 1) return;
-			const px = v.r[0] + ((c.x + 1) / 2) * v.r[2],
-				py = v.r[1] + ((1 - c.y) / 2) * v.r[3];
+			if (Math.abs(c.x) > 1 || Math.abs(c.y) > 1 || c.z > 1) {
+				out.add(`${e.p.name} is outside the practice window`);
+				return;
+			}
+			const px = R.x + v.r[0] + ((c.x + 1) / 2) * v.r[2],
+				py = R.y + v.r[1] + ((1 - c.y) / 2) * v.r[3];
 			dbg.push([e.p.name, Math.round(px), Math.round(py)]);
 			boxes.forEach(([n, b]) => {
 				if (px > b.left && px < b.right && py > b.top && py < b.bottom) out.add(`${e.p.name} is under the ${n}`);
@@ -316,7 +322,7 @@ const scDrift = [];
 
 /* the TV side: every truck's spot on the TV and its size (truck length as a share of the view height) */
 const TVSAMPLE = () => {
-	if (!W || W.t < 0.5 || !G || G.phase !== "minigame") return null;
+	if (!W || W.prac || W.t < 0.5 || !G || G.phase !== "minigame") return null;
 	const views = [];
 	if (typeof TVS !== "undefined" && TVS) {
 		if (TVS.mode === "shared" && TVS.scam) views.push({ cam: TVS.scam, list: TVS.worlds.map((s) => s.W.me) });

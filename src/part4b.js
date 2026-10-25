@@ -725,6 +725,11 @@ const MG = {
 		fallY: -5,
 		MUD: -2.2,
 		BOWL: 17 /* the bowl wall radius: everything round the stage scales with it (Monster Mash uses a bigger one) */,
+		/* the ready screen's controls panel: [icon or button label, what it does, small print] */
+		controls: [
+			["stick", "Drive"],
+			["RAM", "Charge into a rival"],
+		],
 		how: "Ram everyone off the stage into the mud. The stage shrinks! Last truck standing wins.",
 		R: (t) => (t < 20 ? 11 : Math.max(5, 11 - (t - 20) * 0.15)),
 		/* baked props, also called by enterMg while the clouds cover the switch so their AO is ready by the start (partmodels) */
@@ -1154,6 +1159,11 @@ const MG = {
 		dur: 45,
 		bound: { t: "sq", h: 11 },
 		water: false,
+		/* the ready screen's controls panel: [icon or button label, what it does, small print] */
+		controls: [
+			["stick", "Drive"],
+			["RAM", "Knock a rival's coins loose"],
+		],
 		how: "Grab the falling coins. Ram rivals to knock theirs loose.",
 		loot: true,
 		build(W) {
@@ -1230,6 +1240,11 @@ const MG = {
 				: "Left side drives. Drag on the right side to aim and spray the hose.",
 		NEED: 2,
 		HOSE: 6,
+		/* the ready screen's controls panel: [icon or button label, what it does, small print] */
+		controls: [
+			["stick", "Drive", "Left side"],
+			["aim", "Aim and spray", "Right side"],
+		],
 		how: "Put out the fires with your roof hose and refill at the hydrants. Most fires wins.",
 		HYD: [
 			[0, -12.7],
@@ -1961,6 +1976,11 @@ const MG = {
 		deathY: -0.95,
 		sun: [13.9, 26, 12.1],
 		fx: { col: 0.14 },
+		/* the ready screen's controls panel: [icon or button label, what it does, small print] */
+		controls: [
+			["stick", "Drive"],
+			["RAM", "Boost", "Hops you over a gap"],
+		],
 		how: "Slabs crack and sink after you drive on them. Keep moving; RAM into a gap hops you across. Last one up wins.",
 		/* baked props, also called by enterMg while the clouds cover the switch so their AO is ready by the start (partmodels) */
 		kits() {
@@ -2476,6 +2496,11 @@ const MG = {
 		bare: true,
 		FLOOR: -38,
 		fallY: -40,
+		/* the ready screen's controls panel: [icon or button label, what it does, small print] */
+		controls: [
+			["stick", "Drive"],
+			["RAM", "Ram a rival"],
+		],
 		how: "Dodge the falling boulders. Watch their shadows! Last truck standing wins.",
 		sun: [3, 60, 2.5],
 		build(W) {
@@ -3021,6 +3046,11 @@ const MG = {
 			fill: ["#7FA8E8", "#9A7A55"],
 			sky: ["#3F72BE", "#93B9DE", "#F8C98F"],
 		},
+		/* the ready screen's controls panel: [icon or button label, what it does, small print] */
+		controls: [
+			["stick", "Drive"],
+			["RAM", "Knock cones off a roof"],
+		],
 		how: "Grab cones (gold = 3) and park on your pad to bank them. Rams knock loose the cones on a roof!",
 		dropY: 0,
 		S: 16,
@@ -3834,6 +3864,11 @@ const MG = {
 		tvHint:
 			"Charge the burnout: tap your phone when your dial hits the green, 5 times. After 3-2-1-TAP: tap as fast as you can!",
 		tapHint: "Charge: tap when the needle is in the green (5 times). After 3-2-1-TAP tap as fast as you can.",
+		/* the ready screen's controls panel: [icon or button label, what it does, small print] */
+		controls: [
+			["tap", "Charge the burnout", "Tap in the green, 5 times"],
+			["mash", "Mash to the line", "After 3-2-1-TAP"],
+		],
 		how: "Charge a burnout by tapping in the green, then mash to the line. A red resets your charge!",
 		/* 3-2-1, then the charge: 5 steps of STEP s, then HOLD s of 3-2-1-TAP (TAP on the song's GO); each step the needle sweeps up (faster every step) and one tap
 		   grades it: PERFECT (green band) +1 charge, good (amber edges) +0.6, early +0, red (past the zone, or no tap
@@ -4447,6 +4482,8 @@ const MG = {
 		dur: 45,
 		bare: true,
 		LEN: 110,
+		/* the ready screen's controls panel: [icon or button label, what it does, small print] */
+		controls: [["GAS", "Hold to drive", "Let go before red"]],
 		how: "Hold to drive on green, let go before red or the lorry gets you. First to the finish wins.",
 		tapHint: "Hold the pedal (or Space) to drive.",
 		/* baked props, also called by enterMg while the clouds cover the switch so their AO is ready by the start (partmodels) */
@@ -4841,6 +4878,11 @@ const MG = {
 		HOME: 4,
 		ZONE: 2.5,
 		MAXL: 6,
+		/* the ready screen's controls panel: [icon or button label, what it does, small print] */
+		controls: [
+			["GO", "Reverse once loaded"],
+			["BRAKE", "Stop near the edge"],
+		],
 		how: "Wait for a big load, reverse to the edge and brake as close as you dare. Don't fall in!",
 		tapHint: "Tap GO when loaded, BRAKE near the edge.",
 		/* baked props, also called by enterMg while the clouds cover the switch so their AO is ready by the start (partmodels) */
@@ -5654,6 +5696,11 @@ const MG = {
 		LANES: 4,
 		LW: 3.6,
 		CARV: 6,
+		/* the ready screen's controls panel: [icon or button label, what it does, small print] */
+		controls: [
+			["swipeh", "Change lanes"],
+			["flick", "Jump"],
+		],
 		how: "Dodge traffic, jump potholes, grab parcels. Most parcels wins.",
 		tapHint: "◀ ▶ to change lanes, Jump for potholes.",
 		swipe: { l: 0, u: 1, r: 2 },
@@ -5963,6 +6010,12 @@ const MG = {
 		tvHint: "Tap either side to lock the power. In the air: hold LEFT to tilt back, RIGHT to tilt forward.",
 		LAND: 0.75,
 		tapHint: "Tap either button to lock the power. In the air: hold ◀ to tilt back, ▶ to tilt forward (arrow keys).",
+		/* the ready screen's controls panel: [icon or button label, what it does, small print] */
+		controls: [
+			["tap", "Lock the power"],
+			["BACK", "Hold: tilt back"],
+			["FORWARD", "Hold: tilt forward"],
+		],
 		how: "Lock in the power, then keep your truck level in the air. Land level to bounce on; furthest wins.",
 		/* pop-ups start above the gauge (gauge centre 3.5 over the truck, power bar top ~4.4) */
 		POPH: 4.6,
@@ -6327,6 +6380,12 @@ const MG = {
 		slideHint: "Slide ◀ ▶ to move the crane",
 		tvHint: "Slide on the left to move the crane. Right side: DROP (bottom) and ROTATE (top).",
 		tapHint: "Slide to move the crane, DROP to let go, ROTATE turns the piece (keys: ◀ ▶, Space, R).",
+		/* the ready screen's controls panel: [icon or button label, what it does, small print] */
+		controls: [
+			["slide", "Move the crane"],
+			["DROP", "Let go"],
+			["ROTATE", "Turn the piece"],
+		],
 		how: "Build the tallest tower on your truck from what the crane brings. Tall and thin wobbles: a wide base holds!",
 		CC: ["#E5484D", "#2F7DE1", "#FF8A1F", "#1FA35C", "#FFC83D", "#8E96A3", "#1FB5A8", "#B5622F"],
 		/* the pieces, as rectangles [cx, cy, w, h] around the bounding box centre (side view: x across the lane, y up),

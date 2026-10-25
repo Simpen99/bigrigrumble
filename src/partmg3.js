@@ -33,6 +33,11 @@ Object.assign(MG, {
 		dusk: true,
 		fallY: -6,
 		LOCK: 0.9,
+		/* the ready screen's controls panel: [icon or button label, what it does, small print] */
+		controls: [
+			["stick", "Drive"],
+			["RAM", "Bump to pass the dynamite"],
+		],
 		how: "Bump a rival to pass the dynamite on. Whoever holds it when it blows is out!",
 		build(W) {
 			const s = W.sc,
@@ -891,6 +896,11 @@ Object.assign(MG, {
 			fill: ["#86AEEA", "#8E7A62"],
 			sky: ["#3D73C2", "#98BEE2", "#F6D2A0"],
 		},
+		/* the ready screen's controls panel: [icon or button label, what it does, small print] */
+		controls: [
+			["stick", "Drive"],
+			["BOOST", "Speed boost"],
+		],
 		how: "Loop out of your paint and back to fill everything inside. Cross a rival's open trail to wash it away!",
 		kits() {
 			this.canKits();
@@ -1822,6 +1832,11 @@ Object.assign(MG, {
 		sun: [0, 9, 31.6],
 		lt: { amb: 0.84, sun: 0.44, warm: 0.28, haze: 70 },
 		fx: { col: 0.06 },
+		/* the ready screen's controls panel: [icon or button label, what it does, small print] */
+		controls: [
+			["◀ ▶", "Move the magnet", "Then steer as you fall"],
+			["HOP", "Pop off the pegs"],
+		],
 		how: "3 rounds, everyone drops at once, a new board every round. Steer and hop your ball into the best slot, catch the sliding ×3!",
 		tvHint:
 			"Before the drop: LEFT / RIGHT move your magnet. Falling: LEFT / RIGHT steer, HOP (right half) pops you off pegs.",
@@ -3506,6 +3521,12 @@ Object.assign(MG, {
 		sun: [0, 9, 31.6],
 		lt: { amb: 0.84, sun: 0.44, warm: 0.28, haze: 70 },
 		fx: { col: 0.06 },
+		/* the ready screen's controls panel: [icon or button label, what it does, small print] */
+		controls: [
+			["pad", "Plan: hide traps", "Tap a gap on a rival's board"],
+			["◀ ▶", "Steer"],
+			["HOP", "Pop off the pegs"],
+		],
 		how: "Every round: hide traps on a rival's board (wall off their way to the ×2 and SPLIT gates, plant a fake ×2, mine their pegs), then everyone drops. Traps stay hidden until hit; you score from your slots, plus points for every trap your rival hits!",
 		tvHint:
 			"Planning: your phone shows your rival's board: pick a trap, tap a gap. Playing: LEFT / RIGHT move and steer, HOP on the right half.",
@@ -5978,6 +5999,19 @@ Object.assign(MG, {
 			fill: ["#8A95D8", "#5A4535"],
 			sky: ["#232D57", "#9E5876", "#EE925C"],
 		},
+		/* the ready screen's controls panel: [icon or button label, what it does, small print] */
+		controls: (side) =>
+			side === 0
+				? [
+						["stick", "Drive and aim"],
+						["FIRE", "Shoot tyres"],
+						["POUND", "Ground pound"],
+					]
+				: [
+						["stick", "Drive", "Carry TNT into the monster"],
+						["DASH", "Dash", "Breaks free of the magnet"],
+					],
+		sides: ["Monster", "Survivors"],
 		how: "Boss fight! Drive TNT into the monster to knock it out, or survive to win as a team.",
 		teamHow: (s) =>
 			s === 0
@@ -7694,6 +7728,21 @@ Object.assign(MG, {
 		OILCD: 8 /* was 7, then 9 */,
 		OILT: 8,
 		OILR: 1.9,
+		/* the ready screen's controls panel: [icon or button label, what it does, small print] */
+		controls: (side) =>
+			side === 0
+				? [
+						["stick", "Drive", "Up: faster, down: brake"],
+						["OIL", "Oil slick"],
+						["SLAM", "Shockwave"],
+						["CLAW", "Grab a cop"],
+					]
+				: [
+						["stick", "Drive", "Up: faster, down: brake"],
+						["HARPOON", "Hook the truck", "Ahead of it: spikes"],
+						["TRICK", "Your truck's trick"],
+					],
+		sides: ["Cash truck", "Cops"],
 		how: "1 vs 3 highway chase! The cash truck has to reach the tunnel with any cash left; the cops harpoon it from close behind or get ahead and drop spikes to knock the money bags off.",
 		teamHow: (s) =>
 			s === 0

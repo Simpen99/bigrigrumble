@@ -62,6 +62,11 @@ Object.assign(MG, {
 		hi: true,
 		unit: "pts",
 		dur: 60,
+		/* the ready screen's controls panel: [icon or button label, what it does, small print] */
+		controls: [
+			["slide", "Move the cone"],
+			["flick", "Serve", "Flick up"],
+		],
 		how: "Catch the flying scoops on your cone and serve it: bigger cones pay more. Don't jerk the tower, and dodge the seagull's fish!",
 		tapHint: "Slide your finger to move the cone, flick up (or SERVE) to sell it. Keyboard: ◀ ▶ and Enter.",
 		/* TV controller: the whole phone is a slide pad (finger position = cone position), a flick up serves */
@@ -1511,6 +1516,8 @@ Object.assign(MG, {
 			fill: ["#7FA8E8", "#6E8A70"],
 			sky: ["#4A8BD6", "#A0D2F0", "#E2F2F4"],
 		},
+		/* the ready screen's controls panel: [icon or button label, what it does, small print] */
+		controls: [["swipe", "Swipe toward the bin"]],
 		how: "Send each piece of trash to the right bin. Wrong bin costs points.",
 		tapHint: "Tap a bin, or use the arrow keys / WASD.",
 		/* TV controller: swipe toward the bin (button order in ctlHTML: metal, plastic, compost, wood) */
@@ -1789,6 +1796,11 @@ Object.assign(MG, {
 		dur: 45,
 		bare: true,
 		night: true,
+		/* the ready screen's controls panel: [icon or button label, what it does, small print] */
+		controls: [
+			["tap", "Ingredients in order"],
+			["hold", "Salsa and cheese: hold", "Let go in the green"],
+		],
 		how: "Build each taco to match the order. Faster tacos score more.",
 		tapHint: "Tap ingredients in order. Hold salsa and cheese, let go in the green.",
 		ORDER: ["tortilla", "meat", "beans", "lettuce", "salsa", "cheese"],
@@ -2309,6 +2321,11 @@ Object.assign(MG, {
 		bare: true,
 		storm: true,
 		sun: [15.8, 14, 9.5],
+		/* the ready screen's controls panel: [icon or button label, what it does, small print] */
+		controls: [
+			["stick", "Drive"],
+			["RAM", "Steal a towed car"],
+		],
 		how: "Tow each stuck car to the garage of its colour. Ram a towing truck to steal its car.",
 		GAR: [
 			[0, -15.4, "#E5484D", "RED"],
@@ -3405,6 +3422,11 @@ Object.assign(MG, {
 			[0, 9],
 		],
 		ZR: [2.6, 6.2],
+		/* the ready screen's controls panel: [icon or button label, what it does, small print] */
+		controls: [
+			["stick", "Drive", "Turn hard to drift"],
+			["RAM", "Steal a rival's combo"],
+		],
 		how: "Chain drifts for a multiplier, the rings score double. Crashing loses your combo, and a ram steals it.",
 		build(W) {
 			const s = W.sc,
@@ -3845,6 +3867,11 @@ Object.assign(MG, {
 		ramSlide: 0.55,
 		ramKeep: true,
 		canRam: (e) => !e.f || (e.f.bl || 0) < 4,
+		/* the ready screen's controls panel: [icon or button label, what it does, small print] */
+		controls: [
+			["stick", "Drive"],
+			["DRIFT", "Hold while turning", "Let go to boost"],
+		],
 		how: "One big lap, first home wins. Drift through the corners and let go for a boost.",
 		LOOP: [73, 10],
 		PIN: [34, 62],

@@ -4745,7 +4745,8 @@ addEventListener("keydown", (e) => {
 	if (!inMgNow && GFX.mode === "board" && k.startsWith("arrow")) e.preventDefault();
 	KEYS.add(k);
 	if (e.repeat || !inMgNow) return;
-	const rb = $("#m3rb"),
+	/* Enter / Space: I'm ready (phone mode), or the TV's START */
+	const rb = $("#m3rb") || $("#m3rs"),
 		rd = $("#m3r");
 	if ((k === " " || k === "enter") && rb && !rb.disabled && rd && !rd.hidden) {
 		rb.click();
