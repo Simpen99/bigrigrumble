@@ -9276,6 +9276,10 @@ Object.assign(MG, {
 			if (e.side === 0) return `💰 ${e.local ? e.bags : e.f && e.f.bg !== undefined ? e.f.bg : this.BAGS}`;
 			return `+${Math.round(e.sc)} 💰`;
 		},
+		/* the top chip: the cash truck's bags still on, a cop's bags knocked off (its score is only 1000 + bags at the end) */
+		fmt(W, e) {
+			return e.side === 0 ? `${e.bags} 💰 left` : `${Math.round(e.sc)} 💰 knocked off`;
+		},
 		fmtTeam(v, s) {
 			if (s === 0) return v >= 1000 ? `Escaped with ${v - 1000} 💰` : v > 0 ? `Caught with ${v} 💰` : "Stripped clean";
 			return `${v} 💰 knocked off`;

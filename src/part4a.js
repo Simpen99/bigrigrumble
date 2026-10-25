@@ -3035,7 +3035,9 @@ function hud3(dt) {
 	if (!W.tv)
 		$("#m3s").textContent =
 			W.me.d && W.myFinal !== undefined
-				? `Final: ${fmtScore(def, W.myFinal)}`
+				? def.fmtTeam && W.me.side !== undefined && W.mg.team
+					? def.fmtTeam(W.myFinal, W.me.side)
+					: `Final: ${fmtScore(def, W.myFinal)}`
 				: def.fmt
 					? def.fmt(W, W.me)
 					: fmtScore(def, Math.round(W.me.sc));

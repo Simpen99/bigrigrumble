@@ -717,6 +717,7 @@ body.tv .hcard,.hcard:not(:has(#panel button)){display:none}
 /* phone and PC: the card and the bar centred together, the card narrower than the bar (the bar widens while the card shows) and running
    18px down behind it, so its bottom edge never shows between them */
 body:not(.ctl):not(.tv) .hudbot{max-width:none;display:flex;flex-direction:column;align-items:center}
+body.mglive:not(.ctl):not(.tv) .hudbot,body.mgres:not(.ctl):not(.tv) .hudbot{display:none}
 body:not(.ctl):not(.tv) .hslot{overflow:hidden;padding-bottom:24px;margin-bottom:-24px}
 body.ctl .hslot{display:contents}
 body.ctl .hcard{animation:none}
@@ -1159,7 +1160,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-26 00:05 7d13f61";
+const BUILD = "2026-10-26 00:24 8c10a37";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -17596,7 +17597,9 @@ function hud3(dt) {
 	if (!W.tv)
 		$("#m3s").textContent =
 			W.me.d && W.myFinal !== undefined
-				? `Final: ${fmtScore(def, W.myFinal)}`
+				? def.fmtTeam && W.me.side !== undefined && W.mg.team
+					? def.fmtTeam(W.myFinal, W.me.side)
+					: `Final: ${fmtScore(def, W.myFinal)}`
 				: def.fmt
 					? def.fmt(W, W.me)
 					: fmtScore(def, Math.round(W.me.sc));
@@ -40475,6 +40478,10 @@ Object.assign(MG, {
 		fmtE(W, e) {
 			if (e.side === 0) return `💰 ${e.local ? e.bags : e.f && e.f.bg !== undefined ? e.f.bg : this.BAGS}`;
 			return `+${Math.round(e.sc)} 💰`;
+		},
+		/* the top chip: the cash truck's bags still on, a cop's bags knocked off (its score is only 1000 + bags at the end) */
+		fmt(W, e) {
+			return e.side === 0 ? `${e.bags} 💰 left` : `${Math.round(e.sc)} 💰 knocked off`;
 		},
 		fmtTeam(v, s) {
 			if (s === 0) return v >= 1000 ? `Escaped with ${v - 1000} 💰` : v > 0 ? `Caught with ${v} 💰` : "Stripped clean";
