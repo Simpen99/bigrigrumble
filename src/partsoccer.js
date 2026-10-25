@@ -374,6 +374,12 @@ Object.assign(MG, {
 		fmt: (W, e) => (e.side === 1 ? "🔴 Red team" : "🔵 Blue team"),
 		fmtV: (v) => `${Math.floor(v / 100)}-${v % 100}`,
 		ramK: 0.75 /* bumps between trucks a bit softer than Mud Brawl's rams */,
+		/* the ready screen's controls panel: [icon or button label, what it does, small print] */
+		controls: [
+			["stick", "Drive"],
+			["BOOST", "Hold to speed up"],
+			["JUMP", "Jump", "Again in the air: flip"],
+		],
 		how: "Push the ball into the other team's goal. First team to 3 goals wins!",
 		teamHow: (s) => (s === 0 ? "Blue: score in the red goal." : "Red: score in the blue goal."),
 		tvHint: "Drag to drive · hold BOOST to speed up (corner pads fill it) · JUMP, again in the air to flip",

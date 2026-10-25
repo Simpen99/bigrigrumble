@@ -232,6 +232,12 @@ function unstick() {
 /* ---------- boot ---------- */
 setInterval(() => {
 	if (W && GFX.mode === "mg" && (document.hidden || performance.now() - lastT > 400)) {
+		try {
+			pracCheck();
+		} catch (e) {
+			console.error(e);
+		}
+		if (!W) return;
 		if (TVS) {
 			try {
 				tvsFrame();

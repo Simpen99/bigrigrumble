@@ -12,7 +12,7 @@ for (const g of ids) {
 	const { p, ctx, errs } = await openGame(b, { mobile: true });
 	await p.evaluate(() => (MERGE_TEST = {}));
 	await startMinigame(p, g, true);
-	await p.waitForFunction(() => W && W.t > 2, null, { timeout: 60000 });
+	await p.waitForFunction(() => W && !W.prac && W.t > 2, null, { timeout: 60000 });
 	const r = await p.evaluate(() => {
 		const cv = GFX.r.domElement,
 			grab = () => {

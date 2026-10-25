@@ -1313,6 +1313,8 @@ function modeMus(W) {
 		W.mmus = 1;
 		audLoad(url);
 	}
+	/* the ready screen's practice run stays quiet: the song starts with the real countdown */
+	if (W.prac) return;
 	if (W.mmus === 1 && W.t > (own ? -own.go - 0.5 : -2.5)) {
 		W.mmus = 2;
 		musTrack(url, 0.75, own ? 2 : 0, false, own && (() => own.go + (Date.now() - W.startAt) / 1000));
@@ -1598,7 +1600,7 @@ document.addEventListener("click", (e) => {
 		return;
 	}
 	/* menu buttons click (a minigame's own controls keep the short synth tick; its ready panel clicks) */
-	if (!b.closest("#mg") || b.closest(".m3ready")) menuClick();
+	if (!b.closest("#mg") || b.closest(".m3ready, .rdy")) menuClick();
 	else sfx("click");
 });
 audLoad("sfx/selectclick.mp3");

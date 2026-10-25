@@ -86,14 +86,14 @@ for (const d of [H, P]) {
 	await d.p.click("#m3rb");
 	await d.p.evaluate(() => {
 		window.__drv = setInterval(() => {
-			if (W && W.t >= 0 && !W.me.d && W.def.bot) Object.assign(W.inp, W.def.bot.call(W.def, W, W.me, 0.05));
+			if (W && !W.prac && W.t >= 0 && !W.me.d && W.def.bot) Object.assign(W.inp, W.def.bot.call(W.def, W, W.me, 0.05));
 		}, 50);
 	});
 }
 
 /* compare the two screens once a second */
 const snap = () => {
-	if (!W || W.t < 0 || !G || G.phase !== "minigame") return null;
+	if (!W || W.prac || W.t < 0 || !G || G.phase !== "minigame") return null;
 	const ents = {};
 	W.list.forEach((e) => {
 		if (!e.gone) ents[e.p.name] = { x: e.x, z: e.z, al: !!e.al, local: !!e.local, seen: !!(e.local || e.seen) };

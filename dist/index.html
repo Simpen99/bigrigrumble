@@ -264,15 +264,14 @@ body.mglive .hudtop,body.mglive .hudbot,body.mglive #fx{display:none}
 .m3lb{position:absolute;right:10px;top:calc(env(safe-area-inset-top,0px) + 58px);background:var(--hud);border:1px solid var(--hudline);border-radius:14px;padding:6px 10px;font-size:12px;font-weight:700;color:#fff;min-width:118px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
 .m3lb div{display:flex;gap:6px;align-items:center;padding:2px 0}.m3lb span{flex:1;max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .m3lb i{width:8px;height:8px;border-radius:50%;flex:none}.m3lb .me{color:var(--yellow)}.m3lb .out{opacity:.45;text-decoration:line-through}
-.m3intro{position:absolute;left:10px;right:140px;top:calc(env(safe-area-inset-top,0px) + 58px);background:var(--hud);border:1px solid var(--hudline);color:#fff;border-radius:18px;padding:14px;max-width:420px}
-.m3intro h3{color:var(--yellow);font-size:20px;margin-bottom:6px}.m3intro p{font-size:14px;line-height:1.45}.m3ctl{margin-top:8px;color:#b9c4d2;font-weight:700}
 .m3center{position:absolute;left:0;right:0;top:40%;text-align:center;pointer-events:none!important}
 .m3big{font-family:var(--display);font-size:110px;white-space:nowrap;color:#fff;text-shadow:0 6px 30px rgba(0,0,0,.45);line-height:1}
 .m3msg{display:inline-block;margin-top:10px;background:var(--hud);color:#fff;padding:10px 16px;border-radius:999px;font-weight:800}
 .m3ready{position:absolute;left:12px;right:12px;bottom:calc(env(safe-area-inset-bottom,0px) + 16px);background:var(--hud);border:1px solid var(--hudline);border-radius:22px;padding:16px;color:#fff;max-width:520px;margin:0 auto;z-index:3;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
-.m3ready h3{color:var(--yellow);font-size:20px;margin-bottom:8px}
-#m3rl{margin-bottom:12px}#m3rl div{display:flex;gap:8px;align-items:center;padding:6px 0;font-weight:700;border-bottom:1px solid var(--hudline)}
-#m3rl i{width:10px;height:10px;border-radius:50%;flex:none}#m3rl span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}#m3rl b{color:#b9c4d2;font-size:13px}#m3rl b.ok{color:#7cf0a8}
+/* the TV controller's ready strip at the top (the stick and buttons under it stay free for the practice run on the TV) */
+.tvc .m3ready.tvcrdy{left:50%;right:auto;bottom:auto;top:calc(env(safe-area-inset-top,0px) + 8px);width:auto;max-width:none;margin:0;transform:translateX(-50%);display:flex;align-items:center;gap:12px;padding:6px 6px 6px 16px;background:var(--hb);border:3px solid #151B24;border-radius:14px;box-shadow:0 5px 0 var(--ledge);z-index:6;-webkit-backdrop-filter:none;backdrop-filter:none}
+.tvcpr{font:400 15px/1 var(--display);color:var(--yellow);white-space:nowrap}
+.tvcrdy .btn.go{width:auto;padding:9px 16px;font-size:15px;white-space:nowrap}
 .m3pad{position:absolute;left:0;right:0;bottom:0;height:58%;touch-action:none}
 .knob{position:absolute;width:124px;height:124px;border-radius:50%;border:3px solid rgba(255,255,255,.55);background:rgba(16,22,31,.22);transform:translate(-50%,-50%);pointer-events:none}
 .knob i{position:absolute;left:50%;top:50%;width:54px;height:54px;margin:-27px 0 0 -27px;border-radius:50%;background:rgba(255,255,255,.9);box-shadow:0 4px 12px rgba(0,0,0,.3)}
@@ -648,8 +647,6 @@ button.chip:active{transform:translateY(3px);box-shadow:0 1px 0 var(--ledge)}
 .m3lb i{display:none}
 .m3lb .me{background:var(--yellow);color:#151B24!important;--c:#151B24}
 .m3msg{background:var(--hb)!important;border:3px solid var(--yellow);border-radius:14px!important;box-shadow:0 4px 0 var(--ledge);font-family:var(--display);font-weight:400;font-size:16px;padding:7px 16px 6px!important}
-.m3intro,.m3ready{background:var(--hb)!important;border:3px solid #151B24!important;box-shadow:0 6px 0 var(--ledge)}
-.m3intro h3,.m3ready h3{font-weight:400}
 .lpanel{position:absolute;left:10px;right:10px;top:calc(env(safe-area-inset-top,0px) + 96px);z-index:25;max-width:440px;margin:0 auto;background:var(--hb);border:3px solid #151B24;border-radius:18px;box-shadow:0 6px 0 var(--ledge);padding:10px 12px;color:#fff;-webkit-user-select:none;user-select:none}
 .lprow{display:flex;align-items:center;gap:8px;font-weight:800;font-size:12px;margin:5px 0}.lprow span{width:78px;flex:none}.lprow input{flex:1;min-width:0;accent-color:#FFC83D;touch-action:pan-y}.lprow b{width:44px;flex:none;text-align:right;font-family:var(--display);font-weight:400;font-size:13px;color:var(--yellow)}
 .lpout{font-size:11px;color:#C9D3E0;margin:8px 0 6px;line-height:1.4;-webkit-user-select:text;user-select:text}
@@ -668,7 +665,6 @@ button.chip:active{transform:translateY(3px);box-shadow:0 1px 0 var(--ledge)}
 .m3lb.top div{flex:1 1 0;min-width:0;padding:1px 7px 0 7px!important;gap:5px!important;font-size:11px}
 .m3lb.top div span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:none}
 .m3lb.top div b{font-size:12px;flex:none}
-.m3lb.top+.m3intro{top:calc(env(safe-area-inset-top,0px) + 92px);right:10px}
 .svb{border:3px solid #151B24;border-radius:16px;background:#1FA35C;color:#fff;box-shadow:0 4px 0 #0B0E14;padding:6px 10px 5px;display:flex;flex-direction:column;align-items:center;min-width:78px;font-family:var(--display);touch-action:manipulation;transition:filter .15s}
 .svb small{font-size:12px;letter-spacing:1px}.svb em{font-style:normal;font-size:22px;line-height:1.05}
 .svb.off{filter:saturate(.25) brightness(.7)}.svb.kick,.svb:active{transform:translateY(3px);box-shadow:0 1px 0 #0B0E14}
@@ -841,30 +837,107 @@ body.ctl .btn{min-height:58px;font-size:18px}
 @media (prefers-reduced-motion:reduce){.swl i{animation-iteration-count:1}}
 .swl.on{animation:swon .3s}
 @keyframes swon{from{opacity:1;filter:brightness(1.9)}to{opacity:.9;filter:none}}
-body.tv #mg .m3top,body.tv #mg .m3intro,body.tv #mg .m3ready,body.tv #mg .m3center{zoom:1.4}
+body.tv #mg .m3top,body.tv #mg .m3center{zoom:1.4}
 body.tv #mg .m3lb{zoom:1.5}
 body.tv #mg .m3top{max-width:900px}
-/* TV ready screen: the intro card and the ready list in a slim column on the left, sized to the screen (vw), so the trucks in the middle stay in view */
-body.tv #mg .m3intro,body.tv #mg .m3ready{zoom:1;transform:none;left:1.2vw;right:auto;width:27vw;max-width:none;margin:0;padding:1.1vw 1.3vw;border-radius:1.2vw}
-body.tv #mg .m3intro{top:calc(env(safe-area-inset-top,0px) + 5vw);bottom:auto}
-body.tv #mg .m3ready{bottom:1.2vw;top:auto}
-body.tv #mg.tvgrid .m3ready{left:auto;right:1.2vw;top:calc(env(safe-area-inset-top,0px) + 5vw);bottom:auto}
-body.tv #mg .m3intro h3,body.tv #mg .m3ready h3{font-size:1.7vw;margin-bottom:.5vw}
-body.tv #mg .m3intro p{font-size:1.1vw}
-body.tv #mg .m3ctl{margin-top:.6vw}
-body.tv #mg .m3team{font-size:1vw;padding:.3vw .8vw}
-body.tv #mg #m3rl{margin-bottom:.8vw}
-body.tv #mg #m3rl div{font-size:1.1vw;padding:.4vw 0;gap:.5vw}
-body.tv #mg #m3rl i{width:.7vw;height:.7vw}
-body.tv #mg #m3rl b{font-size:1vw}
-body.tv #mg #m3rs{font-size:1vw;padding:.5vw 1vw}
+
+/* minigame ready screen (rdyHTML in part4a, after Mario Party's intro): pastel stripes, the name, the game running in a framed window (the canvas
+   itself sits in the frame, seen through a hole in the background's mask), the rules, the controls on a beige slab, START over the players.
+   Laid out on a stage zoomed to the screen (rdyFit sets --rk): 1280 x 720, .wide = phones on their side (960 x 444), .tall = portrait (a column) */
+#mg.rdy>:not(.rdy){visibility:hidden}
+.rdy{position:absolute;inset:0;overflow:hidden;color:#2A2433;font-family:var(--body)}
+.rdy.out{opacity:0;transition:opacity .4s ease-out;pointer-events:none}
+.rdy-bg{position:absolute;inset:0;background:repeating-linear-gradient(-35deg,rgba(255,255,255,.22) 0 26px,transparent 26px 52px),radial-gradient(120% 90% at 20% 10%,#D6EEF8 0,#E9F1E4 45%,#F6EBD3 100%);-webkit-mask:linear-gradient(#000 0 0),linear-gradient(#000 0 0) var(--hx,0) var(--hy,0)/var(--hw,0) var(--hh,0) no-repeat;-webkit-mask-composite:xor;mask-composite:exclude}
+.rdy-st{position:absolute;left:50%;top:50%;width:1280px;height:720px;transform:translate(-50%,-50%) scale(var(--rk,1))}
+.rdy-t{position:absolute;left:44px;top:18px;right:470px;padding:4px 6px 12px 4px;font:400 52px/1 var(--display);color:#fff;letter-spacing:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:3px 0 0 #1B2333,-3px 0 0 #1B2333,0 3px 0 #1B2333,0 -3px 0 #1B2333,3px 3px 0 #1B2333,-3px 3px 0 #1B2333,3px -3px 0 #1B2333,-3px -3px 0 #1B2333,0 7px 0 #1B2333}
+.rdy-win{position:absolute;left:44px;top:94px;width:736px;height:414px;border:9px solid #F4F6F9;border-radius:26px;box-shadow:0 0 0 3px #1B2333,0 9px 0 3px #1B2333}
+.rdy-clk{position:absolute;left:50%;top:8px;transform:translateX(-50%);min-width:64px;text-align:center;background:var(--hb);border:3px solid #F4F6F9;border-radius:14px;box-shadow:0 4px 0 var(--ledge);color:#fff;font:400 22px/1 var(--display);padding:7px 16px 6px}
+.rdy-clk:empty{display:none}
+.rdy-prac{position:absolute;left:50%;bottom:-31px;transform:translateX(-50%);isolation:isolate;padding:10px 30px 8px;font:400 28px/1 var(--display);color:#151B24;text-transform:uppercase;white-space:nowrap}
+.rdy-prac::before{content:"";position:absolute;inset:0;z-index:-1;background:var(--yellow);border:3px solid #151B24;border-radius:10px;box-shadow:0 5px 0 #151B24;transform:skewX(-10deg)}
+.rdy-how{position:absolute;left:52px;top:552px;width:720px;font:600 21px/1.36 var(--body);color:#2A2433;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
+.rdy-col{position:absolute;left:822px;top:94px;width:414px;bottom:18px;display:flex;flex-direction:column;gap:14px}
+/* the controls: a chamfered beige slab like the board's card (dark outline, light rim, beige face) */
+.rdy-ctl{position:relative;isolation:isolate;flex:0 1 auto;min-height:0;overflow:hidden;padding:16px 22px 14px;background:#3E2C1A;clip-path:polygon(16px 0,calc(100% - 16px) 0,100% 16px,100% calc(100% - 16px),calc(100% - 16px) 100%,16px 100%,0 calc(100% - 16px),0 16px)}
+.rdy-ctl::before,.rdy-ctl::after{content:"";position:absolute;z-index:-1;pointer-events:none}
+.rdy-ctl::before{inset:3px;background:linear-gradient(#FFF8E6,#CDB98F);clip-path:polygon(14px 0,calc(100% - 14px) 0,100% 14px,100% calc(100% - 14px),calc(100% - 14px) 100%,14px 100%,0 calc(100% - 14px),0 14px)}
+.rdy-ctl::after{inset:6px;background:linear-gradient(#EFE3C6,#DCCBA4);clip-path:polygon(12px 0,calc(100% - 12px) 0,100% 12px,100% calc(100% - 12px),calc(100% - 12px) 100%,12px 100%,0 calc(100% - 12px),0 12px)}
+.rdy-ctl h2{font:400 21px/1 var(--display);color:#3A2812;text-shadow:0 2px 0 rgba(255,255,255,.55);margin-bottom:8px}
+.rdy-cr{display:flex;align-items:center;gap:12px;min-height:48px;padding:2px 0}
+.rdy-ic{flex:none;width:46px;height:46px}
+.rdy-ic svg{display:block;width:100%;height:100%}
+/* the phone with the part to press lit, and a button's name in that part's colour */
+.rdy-ph{flex:none;width:66px;height:37px}
+.rdy-ph svg{display:block;width:100%;height:100%}
+.rdy-nm{display:inline-block;margin-right:3px;padding:3px 6px 2px;border:2px solid #151B24;border-radius:6px;background:var(--zc);color:#fff;font:400 12px/1 var(--display);text-shadow:0 1px 0 rgba(0,0,0,.3);vertical-align:1px}
+.rdy-bt{flex:none;min-width:58px;height:40px;padding:2px 12px 0;display:grid;place-items:center;background:var(--ui-bb-dark1) center/100% 100% no-repeat;color:#fff;font:400 13px/1 var(--display);white-space:nowrap}
+.rdy-lb{min-width:0;font:700 18px/1.15 var(--body);color:#3A2812}
+.rdy-lb small{display:block;font:600 14px/1.2 var(--body);color:#6B5232}
+.rdy-cols{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px;padding-top:8px;border-top:2px dashed rgba(58,40,18,.25)}
+.rdy-cols>div{min-width:0;padding:4px 6px;border-radius:12px}
+.rdy-cols>.me{background:color-mix(in srgb,var(--sc) 14%,transparent);box-shadow:inset 0 0 0 3px var(--sc)}
+.rdy-cols .rdy-cr{gap:8px;min-height:42px}
+.rdy-cols .rdy-ic{width:40px;height:40px}
+.rdy-cols .rdy-ph{width:54px;height:30px}
+.rdy-cols .rdy-nm{display:table;margin:0 0 2px;font-size:10px;padding:2px 4px 1px}
+.rdy-cols .rdy-bt{min-width:0;height:34px;padding:2px 9px 0;font-size:11px}
+.rdy-cols .rdy-lb{font-size:15px}
+.rdy-cols .rdy-lb small{font-size:12.5px}
+.rdy-tag{display:inline-block;position:relative;isolation:isolate;margin:0 0 4px 4px;padding:5px 12px 4px;font:400 15px/1 var(--display);color:#fff;text-shadow:0 2px 0 rgba(0,0,0,.25);white-space:nowrap}
+.rdy-tag::before{content:"";position:absolute;inset:0;z-index:-1;background:var(--sc);border:2.5px solid #151B24;border-radius:7px;transform:skewX(-10deg)}
+.rdy-go{flex:none;margin-top:auto;width:100%;height:86px;border:0;padding:0 0 4px;background:var(--ui-bb-yellow) center/100% 100% no-repeat;font:400 34px/1 var(--display);color:#fff;text-transform:uppercase;text-shadow:0 3px 0 #7a5200,2px 0 0 #7a5200,-2px 0 0 #7a5200,0 -2px 0 #7a5200,2px 2px 0 #7a5200,-2px 2px 0 #7a5200,2px -2px 0 #7a5200,-2px -2px 0 #7a5200;filter:drop-shadow(0 5px 3px rgba(0,0,0,.25));transition:transform .08s}
+.rdy-go:active{transform:translateY(3px)}
+.rdy-go:disabled{filter:saturate(.35) drop-shadow(0 5px 3px rgba(0,0,0,.2));cursor:default;transform:none}
+.rdy-ps{flex:none;display:flex;align-items:center;justify-content:center;gap:8px}
+.rdy-side{display:flex;flex-wrap:wrap;justify-content:center;gap:4px;padding:6px 6px 4px;border-radius:14px}
+.rdy-side[style]{background:color-mix(in srgb,var(--sc) 22%,transparent);box-shadow:inset 0 0 0 3px var(--sc)}
+.rdy-p{display:flex;flex-direction:column;align-items:center;width:76px}
+.rdy-rk{position:relative;width:74px;height:61px;display:grid;place-items:center;background:var(--rk) center/100% 100% no-repeat}
+.rdy-rk img{width:70px;height:53px;object-fit:contain}
+.rdy-p:not(.ok) img{opacity:.5}
+.rdy-rk i{position:absolute;right:-4px;bottom:-4px;width:28px;height:28px;border-radius:50%;background:#1FA35C;border:3px solid #151B24;color:#fff;font:900 16px/22px var(--body);font-style:normal;text-align:center}
+.rdy-p:not(.ok) .rdy-rk i{display:none}
+.rdy-p b{max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:700 13px/1.4 var(--body);color:#2A2433}
+.rdy-vs{font:400 26px/1 var(--display);color:#1B2333}
+.rdy.wide .rdy-st{width:960px;height:444px}
+.rdy.wide .rdy-t{left:24px;top:8px;right:430px;font-size:34px;padding-bottom:9px;text-shadow:2px 0 0 #1B2333,-2px 0 0 #1B2333,0 2px 0 #1B2333,0 -2px 0 #1B2333,2px 2px 0 #1B2333,-2px 2px 0 #1B2333,2px -2px 0 #1B2333,-2px -2px 0 #1B2333,0 5px 0 #1B2333}
+.rdy.wide .rdy-win{left:24px;top:58px;width:500px;height:281px;border-width:7px;border-radius:20px}
+.rdy.wide .rdy-clk{top:5px;font-size:17px;padding:5px 12px 4px;min-width:48px}
+.rdy.wide .rdy-prac{bottom:-24px;font-size:20px;padding:8px 22px 6px}
+.rdy.wide .rdy-how{left:30px;top:370px;width:500px;font-size:15px;line-height:1.3;-webkit-line-clamp:3}
+.rdy.wide .rdy-col{left:548px;top:58px;width:392px;bottom:8px;gap:8px}
+.rdy.wide .rdy-ctl{padding:10px 16px 8px}
+.rdy.wide .rdy-ctl h2{font-size:16px;margin-bottom:4px}
+.rdy.wide .rdy-cr{min-height:38px;padding:1px 0}
+.rdy.wide .rdy-ic{width:36px;height:36px}
+.rdy.wide .rdy-ph{width:54px;height:30px}
+.rdy.wide .rdy-bt{height:32px;min-width:48px;font-size:11px}
+.rdy.wide .rdy-lb{font-size:15px}
+.rdy.wide .rdy-lb small{font-size:12px}
+.rdy.wide .rdy-cols .rdy-cr{min-height:34px}
+.rdy.wide .rdy-cols .rdy-lb{font-size:13px}
+.rdy.wide .rdy-cols .rdy-lb small{font-size:11px}
+.rdy.wide .rdy-go{align-self:center;width:84%;height:62px;font-size:26px}
+.rdy.wide .rdy-p{width:64px}
+.rdy.wide .rdy-rk{width:62px;height:50px}
+.rdy.wide .rdy-rk img{width:58px;height:44px}
+.rdy.wide .rdy-rk i{width:22px;height:22px;font-size:12px;line-height:16px}
+.rdy.wide .rdy-p b{max-width:66px;font-size:11px}
+.rdy.wide .rdy-vs{font-size:20px}
+.rdy.tall{overflow:auto}
+.rdy.tall .rdy-st{top:0;width:420px;height:auto;transform:translateX(-50%) scale(var(--rk,1));transform-origin:50% 0;padding:calc(env(safe-area-inset-top,0px) + 12px) 14px calc(env(safe-area-inset-bottom,0px) + 16px);display:flex;flex-direction:column;gap:12px}
+.rdy.tall .rdy-t,.rdy.tall .rdy-win,.rdy.tall .rdy-how,.rdy.tall .rdy-col{position:relative;left:auto;top:auto;right:auto;bottom:auto;width:auto}
+.rdy.tall .rdy-t{font-size:32px;padding-bottom:9px}
+.rdy.tall .rdy-win{height:auto;aspect-ratio:16/9;border-width:7px;border-radius:20px;margin-bottom:14px}
+.rdy.tall .rdy-prac{font-size:20px;bottom:-24px;padding:8px 22px 6px}
+.rdy.tall .rdy-how{font-size:16px;line-height:1.3}
+.rdy.tall .rdy-col{gap:10px}
+.rdy.tall .rdy-go{align-self:center;width:84%;height:66px;font-size:27px;margin-top:4px}
 
 /* TV split screen */
 #mg.tvsplit .tvv{position:absolute;overflow:hidden;box-shadow:inset 0 0 0 3px #151B24,inset 0 0 0 6px var(--c,#151B24);pointer-events:none!important}
 #mg.tvsplit .tvempty{display:grid;place-items:center;text-align:center;color:#fff;--c:#2B3A58;background:radial-gradient(120% 80% at 50% 0%,#2B3A58,#121826)}
 #mg.tvsplit .tvempty b{display:block;font-family:var(--display);font-weight:400;font-size:40px;color:var(--yellow)}#mg.tvsplit .tvempty span{font-weight:800;font-size:18px;opacity:.8}
-#mg.tvsplit .tvsin{left:16px;right:auto;top:calc(env(safe-area-inset-top,0px) + 70px);zoom:1.3;max-width:460px}
-#mg.tvsplit .m3ready{zoom:1.3}
 .tvctlhold,.tvctl{display:none!important}
 .tvcctl{position:absolute;inset:0;pointer-events:none}.tvcctl>*{pointer-events:auto}
 
@@ -960,7 +1033,6 @@ body[data-view=lobby]::before,body[data-view=home]::before,body[data-view=join]:
 .resk{font-family:var(--display);font-weight:400;font-size:12px!important;letter-spacing:1px!important;background:#FFC83D!important;color:#151B24;padding:4px 12px 3px!important;box-shadow:0 0 0 2.5px #151B24,0 3px 0 2px #151B24}
 .reshead h2{font-family:var(--display);font-weight:400;font-size:34px!important;line-height:1.05;margin-top:12px!important;color:#fff;-webkit-text-stroke:6px #151B24;paint-order:stroke fill;text-shadow:0 4px 0 #151B24!important}
 .reslist{gap:9px!important}
-.m3team{display:inline-block;margin:6px 0 2px;padding:4px 12px;border-radius:999px;background:var(--c);color:#fff;font-weight:800;font-size:14px}
 #mmbar{position:absolute;left:10px;top:calc(env(safe-area-inset-top,0px) + 58px);background:var(--hb);border:2.5px solid #E5484D;border-radius:12px;box-shadow:0 3px 0 var(--ledge);padding:3px 8px 6px;pointer-events:none!important}
 #mmbar b{display:block;font-family:var(--display);font-weight:400;font-size:12px;letter-spacing:.5px;color:#FFC83D;text-transform:uppercase;white-space:nowrap}
 .mmhp{display:flex;gap:2px;margin-top:3px}
@@ -1025,7 +1097,6 @@ body.mglive #fxs,body.mgres #fxs{display:none}
   /* one panel: centred */
   .tvcctl .tapall,.tvcctl .cx{left:0;right:0;margin:0 auto;width:min(64%,520px);height:auto;top:calc(env(safe-area-inset-top,0px) + 14px);bottom:calc(env(safe-area-inset-bottom,0px) + 14px)}
   .tvc .m3top{max-width:none}
-  .tvc .m3ready{left:0;right:0;width:min(60%,460px);max-width:none;margin:0 auto}
 }
 
 /* phone controller: dice panel fits without scrolling (items share the width; sideways = card on the left, panel on the right) */
@@ -1086,7 +1157,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-25 14:20 47fae21";
+const BUILD = "2026-10-25 18:31 c5b4cb8";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -2330,11 +2401,16 @@ function stepPodium(dt) {
 }
 function gfxResize() {
 	if (!GFX.ok) return;
-	const w = innerWidth,
-		h = innerHeight;
+	/* the minigame ready screen draws the game in a window: the canvas moves under its frame (GFX.rdy, rdyFit in part4a) */
+	const R = GFX.mode === "mg" && GFX.rdy,
+		w = R ? R.w : innerWidth,
+		h = R ? R.h : innerHeight,
+		cs = GFX.r.domElement.style;
 	GFX.w = w;
 	GFX.h = h;
 	GFX.r.setSize(w, h, false);
+	if (R) Object.assign(cs, { left: R.x + "px", top: R.y + "px", width: w + "px", height: h + "px" });
+	else if (cs.left) Object.assign(cs, { left: "", top: "", width: "", height: "" });
 	GFX.cam.aspect = w / h;
 	const oy =
 		GFX.mode === "board" ? h * (w > h ? 0.1 : 0.2) : GFX.mode === "mg" ? 0 : GFX.mode === "podium" ? h * 0.2 : h * 0.28;
@@ -2391,6 +2467,13 @@ function frame(t) {
 		return;
 	}
 	if (GFX.mode === "mg") {
+		/* the ready screen: the canvas under the window frame, and the practice world's swaps */
+		try {
+			rdyFit();
+			pracCheck();
+		} catch (e) {
+			console.error(e);
+		}
 		if (TVS) {
 			try {
 				tvsFrame();
@@ -8625,7 +8708,8 @@ addEventListener("keydown", (e) => {
 	if (!inMgNow && GFX.mode === "board" && k.startsWith("arrow")) e.preventDefault();
 	KEYS.add(k);
 	if (e.repeat || !inMgNow) return;
-	const rb = $("#m3rb"),
+	/* Enter / Space: I'm ready (phone mode), or the TV's START */
+	const rb = $("#m3rb") || $("#m3rs"),
 		rd = $("#m3r");
 	if ((k === " " || k === "enter") && rb && !rb.disabled && rd && !rd.hidden) {
 		rb.click();
@@ -9971,6 +10055,8 @@ function modeMus(W) {
 		W.mmus = 1;
 		audLoad(url);
 	}
+	/* the ready screen's practice run stays quiet: the song starts with the real countdown */
+	if (W.prac) return;
 	if (W.mmus === 1 && W.t > (own ? -own.go - 0.5 : -2.5)) {
 		W.mmus = 2;
 		musTrack(url, 0.75, own ? 2 : 0, false, own && (() => own.go + (Date.now() - W.startAt) / 1000));
@@ -10256,7 +10342,7 @@ document.addEventListener("click", (e) => {
 		return;
 	}
 	/* menu buttons click (a minigame's own controls keep the short synth tick; its ready panel clicks) */
-	if (!b.closest("#mg") || b.closest(".m3ready")) menuClick();
+	if (!b.closest("#mg") || b.closest(".m3ready, .rdy")) menuClick();
 	else sfx("click");
 });
 audLoad("sfx/selectclick.mp3");
@@ -14700,7 +14786,8 @@ function skv(e, easy, normal, hard) {
    truck; the engine logs knockouts (with the cause) and finishes. Off unless a tool sets MG_LOG. */
 var MG_LOG = false;
 function mgLog(W, txt) {
-	if (!W) return;
+	/* the ready screen's practice run logs nothing (tools read the log as the real game's) */
+	if (!W || W.prac) return;
 	const l = `${W.t.toFixed(1)} ${txt}`;
 	if (MG_LOG) (W.log || (W.log = [])).push(l);
 	/* the last 40 also go into bug reports */
@@ -14938,7 +15025,7 @@ function netRecv() {
 	if (W.split) {
 		if (TVS) netApply(TVS.worlds.filter((s) => s.W !== W && s.W.out).map((s) => ({ presence: s.W.out })));
 		/* linked screens: the other screens' worlds come in over the network (rts: their worlds' states) */
-		if (TVS && TVS.hubs && RT)
+		if (TVS && TVS.hubs && RT && !W.prac)
 			try {
 				const ps = RT.peers();
 				netApply(ps);
@@ -15229,6 +15316,7 @@ function mergeReport() {
 		});
 }
 function stop3D() {
+	if (RDY || GFX.rdy) rdyOff();
 	musStop();
 	if (TVS) {
 		tvsStop();
@@ -15254,7 +15342,7 @@ function stop3D() {
 }
 function finishMe() {
 	const e = W.me;
-	if (W.submitted) return;
+	if (W.submitted || W.prac) return;
 	W.submitted = true;
 	const score = Math.max(0, Math.round(W.def.final ? W.def.final(W, e) : e.sc));
 	W.myFinal = score;
@@ -15317,7 +15405,7 @@ function stepMG(dt) {
 			if (live) {
 				let inp = null;
 				if (e.rem) inp = e.inp;
-				else if (e.isMe) inp = W.inp;
+				else if (e.isMe) inp = W.demo ? demoInp(W, e, dt) : W.inp;
 				else if (!e.d && def.bot) inp = def.bot(W, e, dt);
 				if (def.kind === "arena") {
 					const ip = e.d && !e.falling && !e.fly ? null : inp;
@@ -15377,7 +15465,17 @@ function stepMG(dt) {
 			}
 		});
 	if (!W.tv && W.me.d && !W.submitted && W.t >= 0) finishMe();
-	if (!W.over && W.t >= 0 && (W.list.every((e) => e.gone || e.d) || W.t >= def.dur + 2)) {
+	/* a practice run ends when every human is done (or the clock runs out); pracCheck starts a fresh one 1.5 s later */
+	if (W.prac) {
+		if (
+			!W.pracDone &&
+			W.t >= 0 &&
+			(W.t >= def.dur || W.list.filter((e) => !e.gone && (!e.bot || W.demo)).every((e) => e.d || !e.al))
+		) {
+			W.pracDone = true;
+			W.pracNext = performance.now() + 1500;
+		}
+	} else if (!W.over && W.t >= 0 && (W.list.every((e) => e.gone || e.d) || W.t >= def.dur + 2)) {
 		W.over = true;
 		if (W.tv) tvSubmit();
 		else if (!W.submitted) {
@@ -15590,31 +15688,34 @@ function openMg(mg, p) {
 		}, 2500);
 		return;
 	}
-	const go = (startAt) => {
-		if (first) rtJoin(mg.nonce);
-		start3D(mg, p, !first, startAt);
-		box.innerHTML = `<div class="m3top"><span class="chip name">${esc(def.name)}</span><span class="chip" id="m3t"></span><span class="chip grow" id="m3s"></span>${G && G.practice ? '<button class="chip" id="m3light" aria-label="Tools: light, effects, sound">🔧</button>' : ""}</div>
-      <div class="m3lb${def.lbTop ? " top" : ""}" id="m3lb"></div><div class="m3intro" id="m3in"><h3>${esc(def.name)}</h3><p>${esc(def.how)}</p>${teamLine(mg, p, def)}<p class="m3ctl">${def.ctrl === "stick" ? (def.stickHint ? def.stickHint(FINE) : FINE ? "WASD or arrow keys to drive, Space to ram." : "Drag anywhere to drive. Tap RAM to charge.") : esc(def.tapHint || "Tap the big button.") + (FINE ? " On a keyboard, press Space." : "")}</p>${!first ? `<p class="m3ctl">Practice run against CPU trucks. Your score still counts.</p>` : ""}</div>
+	/* the game's HUD and controls (also under the ready screen, unwired, so a game's render finds its elements) */
+	const hud =
+		() => `<div class="m3top"><span class="chip name">${esc(def.name)}</span><span class="chip" id="m3t"></span><span class="chip grow" id="m3s"></span>${G && G.practice ? '<button class="chip" id="m3light" aria-label="Tools: light, effects, sound">🔧</button>' : ""}</div>
+      <div class="m3lb${def.lbTop ? " top" : ""}" id="m3lb"></div>
       <div class="m3center${def.msgTop ? " hi" : ""}"><div class="m3big" id="m3c"></div><div class="m3msg" id="m3m" hidden></div></div>
-      ${first ? `<div class="m3ready" id="m3r"><h3>Get ready</h3><div id="m3rl"></div><button class="btn go" id="m3rb">I'm ready${FINE ? " (Enter)" : ""}</button><button class="btn ghost" id="m3rs" hidden style="margin-top:8px">Start without the others</button></div>` : ""}
       ${def.ctrl === "custom" ? def.ctlHTML() : def.ctrl === "stick" ? stickHTML(def, def.aim ? "Drive" : "", mg.tm ? mg.tm[p.key] : undefined, p) : `${tapCtlHTML(mg.g, def)}`}`;
+	const go = (startAt) => {
+		start3D(mg, p, !first, startAt);
+		box.innerHTML = hud();
 		wireControls(def);
-		const rb = $("#m3rb");
-		if (rb)
-			rb.addEventListener("click", () => {
-				rb.disabled = true;
-				rb.textContent = "Waiting for the others…";
-				act({ t: "ready", nonce: mg.nonce }, p.key);
-			});
-		const rs = $("#m3rs");
-		if (rs)
-			rs.addEventListener("click", () => {
-				if (role === "host") mgStartCountdown();
-			});
 	};
 	if (first) {
-		go(null);
-		syncStart();
+		/* the ready screen over the CPUs' demo; the real world (go) is built when the countdown starts (pracEnd) */
+		rtJoin(mg.nonce);
+		start3D(mg, p, true, pracAt(def));
+		W.prac = W.demo = true;
+		box.innerHTML = hud() + rdyHTML(mg, def, "ready", true, mg.tm ? mg.tm[p.key] : undefined);
+		const rb = $("#m3rb");
+		rb.addEventListener("click", () => {
+			if (rb.dataset.now) {
+				if (role === "host") mgStartCountdown();
+				return;
+			}
+			rb.disabled = true;
+			rb.textContent = "Waiting…";
+			act({ t: "ready", nonce: mg.nonce }, p.key);
+		});
+		rdyOn({ mode: "mg", mg, p, go: () => go(null) });
 	} else {
 		box.classList.remove("live");
 		box.innerHTML = `<div class="mgwrap"><div class="mghead"><h2>${esc(def.name)}</h2></div><div class="mgstage"><div class="pass"><img alt="" src="${thumb(p.truck)}"><h2 style="font-size:28px;margin:10px 0">Pass to ${esc(p.name)}</h2><p>${esc(def.how)}</p><button class="btn go" id="mgstart" style="margin-top:16px">I'm ${esc(p.name)}, start</button></div></div></div>`;
@@ -15624,24 +15725,416 @@ function openMg(mg, p) {
 		});
 	}
 }
-/* the intro card's team line: which side this player is on (def.teamHow(side, solo) gives a game's own wording) */
-function teamLine(mg, p, def) {
-	if (!mg.tm || !p || !(p.key in mg.tm)) return "";
-	const s = mg.tm[p.key],
-		solo = mg.team === "1v3" && Object.values(mg.tm).filter((x) => x === s).length === 1,
-		txt = def.teamHow
-			? def.teamHow(s, solo)
-			: solo
-				? "You're on your own against everyone!"
-				: `You're on the ${mg.tc[s] === SIDE_COL[0] ? "Blue" : "Red"} team.`;
-	return `<p class="m3team" style="--c:${mg.tc[s]}">${esc(vsLabel(mg.tm))} ${esc(txt)}</p>`;
-}
 function syncStart() {
 	if (!W || W.startAt || W.localOnly || !G || !G.mg || G.mg.nonce !== W.mg.nonce || !G.mg.t0) return;
 	let s = hostTime(G.mg.t0);
 	const now = Date.now();
 	if (s < now - W.def.dur * 500 || s > now + 15000) s = now + 4000;
 	W.startAt = s;
+}
+/* ---------- the ready screen (after Mario Party's minigame intro): the game's name, a window on the game running, the rules under it,
+   the controls on the right and a START button over the players. The window is the 3D canvas itself, moved and sized under the frame
+   (GFX.rdy, rdyFit). It shows a practice world (W.prac): on the TV everyone drives their own truck with their phone ("Practice
+   time!"), in phone mode the CPUs play a demo (W.demo, your truck too). It runs on its own clock and sends nothing that counts;
+   when the countdown starts it is thrown away and the real world is built from scratch (pracEnd), so nothing leaks into the game.
+   RDY = {mode: "mg" (phone mode) | "tv" (one TV world) | "tvs" (TV split), mg, p, t0} while the ready screen is up. ---------- */
+let RDY = null;
+/* control icons for the panel (def.controls rows: [icon, label, small print]); an icon not in here is drawn as a phone button with that text */
+const CTL_IC = (() => {
+	const k = (x, y, r = 8) => `<circle cx="${x}" cy="${y}" r="${r}" fill="#F4F6F9" stroke="#0E1B3A" stroke-width="3"/>`,
+		ar = "#2A4689",
+		lt = "#C3D2F2",
+		svg = (s) => `<svg viewBox="0 0 48 48" aria-hidden="true">${s}</svg>`;
+	return {
+		stick: svg(
+			`<circle cx="24" cy="24" r="17" fill="${ar}" stroke="#0E1B3A" stroke-width="3"/><path d="M24 9l3 4h-6zM24 39l3-4h-6zM9 24l4-3v6zM39 24l-4-3v6z" fill="${lt}"/>${k(29, 20)}`,
+		),
+		aim: svg(
+			`<circle cx="24" cy="24" r="17" fill="${ar}" stroke="#0E1B3A" stroke-width="3"/><circle cx="24" cy="24" r="9" fill="none" stroke="${lt}" stroke-width="2.5"/><path d="M24 11v6M24 31v6M11 24h6M31 24h6" stroke="${lt}" stroke-width="2.5"/>${k(30, 19, 6)}`,
+		),
+		slide: svg(
+			`<path d="M5 24l8-7v14zM43 24l-8-7v14z" fill="${ar}"/><rect x="13" y="21" width="22" height="6" rx="3" fill="${lt}"/>${k(24, 24)}`,
+		),
+		flick: svg(
+			`<path d="M24 3l9 10H15z" fill="${ar}"/><rect x="21" y="13" width="6" height="18" rx="3" fill="${lt}"/>${k(24, 35)}`,
+		),
+		swipe: svg(
+			`<path d="M24 3l6 7H18zM24 45l6-7H18zM3 24l7-6v12zM45 24l-7-6v12z" fill="${ar}"/><path d="M24 12v24M12 24h24" stroke="${lt}" stroke-width="5" stroke-linecap="round"/>${k(24, 24)}`,
+		),
+		swipeh: svg(
+			`<path d="M3 24l9-8v16zM45 24l-9-8v16z" fill="${ar}"/><rect x="12" y="21" width="24" height="6" rx="3" fill="${lt}"/>${k(24, 24)}`,
+		),
+		tap: svg(
+			`<circle cx="24" cy="24" r="19" fill="none" stroke="${lt}" stroke-width="3"/><circle cx="24" cy="24" r="13" fill="none" stroke="${ar}" stroke-width="3"/>${k(24, 24, 7)}`,
+		),
+		hold: svg(
+			`<circle cx="24" cy="24" r="17" fill="none" stroke="${lt}" stroke-width="5"/><path d="M24 7a17 17 0 0 1 14.7 25.5" fill="none" stroke="${ar}" stroke-width="5" stroke-linecap="round"/>${k(24, 24, 8)}`,
+		),
+		mash: svg(
+			`<path d="M24 3v8M24 37v8M3 24h8M37 24h8M9 9l6 6M39 9l-6 6M9 39l6-6M39 39l-6-6" stroke="${ar}" stroke-width="4" stroke-linecap="round"/>${k(24, 24, 9)}`,
+		),
+		pad: svg(
+			`<rect x="5" y="9" width="38" height="30" rx="6" fill="${ar}" stroke="#0E1B3A" stroke-width="3"/><path d="M12 31l8-8 6 5 9-11" fill="none" stroke="${lt}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>${k(35, 17, 6)}`,
+		),
+	};
+})();
+/* a game's control rows for one side: def.controls(side) (or a plain list), else made from the stick and button labels */
+function ctlRows(def, side) {
+	if (def.controls) return typeof def.controls === "function" ? def.controls(side) : def.controls;
+	if (def.ctrl === "stick") {
+		const r = [["stick", "Drive"]];
+		if (def.aim) r.push(["aim", "Aim"]);
+		else r.push([ramLbl(def, side), def.ramLabel ? "" : "Ram a rival"]);
+		/* a game's button label may depend on the player's truck (Getaway's tricks): the panel has no player, so no label */
+		[btn2Lbl, btn3Lbl].forEach((f) => {
+			let l = null;
+			try {
+				l = f(def, side, null);
+			} catch (e) {}
+			if (l) r.push([l, ""]);
+		});
+		return r;
+	}
+	return [[def.slide ? "slide" : def.swipe ? "swipe" : "tap", def.tvHint || def.tapHint || "Tap the big button"]];
+}
+/* the controls rows draw the phone the player holds, with the part to press lit and the rest greyed: the TV controller's
+   layout (stick on the left 58%, one button filling the right, two split along the diagonal, three = the main one across the
+   bottom and two on top; aim games split down the middle; slide games' slider and SERVE / DROP; swipe games' whole-screen
+   pad with an arrow at each edge) or, in phone mode, the round buttons at the bottom right. ctx = {def, side, tv, shared} */
+const PH_COL = { b1: "#E5484D", b2: "#F29A2E", b3: "#2F7DE1", s1: "#E0458A", tap: "#FFC83D", pad: "#4F6FC4" };
+function phLayout(def, side, tv, shared) {
+	const n = (f) => {
+		try {
+			return f(def, side, { truck: 0, key: "", name: "" }) ? 1 : 0;
+		} catch (e) {
+			return 0;
+		}
+	};
+	if (def.ctrl === "stick")
+		return { k: def.aim ? "aim" : "stick", tv, n: shared ? 0 : def.aim ? 0 : 1 + n(btn2Lbl) + n(btn3Lbl) };
+	if (!tv) return null;
+	if (def.slide) return { k: "slide", tv, n: def.slideBtn2 ? 2 : 1 };
+	if (def.swipe) return { k: "swipe", tv, dirs: Object.keys(def.swipe) };
+	if (def.ctrl === "tap") return { k: "tap", tv };
+	return null;
+}
+/* which part of the phone a row means: its 4th entry, else from its icon or button label */
+function phZone(def, side, L, row) {
+	if (row[3]) return row[3];
+	const ic = row[0],
+		lbl = (f) => {
+			try {
+				return f(def, side, { truck: 0, key: "", name: "" });
+			} catch (e) {
+				return null;
+			}
+		};
+	if (L.k === "swipe") return ic === "swipeh" ? "lr" : ic === "flick" ? "u" : ic === "swipe" ? L.dirs.join("") : null;
+	if (ic === "stick" || ic === "slide") return "pad";
+	if (ic === "aim") return "aim";
+	if (L.k === "tap") return "tap";
+	if (L.k === "slide")
+		return ic === "flick" || ic === (def.slideBtn || "SERVE") ? "b1" : ic === def.slideBtn2 ? "b2" : null;
+	if (ic === ramLbl(def, side)) return "b1";
+	if (ic === lbl(btn2Lbl)) return "b2";
+	if (ic === lbl(btn3Lbl)) return "b3";
+	return null;
+}
+function phoneSVG(L, z) {
+	const W = 56,
+		H = 28,
+		g = "#3B4559",
+		dk = "#2A3346",
+		f = (k, c) => (z === k ? c : g),
+		poly = (pts, c) => `<polygon points="${pts.map((p) => p.join(",")).join(" ")}" fill="${c}"/>`,
+		rect = (x, y, w, h, c) => `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${c}"/>`,
+		knob = (x, y) => `<circle cx="${x}" cy="${y}" r="4" fill="#F4F6F9" stroke="#0E1B3A" stroke-width="1.5"/>`;
+	let s = "";
+	if (L.k === "stick" && !L.tv) {
+		/* phone mode: drag anywhere on the lower part, round buttons bottom right */
+		s += rect(0, 0, W, H, dk) + rect(0, H * 0.42, W, H * 0.58, z === "pad" ? PH_COL.pad : g);
+		if (z === "pad") s += knob(16, H * 0.72);
+		const btn = (k, x, y, r) =>
+			L.n >= +k[1] || k === "b1"
+				? `<circle cx="${x}" cy="${y}" r="${r}" fill="${z === k ? PH_COL[k] : "#596379"}" stroke="#0E1B3A" stroke-width="1.5"/>`
+				: "";
+		s += btn("b1", W - 7, H - 7, 5.5) + btn("b2", W - 20, H - 6, 4) + btn("b3", W - 7, H - 19, 4);
+	} else if (L.k === "stick" || L.k === "slide") {
+		const X = W * 0.58,
+			RW = W - X,
+			c1 = L.k === "slide" ? PH_COL.s1 : PH_COL.b1;
+		s += rect(0, 0, X, H, z === "pad" ? PH_COL.pad : dk);
+		if (z === "pad")
+			s +=
+				L.k === "slide"
+					? `<path d="M6 14l5-4v8zM${X - 6} 14l-5-4v8z" fill="#F4F6F9"/>` + knob(X / 2, H / 2)
+					: knob(X / 2 + 3, H / 2 - 3);
+		if (L.n === 1) s += rect(X, 0, RW, H, f("b1", c1));
+		else if (L.n === 2)
+			s +=
+				poly(
+					[
+						[X, 0],
+						[X, H],
+						[W, H],
+					],
+					f("b1", c1),
+				) +
+				poly(
+					[
+						[X + 2, 0],
+						[W, 0],
+						[W, H - 2],
+					],
+					f("b2", PH_COL.b2),
+				);
+		else if (L.n === 3)
+			s +=
+				rect(X, H / 2, RW, H / 2, f("b1", c1)) +
+				rect(X, 0, RW / 2 - 0.5, H / 2 - 1, f("b3", PH_COL.b3)) +
+				rect(X + RW / 2 + 0.5, 0, RW / 2 - 0.5, H / 2 - 1, f("b2", PH_COL.b2));
+		else s += rect(X, 0, RW, H, g);
+		s += rect(X - 0.5, 0, 1, H, "#1B2333");
+	} else if (L.k === "aim") {
+		s += rect(0, 0, W / 2, H, z === "pad" ? PH_COL.pad : dk) + rect(W / 2, 0, W / 2, H, z === "aim" ? PH_COL.pad : dk);
+		s += rect(W / 2 - 0.5, 0, 1, H, "#1B2333");
+		if (z === "pad") s += knob(W / 4, H / 2);
+		if (z === "aim") s += knob((W * 3) / 4, H / 2);
+	} else if (L.k === "swipe") {
+		s += rect(0, 0, W, H, dk);
+		const a = (d, pts) => (L.dirs.includes(d) ? poly(pts, z && z.includes(d) ? PH_COL.tap : "#596379") : "");
+		s +=
+			a("l", [
+				[3, 14],
+				[9, 9],
+				[9, 19],
+			]) +
+			a("r", [
+				[W - 3, 14],
+				[W - 9, 9],
+				[W - 9, 19],
+			]) +
+			a("u", [
+				[W / 2, 2],
+				[W / 2 + 5, 8],
+				[W / 2 - 5, 8],
+			]) +
+			a("d", [
+				[W / 2, H - 2],
+				[W / 2 + 5, H - 8],
+				[W / 2 - 5, H - 8],
+			]);
+		if (z) s += knob(W / 2, H / 2);
+	} else if (L.k === "tap") {
+		s +=
+			rect(0, 0, W, H, dk) +
+			`<rect x="${W * 0.18}" y="3" width="${W * 0.64}" height="${H - 6}" rx="4" fill="${z === "tap" ? PH_COL.tap : g}"/>`;
+	}
+	return `<svg viewBox="0 0 64 36" aria-hidden="true"><rect x="1" y="1" width="62" height="34" rx="7" fill="#1B2333" stroke="#0E1B3A" stroke-width="2"/><svg x="4" y="4" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${s}</svg></svg>`;
+}
+/* one row: the phone with its part lit (and a button's name in its colour), else an icon or a phone button */
+function ctlRowHTML(row, ctx) {
+	const [ic, label, small] = row,
+		L = ctx && phLayout(ctx.def, ctx.side, ctx.tv, ctx.shared),
+		z = L && phZone(ctx.def, ctx.side, L, row),
+		sm = small ? `<small>${esc(small)}</small>` : "";
+	if (z) {
+		const col = L.k === "slide" && z === "b1" ? PH_COL.s1 : PH_COL[z];
+		return `<div class="rdy-cr"><span class="rdy-ph">${phoneSVG(L, z)}</span><span class="rdy-lb">${!CTL_IC[ic] && col ? `<b class="rdy-nm" style="--zc:${col}">${esc(ic)}</b> ` : ""}${esc(label)}${sm}</span></div>`;
+	}
+	return `<div class="rdy-cr">${CTL_IC[ic] ? `<span class="rdy-ic">${CTL_IC[ic]}</span>` : `<span class="rdy-bt">${esc(ic)}</span>`}<span class="rdy-lb">${esc(label)}${sm}</span></div>`;
+}
+/* team games: rows both sides share on top, then a column per side under its name (def.sides, else Solo / Team or Blue / Red);
+   mine = this phone's side (its column is ringed); tv = draw the TV controller's layout (else phone mode's) */
+function rdyCtlHTML(mg, def, mine, tv) {
+	const row = (side, shared) => (r) => ctlRowHTML(r, { def, side, tv, shared });
+	if (!mg.tm) return ctlRows(def).map(row()).join("");
+	const a = ctlRows(def, 0),
+		b = ctlRows(def, 1),
+		key = (r) => JSON.stringify(r),
+		inB = new Set(b.map(key)),
+		shared = a.filter((r) => inB.has(key(r))),
+		sh = new Set(shared.map(key));
+	if (shared.length === a.length && a.length === b.length) return a.map(row(0)).join("");
+	const names = def.sides || (mg.team === "1v3" ? ["Solo", "Team"] : ["Blue", "Red"]);
+	return (
+		shared.map(row(0, true)).join("") +
+		`<div class="rdy-cols">${[a, b]
+			.map(
+				(rows, s) =>
+					`<div class="${s === mine ? "me" : ""}" style="--sc:${mg.tc[s]}"><span class="rdy-tag">${esc(names[s])}</span>${rows
+						.filter((r) => !sh.has(key(r)))
+						.map(row(s))
+						.join("")}</div>`,
+			)
+			.join("")}</div>`
+	);
+}
+/* the players: a truck portrait on a rock per player (ticked once ready, CPUs always), by side with VS between for team games */
+function rdyPlayersHTML(mg) {
+	const rdy = (G && G.mg && G.mg.ready) || {},
+		part = G.players.filter((q) => !mg.part || mg.part.includes(q.key)),
+		one = (q, i) =>
+			`<div class="rdy-p${q.bot || rdy[q.key] ? " ok" : ""}"><span class="rdy-rk" style="--rk:var(--ui-rock-d${[1, 2, 4, 5][i % 4]})"><img alt="" src="${thumb(q.truck)}"><i>✓</i></span><b>${esc(q.key === me.key && !tvView() ? "You" : q.name)}</b></div>`;
+	if (!mg.tm) return `<div class="rdy-side">${part.map(one).join("")}</div>`;
+	return [0, 1]
+		.map(
+			(s) =>
+				`<div class="rdy-side" style="--sc:${mg.tc[s]}">${part
+					.filter((q) => mg.tm[q.key] === s)
+					.map(one)
+					.join("")}</div>`,
+		)
+		.join(`<span class="rdy-vs">VS</span>`);
+}
+/* go: "ready" = this phone's I'm ready (#m3rb), "host" = the TV's start-now (#m3rs), null = no button (a linked screen) */
+function rdyHTML(mg, def, go, demo, mine) {
+	return `<div class="rdy" id="m3r"><div class="rdy-bg" id="rdybg"></div><div class="rdy-st"><h1 class="rdy-t">${esc(def.name)}</h1><div class="rdy-win" id="rdywin"><span class="rdy-clk" id="rdyclk"></span><span class="rdy-prac">${demo ? "Demo" : "Practice time!"}</span></div><p class="rdy-how">${esc(def.how)}</p><div class="rdy-col"><div class="rdy-ctl"><h2>Controls</h2>${rdyCtlHTML(mg, def, mine, !demo)}</div>${go === "ready" ? `<button class="rdy-go" id="m3rb">I'm ready!</button>` : go === "host" ? `<button class="rdy-go" id="m3rs">Start!</button>` : ""}<div class="rdy-ps" id="m3rl">${rdyPlayersHTML(mg)}</div></div></div></div>`;
+}
+/* every few frames from hud3: the practice clock, the ticks, and in phone mode the host's START NOW once it has waited 8 s */
+function rdyTick() {
+	const w = TVS ? TVS.worlds[0].W : W;
+	if (!RDY || !w) return;
+	const ck = $("#rdyclk");
+	if (ck) {
+		const t = w.def.clock && w.t >= 0 ? w.def.clock(w) : String(Math.max(0, Math.ceil(w.def.dur - Math.max(0, w.t))));
+		if (ck.textContent !== t) ck.textContent = t;
+	}
+	const rl = $("#m3rl"),
+		h = rdyPlayersHTML(RDY.mg);
+	if (rl && rl.dataset.h !== h) {
+		rl.dataset.h = h;
+		rl.innerHTML = h;
+	}
+	const rb = $("#m3rb");
+	if (rb && rb.disabled && role === "host" && Date.now() - RDY.t0 > 8000) {
+		rb.disabled = false;
+		rb.dataset.now = "1";
+		rb.textContent = "Start now";
+	}
+}
+/* the practice clock: straight in (a short beat), or through the game's own countdown when it has one (Drag Race's burnout) */
+const pracAt = (def) => Date.now() + (def.pre ? def.cd || 4.5 : 1) * 1000;
+function rdyOn(o) {
+	RDY = Object.assign({ t0: Date.now() }, o);
+	document.body.classList.add("mgrdy");
+	$("#mg").classList.add("rdy");
+	rdyFit();
+}
+function rdyOff() {
+	RDY = null;
+	document.body.classList.remove("mgrdy");
+	const m = $("#mg");
+	if (m) m.classList.remove("rdy");
+	rdyFit();
+}
+/* the canvas fills the window frame's inside while the ready screen is up (full screen otherwise), seen through a hole in the
+   pastel background (its mask); the frame's rounded border covers the corners. The stage zooms to the screen: TV / PC
+   1280 x 720, phones on their side 960 x 444, portrait screens a column 420 wide */
+function rdyFit() {
+	const st = document.querySelector("#mg.rdy .rdy");
+	let R = null;
+	if (st && document.body.classList.contains("mgrdy")) {
+		const w = innerWidth,
+			h = innerHeight,
+			a = w / h,
+			lay = a < 1.15 ? "tall" : a > 1.9 ? "wide" : "",
+			k = lay === "tall" ? w / 420 : lay === "wide" ? Math.min(w / 960, h / 444) : Math.min(w / 1280, h / 720),
+			sk = lay + k.toFixed(4);
+		if (st.dataset.k !== sk) {
+			st.dataset.k = sk;
+			st.classList.toggle("tall", lay === "tall");
+			st.classList.toggle("wide", lay === "wide");
+			st.style.setProperty("--rk", k.toFixed(4));
+		}
+		const el = document.getElementById("rdywin");
+		if (el) {
+			const b = el.getBoundingClientRect(),
+				bw = el.clientLeft * k;
+			if (b.width > 30 && b.height > 30)
+				R = {
+					x: Math.round(b.left + bw),
+					y: Math.round(b.top + bw),
+					w: Math.round(b.width - 2 * bw),
+					h: Math.round(b.height - 2 * bw),
+				};
+		}
+	}
+	const key = R ? [R.x, R.y, R.w, R.h].join() : "";
+	if (key === (GFX.rdyK || "")) return;
+	GFX.rdyK = key;
+	GFX.rdy = R;
+	const bg = document.getElementById("rdybg");
+	if (bg && R) bg.style.cssText = `--hx:${R.x}px;--hy:${R.y}px;--hw:${R.w}px;--hh:${R.h}px`;
+	gfxResize();
+}
+/* a world's scene and game hooks, thrown away (stop3D without leaving the minigame) */
+function dropWorld(w) {
+	if (!w) return;
+	const w0 = W;
+	W = w;
+	try {
+		if (w.def.stop) w.def.stop(w);
+	} catch (e) {}
+	try {
+		w.sc.traverse((o) => {
+			if (o.geometry) o.geometry.dispose();
+		});
+	} catch (e) {}
+	W = w0 === w ? null : w0;
+}
+/* phone mode's demo: your own truck drives itself with the CPU brain (a game whose bot can't drive it just leaves it parked) */
+function demoInp(W, e, dt) {
+	if (!W.def.bot || e.d) return null;
+	try {
+		return W.def.bot(W, e, dt);
+	} catch (err) {
+		W.demo = false;
+		return null;
+	}
+}
+/* from the frame loop: the countdown has started → the real world; a practice run is over → a fresh practice */
+function pracCheck() {
+	if (!RDY) return;
+	const ws = TVS ? TVS.worlds.map((s) => s.W) : W ? [W] : [];
+	if (!ws.length || !ws[0].prac) return;
+	if (G && G.mg && G.mg.nonce === RDY.mg.nonce && G.mg.t0) pracEnd();
+	else if (ws.every((w) => w.pracDone) && performance.now() > Math.max(...ws.map((w) => w.pracNext))) pracBuild(true);
+}
+/* (re)build the world(s) for the ready screen's mode: a practice run, or the real game */
+function pracBuild(prac) {
+	const R = RDY,
+		cam = GFX.mgCam;
+	/* a game's own song (Monster Mash, Getaway) starts again with the new world */
+	musStop();
+	if (R.mode === "tvs") {
+		tvsRebuild(prac);
+		return;
+	}
+	dropWorld(W);
+	W = null;
+	if (prac) {
+		start3D(R.mg, R.p, R.mode === "mg", pracAt(MG[R.mg.g]));
+		W.prac = true;
+		W.demo = R.mode === "mg";
+	} else if (R.go) R.go();
+	else start3D(R.mg, R.p, false, null);
+	GFX.mgCam = cam;
+	syncStart();
+}
+function pracEnd() {
+	const R = RDY,
+		box = $("#mg"),
+		rd = box.querySelector(".rdy");
+	rdyOff();
+	RDY = R;
+	pracBuild(false);
+	RDY = null;
+	/* the overlay fades out over the game (phone mode's go() has already replaced it) */
+	if (rd && rd.isConnected) {
+		rd.classList.add("out");
+		setTimeout(() => rd.remove(), 450);
+	}
 }
 /* practice-only lighting playground: sliders for ambient, sun, sun height/angle, warmth and haze, applied live */
 /* free camera while the lighting panel is open: drag orbits, pinch / wheel zooms, two fingers pan */
@@ -16852,40 +17345,24 @@ function hud3(dt) {
 	const def = W.def,
 		t = W.t,
 		c = $("#m3c"),
-		m = $("#m3m"),
-		intro = $("#m3in");
+		m = $("#m3m");
+	if (RDY) rdyTick();
 	if (!c) return;
 	syncStart();
-	if (intro) intro.hidden = !!W.startAt;
-	const rd = $("#m3r");
-	if (rd) {
-		rd.hidden = !!W.startAt;
-		if (!W.startAt && G && G.mg) {
-			const rdy = G.mg.ready || {};
-			$("#m3rl").innerHTML = G.players
-				.filter((q) => !q.bot && (G.mg.part ? G.mg.part.includes(q.key) : !q.local))
-				.map(
-					(q) =>
-						`<div><i style="background:${pcol(q)}"></i><span>${esc(q.name)}${q.key === me.key ? " (you)" : ""}</span><b class="${rdy[q.key] ? "ok" : ""}">${rdy[q.key] ? "Ready" : "Not ready"}</b></div>`,
-				)
-				.join("");
-			const sb = $("#m3rs");
-			if (sb) sb.hidden = !(role === "host" && Date.now() - W.made > 8000);
-		}
-	}
 	{
 		/* W.big: a game's own countdown word for a restart mid-game (Monster Mash after a phase change) */
-		const tx = !W.startAt
-			? ""
-			: t < 0
-				? def.cdText
-					? def.cdText(t)
-					: String(Math.ceil(-t))
-				: t < 0.8
-					? def.goText || "GO!"
-					: W.big && t < W.bigT
-						? W.big
-						: "";
+		const tx =
+			!W.startAt || W.prac
+				? ""
+				: t < 0
+					? def.cdText
+						? def.cdText(t)
+						: String(Math.ceil(-t))
+					: t < 0.8
+						? def.goText || "GO!"
+						: W.big && t < W.bigT
+							? W.big
+							: "";
 		if (tx !== W.lastC) {
 			W.lastC = tx;
 			if (tx === (def.goText || "GO!")) sfx("go");
@@ -17204,14 +17681,14 @@ function openTvMg(mg) {
 	box.classList.add("on", "live");
 	document.body.classList.add("mglive");
 	rtJoin(mg.nonce);
-	start3D(mg, null, false, null);
+	/* the ready screen over a practice world everyone drives; the real one is built when the countdown starts (pracEnd) */
+	start3D(mg, null, false, pracAt(def));
+	W.prac = true;
 	box.innerHTML = `<div class="m3top"><span class="chip name">${esc(def.name)}</span><span class="chip" id="m3t"></span></div>
-    <div class="m3lb${def.lbTop ? " top" : ""}" id="m3lb"></div><div class="m3intro" id="m3in"><h3>${esc(def.name)}</h3><p>${esc(def.how)}</p><p class="m3ctl">${def.aim ? "Left side of your phone drives, right side aims." : `Drag on your phone to drive. Tap ${esc(ramLbl(def))} to ${def.ramLabel ? "use it" : "charge into someone"}.`}</p></div>
-    <div class="m3center${def.msgTop ? " hi" : ""}"><div class="m3big" id="m3c"></div><div class="m3msg" id="m3m" hidden></div></div>
-    <div class="m3ready" id="m3r"><h3>Get ready</h3><div id="m3rl"></div><button class="btn ghost" id="m3rs" hidden style="margin-top:8px">Start without the others</button></div>`;
-	if (SCREEN) $("#m3rs").remove();
-	else $("#m3rs").addEventListener("click", () => mgStartCountdown());
-	syncStart();
+    <div class="m3lb${def.lbTop ? " top" : ""}" id="m3lb"></div>
+    <div class="m3center${def.msgTop ? " hi" : ""}"><div class="m3big" id="m3c"></div><div class="m3msg" id="m3m" hidden></div></div>${rdyHTML(mg, def, "host")}`;
+	$("#m3rs").addEventListener("click", () => mgStartCountdown());
+	rdyOn({ mode: "tv", mg, p: null });
 }
 /* knocked out of an arena game: after 1.2 s (you see yourself go down) the camera frames the trucks still in play */
 function mgSpec(W) {
@@ -17385,7 +17862,7 @@ function openTvCtl(mg, p) {
     <div class="tvcme"><img alt="" src="${thumb(p.truck)}"><div><b id="tvcs">0</b><small id="tvcr">${esc(p.name)}</small></div></div>
     <div class="tvcmsg" id="tvcm">📺 Watch the TV</div>
     ${def.ctrl === "stick" ? stickHTML(def, def.aim ? "Drive" : "Drag anywhere here to drive", mg.tm ? mg.tm[p.key] : undefined, p) : `<div class="tvcctl${def.swipe || def.slide ? " swc" : ""}" id="tvcctl">${def.slide ? `<div class="swpad slpad" id="slpad"><span class="tvchint">${esc(def.slideHint || "Slide")}</span><i class="slmark" id="slmark"></i></div><button class="ram tvserve" id="tvserve"><span>${esc(def.slideBtn || "SERVE")}</span></button>${def.slideBtn2 ? `<button class="ram ram2 tvserve2" id="tvserve2"><span>${esc(def.slideBtn2)}</span></button>` : ""}` : def.swipe ? swipeHTML(def) : def.ctrl === "custom" ? def.ctlHTML() : tapCtlHTML(mg.g, def)}</div>`}
-    <div class="m3ready" id="m3r"><h3>${esc(def.name)}</h3><p style="font-size:14px;line-height:1.45;margin-bottom:10px">${esc(def.how)}</p><div id="m3rl"></div><button class="btn go" id="m3rb">I'm ready</button></div></div>`;
+    <div class="m3ready tvcrdy" id="m3r"><span class="tvcpr">Practice time!</span><div id="m3rl" hidden></div><button class="btn go" id="m3rb">I'm ready</button></div></div>`;
 	if (def.ctrl === "stick") {
 		wireStick(() => TVC && TVC.inp);
 		if (def.aim) wireStick(() => TVC && TVC.inp, "#m3aim", "#knob2", "ax", "ay", tvcTick);
@@ -17511,7 +17988,7 @@ function openTvCtl(mg, p) {
 	$("#m3rb").addEventListener("click", (e) => {
 		const b = e.currentTarget;
 		b.disabled = true;
-		b.textContent = "Waiting for the others…";
+		b.textContent = "Waiting…";
 		act({ t: "ready", nonce: mg.nonce }, p.key);
 	});
 	box.addEventListener("pointerdown", tvcLand, { once: true });
@@ -17796,8 +18273,8 @@ function tvsHud(dt) {
 	const t0 = q(h0, "m3t"),
 		c0 = q(h0, "m3c"),
 		c = $("#tvsC");
-	/* hidden on the ready screen (the intro card and the ready list say it all); the countdown shows the game's length */
-	box.classList.toggle("tvpre", !W0.startAt);
+	/* hidden until the countdown (the ready screen and its practice run say it all); the countdown shows the game's length */
+	box.classList.toggle("tvpre", !W0.startAt || !!W0.prac);
 	set("tvsT", W0.t < 0 && !def.clock ? `${Math.ceil(def.dur)} s` : t0 ? t0.textContent : "");
 	set("tvsC", c0 ? c0.textContent : "");
 	if (c && c0 && c.style.fontSize !== c0.style.fontSize) c.style.fontSize = c0.style.fontSize;
@@ -17889,24 +18366,35 @@ function openTvSplit(mg) {
 			: "") +
 		`<div class="m3top tvstop"><span class="chip" id="tvsT"></span></div><div class="m3center${def.msgTop ? " hi" : ""}"><div class="m3big" id="tvsC"></div><div class="m3msg" id="tvsM" hidden></div></div>` +
 		(mode === "shared" ? `<div class="tvscards"></div>` : tvsSlots(mode === "dyn" ? 2 : n).html) +
-		`<div class="m3intro tvsin" id="m3in"><h3>${esc(def.name)}</h3><p>${esc(def.how)}</p><p class="m3ctl">📱 ${esc(def.tvHint || "Your phone is the controller.")}</p></div>
-    <div class="m3ready" id="m3r"><h3>Get ready</h3><div id="m3rl"></div><button class="btn ghost" id="m3rs" hidden style="margin-top:8px">Start without the others</button></div>`;
-	if (SCREEN) $("#m3rs").remove();
-	else $("#m3rs").addEventListener("click", () => mgStartCountdown());
+		rdyHTML(mg, def, SCREEN ? null : "host");
+	if (!SCREEN) $("#m3rs").addEventListener("click", () => mgStartCountdown());
 	const hold = document.createElement("div");
 	hold.className = "tvctlhold";
 	hold.hidden = true;
 	/* the CPUs run in the simDev player's world; with linked screens only on the screen that player is on */
 	const simK = humans.some((h) => h.key === mg.simDev) ? mg.simDev : hubs ? null : humans[0].key;
-	TVS = { mg, def, mode, main: GFX.cam, worlds: [], hold, sz: "", hubs };
-	humans.forEach((q, i) => {
-		const cam = new THREE.PerspectiveCamera(40, 1, 0.5, 240);
-		GFX.cam = cam;
-		GFX.mgCam = null;
-		start3D(mg, q, false, null, { simK });
-		const s = {
-			W,
-			cam,
+	TVS = { mg, def, mode, main: GFX.cam, worlds: [], hold, sz: "", hubs, simK, humans };
+	box.appendChild(hold);
+	/* the ready screen over practice worlds everyone drives; the real ones are built when the countdown starts (pracEnd) */
+	tvsRebuild(true);
+	rdyOn({ mode: "tvs", mg, p: null });
+}
+/* (re)build the split worlds, all on one clock: a practice run (prac) or the real game. A rebuild keeps each player's slot
+   (camera, HUD, the input it has seen: button counts and event numbers, so presses from before don't replay into the new world) */
+function tvsRebuild(prac) {
+	const T = TVS,
+		{ mg, def } = T,
+		at = prac ? pracAt(def) : null,
+		box = $("#mg");
+	T.worlds.forEach((s) => {
+		dropWorld(s.W);
+		if (s.ctl) s.ctl.remove();
+		s.ctl = null;
+	});
+	W = null;
+	T.humans.forEach((q, i) => {
+		const s = T.worlds[i] || {
+			cam: new THREE.PerspectiveCamera(40, 1, 0.5, 240),
 			mgCam: null,
 			k: q.key,
 			hud: box.querySelector(`.tvsink[data-w="${i}"]`),
@@ -17914,6 +18402,11 @@ function openTvSplit(mg) {
 			evSeq: 0,
 			lastB: undefined,
 		};
+		GFX.cam = s.cam;
+		GFX.mgCam = null;
+		start3D(mg, q, false, at, { simK: T.simK });
+		W.prac = !!prac;
+		s.W = W;
 		if (def.ctrl !== "stick") {
 			const c = document.createElement("div");
 			c.className = "tvctl";
@@ -17929,17 +18422,16 @@ function openTvSplit(mg) {
 				el.dataset.hid = el.id;
 				el.removeAttribute("id");
 			});
-			hold.appendChild(c);
+			T.hold.appendChild(c);
 			s.ctl = c;
 		}
-		TVS.worlds.push(s);
+		T.worlds[i] = s;
 	});
-	box.appendChild(hold);
 	["ao", "bloom", "tilt", "vig", "col"].forEach((k) => {
 		GFX.fx[k].on = false;
 	});
-	GFX.cam = TVS.main;
-	W = TVS.worlds[0].W;
+	GFX.cam = T.main;
+	W = T.worlds[0].W;
 	setMode("mg");
 }
 function tvsInput() {
@@ -18005,9 +18497,10 @@ function tvsInput() {
 	}
 }
 function tvsFrame() {
+	/* the canvas: the whole screen, or the ready screen's window */
 	const r = GFX.r,
-		fw = innerWidth,
-		fh = innerHeight,
+		fw = GFX.rdy ? GFX.rdy.w : innerWidth,
+		fh = GFX.rdy ? GFX.rdy.h : innerHeight,
 		T = TVS,
 		now = performance.now(),
 		real = Math.min(1, (now - (T.last || now)) / 1000);
@@ -18072,7 +18565,7 @@ function tvsFrame() {
 	else if (T.mode === "dyn") tvsDyn(fw, fh, real);
 	tvsHud(real);
 	/* linked screens: share this screen's worlds (its players and, if it runs them, the CPUs) with the others */
-	if (T.hubs && RT && now - (T.lastRts || 0) > 60) {
+	if (T.hubs && RT && !T.worlds[0].W.prac && now - (T.lastRts || 0) > 60) {
 		T.lastRts = now;
 		RT.presence({ rts: { n: T.mg.nonce, l: T.worlds.map((s) => s.W.out || null) } }).catch(() => {});
 	}
@@ -19067,6 +19560,11 @@ const MG = {
 		fallY: -5,
 		MUD: -2.2,
 		BOWL: 17 /* the bowl wall radius: everything round the stage scales with it (Monster Mash uses a bigger one) */,
+		/* the ready screen's controls panel: [icon or button label, what it does, small print] */
+		controls: [
+			["stick", "Drive"],
+			["RAM", "Charge into a rival"],
+		],
 		how: "Ram everyone off the stage into the mud. The stage shrinks! Last truck standing wins.",
 		R: (t) => (t < 20 ? 11 : Math.max(5, 11 - (t - 20) * 0.15)),
 		/* baked props, also called by enterMg while the clouds cover the switch so their AO is ready by the start (partmodels) */
@@ -19496,6 +19994,11 @@ const MG = {
 		dur: 45,
 		bound: { t: "sq", h: 11 },
 		water: false,
+		/* the ready screen's controls panel: [icon or button label, what it does, small print] */
+		controls: [
+			["stick", "Drive"],
+			["RAM", "Knock a rival's coins loose"],
+		],
 		how: "Grab the falling coins. Ram rivals to knock theirs loose.",
 		loot: true,
 		build(W) {
@@ -19572,6 +20075,11 @@ const MG = {
 				: "Left side drives. Drag on the right side to aim and spray the hose.",
 		NEED: 2,
 		HOSE: 6,
+		/* the ready screen's controls panel: [icon or button label, what it does, small print] */
+		controls: [
+			["stick", "Drive", "Left side"],
+			["aim", "Aim and spray", "Right side"],
+		],
 		how: "Put out the fires with your roof hose and refill at the hydrants. Most fires wins.",
 		HYD: [
 			[0, -12.7],
@@ -20303,6 +20811,11 @@ const MG = {
 		deathY: -0.95,
 		sun: [13.9, 26, 12.1],
 		fx: { col: 0.14 },
+		/* the ready screen's controls panel: [icon or button label, what it does, small print] */
+		controls: [
+			["stick", "Drive"],
+			["RAM", "Boost", "Hops you over a gap"],
+		],
 		how: "Slabs crack and sink after you drive on them. Keep moving; RAM into a gap hops you across. Last one up wins.",
 		/* baked props, also called by enterMg while the clouds cover the switch so their AO is ready by the start (partmodels) */
 		kits() {
@@ -20818,6 +21331,11 @@ const MG = {
 		bare: true,
 		FLOOR: -38,
 		fallY: -40,
+		/* the ready screen's controls panel: [icon or button label, what it does, small print] */
+		controls: [
+			["stick", "Drive"],
+			["RAM", "Ram a rival"],
+		],
 		how: "Dodge the falling boulders. Watch their shadows! Last truck standing wins.",
 		sun: [3, 60, 2.5],
 		build(W) {
@@ -21363,6 +21881,11 @@ const MG = {
 			fill: ["#7FA8E8", "#9A7A55"],
 			sky: ["#3F72BE", "#93B9DE", "#F8C98F"],
 		},
+		/* the ready screen's controls panel: [icon or button label, what it does, small print] */
+		controls: [
+			["stick", "Drive"],
+			["RAM", "Knock cones off a roof"],
+		],
 		how: "Grab cones (gold = 3) and park on your pad to bank them. Rams knock loose the cones on a roof!",
 		dropY: 0,
 		S: 16,
@@ -22176,6 +22699,11 @@ const MG = {
 		tvHint:
 			"Charge the burnout: tap your phone when your dial hits the green, 5 times. After 3-2-1-TAP: tap as fast as you can!",
 		tapHint: "Charge: tap when the needle is in the green (5 times). After 3-2-1-TAP tap as fast as you can.",
+		/* the ready screen's controls panel: [icon or button label, what it does, small print] */
+		controls: [
+			["tap", "Charge the burnout", "Tap in the green, 5 times"],
+			["mash", "Mash to the line", "After 3-2-1-TAP"],
+		],
 		how: "Charge a burnout by tapping in the green, then mash to the line. A red resets your charge!",
 		/* 3-2-1, then the charge: 5 steps of STEP s, then HOLD s of 3-2-1-TAP (TAP on the song's GO); each step the needle sweeps up (faster every step) and one tap
 		   grades it: PERFECT (green band) +1 charge, good (amber edges) +0.6, early +0, red (past the zone, or no tap
@@ -22789,6 +23317,8 @@ const MG = {
 		dur: 45,
 		bare: true,
 		LEN: 110,
+		/* the ready screen's controls panel: [icon or button label, what it does, small print] */
+		controls: [["GAS", "Hold to drive", "Let go before red"]],
 		how: "Hold to drive on green, let go before red or the lorry gets you. First to the finish wins.",
 		tapHint: "Hold the pedal (or Space) to drive.",
 		/* baked props, also called by enterMg while the clouds cover the switch so their AO is ready by the start (partmodels) */
@@ -23183,6 +23713,11 @@ const MG = {
 		HOME: 4,
 		ZONE: 2.5,
 		MAXL: 6,
+		/* the ready screen's controls panel: [icon or button label, what it does, small print] */
+		controls: [
+			["GO", "Reverse once loaded"],
+			["BRAKE", "Stop near the edge"],
+		],
 		how: "Wait for a big load, reverse to the edge and brake as close as you dare. Don't fall in!",
 		tapHint: "Tap GO when loaded, BRAKE near the edge.",
 		/* baked props, also called by enterMg while the clouds cover the switch so their AO is ready by the start (partmodels) */
@@ -23996,6 +24531,11 @@ const MG = {
 		LANES: 4,
 		LW: 3.6,
 		CARV: 6,
+		/* the ready screen's controls panel: [icon or button label, what it does, small print] */
+		controls: [
+			["swipeh", "Change lanes"],
+			["flick", "Jump"],
+		],
 		how: "Dodge traffic, jump potholes, grab parcels. Most parcels wins.",
 		tapHint: "◀ ▶ to change lanes, Jump for potholes.",
 		swipe: { l: 0, u: 1, r: 2 },
@@ -24305,6 +24845,12 @@ const MG = {
 		tvHint: "Tap either side to lock the power. In the air: hold LEFT to tilt back, RIGHT to tilt forward.",
 		LAND: 0.75,
 		tapHint: "Tap either button to lock the power. In the air: hold ◀ to tilt back, ▶ to tilt forward (arrow keys).",
+		/* the ready screen's controls panel: [icon or button label, what it does, small print] */
+		controls: [
+			["tap", "Lock the power"],
+			["BACK", "Hold: tilt back"],
+			["FORWARD", "Hold: tilt forward"],
+		],
 		how: "Lock in the power, then keep your truck level in the air. Land level to bounce on; furthest wins.",
 		/* pop-ups start above the gauge (gauge centre 3.5 over the truck, power bar top ~4.4) */
 		POPH: 4.6,
@@ -24669,6 +25215,12 @@ const MG = {
 		slideHint: "Slide ◀ ▶ to move the crane",
 		tvHint: "Slide on the left to move the crane. Right side: DROP (bottom) and ROTATE (top).",
 		tapHint: "Slide to move the crane, DROP to let go, ROTATE turns the piece (keys: ◀ ▶, Space, R).",
+		/* the ready screen's controls panel: [icon or button label, what it does, small print] */
+		controls: [
+			["slide", "Move the crane"],
+			["DROP", "Let go"],
+			["ROTATE", "Turn the piece"],
+		],
 		how: "Build the tallest tower on your truck from what the crane brings. Tall and thin wobbles: a wide base holds!",
 		CC: ["#E5484D", "#2F7DE1", "#FF8A1F", "#1FA35C", "#FFC83D", "#8E96A3", "#1FB5A8", "#B5622F"],
 		/* the pieces, as rectangles [cx, cy, w, h] around the bounding box centre (side view: x across the lane, y up),
@@ -25768,6 +26320,11 @@ Object.assign(MG, {
 		hi: true,
 		unit: "pts",
 		dur: 60,
+		/* the ready screen's controls panel: [icon or button label, what it does, small print] */
+		controls: [
+			["slide", "Move the cone"],
+			["flick", "Serve", "Flick up"],
+		],
 		how: "Catch the flying scoops on your cone and serve it: bigger cones pay more. Don't jerk the tower, and dodge the seagull's fish!",
 		tapHint: "Slide your finger to move the cone, flick up (or SERVE) to sell it. Keyboard: ◀ ▶ and Enter.",
 		/* TV controller: the whole phone is a slide pad (finger position = cone position), a flick up serves */
@@ -27217,6 +27774,8 @@ Object.assign(MG, {
 			fill: ["#7FA8E8", "#6E8A70"],
 			sky: ["#4A8BD6", "#A0D2F0", "#E2F2F4"],
 		},
+		/* the ready screen's controls panel: [icon or button label, what it does, small print] */
+		controls: [["swipe", "Swipe toward the bin"]],
 		how: "Send each piece of trash to the right bin. Wrong bin costs points.",
 		tapHint: "Tap a bin, or use the arrow keys / WASD.",
 		/* TV controller: swipe toward the bin (button order in ctlHTML: metal, plastic, compost, wood) */
@@ -27495,6 +28054,11 @@ Object.assign(MG, {
 		dur: 45,
 		bare: true,
 		night: true,
+		/* the ready screen's controls panel: [icon or button label, what it does, small print] */
+		controls: [
+			["tap", "Ingredients in order"],
+			["hold", "Salsa and cheese: hold", "Let go in the green"],
+		],
 		how: "Build each taco to match the order. Faster tacos score more.",
 		tapHint: "Tap ingredients in order. Hold salsa and cheese, let go in the green.",
 		ORDER: ["tortilla", "meat", "beans", "lettuce", "salsa", "cheese"],
@@ -28015,6 +28579,11 @@ Object.assign(MG, {
 		bare: true,
 		storm: true,
 		sun: [15.8, 14, 9.5],
+		/* the ready screen's controls panel: [icon or button label, what it does, small print] */
+		controls: [
+			["stick", "Drive"],
+			["RAM", "Steal a towed car"],
+		],
 		how: "Tow each stuck car to the garage of its colour. Ram a towing truck to steal its car.",
 		GAR: [
 			[0, -15.4, "#E5484D", "RED"],
@@ -29111,6 +29680,11 @@ Object.assign(MG, {
 			[0, 9],
 		],
 		ZR: [2.6, 6.2],
+		/* the ready screen's controls panel: [icon or button label, what it does, small print] */
+		controls: [
+			["stick", "Drive", "Turn hard to drift"],
+			["RAM", "Steal a rival's combo"],
+		],
 		how: "Chain drifts for a multiplier, the rings score double. Crashing loses your combo, and a ram steals it.",
 		build(W) {
 			const s = W.sc,
@@ -29551,6 +30125,11 @@ Object.assign(MG, {
 		ramSlide: 0.55,
 		ramKeep: true,
 		canRam: (e) => !e.f || (e.f.bl || 0) < 4,
+		/* the ready screen's controls panel: [icon or button label, what it does, small print] */
+		controls: [
+			["stick", "Drive"],
+			["DRIFT", "Hold while turning", "Let go to boost"],
+		],
 		how: "One big lap, first home wins. Drift through the corners and let go for a boost.",
 		LOOP: [73, 10],
 		PIN: [34, 62],
@@ -30440,6 +31019,11 @@ Object.assign(MG, {
 		dusk: true,
 		fallY: -6,
 		LOCK: 0.9,
+		/* the ready screen's controls panel: [icon or button label, what it does, small print] */
+		controls: [
+			["stick", "Drive"],
+			["RAM", "Bump to pass the dynamite"],
+		],
 		how: "Bump a rival to pass the dynamite on. Whoever holds it when it blows is out!",
 		build(W) {
 			const s = W.sc,
@@ -31298,6 +31882,11 @@ Object.assign(MG, {
 			fill: ["#86AEEA", "#8E7A62"],
 			sky: ["#3D73C2", "#98BEE2", "#F6D2A0"],
 		},
+		/* the ready screen's controls panel: [icon or button label, what it does, small print] */
+		controls: [
+			["stick", "Drive"],
+			["BOOST", "Speed boost"],
+		],
 		how: "Loop out of your paint and back to fill everything inside. Cross a rival's open trail to wash it away!",
 		kits() {
 			this.canKits();
@@ -32229,6 +32818,11 @@ Object.assign(MG, {
 		sun: [0, 9, 31.6],
 		lt: { amb: 0.84, sun: 0.44, warm: 0.28, haze: 70 },
 		fx: { col: 0.06 },
+		/* the ready screen's controls panel: [icon or button label, what it does, small print] */
+		controls: [
+			["◀ ▶", "Move the magnet", "Then steer as you fall"],
+			["HOP", "Pop off the pegs"],
+		],
 		how: "3 rounds, everyone drops at once, a new board every round. Steer and hop your ball into the best slot, catch the sliding ×3!",
 		tvHint:
 			"Before the drop: LEFT / RIGHT move your magnet. Falling: LEFT / RIGHT steer, HOP (right half) pops you off pegs.",
@@ -33913,6 +34507,12 @@ Object.assign(MG, {
 		sun: [0, 9, 31.6],
 		lt: { amb: 0.84, sun: 0.44, warm: 0.28, haze: 70 },
 		fx: { col: 0.06 },
+		/* the ready screen's controls panel: [icon or button label, what it does, small print] */
+		controls: [
+			["pad", "Plan: hide traps", "Tap a gap on a rival's board"],
+			["◀ ▶", "Steer"],
+			["HOP", "Pop off the pegs"],
+		],
 		how: "Every round: hide traps on a rival's board (wall off their way to the ×2 and SPLIT gates, plant a fake ×2, mine their pegs), then everyone drops. Traps stay hidden until hit; you score from your slots, plus points for every trap your rival hits!",
 		tvHint:
 			"Planning: your phone shows your rival's board: pick a trap, tap a gap. Playing: LEFT / RIGHT move and steer, HOP on the right half.",
@@ -36385,6 +36985,19 @@ Object.assign(MG, {
 			fill: ["#8A95D8", "#5A4535"],
 			sky: ["#232D57", "#9E5876", "#EE925C"],
 		},
+		/* the ready screen's controls panel: [icon or button label, what it does, small print] */
+		controls: (side) =>
+			side === 0
+				? [
+						["stick", "Drive and aim"],
+						["FIRE", "Shoot tyres"],
+						["POUND", "Ground pound"],
+					]
+				: [
+						["stick", "Drive", "Carry TNT into the monster"],
+						["DASH", "Dash", "Breaks free of the magnet"],
+					],
+		sides: ["Monster", "Survivors"],
 		how: "Boss fight! Drive TNT into the monster to knock it out, or survive to win as a team.",
 		teamHow: (s) =>
 			s === 0
@@ -38101,6 +38714,21 @@ Object.assign(MG, {
 		OILCD: 8 /* was 7, then 9 */,
 		OILT: 8,
 		OILR: 1.9,
+		/* the ready screen's controls panel: [icon or button label, what it does, small print] */
+		controls: (side) =>
+			side === 0
+				? [
+						["stick", "Drive", "Up: faster, down: brake"],
+						["OIL", "Oil slick"],
+						["SLAM", "Shockwave"],
+						["CLAW", "Grab a cop"],
+					]
+				: [
+						["stick", "Drive", "Up: faster, down: brake"],
+						["HARPOON", "Hook the truck", "Ahead of it: spikes"],
+						["TRICK", "Your truck's trick", "", "b2"],
+					],
+		sides: ["Cash truck", "Cops"],
 		how: "1 vs 3 highway chase! The cash truck has to reach the tunnel with any cash left; the cops harpoon it from close behind or get ahead and drop spikes to knock the money bags off.",
 		teamHow: (s) =>
 			s === 0
@@ -41896,6 +42524,12 @@ Object.assign(MG, {
 		fmt: (W, e) => (e.side === 1 ? "🔴 Red team" : "🔵 Blue team"),
 		fmtV: (v) => `${Math.floor(v / 100)}-${v % 100}`,
 		ramK: 0.75 /* bumps between trucks a bit softer than Mud Brawl's rams */,
+		/* the ready screen's controls panel: [icon or button label, what it does, small print] */
+		controls: [
+			["stick", "Drive"],
+			["BOOST", "Hold to speed up"],
+			["JUMP", "Jump", "Again in the air: flip"],
+		],
 		how: "Push the ball into the other team's goal. First team to 3 goals wins!",
 		teamHow: (s) => (s === 0 ? "Blue: score in the red goal." : "Red: score in the blue goal."),
 		tvHint: "Drag to drive · hold BOOST to speed up (corner pads fill it) · JUMP, again in the air to flip",
@@ -51327,6 +51961,12 @@ function unstick() {
 /* ---------- boot ---------- */
 setInterval(() => {
 	if (W && GFX.mode === "mg" && (document.hidden || performance.now() - lastT > 400)) {
+		try {
+			pracCheck();
+		} catch (e) {
+			console.error(e);
+		}
+		if (!W) return;
 		if (TVS) {
 			try {
 				tvsFrame();

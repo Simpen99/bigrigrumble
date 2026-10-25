@@ -25,7 +25,7 @@ for (const g of ids) {
 	const { p, ctx, errs } = await openGame(b, { ...vp, mobile: true });
 	try {
 		await startMinigame(p, g, true);
-		await p.waitForFunction((t) => W && W.t > t, t, { timeout: 60000 });
+		await p.waitForFunction((t) => W && !W.prac && W.t > t, t, { timeout: 60000 });
 		const f = path.join(OUT, `shot-${g}${land ? "-l" : ""}.png`);
 		await p.screenshot({ path: f });
 		files.push(f);

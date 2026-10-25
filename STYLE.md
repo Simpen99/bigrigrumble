@@ -54,5 +54,6 @@ We design for TV mode: players watch the TV, the phone is only a controller they
   3. **Pop-up text**: a few words where it happened ("Perfect!", "+25", "Lost the car"), floating up and fading in
      under a second (`popText`).
   4. **Stamp**: round-changing moments ("OUT", "P2", "1 LIFE") as a short stamp over the truck.
-- **Rules live on the intro card**: `how` at most two short sentences, the controls in `tvHint` / `tapHint`. The
+- **Rules live on the ready screen**: `how` at most two short sentences, the controls as short rows in `controls`
+  (an icon or the phone button, a few words, optional small print); `tvHint` / `tapHint` are only a fallback. The
   centre banner is only for between-round messages ("Results coming up").
