@@ -7740,7 +7740,7 @@ Object.assign(MG, {
 				: [
 						["stick", "Drive", "Up: faster, down: brake"],
 						["HARPOON", "Hook the truck", "Ahead of it: spikes"],
-						["TRICK", "Your truck's trick"],
+						["TRICK", "Your truck's trick", "", "b2"],
 					],
 		sides: ["Cash truck", "Cops"],
 		how: "1 vs 3 highway chase! The cash truck has to reach the tunnel with any cash left; the cops harpoon it from close behind or get ahead and drop spikes to knock the money bags off.",

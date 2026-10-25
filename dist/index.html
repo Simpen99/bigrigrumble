@@ -866,6 +866,10 @@ body.tv #mg .m3top{max-width:900px}
 .rdy-cr{display:flex;align-items:center;gap:12px;min-height:48px;padding:2px 0}
 .rdy-ic{flex:none;width:46px;height:46px}
 .rdy-ic svg{display:block;width:100%;height:100%}
+/* the phone with the part to press lit, and a button's name in that part's colour */
+.rdy-ph{flex:none;width:66px;height:37px}
+.rdy-ph svg{display:block;width:100%;height:100%}
+.rdy-nm{display:inline-block;margin-right:3px;padding:3px 6px 2px;border:2px solid #151B24;border-radius:6px;background:var(--zc);color:#fff;font:400 12px/1 var(--display);text-shadow:0 1px 0 rgba(0,0,0,.3);vertical-align:1px}
 .rdy-bt{flex:none;min-width:58px;height:40px;padding:2px 12px 0;display:grid;place-items:center;background:var(--ui-bb-dark1) center/100% 100% no-repeat;color:#fff;font:400 13px/1 var(--display);white-space:nowrap}
 .rdy-lb{min-width:0;font:700 18px/1.15 var(--body);color:#3A2812}
 .rdy-lb small{display:block;font:600 14px/1.2 var(--body);color:#6B5232}
@@ -874,6 +878,8 @@ body.tv #mg .m3top{max-width:900px}
 .rdy-cols>.me{background:color-mix(in srgb,var(--sc) 14%,transparent);box-shadow:inset 0 0 0 3px var(--sc)}
 .rdy-cols .rdy-cr{gap:8px;min-height:42px}
 .rdy-cols .rdy-ic{width:40px;height:40px}
+.rdy-cols .rdy-ph{width:54px;height:30px}
+.rdy-cols .rdy-nm{display:table;margin:0 0 2px;font-size:10px;padding:2px 4px 1px}
 .rdy-cols .rdy-bt{min-width:0;height:34px;padding:2px 9px 0;font-size:11px}
 .rdy-cols .rdy-lb{font-size:15px}
 .rdy-cols .rdy-lb small{font-size:12.5px}
@@ -904,6 +910,7 @@ body.tv #mg .m3top{max-width:900px}
 .rdy.wide .rdy-ctl h2{font-size:16px;margin-bottom:4px}
 .rdy.wide .rdy-cr{min-height:38px;padding:1px 0}
 .rdy.wide .rdy-ic{width:36px;height:36px}
+.rdy.wide .rdy-ph{width:54px;height:30px}
 .rdy.wide .rdy-bt{height:32px;min-width:48px;font-size:11px}
 .rdy.wide .rdy-lb{font-size:15px}
 .rdy.wide .rdy-lb small{font-size:12px}
@@ -1141,7 +1148,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-25 06:13 c2ac6d7";
+const BUILD = "2026-10-25 14:35 21c9644";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -15781,29 +15788,174 @@ function ctlRows(def, side) {
 	}
 	return [[def.slide ? "slide" : def.swipe ? "swipe" : "tap", def.tvHint || def.tapHint || "Tap the big button"]];
 }
-function ctlRowHTML([ic, label, small]) {
-	return `<div class="rdy-cr">${CTL_IC[ic] ? `<span class="rdy-ic">${CTL_IC[ic]}</span>` : `<span class="rdy-bt">${esc(ic)}</span>`}<span class="rdy-lb">${esc(label)}${small ? `<small>${esc(small)}</small>` : ""}</span></div>`;
+/* the controls rows draw the phone the player holds, with the part to press lit and the rest greyed: the TV controller's
+   layout (stick on the left 58%, one button filling the right, two split along the diagonal, three = the main one across the
+   bottom and two on top; aim games split down the middle; slide games' slider and SERVE / DROP; swipe games' whole-screen
+   pad with an arrow at each edge) or, in phone mode, the round buttons at the bottom right. ctx = {def, side, tv, shared} */
+const PH_COL = { b1: "#E5484D", b2: "#F29A2E", b3: "#2F7DE1", s1: "#E0458A", tap: "#FFC83D", pad: "#4F6FC4" };
+function phLayout(def, side, tv, shared) {
+	const n = (f) => {
+		try {
+			return f(def, side, { truck: 0, key: "", name: "" }) ? 1 : 0;
+		} catch (e) {
+			return 0;
+		}
+	};
+	if (def.ctrl === "stick")
+		return { k: def.aim ? "aim" : "stick", tv, n: shared ? 0 : def.aim ? 0 : 1 + n(btn2Lbl) + n(btn3Lbl) };
+	if (!tv) return null;
+	if (def.slide) return { k: "slide", tv, n: def.slideBtn2 ? 2 : 1 };
+	if (def.swipe) return { k: "swipe", tv, dirs: Object.keys(def.swipe) };
+	if (def.ctrl === "tap") return { k: "tap", tv };
+	return null;
+}
+/* which part of the phone a row means: its 4th entry, else from its icon or button label */
+function phZone(def, side, L, row) {
+	if (row[3]) return row[3];
+	const ic = row[0],
+		lbl = (f) => {
+			try {
+				return f(def, side, { truck: 0, key: "", name: "" });
+			} catch (e) {
+				return null;
+			}
+		};
+	if (L.k === "swipe") return ic === "swipeh" ? "lr" : ic === "flick" ? "u" : ic === "swipe" ? L.dirs.join("") : null;
+	if (ic === "stick" || ic === "slide") return "pad";
+	if (ic === "aim") return "aim";
+	if (L.k === "tap") return "tap";
+	if (L.k === "slide")
+		return ic === "flick" || ic === (def.slideBtn || "SERVE") ? "b1" : ic === def.slideBtn2 ? "b2" : null;
+	if (ic === ramLbl(def, side)) return "b1";
+	if (ic === lbl(btn2Lbl)) return "b2";
+	if (ic === lbl(btn3Lbl)) return "b3";
+	return null;
+}
+function phoneSVG(L, z) {
+	const W = 56,
+		H = 28,
+		g = "#3B4559",
+		dk = "#2A3346",
+		f = (k, c) => (z === k ? c : g),
+		poly = (pts, c) => `<polygon points="${pts.map((p) => p.join(",")).join(" ")}" fill="${c}"/>`,
+		rect = (x, y, w, h, c) => `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${c}"/>`,
+		knob = (x, y) => `<circle cx="${x}" cy="${y}" r="4" fill="#F4F6F9" stroke="#0E1B3A" stroke-width="1.5"/>`;
+	let s = "";
+	if (L.k === "stick" && !L.tv) {
+		/* phone mode: drag anywhere on the lower part, round buttons bottom right */
+		s += rect(0, 0, W, H, dk) + rect(0, H * 0.42, W, H * 0.58, z === "pad" ? PH_COL.pad : g);
+		if (z === "pad") s += knob(16, H * 0.72);
+		const btn = (k, x, y, r) =>
+			L.n >= +k[1] || k === "b1"
+				? `<circle cx="${x}" cy="${y}" r="${r}" fill="${z === k ? PH_COL[k] : "#596379"}" stroke="#0E1B3A" stroke-width="1.5"/>`
+				: "";
+		s += btn("b1", W - 7, H - 7, 5.5) + btn("b2", W - 20, H - 6, 4) + btn("b3", W - 7, H - 19, 4);
+	} else if (L.k === "stick" || L.k === "slide") {
+		const X = W * 0.58,
+			RW = W - X,
+			c1 = L.k === "slide" ? PH_COL.s1 : PH_COL.b1;
+		s += rect(0, 0, X, H, z === "pad" ? PH_COL.pad : dk);
+		if (z === "pad")
+			s +=
+				L.k === "slide"
+					? `<path d="M6 14l5-4v8zM${X - 6} 14l-5-4v8z" fill="#F4F6F9"/>` + knob(X / 2, H / 2)
+					: knob(X / 2 + 3, H / 2 - 3);
+		if (L.n === 1) s += rect(X, 0, RW, H, f("b1", c1));
+		else if (L.n === 2)
+			s +=
+				poly(
+					[
+						[X, 0],
+						[X, H],
+						[W, H],
+					],
+					f("b1", c1),
+				) +
+				poly(
+					[
+						[X + 2, 0],
+						[W, 0],
+						[W, H - 2],
+					],
+					f("b2", PH_COL.b2),
+				);
+		else if (L.n === 3)
+			s +=
+				rect(X, H / 2, RW, H / 2, f("b1", c1)) +
+				rect(X, 0, RW / 2 - 0.5, H / 2 - 1, f("b3", PH_COL.b3)) +
+				rect(X + RW / 2 + 0.5, 0, RW / 2 - 0.5, H / 2 - 1, f("b2", PH_COL.b2));
+		else s += rect(X, 0, RW, H, g);
+		s += rect(X - 0.5, 0, 1, H, "#1B2333");
+	} else if (L.k === "aim") {
+		s += rect(0, 0, W / 2, H, z === "pad" ? PH_COL.pad : dk) + rect(W / 2, 0, W / 2, H, z === "aim" ? PH_COL.pad : dk);
+		s += rect(W / 2 - 0.5, 0, 1, H, "#1B2333");
+		if (z === "pad") s += knob(W / 4, H / 2);
+		if (z === "aim") s += knob((W * 3) / 4, H / 2);
+	} else if (L.k === "swipe") {
+		s += rect(0, 0, W, H, dk);
+		const a = (d, pts) => (L.dirs.includes(d) ? poly(pts, z && z.includes(d) ? PH_COL.tap : "#596379") : "");
+		s +=
+			a("l", [
+				[3, 14],
+				[9, 9],
+				[9, 19],
+			]) +
+			a("r", [
+				[W - 3, 14],
+				[W - 9, 9],
+				[W - 9, 19],
+			]) +
+			a("u", [
+				[W / 2, 2],
+				[W / 2 + 5, 8],
+				[W / 2 - 5, 8],
+			]) +
+			a("d", [
+				[W / 2, H - 2],
+				[W / 2 + 5, H - 8],
+				[W / 2 - 5, H - 8],
+			]);
+		if (z) s += knob(W / 2, H / 2);
+	} else if (L.k === "tap") {
+		s +=
+			rect(0, 0, W, H, dk) +
+			`<rect x="${W * 0.18}" y="3" width="${W * 0.64}" height="${H - 6}" rx="4" fill="${z === "tap" ? PH_COL.tap : g}"/>`;
+	}
+	return `<svg viewBox="0 0 64 36" aria-hidden="true"><rect x="1" y="1" width="62" height="34" rx="7" fill="#1B2333" stroke="#0E1B3A" stroke-width="2"/><svg x="4" y="4" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${s}</svg></svg>`;
+}
+/* one row: the phone with its part lit (and a button's name in its colour), else an icon or a phone button */
+function ctlRowHTML(row, ctx) {
+	const [ic, label, small] = row,
+		L = ctx && phLayout(ctx.def, ctx.side, ctx.tv, ctx.shared),
+		z = L && phZone(ctx.def, ctx.side, L, row),
+		sm = small ? `<small>${esc(small)}</small>` : "";
+	if (z) {
+		const col = L.k === "slide" && z === "b1" ? PH_COL.s1 : PH_COL[z];
+		return `<div class="rdy-cr"><span class="rdy-ph">${phoneSVG(L, z)}</span><span class="rdy-lb">${!CTL_IC[ic] && col ? `<b class="rdy-nm" style="--zc:${col}">${esc(ic)}</b> ` : ""}${esc(label)}${sm}</span></div>`;
+	}
+	return `<div class="rdy-cr">${CTL_IC[ic] ? `<span class="rdy-ic">${CTL_IC[ic]}</span>` : `<span class="rdy-bt">${esc(ic)}</span>`}<span class="rdy-lb">${esc(label)}${sm}</span></div>`;
 }
 /* team games: rows both sides share on top, then a column per side under its name (def.sides, else Solo / Team or Blue / Red);
-   mine = this phone's side (its column is ringed) */
-function rdyCtlHTML(mg, def, mine) {
-	if (!mg.tm) return ctlRows(def).map(ctlRowHTML).join("");
+   mine = this phone's side (its column is ringed); tv = draw the TV controller's layout (else phone mode's) */
+function rdyCtlHTML(mg, def, mine, tv) {
+	const row = (side, shared) => (r) => ctlRowHTML(r, { def, side, tv, shared });
+	if (!mg.tm) return ctlRows(def).map(row()).join("");
 	const a = ctlRows(def, 0),
 		b = ctlRows(def, 1),
 		key = (r) => JSON.stringify(r),
 		inB = new Set(b.map(key)),
 		shared = a.filter((r) => inB.has(key(r))),
 		sh = new Set(shared.map(key));
-	if (shared.length === a.length && a.length === b.length) return a.map(ctlRowHTML).join("");
+	if (shared.length === a.length && a.length === b.length) return a.map(row(0)).join("");
 	const names = def.sides || (mg.team === "1v3" ? ["Solo", "Team"] : ["Blue", "Red"]);
 	return (
-		shared.map(ctlRowHTML).join("") +
+		shared.map(row(0, true)).join("") +
 		`<div class="rdy-cols">${[a, b]
 			.map(
 				(rows, s) =>
 					`<div class="${s === mine ? "me" : ""}" style="--sc:${mg.tc[s]}"><span class="rdy-tag">${esc(names[s])}</span>${rows
 						.filter((r) => !sh.has(key(r)))
-						.map(ctlRowHTML)
+						.map(row(s))
 						.join("")}</div>`,
 			)
 			.join("")}</div>`
@@ -15828,7 +15980,7 @@ function rdyPlayersHTML(mg) {
 }
 /* go: "ready" = this phone's I'm ready (#m3rb), "host" = the TV's start-now (#m3rs), null = no button (a linked screen) */
 function rdyHTML(mg, def, go, demo, mine) {
-	return `<div class="rdy" id="m3r"><div class="rdy-bg" id="rdybg"></div><div class="rdy-st"><h1 class="rdy-t">${esc(def.name)}</h1><div class="rdy-win" id="rdywin"><span class="rdy-clk" id="rdyclk"></span><span class="rdy-prac">${demo ? "Demo" : "Practice time!"}</span></div><p class="rdy-how">${esc(def.how)}</p><div class="rdy-col"><div class="rdy-ctl"><h2>Controls</h2>${rdyCtlHTML(mg, def, mine)}</div>${go === "ready" ? `<button class="rdy-go" id="m3rb">I'm ready!</button>` : go === "host" ? `<button class="rdy-go" id="m3rs">Start!</button>` : ""}<div class="rdy-ps" id="m3rl">${rdyPlayersHTML(mg)}</div></div></div></div>`;
+	return `<div class="rdy" id="m3r"><div class="rdy-bg" id="rdybg"></div><div class="rdy-st"><h1 class="rdy-t">${esc(def.name)}</h1><div class="rdy-win" id="rdywin"><span class="rdy-clk" id="rdyclk"></span><span class="rdy-prac">${demo ? "Demo" : "Practice time!"}</span></div><p class="rdy-how">${esc(def.how)}</p><div class="rdy-col"><div class="rdy-ctl"><h2>Controls</h2>${rdyCtlHTML(mg, def, mine, !demo)}</div>${go === "ready" ? `<button class="rdy-go" id="m3rb">I'm ready!</button>` : go === "host" ? `<button class="rdy-go" id="m3rs">Start!</button>` : ""}<div class="rdy-ps" id="m3rl">${rdyPlayersHTML(mg)}</div></div></div></div>`;
 }
 /* every few frames from hud3: the practice clock, the ticks, and in phone mode the host's START NOW once it has waited 8 s */
 function rdyTick() {
@@ -38433,7 +38585,7 @@ Object.assign(MG, {
 				: [
 						["stick", "Drive", "Up: faster, down: brake"],
 						["HARPOON", "Hook the truck", "Ahead of it: spikes"],
-						["TRICK", "Your truck's trick"],
+						["TRICK", "Your truck's trick", "", "b2"],
 					],
 		sides: ["Cash truck", "Cops"],
 		how: "1 vs 3 highway chase! The cash truck has to reach the tunnel with any cash left; the cops harpoon it from close behind or get ahead and drop spikes to knock the money bags off.",
