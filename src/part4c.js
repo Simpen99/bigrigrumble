@@ -48,6 +48,16 @@ document.addEventListener("click", (e) => {
 		pickTruck(me.truck + +b.dataset.step);
 		return;
 	}
+	if (b.dataset.cpulv) {
+		if (role === "host" && HG && !HG.practice) setCpuLv(b.dataset.cpulv);
+		else if (role === "client" && G && G.tv) act({ t: "cpulv", v: +b.dataset.cpulv });
+		else {
+			LS.set("trp_cpu", +b.dataset.cpulv);
+			render.last = null;
+			render();
+		}
+		return;
+	}
 	if (b.dataset.tvprac) {
 		if (role === "host" && HG && HG.tv) tvPractice(b.dataset.tvprac);
 		else if (role === "client") act({ t: "prac", g: b.dataset.tvprac });
