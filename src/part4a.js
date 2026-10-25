@@ -1511,11 +1511,21 @@ function rdyOff() {
 }
 /* the canvas fills the window frame's inside while the ready screen is up (full screen otherwise), seen through a hole in the
    pastel background (its mask); the frame's rounded border covers the corners. The stage zooms to the screen: TV / PC
-   1280 x 720, phones on their side 960 x 444, portrait screens a column 420 wide */
+   1280 x 720, phones on their side 960 x 444, portrait screens a column 420 wide (it scrolls). Meanwhile the canvas lives
+   in the ready screen's scroller, placed in its content's coordinates, so it scrolls with the frame (fixed on the
+   screen and moved after each scroll it lagged behind it), and the background reaches the bottom of the content */
 function rdyFit() {
-	const st = document.querySelector("#mg.rdy .rdy");
-	let R = null;
-	if (st && document.body.classList.contains("mgrdy")) {
+	const st = document.querySelector("#mg.rdy .rdy"),
+		cv = GFX.r && GFX.r.domElement,
+		bg = document.getElementById("rdybg");
+	let R = null,
+		H = 0;
+	if (st && cv && bg && document.body.classList.contains("mgrdy")) {
+		if (cv.parentNode !== st) {
+			if (!cv.classList.contains("inrdy")) GFX.cvHome = [cv.parentNode, cv.nextSibling];
+			st.insertBefore(cv, bg.nextSibling);
+			cv.classList.add("inrdy");
+		}
 		const w = innerWidth,
 			h = innerHeight,
 			a = w / h,
@@ -1528,26 +1538,36 @@ function rdyFit() {
 			st.classList.toggle("wide", lay === "wide");
 			st.style.setProperty("--rk", k.toFixed(4));
 		}
-		const el = document.getElementById("rdywin");
+		const el = document.getElementById("rdywin"),
+			sg = st.querySelector(".rdy-st");
 		if (el) {
 			const b = el.getBoundingClientRect(),
+				o = st.getBoundingClientRect(),
 				bw = el.clientLeft * k;
 			if (b.width > 30 && b.height > 30)
 				R = {
-					x: Math.round(b.left + bw),
-					y: Math.round(b.top + bw),
+					x: Math.round(b.left - o.left + st.scrollLeft + bw),
+					y: Math.round(b.top - o.top + st.scrollTop + bw),
 					w: Math.round(b.width - 2 * bw),
 					h: Math.round(b.height - 2 * bw),
 				};
+			if (sg) H = Math.max(st.clientHeight, Math.ceil(sg.getBoundingClientRect().bottom - o.top + st.scrollTop));
 		}
-	}
-	const key = R ? [R.x, R.y, R.w, R.h].join() : "";
+	} else rdyHome();
+	const key = R ? [R.x, R.y, R.w, R.h, H].join() : "";
 	if (key === (GFX.rdyK || "")) return;
 	GFX.rdyK = key;
 	GFX.rdy = R;
-	const bg = document.getElementById("rdybg");
-	if (bg && R) bg.style.cssText = `--hx:${R.x}px;--hy:${R.y}px;--hw:${R.w}px;--hh:${R.h}px`;
+	if (bg && R) bg.style.cssText = `--hx:${R.x}px;--hy:${R.y}px;--hw:${R.w}px;--hh:${R.h}px;bottom:auto;height:${H}px`;
 	gfxResize();
+}
+/* the canvas back where it lives outside the ready screen (also if the screen was swapped out with it inside) */
+function rdyHome() {
+	const cv = GFX.r && GFX.r.domElement;
+	if (!cv || !cv.classList.contains("inrdy")) return;
+	cv.classList.remove("inrdy");
+	const [p, n] = GFX.cvHome || [document.body, null];
+	p.insertBefore(cv, n && n.parentNode === p ? n : p.firstChild);
 }
 /* a world's scene and game hooks, thrown away (stop3D without leaving the minigame) */
 function dropWorld(w) {

@@ -1262,6 +1262,7 @@ function gfxResize() {
 function setMode(m) {
 	if (GFX.mode === m) return;
 	GFX.mode = m;
+	if (m !== "mg") rdyHome();
 	gfxResize();
 }
 let lastT = 0;
