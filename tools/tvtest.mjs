@@ -14,7 +14,8 @@
    player gets a result
    --early stops after the first in-game screenshots; --ready only checks the ready screen (trucks under the intro card / ready panel) and stops; --no-shots skips
    the contact sheet; --probe "<js>" prints that expression, evaluated on the TV, once a second (--sprobe: on the linked screen, --pprobe: on the last phone, --rprobe: on the TV at the ready screen)
-   (e.g. --probe "TVS.worlds.map((s) => s.W.me.sc)"). */
+   (e.g. --probe "TVS.worlds.map((s) => s.W.me.sc)"). --snap N saves a TV screenshot every N s of game time, --snapif "<js>"
+   one whenever that expression is true on the TV (at most every 1.5 s); TVW / TVH env = the TV's size (default 960 x 540). */
 import fs from "fs";
 import path from "path";
 import { args, launch, openGame, save, OUT } from "./lib.mjs";
@@ -345,6 +346,8 @@ const sigs = PH.map(() => ({ first: null, extra: new Set(), gone: new Set() })),
 	frame = {},
 	t0 = Date.now();
 let lastProbe = -1,
+	nextSnap = 1,
+	lastIf = -9,
 	shotStart = false,
 	shotMid = false,
 	lastT = 0,
@@ -395,6 +398,26 @@ while (Date.now() - t0 < cap) {
 			if (a && c)
 				for (const k in a)
 					if (c[k] && !k.startsWith("cpu")) scDrift.push([k, Math.hypot(a[k][0] - c[k][0], a[k][1] - c[k][1], a[k][2] - c[k][2])]);
+		}
+		/* --snap N: a TV screenshot every N s of game time; --snapif "<js>": one whenever that expression (evaluated on the
+		   TV) is true, at most every 1.5 s (saved as tv_<game>_t<s>.png / tv_<game>_if<s>.png) */
+		if (opt.snap && s.t >= nextSnap) {
+			nextSnap = s.t + (+opt.snap || 10);
+			save(`tv_${g}_t${String(Math.round(s.t)).padStart(3, "0")}.png`, await TV.p.screenshot());
+		}
+		if (
+			opt.snapif &&
+			s.t - lastIf > 1.5 &&
+			(await TV.p.evaluate((x) => {
+				try {
+					return !!(0, eval)(x);
+				} catch (e) {
+					return false;
+				}
+			}, opt.snapif))
+		) {
+			lastIf = s.t;
+			save(`tv_${g}_if${String(Math.round(s.t)).padStart(3, "0")}.png`, await TV.p.screenshot());
 		}
 		if (!shotMid && s.t > s.dur / 2) {
 			shotMid = true;
