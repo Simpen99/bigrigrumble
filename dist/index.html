@@ -1077,7 +1077,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-25 03:20 7d19fb4";
+const BUILD = "2026-10-25 02:55 dc1cbe0";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -37912,19 +37912,18 @@ Object.assign(MG, {
 		   of it that's still in the chase (or winched by the helicopter if there's none) and slung up the road in an arc
 		   TOWH m high, landing TOWB m behind that cop (never closer than TOWHB m behind the truck); its buttons wait
 		   TOWCD s after landing and it can't be towed again for TOWAG s */
-		TOWZ: 30 /* was 34 (the TV's camera drops cops TVB m behind the truck) */,
+		TOWZ: 34,
 		TOWW: 1.5,
 		TOWB: 7,
 		TOWHB: 16,
 		TOWH: 5,
 		TOWCD: 1,
 		TOWAG: 3,
-		/* the TV's camera (see cam): from the side, TVTILT rad down, through a TVFOV degree lens; centred TVC m ahead of the
-		   cash truck, it frames the trucks TVA m ahead of it to TVB m behind it (was 40) */
-		TVC: 9,
+		/* the TV's camera: the trucks TVA m ahead of the cash truck to TVB m behind it, half the pack framed up to TVHL m,
+		   through a TVFOV degree lens (see cam) */
 		TVA: 28,
-		TVB: 22,
-		TVTILT: 1.05,
+		TVB: 40,
+		TVHL: 34,
 		TVFOV: 30,
 		/* cooldowns by how hard a trick hits: self buffs and light knocks 7-8 s, slows and obstacles 11-12 s, the ones that
 		   take the truck's control or spin it out 13-15 s (was 8-11 s for all) */
@@ -38274,8 +38273,7 @@ Object.assign(MG, {
 				);
 			});
 			for (let z = -60; z > -L + 30; z -= 140) {
-				/* (not on the TV: its camera looks across the road from the side) */
-				if (!off(z, 6) || W.tv) continue;
+				if (!off(z, 6)) continue;
 				s.add(B(0.4, 7, 0.4, "#5A6272", -hw - 2, 3.5, z), B(0.4, 7, 0.4, "#5A6272", hw + 2, 3.5, z));
 				const sg = new THREE.Mesh(
 					new THREE.PlaneGeometry(wid + 2, 1.8),
@@ -38334,10 +38332,9 @@ Object.assign(MG, {
 				zc = -(b0 + b1) / 2,
 				CON = "#A3ACBB";
 			wid = hw * 2;
-			/* pylons at both ends, one each side, cables fanning down to the parapets (the TV's camera side: none) */
+			/* pylons at both ends, one each side, cables fanning down to the parapets */
 			[-(b0 + 28), -(b1 - 28)].forEach((zt, j) =>
 				[-1, 1].forEach((sd) => {
-					if (W.tv && sd > 0) return;
 					const px = sd * (hw + 2.7);
 					s.add(B(1.3, 26, 1.7, "#C9CED8", px, 5.5, zt), B(1.6, 0.5, 2, "#A3ACBB", px, 18.7, zt));
 					s.add(B(1.5, 0.35, 1.9, "#E5484D", px, 17.2, zt));
@@ -38362,14 +38359,11 @@ Object.assign(MG, {
 			for (let i = 0, z = -b0 - 18; z > -b1 + 10; z -= 36, i++) {
 				const sd = i % 2 ? 1 : -1,
 					px = sd * (hw + 1.15);
-				/* (on the TV's camera side only the pool of light) */
-				if (!(W.tv && sd > 0)) {
-					s.add(Cy(0.08, 0.11, 6, 8, "#5A6272", px, 3.97, z));
-					s.add(B(1.6, 0.1, 0.12, "#5A6272", px - sd * 0.75, 6.95, z));
-					const head = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.16, 0.32), lampM);
-					head.position.set(px - sd * 1.45, 6.87, z);
-					s.add(head);
-				}
+				s.add(Cy(0.08, 0.11, 6, 8, "#5A6272", px, 3.97, z));
+				s.add(B(1.6, 0.1, 0.12, "#5A6272", px - sd * 0.75, 6.95, z));
+				const head = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.16, 0.32), lampM);
+				head.position.set(px - sd * 1.45, 6.87, z);
+				s.add(head);
 				const pool = new THREE.Mesh(
 					new THREE.PlaneGeometry(7, 7),
 					new THREE.MeshBasicMaterial({
@@ -38649,13 +38643,6 @@ Object.assign(MG, {
 		},
 		/* driving: cruise up the road; the stick steers and sets the speed; the button rams (cops) or drops oil (truck) */
 		phys(W, e, inp, dt) {
-			/* the TV looks at the road from the side (cam): a TV player's stick turns with it (screen right = up the road,
-			   -z; screen up = -x); the button flags go with the copy, so they still fire once */
-			const raw = W.tv && e.rem && inp;
-			if (raw) {
-				inp = Object.assign({}, raw, { x: raw.y, y: -raw.x });
-				raw.boost = raw.b2 = raw.b3 = false;
-			}
 			const solo = e.side === 0,
 				T = solo ? null : this.solo(W),
 				/* catch-up: a cop more than 30 m behind the truck cruises faster and gets extra top speed (up to 8 m/s; was 12
@@ -39505,62 +39492,33 @@ Object.assign(MG, {
 		/* cameras: yours from behind and above, looking up the road; the TV follows the whole pack */
 		cam(W, tgt, pos, far) {
 			if (W.tv) {
-				/* the TV looks at the road from the side, from high over its right-hand verge (TVTILT down, a TVFOV
-				   lens): the road runs left to right across the wide screen the way the trucks drive, so a long pack
-				   fits the screen's long side (it looked down the road from behind, and a long pack left the trucks
-				   tiny). The chase is about the cash truck: it's centred TVC m ahead of it (where it's heading, so the
-				   truck sits left of the middle; from the start on, so the ready screen shows them all) and frames the
-				   trucks TVA m ahead of it to TVB m behind it (a cop racing far ahead or a straggler far back drops out
-				   with a pill at the screen's edge, edgePill; the truck never does; a bit further back a cop gets towed
-				   up: TOWZ) and the road's width, as close as all of it fits (found by projecting them through a
-				   scratch camera); the haze moves back with the camera so the pack stays clear of it. The tall things
-				   on that verge (the bridge's pylons and lamps, the overhead signs) aren't built on the TV */
+				/* the chase is about the cash truck: the trucks within TVA m ahead of it to TVB m behind it (a cop racing far
+				   ahead or a straggler far back drops out of the shot with a pill at the screen's edge, edgePill; the truck
+				   never does; was 25 / 60 m, and a cop that far back gets towed up: TOWZ) */
 				const T = this.solo(W),
 					L = W.list.filter((e) => !e.gone && (!T || (e.z > T.z - this.TVA && e.z < T.z + this.TVB))),
 					zs = (L.length ? L : W.list).map((e) => e.z),
-					zm = T && W.t > 0 ? T.z - this.TVC : (Math.min(...zs) + Math.max(...zs)) / 2,
-					hs = Math.max(...zs.map((z) => Math.abs(z - zm))) + 6,
-					z0 = zm - hs,
-					z1 = zm + hs,
-					zc = zm,
-					a = this.TVTILT,
-					rw = (this.LANES * this.LW) / 2 + 1,
-					at = (D) => [new THREE.Vector3(0, 0, zc), new THREE.Vector3(D * Math.cos(a), D * Math.sin(a), zc)],
-					c = W.fitCam || (W.fitCam = new THREE.PerspectiveCamera(this.TVFOV, 1, 0.5, 400)),
-					v = new THREE.Vector3(),
-					pts = [
-						[0, z0],
-						[0, z1],
-						[-rw, zc],
-						[rw, zc],
-					],
-					fits = (D) => {
-						const [t, p] = at(D);
-						c.position.copy(p);
-						c.lookAt(t);
-						c.updateMatrixWorld();
-						return pts.every(([x, z]) => {
-							v.set(x, 0, z).project(c);
-							return Math.abs(v.x) < 0.9 && Math.abs(v.y) < 0.84 && v.z < 1;
-						});
-					};
+					z0 = Math.min(...zs),
+					z1 = Math.max(...zs),
+					sp = z1 - z0;
+				/* a fixed tilt (35 degrees down) at the middle of the pack, pulled back as its length grows (hl = half the
+				   pack, up to TVHL) so both ends stay in view; a longer lens (TVFOV, was 40) from further back keeps the
+				   framing but flattens the depth, so the trucks far up the road (the cash truck) draw bigger; the haze moves
+				   back with the camera so the pack stays clear of it */
+				const hl = Math.min(sp / 2 + 6, this.TVHL),
+					zc = (z0 + z1) / 2,
+					a = 0.62,
+					D = (Math.max(26, hl * 2 + 6) * Math.tan((20 * Math.PI) / 180)) / Math.tan((this.TVFOV * Math.PI) / 360),
+					t = new THREE.Vector3(0, 0, zc),
+					p = new THREE.Vector3(0, D * Math.sin(a), zc + D * Math.cos(a));
 				camFov(this.TVFOV);
-				c.aspect = W.cam.aspect;
-				c.updateProjectionMatrix();
-				let lo = 10,
-					hi = 400;
-				for (let k = 0; k < 20; k++) {
-					const m = (lo + hi) / 2;
-					if (fits(m)) hi = m;
-					else lo = m;
-				}
 				const fog = W.sc.fog;
 				if (fog) {
 					if (W.hz0 === undefined) W.hz0 = fog.near;
-					fog.near = W.hz0 + Math.max(0, hi - 30);
+					fog.near = W.hz0 + Math.max(0, D - 30);
 					fog.far = fog.near + W.hz0 * 2.8;
 				}
-				return at(hi);
+				return [t, p];
 			}
 			const e = W.me,
 				x = e.x * 0.85,
@@ -40307,33 +40265,30 @@ Object.assign(MG, {
 			}
 			if (v.clank && v.clank !== h[0]) v.clank = 0;
 		},
-		/* the TV: a truck off the screen gets a pill at the edge it left by (left = behind in the side view), in its own lane,
-		   in its colour, with its name, how far it is from the cash truck and an arrow pointing off the screen */
+		/* the TV: a truck off the top or bottom of the screen gets a pill at that edge, above its own spot across the road, in
+		   its colour, with its name and how far it is behind (▼) or ahead of (▲) the cash truck */
 		edgePill(W, e) {
 			const cam = W.cam,
 				T = this.solo(W);
 			let show = false;
 			if (W.tv && cam && T && e !== T && !e.gone && W.t > 0) {
 				const p = new THREE.Vector3(e.x, 1, e.z).project(cam);
-				if (Math.max(Math.abs(p.x), Math.abs(p.y)) > 1.02 && p.z < 1) {
-					const d = Math.round(Math.abs(e.z - T.z)),
-						side = Math.abs(p.x) >= Math.abs(p.y),
-						arrow = side ? (p.x < 0 ? "◀" : "▶") : p.y < 0 ? "▼" : "▲",
-						q = new THREE.Vector3();
-					/* walk along its lane to where it meets the screen edge */
+				if (Math.abs(p.y) > 1.02 && p.z < 1) {
+					const back = e.z > T.z,
+						d = Math.round(Math.abs(e.z - T.z));
+					/* walk along its line up / down the road to where it meets the screen edge */
 					let a = e.z,
 						b = GFX.mgCam ? GFX.mgCam.t.z : T.z;
 					for (let k = 0; k < 14; k++) {
 						const m = (a + b) / 2;
-						q.set(e.x, 1.2, m).project(cam);
-						if (Math.abs(q.x) > 0.86 || Math.abs(q.y) > 0.84) a = m;
+						if (Math.abs(new THREE.Vector3(e.x, 1.2, m).project(cam).y) > 0.84) a = m;
 						else b = m;
 					}
 					if (!e.pill) {
 						e.pill = pillSprite();
 						W.sc.add(e.pill.sp);
 					}
-					e.pill.set(arrow === "◀" ? `◀ ${e.p.name} ${d} m` : `${e.p.name} ${d} m ${arrow}`, pcol(e.p));
+					e.pill.set(`${e.p.name} ${d} m ${back ? "▼" : "▲"}`, pcol(e.p));
 					e.pill.sp.position.set(e.x, 1.2, b);
 					/* the same size on screen whatever the lens */
 					const h =
@@ -40593,9 +40548,9 @@ Object.assign(MG, {
 				T = this.solo(W);
 			if (!H || !T) return;
 			/* ahead of the cash truck out over the roadside, easing after it: high on a phone (out of your view: you see its
-			   shadow and beam), lower on the TV and over the far verge (its camera looks across the road from the near one) */
+			   shadow and beam), lower on the TV, whose camera looks down from higher up */
 			const tv = !!W.tv,
-				tx = tv ? T.x * 0.3 - 9 : T.x * 0.4 + 9,
+				tx = T.x * 0.4 + (tv ? 6 : 9),
 				tz = T.z - (tv ? 8 : 17),
 				k = 1 - Math.exp(-dt * 1.6);
 			H.p.x += (tx - H.p.x) * k;
