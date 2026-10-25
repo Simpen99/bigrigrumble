@@ -155,6 +155,8 @@ function hostCreate(tv) {
 		rounds: 8,
 		/* minigames left out of the pool (lobby "Minigames" setting, remembered on this device) */
 		mgOff: (LS.get("trp_mgoff", []) || []).filter((k) => MG[k]),
+		/* CPU difficulty: 0 Easy, 1 Normal, 2 Hard (lobby setting, remembered on this device) */
+		cpu: LS.get("trp_cpu", 1),
 		round: 1,
 		turn: 0,
 		seq: 1,
@@ -696,10 +698,11 @@ function lobbyHTML() {
     <section class="sheet"><h2>Test mode</h2><div class="seg"><button data-test="off" class="${!G.test ? "on" : ""}">Off</button><button data-test="on" class="${G.test ? "on" : ""}">On</button></div>${G.test ? `<p class="note">On your turn you can pick your exact roll, tap any space to jump there and trigger it, and top up coins, shards and dust.</p>` : ""}</section>
     <section class="sheet"><h2>Rounds</h2><div class="seg">${[4, 6, 8, 10, 12, 16].map((r) => `<button data-rounds="${r}" class="${G.rounds === r ? "on" : ""}">${r}</button>`).join("")}</div></section>
     <section class="sheet">${mgPoolHTML()}</section>
+    <section class="sheet"><h2>CPU difficulty</h2>${cpuSegHTML()}</section>
     <section class="sheet stack"><button class="btn go" data-a="start" ${G.players.length < 2 ? "disabled" : ""}>${G.players.length < 2 ? "Waiting for another driver" : "Start the race"}</button><button class="btn ghost" data-a="quit">Close game</button></section>`
 		: G.tv
 			? `${IOS_SAFARI && !LS.get("trp_tbtip", false) ? `<section class="sheet tbsheet"><h2>📱 Play fullscreen</h2>${tbTipHTML()}<button class="btn ghost small" data-a="tbtip">Got it</button></section>` : ""}<section class="sheet"><h2>📺 You're in! Watch the TV</h2><p class="note" style="margin-top:0">Game ${esc(G.code || "")}: ${esc((MAPS[G.map] || JUNK).name)}, ${G.rounds} rounds${G.teams ? ", teams" : ""}. You're driving ${esc(TRUCKS[me.truck].name)}. This phone is your controller.</p>
-       ${tvLead() && tvLead().key === me.key ? `<div class="stack" style="margin-top:10px"><button class="btn go" data-a="tvstart" ${G.players.length < 2 ? "disabled" : ""}>${G.players.length < 2 ? "Waiting for another driver" : "Start the race"}</button><button class="btn ghost small" data-a="tvcpu" ${G.players.length >= 8 ? "disabled" : ""}>+ CPU truck</button></div><h2 style="margin-top:14px">Practice a minigame</h2>${pracHTML()}` : `<p class="note">${esc((tvLead() || {}).name || "The first driver")} starts the race.</p>`}
+       ${tvLead() && tvLead().key === me.key ? `<div class="stack" style="margin-top:10px"><button class="btn go" data-a="tvstart" ${G.players.length < 2 ? "disabled" : ""}>${G.players.length < 2 ? "Waiting for another driver" : "Start the race"}</button><button class="btn ghost small" data-a="tvcpu" ${G.players.length >= 8 ? "disabled" : ""}>+ CPU truck</button></div><h2 style="margin-top:14px">CPU difficulty</h2>${cpuSegHTML()}<h2 style="margin-top:14px">Practice a minigame</h2>${pracHTML()}` : `<p class="note">${esc((tvLead() || {}).name || "The first driver")} starts the race.</p>`}
        <button class="btn ghost" data-a="changetruck" style="margin-top:10px">${changingTruck ? "Done" : "Change truck"}</button>${changingTruck ? `<div style="margin-top:10px">${carouselHTML(me.truck)}</div>` : ""}</section>
        <button class="btn ghost" data-a="leave" style="margin-top:12px">Leave game</button>`
 			: `<section class="sheet"><h2>Waiting for ${esc(G.hostName || "the host")} to start</h2><p class="note" style="margin-top:0">Game ${esc(G.code || "")}: ${esc((MAPS[G.map] || JUNK).name)}, ${G.rounds} rounds${G.teams ? ", teams" : ""}. You're driving ${esc(TRUCKS[me.truck].name)}.</p>
@@ -753,6 +756,15 @@ function mgPoolHTML() {
 			: ""
 	}`;
 }
+/* lobby / practice "CPU difficulty" setting (HG.cpu; practice and new games take the last pick on this device, trp_cpu) */
+const cpuSegHTML = (cur = cpuLevel()) =>
+	`<div class="seg">${CPU_LV.map((t, i) => `<button data-cpulv="${i}" class="${cur === i ? "on" : ""}">${t}</button>`).join("")}</div>`;
+function setCpuLv(v) {
+	v = Math.max(0, Math.min(2, Math.round(+v) || 0));
+	HG.cpu = v;
+	LS.set("trp_cpu", v);
+	push();
+}
 /* TV lobby: the PC hosts and shows the game on the big screen, phones join as controllers */
 const tvLead = () => G && G.players.find((p) => !p.bot);
 const pracHTML = () =>
@@ -776,6 +788,7 @@ function tvLobbyHTML() {
     <h2 style="margin-top:14px">Rounds</h2><div class="seg">${[4, 6, 8, 10, 12, 16].map((r) => `<button data-rounds="${r}" class="${G.rounds === r ? "on" : ""}">${r}</button>`).join("")}</div>
     <h2 style="margin-top:14px">Mode</h2><div class="seg"><button data-mode="ffa" class="${!G.teams ? "on" : ""}">Free-for-all</button><button data-mode="teams" class="${G.teams ? "on" : ""}">Teams</button></div>
     <div style="margin-top:14px">${mgPoolHTML()}</div>
+    <h2 style="margin-top:14px">CPU difficulty</h2>${cpuSegHTML()}
     <div class="stack" style="margin-top:14px"><button class="btn go" data-a="start" ${n < 2 ? "disabled" : ""}>${n < 2 ? "Waiting for drivers" : "Start the race"}</button>${lead ? `<p class="note" style="margin:0">${esc(lead.name)} can also start from their phone.</p>` : ""}<button class="btn ghost" data-a="quit">Close game</button></div></section></div>`;
 }
 /* ---------- game view ---------- */

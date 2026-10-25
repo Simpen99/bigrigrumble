@@ -1433,7 +1433,7 @@ Object.assign(MG, {
 				bi.boost = true;
 				return out();
 			}
-			e.sk = e.sk ?? 0.35 + Math.random() * 0.65;
+			e.sk = e.sk ?? 0.35 + 0.65 * cpuSk(e);
 			const X = this.xs(e.st),
 				top = n ? X[n - 1] : 0,
 				yl = this.topY(n + 1),
@@ -1748,11 +1748,12 @@ Object.assign(MG, {
 		cam: (W, t, p, far) => [new THREE.Vector3(0, 0.2, 0.6), new THREE.Vector3(0, 10.5 * far, 8.3 * far)],
 		bot(W, e, dt) {
 			if (!e.cur) return;
-			e.bt = (e.bt ?? 0.55 + Math.random() * 0.7) - dt;
+			/* difficulty: time to sort an item (Normal 0.55-1.25 s) and how often it picks the right bin */
+			e.bt = (e.bt ?? skv(e, 0.75, 0.55, 0.4) + Math.random() * skv(e, 0.8, 0.7, 0.45)) - dt;
 			if (e.bt > 0) return;
 			e.bt = undefined;
 			const right = this.CATS.findIndex((c) => c.k === e.cur.cat);
-			this.sortTo(W, e, Math.random() < 0.87 ? right : rnd(4));
+			this.sortTo(W, e, Math.random() < skv(e, 0.75, 0.87, 0.95) ? right : rnd(4));
 		},
 		ctlHTML() {
 			const b = (i) => {
@@ -2257,11 +2258,12 @@ Object.assign(MG, {
 		},
 		cam: (W, t, p, far) => [new THREE.Vector3(0, 1.7, -0.3), new THREE.Vector3(0, 1.7 + 4.3 * far, 6.4 * far)], // flatter angle so the market shows behind the counter
 		bot(W, e, dt) {
-			e.bt = (e.bt ?? 0.6 + Math.random() * 0.7) - dt;
+			/* difficulty: time per step (Normal 0.6-1.3 s) and how often it picks the right ingredient */
+			e.bt = (e.bt ?? skv(e, 0.8, 0.6, 0.45) + Math.random() * skv(e, 0.8, 0.7, 0.45)) - dt;
 			if (e.bt > 0) return;
 			e.bt = undefined;
 			const need = e.rec[e.step],
-				ing = Math.random() < 0.88 ? need : this.ORDER[rnd(6)];
+				ing = Math.random() < skv(e, 0.76, 0.88, 0.95) ? need : this.ORDER[rnd(6)];
 			this.apply(W, e, ing, this.ING[ing].hold ? 0.45 + Math.random() * 0.55 : null);
 		},
 		ctlHTML() {
@@ -3309,14 +3311,14 @@ Object.assign(MG, {
 			const rival = W.list.find(
 				(o) => o !== e && !o.gone && o.al && o.f && o.f.tow && Math.hypot(o.x - e.x, o.z - e.z) < 4.5,
 			);
-			if (rival && !f.tow && e.bcd <= 0 && W.t > 2.5 && Math.random() < 0.03) {
+			if (rival && !f.tow && e.bcd <= 0 && W.t > 2.5 && Math.random() < skv(e, 0.01, 0.03, 0.05)) {
 				const s = steer(e, rival.x + (Math.random() - 0.5) * 1.5, rival.z + (Math.random() - 0.5) * 1.5, 1);
 				s.boost = true;
 				return s;
 			}
 			if (f.tow) {
 				const G = this.GAR[(W.cars[f.tow - 1] || {}).gi || 0];
-				return steer(e, G[0], G[1], 0.85);
+				return steer(e, G[0], G[1], skv(e, 0.7, 0.85, 1));
 			}
 			const c = W.cars
 				.filter((c) => W.t >= c.t && !W.claimed.has(c.id) && !this.towedBy(W, c.id))
@@ -3325,7 +3327,7 @@ Object.assign(MG, {
 					return { x, z };
 				})
 				.sort((a, b) => Math.hypot(a.x - e.x, a.z - e.z) - Math.hypot(b.x - e.x, b.z - e.z))[0];
-			return c ? steer(e, c.x, c.z, 0.82) : wander(W, e, dt, 8);
+			return c ? steer(e, c.x, c.z, skv(e, 0.68, 0.82, 0.97)) : wander(W, e, dt, 8);
 		},
 		botScore: () => 1 + rnd(5),
 	},
@@ -3476,8 +3478,7 @@ Object.assign(MG, {
 				st.castShadow = false;
 				s.add(st);
 				for (let x = -H - 1.5; x < H + 1.5; x += 0.85 + r() * 0.3)
-					if (r() > 0.12)
-						ppl.push({ x, y: h, z: z + (r() - 0.5) * 0.25, face: 0, ph: r() * 6.28, sp: 7 + r() * 5 });
+					if (r() > 0.12) ppl.push({ x, y: h, z: z + (r() - 0.5) * 0.25, face: 0, ph: r() * 6.28, sp: 7 + r() * 5 });
 			}
 			s.add(B(2 * H + 4, 4.6, 0.4, "#5A6272", 0, 2.3, SZ - 5.4), B(2 * H + 6, 0.25, 6.6, "#FF6FAE", 0, 5.6, SZ - 2.2));
 			[-H - 2.5, H + 2.5].forEach((x) => s.add(B(0.25, 5.5, 0.25, "#D9DEE7", x, 2.75, SZ + 0.8)));
@@ -3770,7 +3771,7 @@ Object.assign(MG, {
 		bot(W, e, dt) {
 			if (!e.bs)
 				e.bs = {
-					sk: 0.7 + Math.random() * 0.3,
+					sk: skv(e, 0.45, 0.7, 1),
 					k: Math.floor(Math.random() * 3),
 					dir: Math.random() < 0.5 ? 1 : -1,
 					sw: 4 + Math.random() * 5,
@@ -3783,6 +3784,17 @@ Object.assign(MG, {
 				b.k = [0, 1, 2].filter((j) => j !== b.k).sort((x, y) => busy(x) - busy(y) + Math.random() - 0.5)[0];
 				b.dir = -b.dir;
 				b.sw = 5 + Math.random() * 5;
+			}
+			/* like a person it can't hold one drift forever: now and then it straightens out for a second (the combo banks
+			   at a lower multiplier), more often the easier it is */
+			b.lap = (b.lap ?? skv(e, 3, 5, 12) * (0.5 + Math.random())) - dt;
+			if (b.lap <= 0) {
+				b.lt = 0.9 + Math.random() * 0.4;
+				b.lap = undefined;
+			}
+			if (b.lt > 0) {
+				b.lt -= dt;
+				return steer(e, e.x + Math.cos(e.yaw) * 5 - e.x * 0.15, e.z - Math.sin(e.yaw) * 5 - e.z * 0.15, 0.8);
 			}
 			const [sx, sz] = this.STK[b.k],
 				a = Math.atan2(e.z - sz, e.x - sx),
@@ -4642,7 +4654,7 @@ Object.assign(MG, {
 		},
 		bot(W, e, dt) {
 			const { S, N } = this.trk();
-			if (!e.bs) e.bs = { sk: 0.75 + Math.random() * 0.25, off: (Math.random() - 0.5) * 3, ot: 0 };
+			if (!e.bs) e.bs = { sk: skv(e, 0.5, 0.8, 1), off: (Math.random() - 0.5) * 3, ot: 0 };
 			const b = e.bs;
 			b.ot -= dt;
 			if (b.ot <= 0) {

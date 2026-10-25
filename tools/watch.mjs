@@ -5,6 +5,7 @@
    node tools/watch.mjs mash --as human --side 0  your truck plays like a person (def.humanBot, else the CPU brain with
                                                   a 0.25 s reaction lag), on side 0 (team games: 0 = the solo truck)
    node tools/watch.mjs hotload --as idle --film  your truck does nothing; frames every 2 s (--film 1 for every 1 s)
+   --level easy|normal|hard sets the CPU difficulty (default normal; the human stand-in always plays at Normal skill).
    --cpu N sets the CPU count (default 3). Driving your truck works for stick games; others play best with --as idle. */
 import { args, launch, openGame, startMinigame, save, contactSheet } from "./lib.mjs";
 
@@ -12,7 +13,7 @@ const { pos, opt } = args();
 const g = pos[0];
 if (!g) {
 	console.log(
-		"usage: node tools/watch.mjs <game> [--runs N] [--as cpu|human|idle] [--side 0|1] [--cpu N] [--quiet] [--film [s]]",
+		"usage: node tools/watch.mjs <game> [--runs N] [--as cpu|human|idle] [--side 0|1] [--cpu N] [--level easy|normal|hard] [--quiet] [--film [s]]",
 	);
 	process.exit(1);
 }
@@ -24,12 +25,17 @@ const runs = +opt.runs || 1,
 for (let r = 1; r <= runs; r++) {
 	const { p, ctx, errs } = await openGame(b, { width: 480, height: 360 });
 	await p.evaluate(
-		({ side, cpu }) => {
+		({ side, cpu, level }) => {
 			MG_LOG = true;
 			TEST_SIDE = side;
 			practiceCpu = cpu;
+			LS.set("trp_cpu", level);
 		},
-		{ side: opt.side === undefined ? null : +opt.side, cpu: opt.cpu === undefined ? 3 : +opt.cpu },
+		{
+			side: opt.side === undefined ? null : +opt.side,
+			cpu: opt.cpu === undefined ? 3 : +opt.cpu,
+			level: Math.max(0, ["easy", "normal", "hard"].indexOf(opt.level || "normal")),
+		},
 	);
 	await startMinigame(p, g);
 	await p.evaluate((as) => {
@@ -37,6 +43,7 @@ for (let r = 1; r <= runs; r++) {
 		const q = [];
 		window.__drv = setInterval(() => {
 			if (!W || W.t < 0 || W.me.d || as === "idle" || !W.def.bot) return;
+			if (as === "human" && W.me.cs === undefined) W.me.cs = 0.5;
 			const fn = as === "human" && W.def.humanBot ? W.def.humanBot : W.def.bot,
 				o = fn.call(W.def, W, W.me, 0.05);
 			if (as === "human" && !W.def.humanBot) {

@@ -249,6 +249,20 @@ const steer = (e, tx, tz, m = 1) => {
 		l = Math.hypot(dx, dz) || 1;
 	return { x: (dx / l) * m, y: (dz / l) * m, boost: false };
 };
+/* CPU difficulty: the lobby / practice setting, shared in HG.cpu (0 Easy, 1 Normal, 2 Hard) so the device that runs the
+   CPUs (host or simDev) reads the same one. Each CPU gets its own skill e.cs 0..1 round its level (Easy 0, Normal 0.5,
+   Hard 1, ±0.12), and bots read their numbers through skv(e, easy, normal, hard). */
+const CPU_LV = ["Easy", "Normal", "Hard"];
+const cpuLevel = () => (G && (G.cpu === 0 || G.cpu === 2) ? G.cpu : 1);
+const botSkill = () => cpuLevel() / 2;
+function cpuSk(e) {
+	if (e.cs === undefined) e.cs = Math.max(0, Math.min(1, botSkill() + (Math.random() - 0.5) * 0.24));
+	return e.cs;
+}
+function skv(e, easy, normal, hard) {
+	const t = (e ? cpuSk(e) : botSkill()) * 2;
+	return t < 1 ? easy + (normal - easy) * t : normal + (hard - normal) * (t - 1);
+}
 /* play-by-play for tools/watch.mjs: games call mgLog(W, text) and set e.lastHit = {k: cause, t: W.t} when they knock a
    truck; the engine logs knockouts (with the cause) and finishes. Off unless a tool sets MG_LOG. */
 var MG_LOG = false;

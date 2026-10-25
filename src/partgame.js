@@ -268,12 +268,17 @@ function handleAct(pl, act) {
 		}
 		return;
 	}
-	if ((act.t === "start" || act.t === "addcpu" || act.t === "prac") && HG.tv && HG.phase === "lobby") {
+	if (
+		(act.t === "start" || act.t === "addcpu" || act.t === "prac" || act.t === "cpulv") &&
+		HG.tv &&
+		HG.phase === "lobby"
+	) {
 		const lead = HG.players.find((p) => !p.bot);
 		if (lead === pl) {
 			processed[pl.key] = act.id;
 			if (act.t === "start") hostStart();
 			else if (act.t === "prac") tvPractice(String(act.g));
+			else if (act.t === "cpulv") setCpuLv(act.v);
 			else addCpu();
 		}
 		return;
@@ -443,8 +448,10 @@ function startTurn() {
 		later(go, 1300);
 	}
 }
+/* CPU difficulty on the board (skv(null, easy, normal, hard)): how often a CPU uses an item, takes the best road at a
+   fork, and picks the richest rival to duel */
 function botItem(p) {
-	if (!p.items || !p.items.length || Math.random() < 0.3) return;
+	if (!p.items || !p.items.length || Math.random() < skv(null, 0.5, 0.3, 0.15)) return;
 	const opp = HG.players.filter((o) => o !== p && !mate(p, o)),
 		idx = rnd(p.items.length),
 		it = p.items[idx],
@@ -667,7 +674,7 @@ function botDist(p, o) {
 function askFork(p, opts, go) {
 	if (p.bot) {
 		const s = opts.slice().sort((a, b) => botDist(p, a) + lavaRisk(p.pos, a) - botDist(p, b) - lavaRisk(p.pos, b));
-		const ch = Math.random() < 0.75 ? s[0] : opts[rnd(opts.length)];
+		const ch = Math.random() < skv(null, 0.5, 0.75, 0.95) ? s[0] : opts[rnd(opts.length)];
 		HG.msg = `${p.name} picks a road…`;
 		push();
 		later(() => go(ch), 700);
@@ -1081,7 +1088,8 @@ function duelStart(p, done) {
 		return;
 	}
 	if (p.bot) {
-		startDuel(p, opps[rnd(opps.length)], done);
+		const rich = opps.slice().sort((x, y) => y.coins - x.coins)[0];
+		startDuel(p, Math.random() < skv(null, 0, 0.3, 0.8) ? rich : opps[rnd(opps.length)], done);
 		return;
 	}
 	HG.phase = "duelpick";
@@ -2249,6 +2257,7 @@ function practiceHTML() {
 			.join("");
 	return `<div class="stage short"><div class="brand"><i></i>Minigame practice</div></div>
   <section class="sheet"><h2>CPU opponents</h2><div class="seg">${[0, 1, 2, 3].map((n) => `<button data-pcpu="${n}" class="${practiceCpu === n ? "on" : ""}">${n}</button>`).join("")}</div>
+  <h2 style="margin-top:14px">CPU difficulty</h2>${cpuSegHTML(LS.get("trp_cpu", 1))}
   <h2 style="margin-top:14px">1 vs 3 games: play as</h2><div class="seg">${[
 		[-1, "Random"],
 		[0, "Solo"],
@@ -2270,6 +2279,7 @@ function startPractice(g) {
 	HG = {
 		id: "practice",
 		practice: true,
+		cpu: LS.get("trp_cpu", 1),
 		map: "junk",
 		teams: false,
 		traps: {},
