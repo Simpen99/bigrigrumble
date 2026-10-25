@@ -1086,7 +1086,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-25 04:02 c50657c";
+const BUILD = "2026-10-25 04:07 d4c26b9";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -16526,8 +16526,14 @@ function wireStick(get, padSel = "#m3pad", knobSel = "#knob", kx = "x", ky = "y"
    bold stamp over the truck for round-changing moments ("OUT", "P2"). o = {stamp, tone: "good" | "bad",
    at: [x, y, z] (a spot instead of over the truck), h: height of a pop-up's bottom edge over the truck (default 3.15, above the name tag)}.
    Call it where the event is simulated (the truck's own device); the TV's split worlds get each other's through
-   netState (e.fbq). */
-const fbShow = (W, e) => !!(W.tv || W.split || e.isMe);
+   netState (e.fbq). A split world drawn in its own pane is that player's screen, so like a phone it shows only its own
+   truck's; the shared lane view (and Drift Race's merged view, drawn from the first world) shows every truck's. */
+const fbShow = (W, e) =>
+	!!(
+		W.tv ||
+		e.isMe ||
+		(W.split && TVS && (TVS.mode === "shared" || (TVS.mode === "dyn" && TVS.worlds[0] && TVS.worlds[0].W === W)))
+	);
 const FB_TEX = {};
 function fbTex(text, col, stamp, tone) {
 	const key = `${text}|${col}|${stamp ? 1 : 0}|${tone || ""}`;
@@ -16627,12 +16633,13 @@ function fbStep(W) {
 			for (const q of e.net.fb) {
 				if (!Array.isArray(q) || !(q[0] > (e.fbSeen || 0))) continue;
 				e.fbSeen = q[0];
-				fbSpawn(W, e, String(q[1]).slice(0, 40), {
-					stamp: !!q[2],
-					tone: q[3] === 1 ? "good" : q[3] === 2 ? "bad" : "",
-					at: Array.isArray(q[4]) ? q[4] : null,
-					h: +q[5] || 0,
-				});
+				if (fbShow(W, e))
+					fbSpawn(W, e, String(q[1]).slice(0, 40), {
+						stamp: !!q[2],
+						tone: q[3] === 1 ? "good" : q[3] === 2 ? "bad" : "",
+						at: Array.isArray(q[4]) ? q[4] : null,
+						h: +q[5] || 0,
+					});
 			}
 		}
 	/* sizes follow the camera distance, so feedback reads the same on a close station view and a whole-arena TV shot */
