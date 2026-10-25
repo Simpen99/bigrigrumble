@@ -3338,7 +3338,10 @@ function tvsHud(dt) {
 	const wrap = box.querySelector(".tvscards"),
 		slots = [...box.querySelectorAll(".tvq")],
 		own = T.worlds.map((s) => s.k),
-		ents = W0.list.filter((e) => e.p && !T.cards[e.k]).sort((a, b) => own.includes(b.k) - own.includes(a.k));
+		/* the shared lane view: left to right like the lanes */
+		ents = W0.list
+			.filter((e) => e.p && !T.cards[e.k])
+			.sort((a, b) => (wrap ? a.x - b.x : own.includes(b.k) - own.includes(a.k)));
 	for (const e of ents) {
 		const i = own.indexOf(e.k),
 			el = wrap

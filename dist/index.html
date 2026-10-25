@@ -1086,7 +1086,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-25 04:07 d4c26b9";
+const BUILD = "2026-10-25 04:14 23cba8e";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -17771,7 +17771,10 @@ function tvsHud(dt) {
 	const wrap = box.querySelector(".tvscards"),
 		slots = [...box.querySelectorAll(".tvq")],
 		own = T.worlds.map((s) => s.k),
-		ents = W0.list.filter((e) => e.p && !T.cards[e.k]).sort((a, b) => own.includes(b.k) - own.includes(a.k));
+		/* the shared lane view: left to right like the lanes */
+		ents = W0.list
+			.filter((e) => e.p && !T.cards[e.k])
+			.sort((a, b) => (wrap ? a.x - b.x : own.includes(b.k) - own.includes(a.k)));
 	for (const e of ents) {
 		const i = own.indexOf(e.k),
 			el = wrap
