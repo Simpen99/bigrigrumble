@@ -7639,6 +7639,7 @@ Object.assign(MG, {
 		WHH: 5 /* held up on the chain this long */,
 		WHL: 0.7 /* then flung into the furthest guardrail for WHL s, landing WHB m behind the truck */,
 		WHB: 4,
+		WHHY: 2 /* the held cop hangs this high (its wheels, m) from the claw arm on the roof, swinging */,
 		HPA: 0.4,
 		HPT: 0.9,
 		/* each cop's second button is its own truck's trick (by TRUCKS[].kind): lobs land a hazard ZL s later in front of the
@@ -8589,10 +8590,10 @@ Object.assign(MG, {
 			if (solo) this.hazards(W, e, dt);
 			e.f.t = Math.round(W.t * 100) / 100;
 		},
-		/* a clawed cop: the claw flies WHF s (it keeps driving), then it's reeled in (WHY s) and held clamped right in front
-		   of the truck's nose for WHH s (no control: pushed along like a plough; the engine doesn't collide the two, see
-		   noCollide), then flung across the road into the furthest guardrail (WHL s), where it crashes and spins out WHS s,
-		   WHB m behind the truck; true while the claw has it */
+		/* a clawed cop: the claw flies WHF s (it keeps driving), then it's reeled in and lifted (WHY s) and held up in the
+		   air right in front of the truck's nose for WHH s, hanging WHHY m up from the claw arm on the roof (no control;
+		   the engine doesn't collide the two, see noCollide), then flung across the road into the furthest guardrail (WHL
+		   s), where it crashes and spins out WHS s, WHB m behind the truck; true while the claw has it */
 		yankStep(W, e, T, dt) {
 			const Y = e.yank,
 				a = W.t - Y.t - this.WHF,
@@ -8630,14 +8631,15 @@ Object.assign(MG, {
 				const k = (a - hold) / this.WHL;
 				e.x = Y.hx + (Y.fx - Y.hx) * (1 - (1 - k) * (1 - k));
 				e.z = T.z + Y.hz + (this.WHB - Y.hz) * k;
-				e.y = Math.sin(k * Math.PI) * 1.2;
+				e.y = this.WHHY * (1 - k) + Math.sin(k * Math.PI) * 1.2;
 				e.yaw += (dt || 0.016) * 14 * Y.fd;
 				return true;
 			}
 			if (a >= this.WHY) {
-				/* clamped right in front of the nose, on the road */
+				/* held up in front of the nose, bobbing a little */
 				e.x = T.x;
 				e.z = T.z + nose;
+				e.y = this.WHHY + Math.sin((a - this.WHY) * 5) * 0.12;
 				e.yaw = Math.PI / 2;
 				return true;
 			}
@@ -8645,10 +8647,11 @@ Object.assign(MG, {
 				Y.x0 = e.x;
 				Y.z0 = e.z - T.z;
 			}
-			/* reeled in, faster and faster */
+			/* reeled in and lifted, faster and faster */
 			const k = a / this.WHY;
 			e.x = Y.x0 + (T.x - Y.x0) * k * k;
 			e.z = T.z + Y.z0 + (nose - Y.z0) * k * k;
+			e.y = this.WHHY * k * k;
 			return true;
 		},
 		/* the tow (on the cop's own device): it counts how long the cop has been far behind; after TOWW s the line flies 0.3 s
@@ -10884,17 +10887,23 @@ Object.assign(MG, {
 				fb(W, c, "GET OVER HERE!", { tone: "bad" });
 				if (this.heard(W, c) || T.isMe) sfxPack("whip");
 			}
-			/* from the tip of the truck's claw arm (swung out over its cab) to the cop's tail: the claw flies open, then
+			/* from the tip of the truck's claw arm (swung out over its cab) to the cop's roof: the claw flies open, then
 			   closes on it */
 			const fw = new THREE.Vector3(Math.cos(T.yaw), 0, -Math.sin(T.yaw));
 			if (T.props) T.tr.updateMatrixWorld(true);
 			const p0 = T.props
 					? T.props.arm.tip.getWorldPosition(new THREE.Vector3())
 					: new THREE.Vector3(T.x, 0.9, T.z).addScaledVector(fw, T.hb[1] + 0.1),
-				tgt = new THREE.Vector3(c.x, 0.9, c.z).addScaledVector(fw, -(c.hb[1] - 0.15)),
+				tgt = new THREE.Vector3(c.x, c.g.position.y + 1.45, c.z),
 				p1 = a < this.WHF ? p0.clone().lerp(tgt, a / this.WHF) : tgt,
 				open = a < this.WHF ? 1 : Math.max(0, 1 - (a - this.WHF) / 0.12);
 			v.head.userData.fingers.forEach((q) => (q.rotation.x = 0.15 + open * 0.75));
+			/* the cop hangs from the claw by its roof: it swings and dips its nose */
+			if (a >= this.WHF && a < this.WHF + this.WHY + this.WHH) {
+				const h = Math.min(1, (a - this.WHF) / this.WHY);
+				c.tr.rotation.x += Math.sin(W.t * 6) * 0.1 * h;
+				c.tr.rotation.z -= 0.18 * h;
+			}
 			const d = p1.clone().sub(p0),
 				len = Math.max(0.01, d.length());
 			v.line.position.copy(p0).addScaledVector(d, 0.5);
