@@ -2103,7 +2103,7 @@ const fbShow = (W, e) =>
 	);
 const FB_TEX = {};
 function fbTex(text, col, stamp, tone) {
-	const key = `${text}|${col}|${stamp ? 1 : 0}|${tone || ""}`;
+	const key = `${text}|${stamp ? col : ""}|${stamp ? 1 : 0}|${tone || ""}`;
 	if (FB_TEX[key]) return FB_TEX[key];
 	const font = stamp ? "52px Bungee, 'Arial Black', Impact, sans-serif" : "800 46px Rubik, Arial, sans-serif",
 		H = stamp ? 104 : 84;
@@ -2132,11 +2132,12 @@ function fbTex(text, col, stamp, tone) {
 			x.fillStyle = "#fff";
 			x.fillText(text, w / 2, h / 2 + 3, w - 40);
 		} else {
-			/* the pill takes the tone's colour (gold for good, red for bad, dark otherwise), ringed in the player colour */
+			/* the pill takes the tone's colour (gold for good, red for bad, dark otherwise), ringed in a darker shade of it
+			   (it pops up by the truck, so it needs no player colour) */
 			x.fillStyle = "#151B24";
 			rr(x, 2, 2, w - 4, h - 4, (h - 4) / 2);
 			x.fill();
-			x.fillStyle = col;
+			x.fillStyle = tone === "good" ? "#B07A12" : tone === "bad" ? "#9E2227" : "#3A4558";
 			rr(x, 5, 5, w - 10, h - 10, (h - 10) / 2);
 			x.fill();
 			x.fillStyle = tone === "good" ? "#FFC83D" : tone === "bad" ? "#E5484D" : "#1C2330";
