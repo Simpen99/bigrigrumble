@@ -2685,6 +2685,29 @@ function fbStep(W) {
 			return true;
 		});
 	}
+	/* glints (glint): the halo swells and fades, the star turns and twinkles out */
+	if (W.gls && W.gls.length)
+		W.gls = W.gls.filter((q) => {
+			const age = (now - q.t0) / 1000,
+				life = 0.6;
+			if (age > life || q.e.gone) {
+				W.sc.remove(q.halo, q.star);
+				q.halo.material.dispose();
+				q.star.material.dispose();
+				return false;
+			}
+			const p = q.obj.getWorldPosition(q.halo.position),
+				k = camK(p),
+				u = age / life;
+			q.star.position.copy(p);
+			q.halo.scale.setScalar(k * (0.5 + 1.3 * Math.sqrt(u)));
+			q.halo.material.opacity = 0.75 * (1 - u);
+			const s = Math.sin(Math.PI * Math.min(1, age / 0.5));
+			q.star.scale.setScalar(k * 1.3 * s);
+			q.star.material.rotation = age * 2.5;
+			q.star.material.opacity = Math.min(1, s * 1.5);
+			return true;
+		});
 	for (const e of W.list) {
 		if (e.ihS) {
 			const u = e.ihU,
@@ -2813,6 +2836,57 @@ function readyPop(W, e, label, col) {
 		t0: now,
 		n: W.rps.filter((q) => q.e === e && now - q.t0 < 400).length,
 	});
+	if (e.isMe) sfx("ready");
+}
+/* a glint: something on a truck that's ready again (a prop, obj) flashes: a soft halo swells and fades behind a
+   four-point star that turns and twinkles out, in about half a second, sized by the camera's distance so it reads on a
+   whole-road TV shot. Shown like feedback (fbShow), with the ready ding for your own truck */
+const FB_GL = {};
+function glint(W, e, obj, col = "#FFE7A0") {
+	if (!W || !e || e.gone || !obj || !fbShow(W, e)) return;
+	const tex = (k, draw) => FB_GL[k + col] || (FB_GL[k + col] = canvasTex(128, 128, draw)),
+		halo = tex("h", (x, w, h) => {
+			const g = x.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2);
+			g.addColorStop(0, "rgba(255,255,255,.95)");
+			g.addColorStop(0.25, col);
+			g.addColorStop(1, "rgba(255,255,255,0)");
+			x.fillStyle = g;
+			x.fillRect(0, 0, w, h);
+		}),
+		star = tex("s", (x, w, h) => {
+			const c = w / 2;
+			x.fillStyle = "#fff";
+			x.beginPath();
+			for (let i = 0; i < 8; i++) {
+				const a = (i / 8) * Math.PI * 2,
+					r = i % 2 ? 9 : c - 4;
+				x.lineTo(c + Math.cos(a) * r, c + Math.sin(a) * r);
+			}
+			x.fill();
+			const g = x.createRadialGradient(c, c, 0, c, c, 22);
+			g.addColorStop(0, "#fff");
+			g.addColorStop(1, "rgba(255,255,255,0)");
+			x.fillStyle = g;
+			x.fillRect(0, 0, w, h);
+		}),
+		sprite = (map) => {
+			const sp = new THREE.Sprite(
+				new THREE.SpriteMaterial({
+					map,
+					depthTest: false,
+					depthWrite: false,
+					transparent: true,
+					opacity: 0,
+					blending: THREE.AdditiveBlending,
+				}),
+			);
+			sp.renderOrder = 12;
+			sp.userData.fb = true;
+			W.sc.add(sp);
+			return sp;
+		};
+	W.gls = W.gls || [];
+	W.gls.push({ e, obj, halo: sprite(halo), star: sprite(star), t0: performance.now() });
 	if (e.isMe) sfx("ready");
 }
 /* a pill sprite with its own canvas that redraws when its text changes (live numbers, e.g. Ramp Jump's edge
