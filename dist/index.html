@@ -1157,7 +1157,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-25 19:47 6fa87d9";
+const BUILD = "2026-10-25 21:00 98fa129";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -17183,7 +17183,7 @@ function fbStep(W) {
 		const r = new THREE.Vector3().setFromMatrixColumn(cam.matrixWorld, 0);
 		W.rps = W.rps.filter((q) => {
 			const age = (now - q.t0) / 1000,
-				life = 1.2;
+				life = 1;
 			if (age > life || q.e.gone) {
 				W.sc.remove(q.btn, q.ring);
 				q.btn.material.dispose();
@@ -17191,20 +17191,20 @@ function fbStep(W) {
 				return false;
 			}
 			const g = q.e.g.position,
-				off = q.n ? (q.n % 2 ? 1 : -1) * Math.ceil(q.n / 2) * 1.3 : 0,
+				off = q.n ? (q.n % 2 ? 1 : -1) * Math.ceil(q.n / 2) * 0.8 : 0,
 				p = q.btn.position;
 			p.set(g.x, g.y + 3.1, g.z);
 			const k = camK(p),
 				u = Math.min(1, age / 0.28),
 				back = 1 + 2.9 * Math.pow(u - 1, 3) + 1.9 * Math.pow(u - 1, 2),
-				s = 1.3 * k * back;
+				s = 0.75 * k * back;
 			p.addScaledVector(r, off * k);
-			p.y += (0.65 + Math.max(0, age - 0.45) * 0.5) * k;
+			p.y += (0.4 + Math.max(0, age - 0.4) * 0.4) * k;
 			q.btn.scale.set(s, s, 1);
 			q.btn.material.opacity = Math.max(0, Math.min(1, u * 3, (life - age) / 0.3));
 			const ra = Math.min(1, age / 0.45);
 			q.ring.position.copy(p);
-			q.ring.scale.setScalar(k * (1.1 + ra * 1.5));
+			q.ring.scale.setScalar(k * (0.65 + ra * 0.9));
 			q.ring.material.opacity = Math.max(0, 1 - ra) * 0.9;
 			return true;
 		});
@@ -38765,7 +38765,7 @@ Object.assign(MG, {
 		/* the TV's camera: the trucks TVA m ahead of the cash truck to TVB m behind it and the road TVL m ahead of it, half
 		   the pack framed up to TVHL m, through a TVFOV degree lens (see cam) */
 		TVA: 28,
-		TVB: 22 /* was 40 */,
+		TVB: 30 /* was 40, then 22 */,
 		TVL: 14,
 		TVHL: 34,
 		TVFOV: 30,
@@ -40525,10 +40525,12 @@ Object.assign(MG, {
 			this.readyPops(W, e);
 		},
 		/* a button back from its cooldown pops up over the truck in its phone button's colour (readyPop; the main button
-		   red, the second orange, the third blue); only on the device running the truck (the cooldowns live there), not for
-		   the buttons waking up at the start (ARM) */
+		   red, the second orange, the third blue); only on the device running the truck (the cooldowns live there), only
+		   for players' trucks (CPUs' pops were clutter), only after a wait of RPMIN s or more (the harpoon's 4 s reload
+		   popped every few seconds), not for the buttons waking up at the start (ARM) */
+		RPMIN: 6,
 		readyPops(W, e) {
-			if (!e.local || e.gone || (e.f && e.f.esc)) return;
+			if (!e.local || e.gone || (e.f && e.f.esc) || !e.p || e.p.bot) return;
 			const B =
 				e.side === 0
 					? [
@@ -40540,11 +40542,13 @@ Object.assign(MG, {
 							["hpCd", this.ahead(W, e, this.solo(W)) ? "SPIKES" : "HARPOON", "#E5484D"],
 							["abCd", this.abOf(e).lbl, "#FF8A1F"],
 						];
+			/* e.rdy[f] = true while ready, else when its cooldown started: only a wait of RPMIN s or more pops */
 			e.rdy = e.rdy || {};
 			for (const [f, lbl, col] of B) {
-				const on = W.t >= (e[f] || 0);
-				if (on && e.rdy[f] === false && W.t > this.ARM + 0.2) readyPop(W, e, lbl, col);
-				e.rdy[f] = on;
+				const on = W.t >= (e[f] || 0),
+					t0 = e.rdy[f];
+				if (on && typeof t0 === "number" && W.t - t0 >= this.RPMIN && t0 > this.ARM - 0.5) readyPop(W, e, lbl, col);
+				e.rdy[f] = on ? true : typeof t0 === "number" ? t0 : W.t;
 			}
 		},
 		/* a cop's light bar on its roof (red and blue, kept inside the roof's width) with the harpoon gun beside it, in

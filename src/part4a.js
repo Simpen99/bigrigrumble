@@ -2659,7 +2659,7 @@ function fbStep(W) {
 		const r = new THREE.Vector3().setFromMatrixColumn(cam.matrixWorld, 0);
 		W.rps = W.rps.filter((q) => {
 			const age = (now - q.t0) / 1000,
-				life = 1.2;
+				life = 1;
 			if (age > life || q.e.gone) {
 				W.sc.remove(q.btn, q.ring);
 				q.btn.material.dispose();
@@ -2667,20 +2667,20 @@ function fbStep(W) {
 				return false;
 			}
 			const g = q.e.g.position,
-				off = q.n ? (q.n % 2 ? 1 : -1) * Math.ceil(q.n / 2) * 1.3 : 0,
+				off = q.n ? (q.n % 2 ? 1 : -1) * Math.ceil(q.n / 2) * 0.8 : 0,
 				p = q.btn.position;
 			p.set(g.x, g.y + 3.1, g.z);
 			const k = camK(p),
 				u = Math.min(1, age / 0.28),
 				back = 1 + 2.9 * Math.pow(u - 1, 3) + 1.9 * Math.pow(u - 1, 2),
-				s = 1.3 * k * back;
+				s = 0.75 * k * back;
 			p.addScaledVector(r, off * k);
-			p.y += (0.65 + Math.max(0, age - 0.45) * 0.5) * k;
+			p.y += (0.4 + Math.max(0, age - 0.4) * 0.4) * k;
 			q.btn.scale.set(s, s, 1);
 			q.btn.material.opacity = Math.max(0, Math.min(1, u * 3, (life - age) / 0.3));
 			const ra = Math.min(1, age / 0.45);
 			q.ring.position.copy(p);
-			q.ring.scale.setScalar(k * (1.1 + ra * 1.5));
+			q.ring.scale.setScalar(k * (0.65 + ra * 0.9));
 			q.ring.material.opacity = Math.max(0, 1 - ra) * 0.9;
 			return true;
 		});

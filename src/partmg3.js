@@ -7696,7 +7696,7 @@ Object.assign(MG, {
 		/* the TV's camera: the trucks TVA m ahead of the cash truck to TVB m behind it and the road TVL m ahead of it, half
 		   the pack framed up to TVHL m, through a TVFOV degree lens (see cam) */
 		TVA: 28,
-		TVB: 22 /* was 40 */,
+		TVB: 30 /* was 40, then 22 */,
 		TVL: 14,
 		TVHL: 34,
 		TVFOV: 30,
@@ -9456,10 +9456,12 @@ Object.assign(MG, {
 			this.readyPops(W, e);
 		},
 		/* a button back from its cooldown pops up over the truck in its phone button's colour (readyPop; the main button
-		   red, the second orange, the third blue); only on the device running the truck (the cooldowns live there), not for
-		   the buttons waking up at the start (ARM) */
+		   red, the second orange, the third blue); only on the device running the truck (the cooldowns live there), only
+		   for players' trucks (CPUs' pops were clutter), only after a wait of RPMIN s or more (the harpoon's 4 s reload
+		   popped every few seconds), not for the buttons waking up at the start (ARM) */
+		RPMIN: 6,
 		readyPops(W, e) {
-			if (!e.local || e.gone || (e.f && e.f.esc)) return;
+			if (!e.local || e.gone || (e.f && e.f.esc) || !e.p || e.p.bot) return;
 			const B =
 				e.side === 0
 					? [
@@ -9471,11 +9473,13 @@ Object.assign(MG, {
 							["hpCd", this.ahead(W, e, this.solo(W)) ? "SPIKES" : "HARPOON", "#E5484D"],
 							["abCd", this.abOf(e).lbl, "#FF8A1F"],
 						];
+			/* e.rdy[f] = true while ready, else when its cooldown started: only a wait of RPMIN s or more pops */
 			e.rdy = e.rdy || {};
 			for (const [f, lbl, col] of B) {
-				const on = W.t >= (e[f] || 0);
-				if (on && e.rdy[f] === false && W.t > this.ARM + 0.2) readyPop(W, e, lbl, col);
-				e.rdy[f] = on;
+				const on = W.t >= (e[f] || 0),
+					t0 = e.rdy[f];
+				if (on && typeof t0 === "number" && W.t - t0 >= this.RPMIN && t0 > this.ARM - 0.5) readyPop(W, e, lbl, col);
+				e.rdy[f] = on ? true : typeof t0 === "number" ? t0 : W.t;
 			}
 		},
 		/* a cop's light bar on its roof (red and blue, kept inside the roof's width) with the harpoon gun beside it, in
