@@ -7682,21 +7682,22 @@ Object.assign(MG, {
 		VLV: 26.4,
 		VLX: 8.4,
 		VLTH: 3.2,
-		/* the tow (catch-up): a cop more than TOWZ m behind the cash truck for TOWW s is harpooned by the nearest cop ahead
-		   of it that's still in the chase (or winched by the helicopter if there's none) and slung up the road in an arc
+		/* the tow (catch-up): a cop more than TOWZ m behind the cash truck for TOWW s is winched by the helicopter (the
+		   nearest cop ahead used to harpoon it, the helicopter only if there was none) and slung up the road in an arc
 		   TOWH m high, landing TOWB m behind that cop (never closer than TOWHB m behind the truck); its buttons wait
 		   TOWCD s after landing and it can't be towed again for TOWAG s */
 		TOWZ: 34,
-		TOWW: 1.5,
+		TOWW: 3 /* was 1.5 */,
 		TOWB: 7,
 		TOWHB: 16,
 		TOWH: 5,
 		TOWCD: 1,
 		TOWAG: 3,
-		/* the TV's camera: the trucks TVA m ahead of the cash truck to TVB m behind it, half the pack framed up to TVHL m,
-		   through a TVFOV degree lens (see cam) */
+		/* the TV's camera: the trucks TVA m ahead of the cash truck to TVB m behind it and the road TVL m ahead of it, half
+		   the pack framed up to TVHL m, through a TVFOV degree lens (see cam) */
 		TVA: 28,
-		TVB: 40,
+		TVB: 22 /* was 40 */,
+		TVL: 14,
 		TVHL: 34,
 		TVFOV: 30,
 		/* cooldowns by how hard a trick hits: self buffs and light knocks 7-8 s, slows and obstacles 11-12 s, the ones that
@@ -8644,29 +8645,14 @@ Object.assign(MG, {
 				e.lagT = far ? (e.lagT || 0) + dt : 0;
 				if (e.lagT < this.TOWW) return false;
 				e.lagT = 0;
-				/* the nearest cop ahead that's in the chase itself (not far behind, not on a tow of its own) */
-				let by = null;
-				for (const o of W.list)
-					if (
-						o !== e &&
-						o.side === 1 &&
-						!o.gone &&
-						o.z < e.z - 20 &&
-						o.z - T.z < this.TOWZ - 10 &&
-						!this.towing(W, o) &&
-						(!by || o.z > by.z)
-					)
-						by = o;
-				const who = by ? by.k : "H",
+				/* always the helicopter (it was the nearest cop ahead still in the chase, the helicopter only if there was none) */
+				const who = "H",
 					rd = (v) => Math.round(v * 100) / 100,
 					dur = rd(Math.max(0.9, Math.min(1.8, (e.z - this.towGoal(W, who).z) / 40)));
 				e.tow = { pull: W.t + 0.3, dur, who };
 				e.f.tw = [rd(W.t), rd(W.t + 0.3), dur, who];
 				this.letGo(W, e, "towed");
-				mgLog(
-					W,
-					`${mgName(e)} towed up from ${Math.round(e.z - T.z)} m behind by ${by ? mgName(by) : "the helicopter"}`,
-				);
+				mgLog(W, `${mgName(e)} towed up from ${Math.round(e.z - T.z)} m behind by the helicopter`);
 				return false;
 			}
 			if (W.t < w.pull) return false;
@@ -9283,11 +9269,14 @@ Object.assign(MG, {
 			if (W.tv) {
 				/* the chase is about the cash truck: the trucks within TVA m ahead of it to TVB m behind it (a cop racing far
 				   ahead or a straggler far back drops out of the shot with a pill at the screen's edge, edgePill; the truck
-				   never does; was 25 / 60 m, and a cop that far back gets towed up: TOWZ) */
+				   never does; was 25 / 60 m, then 28 / 40 m, and a cop that far back gets towed up: TOWZ); the shot always
+				   reaches TVL m up the road ahead of the cash truck (easing in over the first 2 s), so you see what's coming */
 				const T = this.solo(W),
 					L = W.list.filter((e) => !e.gone && (!T || (e.z > T.z - this.TVA && e.z < T.z + this.TVB))),
 					zs = (L.length ? L : W.list).map((e) => e.z),
-					z0 = Math.min(...zs),
+					lead = T && !T.gone ? this.TVL * Math.min(1, Math.max(0, W.t / 2)) : 0;
+				if (lead) zs.push(T.z - lead);
+				const z0 = Math.min(...zs),
 					z1 = Math.max(...zs),
 					sp = z1 - z0;
 				/* a fixed tilt (35 degrees down) at the middle of the pack, pulled back as its length grows (hl = half the
@@ -9463,6 +9452,30 @@ Object.assign(MG, {
 				const ph = Math.floor(W.t * 6 + e.i) % 2;
 				e.bar.red.material.emissiveIntensity = ph ? 1.6 : 0.1;
 				e.bar.blue.material.emissiveIntensity = ph ? 0.1 : 1.6;
+			}
+			this.readyPops(W, e);
+		},
+		/* a button back from its cooldown pops up over the truck in its phone button's colour (readyPop; the main button
+		   red, the second orange, the third blue); only on the device running the truck (the cooldowns live there), not for
+		   the buttons waking up at the start (ARM) */
+		readyPops(W, e) {
+			if (!e.local || e.gone || (e.f && e.f.esc)) return;
+			const B =
+				e.side === 0
+					? [
+							["oilCd", "OIL", "#E5484D"],
+							["swCd", "SLAM", "#FF8A1F"],
+							["spCd", "CLAW", "#2F7DE1"],
+						]
+					: [
+							["hpCd", this.ahead(W, e, this.solo(W)) ? "SPIKES" : "HARPOON", "#E5484D"],
+							["abCd", this.abOf(e).lbl, "#FF8A1F"],
+						];
+			e.rdy = e.rdy || {};
+			for (const [f, lbl, col] of B) {
+				const on = W.t >= (e[f] || 0);
+				if (on && e.rdy[f] === false && W.t > this.ARM + 0.2) readyPop(W, e, lbl, col);
+				e.rdy[f] = on;
 			}
 		},
 		/* a cop's light bar on its roof (red and blue, kept inside the roof's width) with the harpoon gun beside it, in
@@ -10337,9 +10350,11 @@ Object.assign(MG, {
 				T = this.solo(W);
 			if (!H || !T) return;
 			/* ahead of the cash truck out over the roadside, easing after it: high on a phone (out of your view: you see its
-			   shadow and beam), lower on the TV, whose camera looks down from higher up */
+			   shadow and beam), lower on the TV, whose camera looks down from higher up; there it keeps off the road, 4 m out
+			   past its left-hand edge (over the road it hid the trucks in a long shot, and the TV's player cards cover the
+			   right; the bridge's pylons stand 5 m inside that, clear of the rotor) */
 			const tv = !!W.tv,
-				tx = T.x * 0.4 + (tv ? 6 : 9),
+				tx = tv ? -(this.LANES * this.LW) / 2 - 4 : T.x * 0.4 + 9,
 				tz = T.z - (tv ? 8 : 17),
 				k = 1 - Math.exp(-dt * 1.6);
 			H.p.x += (tx - H.p.x) * k;
