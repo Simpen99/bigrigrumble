@@ -2510,7 +2510,7 @@ const fbShow = (W, e) =>
 	);
 const FB_TEX = {};
 function fbTex(text, col, stamp, tone) {
-	const key = `${text}|${col}|${stamp ? 1 : 0}|${tone || ""}`;
+	const key = `${text}|${stamp ? col : ""}|${stamp ? 1 : 0}|${tone || ""}`;
 	if (FB_TEX[key]) return FB_TEX[key];
 	const font = stamp ? "52px Bungee, 'Arial Black', Impact, sans-serif" : "800 46px Rubik, Arial, sans-serif",
 		H = stamp ? 104 : 84;
@@ -2539,11 +2539,12 @@ function fbTex(text, col, stamp, tone) {
 			x.fillStyle = "#fff";
 			x.fillText(text, w / 2, h / 2 + 3, w - 40);
 		} else {
-			/* the pill takes the tone's colour (gold for good, red for bad, dark otherwise), ringed in the player colour */
+			/* the pill takes the tone's colour (gold for good, red for bad, dark otherwise), ringed in a darker shade of it
+			   (it pops up by the truck, so it needs no player colour) */
 			x.fillStyle = "#151B24";
 			rr(x, 2, 2, w - 4, h - 4, (h - 4) / 2);
 			x.fill();
-			x.fillStyle = col;
+			x.fillStyle = tone === "good" ? "#B07A12" : tone === "bad" ? "#9E2227" : "#3A4558";
 			rr(x, 5, 5, w - 10, h - 10, (h - 10) / 2);
 			x.fill();
 			x.fillStyle = tone === "good" ? "#FFC83D" : tone === "bad" ? "#E5484D" : "#1C2330";
@@ -2809,6 +2810,15 @@ function warnSignDraw(x, w, h) {
 	x.textBaseline = "middle";
 	x.fillText("!", w / 2, h * 0.62);
 }
+/* a truck's score as the live standings show it */
+const lbVal = (W, e, def = W.def) =>
+	def.fmtE
+		? def.fmtE(W, e)
+		: def.fmtV
+			? def.fmtV(Math.round(e.sc))
+			: def.unit === "ms" && !def.liveHi
+				? (e.sc / 1000).toFixed(2)
+				: Math.round(e.sc);
 function hud3(dt) {
 	W.hudT = (W.hudT || 0) - dt;
 	if (W.hudT > 0) return;
@@ -2869,7 +2879,7 @@ function hud3(dt) {
 	$("#m3lb").innerHTML = rows
 		.map(
 			(e) =>
-				`<div style="--c:${pcol(e.p)}" class="${e.isMe && !W.tv ? "me" : ""} ${!e.al && def.lastStanding ? "out" : ""}"><i style="background:${pcol(e.p)}"></i><span>${esc(e.isMe && !W.tv && !W.split ? "You" : def.lbTop ? e.p.name.replace(/^CPU /, "") : e.p.name)}</span><b>${def.fmtE ? def.fmtE(W, e) : def.fmtV ? def.fmtV(Math.round(e.sc)) : def.unit === "ms" && !def.liveHi ? (e.sc / 1000).toFixed(2) : Math.round(e.sc)}</b></div>`,
+				`<div style="--c:${pcol(e.p)}" class="${e.isMe && !W.tv ? "me" : ""} ${!e.al && def.lastStanding ? "out" : ""}"><i style="background:${pcol(e.p)}"></i><span>${esc(e.isMe && !W.tv && !W.split ? "You" : def.lbTop ? e.p.name.replace(/^CPU /, "") : e.p.name)}</span><b>${lbVal(W, e)}</b></div>`,
 		)
 		.join("");
 	const rb = $("#ram");
@@ -3672,6 +3682,124 @@ function tvsCells(n, w, h) {
 		return [c * cw, r * ch, c === cols - 1 ? w - c * cw : cw, r ? h - ch : ch];
 	});
 }
+/* where the player cards go with n panes (tvsCells' layout): each pane's outer corner first (left or right by the side of
+   the TV it is on, top or bottom by its row), then the TV's corners no pane has. Players without a pane (CPUs, players on
+   another linked screen) fill the empty panes, then those corners, then stack under the cards with the fewest. */
+function tvsSlots(n) {
+	const cols = n <= 1 ? 1 : n === 2 ? 2 : n <= 4 ? 2 : n <= 6 ? 3 : 4,
+		rows = n <= 2 ? 1 : 2,
+		sl = [];
+	for (let i = 0; i < cols * rows; i++) {
+		const c = i % cols,
+			r = Math.floor(i / cols),
+			h = (c + 0.5) / cols > 0.5 ? "r" : "l";
+		sl.push({ h, v: r ? "b" : "t", x: h === "r" ? cols - 1 - c : c, cols });
+	}
+	for (const [h, v] of [
+		["l", "t"],
+		["r", "t"],
+		["l", "b"],
+		["r", "b"],
+	])
+		if (!sl.some((s) => s.h === h && s.v === v && !s.x)) sl.push({ h, v, x: 0, cols });
+	return {
+		html: sl
+			.map(
+				(s, j) =>
+					`<div class="tvq ${s.h} ${s.v}" data-q="${j}" style="${s.h === "r" ? "right" : "left"}:${((s.x / s.cols) * 100).toFixed(3)}%"></div>`,
+			)
+			.join(""),
+	};
+}
+/* a player's card in the TV HUD: truck, name, rank, score (tvsHud fills them) */
+const tvsCard = (p, r) =>
+	`<div class="tvpc${r ? " r" : ""}" data-k="${esc(p.key)}" style="--c:${pcol(p)}"><div class="tvpc-o"><img alt="" src="${thumb(p.truck)}"><em hidden></em></div><div class="tvpc-t"><span class="tvpc-n">${esc(p.name)}</span><b class="tvpc-s"></b></div></div>`;
+/* the split TV's HUD, shown once: the timer and the countdown / message from the first world, every player's card */
+function tvsHud(dt) {
+	const T = TVS,
+		box = $("#mg");
+	T.hudT = (T.hudT || 0) - dt;
+	if (T.hudT > 0 || !box) return;
+	T.hudT = 0.12;
+	const W0 = T.worlds[0].W,
+		def = T.def,
+		h0 = T.worlds[0].hud,
+		q = (el, id) => el && el.querySelector(`[data-hid="${id}"]`);
+	/* a card for every truck the first world knows, placed once: players with a pane in it, the rest where tvsSlots says */
+	T.cards = T.cards || {};
+	const wrap = box.querySelector(".tvscards"),
+		slots = [...box.querySelectorAll(".tvq")],
+		own = T.worlds.map((s) => s.k),
+		/* the shared lane view: left to right like the lanes */
+		ents = W0.list
+			.filter((e) => e.p && !T.cards[e.k])
+			.sort((a, b) => (wrap ? a.x - b.x : own.includes(b.k) - own.includes(a.k)));
+	for (const e of ents) {
+		const i = own.indexOf(e.k),
+			el = wrap
+				? wrap
+				: i >= 0
+					? slots[T.mode === "dyn" && T.flip ? 1 - i : i]
+					: slots.slice(own.length).find((s) => !s.children.length) ||
+						slots.reduce((a, b) => (b.children.length < a.children.length ? b : a), slots[0]);
+		if (!el) continue;
+		el.insertAdjacentHTML("beforeend", tvsCard(e.p, el.classList.contains("r")));
+		T.cards[e.k] = el.lastElementChild;
+	}
+	/* the timer, the big countdown word and the end message */
+	const set = (id, v) => {
+		const el = document.getElementById(id);
+		if (el && el.textContent !== v) el.textContent = v;
+	};
+	const t0 = q(h0, "m3t"),
+		c0 = q(h0, "m3c"),
+		c = $("#tvsC");
+	/* hidden until the countdown (the ready screen and its practice run say it all); the countdown shows the game's length */
+	box.classList.toggle("tvpre", !W0.startAt || !!W0.prac);
+	set("tvsT", W0.t < 0 && !def.clock ? `${Math.ceil(def.dur)} s` : t0 ? t0.textContent : "");
+	set("tvsC", c0 ? c0.textContent : "");
+	if (c && c0 && c.style.fontSize !== c0.style.fontSize) c.style.fontSize = c0.style.fontSize;
+	const msg = T.worlds.map((s) => q(s.hud, "m3m")).find((m) => m && !m.hidden),
+		m = $("#tvsM");
+	if (m) {
+		m.hidden = !msg;
+		set("tvsM", msg ? "Results coming up…" : "");
+	}
+	/* the scores: a player with a world here from their own, everyone else from the first world */
+	const hi = def.liveHi !== undefined ? def.liveHi : def.hi,
+		rows = W0.list
+			.filter((e) => e.p && !e.gone)
+			.map((e) => {
+				const s = T.worlds.find((x) => x.k === e.k);
+				return s ? [s.W, s.W.me] : [W0, e];
+			}),
+		w0 = W,
+		tie = rows.every(([, e]) => e.sc === rows[0][1].sc);
+	for (const [w, e] of rows) {
+		const el = T.cards[e.k];
+		if (!el) continue;
+		W = w;
+		let v;
+		try {
+			v = String(lbVal(w, e));
+		} catch (er) {
+			v = String(Math.round(e.sc) || 0);
+		}
+		W = w0;
+		const sEl = el.querySelector(".tvpc-s");
+		if (sEl.textContent !== v) sEl.textContent = v;
+		/* the rank once the scores differ (ties share it) */
+		const rk = 1 + rows.filter(([, o]) => (hi ? o.sc > e.sc : o.sc < e.sc)).length,
+			em = el.querySelector("em"),
+			show = !tie && rows.length > 1 && W0.startAt && W0.t > 0,
+			rt = show ? ordinal(rk) : "";
+		em.hidden = !show;
+		if (em.textContent !== rt) em.textContent = rt;
+		em.classList.toggle("r1", rk === 1);
+		el.classList.toggle("out", !!(def.lastStanding && !e.al));
+	}
+	for (const k in T.cards) T.cards[k].hidden = !rows.some(([, e]) => e.k === k);
+}
 const tvsIds = (el, on) => {
 	if (el)
 		el.querySelectorAll("[data-hid]").forEach((n) => {
@@ -3700,24 +3828,26 @@ function openTvSplit(mg) {
 	const box = $("#mg");
 	box.classList.remove("res");
 	document.body.classList.remove("mgres");
-	box.classList.add("on", "live", "tvsplit", "tv" + mode);
+	box.classList.add("on", "live", "tvsplit", "tv" + mode, "tvpre");
 	document.body.classList.add("mglive");
 	rtJoin(mg.nonce);
 	const n = humans.length,
 		cells = mode === "grid" ? tvsCells(n, innerWidth, innerHeight) : [];
-	const hud = (
-		q,
-		i,
-	) => `<div class="tvv" data-w="${i}" style="--c:${pcol(q)}"><div class="m3top"><span class="chip name tvvn">${esc(q.name)}</span><span class="chip" data-hid="m3t"></span><span class="chip grow" data-hid="m3s"></span></div>
-      <div class="m3lb${def.lbTop ? " top" : ""}" data-hid="m3lb"></div><div class="m3center${def.msgTop ? " hi" : ""}"><div class="m3big" data-hid="m3c"></div><div class="m3msg" data-hid="m3m" hidden></div></div></div>`;
+	/* each world's hud3 writes its own copy of the HUD into a hidden sink; tvsHud shows it once for the whole TV */
+	const sink = (q, i) =>
+		`<div class="tvsink" data-w="${i}" hidden><i data-hid="m3t"></i><i data-hid="m3s"></i><i data-hid="m3lb"></i><i data-hid="m3c"></i><i data-hid="m3m" hidden></i></div>`;
 	box.innerHTML =
-		(mode === "shared"
-			? `<div class="m3top tvstop"><span class="chip name">${esc(def.name)}</span><span class="chip" id="tvsT"></span></div><div class="m3lb tvslb" id="tvsLB"></div><div class="m3center"><div class="m3big" id="tvsC"></div></div><div class="tvscards">${humans.map(hud).join("")}</div>`
-			: humans.map(hud).join("") +
+		humans.map(sink).join("") +
+		(mode === "grid"
+			? humans.map((q, i) => `<div class="tvv" data-w="${i}" style="--c:${pcol(q)}"></div>`).join("") +
 				cells
 					.slice(n)
 					.map(() => `<div class="tvv tvempty"><div><b>${esc(def.name)}</b></div></div>`)
-					.join("")) + rdyHTML(mg, def, SCREEN ? null : "host");
+					.join("")
+			: "") +
+		`<div class="m3top tvstop"><span class="chip" id="tvsT"></span></div><div class="m3center${def.msgTop ? " hi" : ""}"><div class="m3big" id="tvsC"></div><div class="m3msg" id="tvsM" hidden></div></div>` +
+		(mode === "shared" ? `<div class="tvscards"></div>` : tvsSlots(mode === "dyn" ? 2 : n).html) +
+		rdyHTML(mg, def, SCREEN ? null : "host");
 	if (!SCREEN) $("#m3rs").addEventListener("click", () => mgStartCountdown());
 	const hold = document.createElement("div");
 	hold.className = "tvctlhold";
@@ -3748,7 +3878,7 @@ function tvsRebuild(prac) {
 			cam: new THREE.PerspectiveCamera(40, 1, 0.5, 240),
 			mgCam: null,
 			k: q.key,
-			hud: box.querySelector(`.tvv[data-w="${i}"]`),
+			hud: box.querySelector(`.tvsink[data-w="${i}"]`),
 			ctl: null,
 			evSeq: 0,
 			lastB: undefined,
@@ -3862,7 +3992,7 @@ function tvsFrame() {
 	tvsInput();
 	if (T.sz !== fw + "x" + fh) {
 		T.sz = fw + "x" + fh;
-		if (T.mode !== "shared")
+		if (grid)
 			[...$("#mg").querySelectorAll(".tvv")].forEach((el, i) => {
 				const c = cells[i];
 				if (c)
@@ -3914,6 +4044,7 @@ function tvsFrame() {
 	if (TVS !== T) return;
 	if (T.mode === "shared") tvsShared(fw, fh, real);
 	else if (T.mode === "dyn") tvsDyn(fw, fh, real);
+	tvsHud(real);
 	/* linked screens: share this screen's worlds (its players and, if it runs them, the CPUs) with the others */
 	if (T.hubs && RT && !T.worlds[0].W.prac && now - (T.lastRts || 0) > 60) {
 		T.lastRts = now;
@@ -3973,18 +4104,6 @@ function tvsShared(fw, fh, dt) {
 	W0.sun.position.set(T.st.x + so[0], so[1], T.st.z + so[2]);
 	W0.sun.target.position.copy(T.st);
 	GFX.r.render(W0.sc, cam);
-	const h0 = s0.hud,
-		cp = (id, sel, html) => {
-			const a = document.getElementById(id),
-				b = h0 && h0.querySelector(sel);
-			if (a && b) {
-				const v = html ? b.innerHTML : b.textContent;
-				if (html ? a.innerHTML !== v : a.textContent !== v) html ? (a.innerHTML = v) : (a.textContent = v);
-			}
-		};
-	cp("tvsT", '[data-hid="m3t"]');
-	cp("tvsC", '[data-hid="m3c"]');
-	cp("tvsLB", '[data-hid="m3lb"]', true);
 }
 /* Drift Race with two drivers: each half follows its own driver; when they're close the cameras blend into one view and the divider fades away */
 function tvsDyn(fw, fh, dt) {
@@ -4030,6 +4149,19 @@ function tvsDyn(fw, fh, dt) {
 		const l = Math.hypot(T.nx, T.ny) || 1;
 		T.nx /= l;
 		T.ny /= l;
+	}
+	/* the cards follow their drivers: A's half is the one away from B */
+	const fl = T.nx < -0.2 ? true : T.nx > 0.2 ? false : !!T.flip;
+	if (fl !== !!T.flip) {
+		T.flip = fl;
+		const q0 = $('#mg .tvq[data-q="0"]'),
+			q1 = $('#mg .tvq[data-q="1"]');
+		if (q0 && q1) {
+			const a = [...q0.children],
+				b = [...q1.children];
+			a.forEach((c) => q1.appendChild(c).classList.add("r"));
+			b.forEach((c) => q0.appendChild(c).classList.remove("r"));
+		}
 	}
 	const R = (Math.abs(T.nx) * fw + Math.abs(T.ny) * fh) * 0.25 * (1 - m);
 	[
@@ -4134,7 +4266,7 @@ function tvsStop() {
 	camFov(40);
 	rtLeave();
 	T.hold.remove();
-	$("#mg").classList.remove("tvsplit", "tvgrid", "tvshared", "tvdyn", "tvmerged");
+	$("#mg").classList.remove("tvsplit", "tvgrid", "tvshared", "tvdyn", "tvmerged", "tvpre");
 	setMode(view === "game" ? "board" : view === "over" ? "podium" : "show");
 }
 /* mirror the TV's copy of a player's controls onto their phone (keeps button elements so presses stay wired) */
