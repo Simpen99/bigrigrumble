@@ -7739,6 +7739,7 @@ Object.assign(MG, {
 		OILCD: 8 /* was 7, then 9 */,
 		OILT: 8,
 		OILR: 1.9,
+		OILDROP: 0.3 /* the drum falls this long before it bursts and the slick spreads (and works) */,
 		/* the ready screen's controls panel: [icon or button label, what it does, small print] */
 		controls: (side) =>
 			side === 0
@@ -8867,7 +8868,6 @@ Object.assign(MG, {
 			const r = (v) => Math.round(v * 100) / 100;
 			e.f.oil = e.f.oil.concat([[e.oilN, r(e.x), r(e.z + 3.2), r(W.t)]]).slice(-4);
 			mgLog(W, `${mgName(e)} drops oil`);
-			if (this.heard(W, e)) sfxPack("splash");
 		},
 		/* the cash truck's slam: a hop, then a shockwave ring round it (shared as e.f.sw = [id, time pressed]) */
 		slam(W, e) {
@@ -9247,7 +9247,13 @@ Object.assign(MG, {
 				}
 				/* oil slicks */
 				(tf.oil || []).forEach(([id, x, z, t]) => {
-					if (W.t - t > this.OILT || e.oilHit[id] || Math.hypot(e.x - x, e.z - z) > this.OILR || this.towing(W, e, 1))
+					if (
+						W.t - t < this.OILDROP ||
+						W.t - t > this.OILT + this.OILDROP ||
+						e.oilHit[id] ||
+						Math.hypot(e.x - x, e.z - z) > this.OILR ||
+						this.towing(W, e, 1)
+					)
 						return;
 					e.oilHit[id] = 1;
 					e.spinT = W.t + 1.1;
@@ -9605,7 +9611,8 @@ Object.assign(MG, {
 				L = tr.userData.lift || tr,
 				v = tr.userData.vault || { x: 0, y: 1 },
 				r = tr.userData.rear || { x: -1.8, y: 0.2 },
-				arm = this.clawArm(),
+				look = TRUCKS[e.p.truck] || {},
+				arm = this.clawArm(look.color, look.accent),
 				drum = this.oilDrum();
 			arm.g.position.set(v.x, v.y, 0);
 			arm.g.scale.setScalar(1.3);
@@ -9626,11 +9633,12 @@ Object.assign(MG, {
 			arm.p1.rotation.z = arm.a1;
 			arm.p2.rotation.z = arm.a2;
 		},
-		/* the claw arm (truck units, built along +x = the truck's front): a turret on the deck with gold badges, a
+		/* the claw arm (truck units, built along +x = the truck's front), its booms in the truck's own paint (col) with a
+		   stripe in its accent (acc): a steel turret on the deck with gold badges, a
 		   shoulder (p1, turning about z) with the first boom ARM1 long and a hydraulic ram along it, an elbow knuckle
 		   (p2) with the second boom ARM2 long sitting a little above the first (so folded they lie one on the other), the
 		   claw (clawModel) at its tip pointing along it; tip = where the chain starts when it grabs */
-		clawArm() {
+		clawArm(col = "#5A6272", acc = "#FFC83D") {
 			const g = new THREE.Group(),
 				p1 = new THREE.Group(),
 				p2 = new THREE.Group(),
@@ -9654,12 +9662,12 @@ Object.assign(MG, {
 				c.rotation.x = Math.PI / 2;
 				return c;
 			};
-			p1.add(knuckle(0), B(L1, 0.15, 0.17, ST, L1 / 2, 0, 0), B(L1 * 0.9, 0.04, 0.19, YE, L1 / 2, 0.095, 0));
+			p1.add(knuckle(0), B(L1, 0.15, 0.17, col, L1 / 2, 0, 0), B(L1 * 0.9, 0.04, 0.19, acc, L1 / 2, 0.095, 0));
 			/* the ram: a chrome rod under the boom */
 			p1.add(Cy(0.035, 0.035, L1 * 0.7, 6, "#C9CED8", L1 * 0.45, -0.11, 0));
 			p1.children[p1.children.length - 1].rotation.z = Math.PI / 2;
 			p2.position.set(L1, 0, 0);
-			p2.add(knuckle(0), B(L2, 0.13, 0.15, ST, L2 / 2, 0.14, 0), B(L2 * 0.85, 0.04, 0.17, YE, L2 / 2, 0.225, 0));
+			p2.add(knuckle(0), B(L2, 0.13, 0.15, col, L2 / 2, 0.14, 0), B(L2 * 0.85, 0.04, 0.17, acc, L2 / 2, 0.225, 0));
 			p2.add(B(0.12, 0.24, 0.13, DK, 0.02, 0.07, 0));
 			const head = this.clawModel();
 			head.scale.setScalar(0.8);
@@ -11325,19 +11333,67 @@ Object.assign(MG, {
 			});
 			if (W.wLamp) W.wLamp.emissiveIntensity = Math.floor(W.t * 2.5) % 2 ? 1.8 : 0.15;
 			if (W.wArrow) W.wArrow.material.emissiveIntensity = Math.floor(W.t * 2) % 2 ? 1.1 : 0.25;
+			/* oil: the drum drops off the truck's push bar, tumbles down onto the road (OILDROP s), bursts and splashes the
+			   slick out from there */
 			const oil = (T && T.f && T.f.oil) || [];
+			W.oilD = W.oilD || {};
 			oil.forEach(([id, x, z, t]) => {
 				let m = W.oilM[id];
 				if (!m) {
 					m = W.oilM[id] = decal(W.sc, new THREE.CircleGeometry(this.OILR, 18), "#101317", x, 0.13, z, 0.85);
-					m.scale.set(1, 0.75, 1);
 					m.userData.t = t;
+					m.visible = false;
+					if (W.t - t < this.OILDROP) {
+						const g = this.oilDrum(),
+							p0 = new THREE.Vector3(x, 1.2, z - 0.8);
+						if (T.props) {
+							T.tr.updateMatrixWorld(true);
+							T.props.drum.getWorldPosition(p0);
+						}
+						g.scale.setScalar(T.tr.scale.x);
+						g.position.copy(p0);
+						W.sc.add(g);
+						W.oilD[id] = { g, p0, x, z, t };
+					}
 				}
 			});
+			for (const id in W.oilD) {
+				const d = W.oilD[id],
+					k = Math.min(1, (W.t - d.t) / this.OILDROP);
+				d.g.position.set(d.p0.x + (d.x - d.p0.x) * k, d.p0.y + (0.3 - d.p0.y) * k * k, d.p0.z + (d.z - d.p0.z) * k);
+				d.g.rotation.x = k * 2.2;
+				if (k < 1) continue;
+				W.sc.remove(d.g);
+				delete W.oilD[id];
+				burst(W.sc, d.x, 0.4, d.z, {
+					n: 26,
+					shape: "ico",
+					cols: ["#101317", "#23272F", "#3A2F1F"],
+					spd: 6,
+					up: 5,
+					grav: 16,
+					life: 0.8,
+					size: 1.3,
+				});
+				burst(W.sc, d.x, 0.5, d.z, {
+					n: 10,
+					shape: "cube",
+					cols: ["#FF8A1F", "#23272F", "#C9CED8"],
+					spd: 5,
+					up: 6,
+					grav: 16,
+					life: 0.9,
+					size: 0.9,
+				});
+				if (this.heard(W, T)) sfxPack("splash");
+			}
 			for (const id in W.oilM) {
 				const m = W.oilM[id],
-					a = W.t - m.userData.t;
-				m.visible = a < this.OILT;
+					a = W.t - m.userData.t - this.OILDROP,
+					u = Math.min(1, Math.max(0, a / 0.25)),
+					sp = 0.25 + 0.75 * (1 - (1 - u) * (1 - u));
+				m.visible = a >= 0 && a < this.OILT;
+				m.scale.set(sp, 0.75 * sp, 1);
 				if (m.visible) m.material.opacity = 0.85 * Math.min(1, (this.OILT - a) / 1.5) * Math.min(1, a * 4 + 0.3);
 			}
 		},
