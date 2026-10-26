@@ -953,6 +953,10 @@ body.tv #mg .m3top{max-width:900px}
 #mg .tvq.t{top:0}#mg .tvq.b{bottom:0;flex-direction:column-reverse}#mg .tvq.r{align-items:flex-end}
 #mg.tvshared .tvscards{position:absolute;left:1em;right:1em;bottom:1em;display:flex;gap:.7em;justify-content:center;font-size:clamp(12px,1.2vw,26px);pointer-events:none!important}
 #mg.tvshared .tvscards .tvpc{flex:0 1 auto}
+.tvcolf{position:absolute;inset:0;pointer-events:none}
+#mg:not(.tvcols) .tvcolf{display:none}
+.tvcolf i{position:absolute;top:0;bottom:0;box-sizing:border-box;border:.3vw solid var(--c);border-top-width:.5vw}
+#mg.tvcols .tvscards{left:var(--tvcg);right:var(--tvcg);gap:var(--tvcg);display:grid;grid-template-columns:repeat(var(--tvcn),minmax(0,1fr));justify-items:center}
 .tvpc{position:relative;display:flex;align-items:center;gap:.5em;height:3.1em;min-width:0;max-width:16em;padding:0 1em 0 .3em;background:var(--hb);border:.19em solid var(--c);border-radius:1.55em .9em .9em 1.55em;box-shadow:0 .22em 0 var(--ledge);color:#fff}
 .tvpc.r{flex-direction:row-reverse;padding:0 .3em 0 1em;border-radius:.9em 1.55em 1.55em .9em}
 .tvpc[hidden]{display:none}

@@ -4226,12 +4226,16 @@ function tvsFrame() {
 	}
 	tvsSend();
 }
-/* lane games: everyone is side by side, so the TV shows one wide view of world 0 */
+/* lane games: everyone is side by side, so the TV shows one wide view of world 0 (or, with def.tvsCols, a column per
+   lane once the game is on) */
 function tvsShared(fw, fh, dt) {
 	const T = TVS,
 		s0 = T.worlds[0],
 		W0 = s0.W,
-		cam = T.scam || (T.scam = new THREE.PerspectiveCamera(40, 1, 0.5, 400));
+		cols = !!(W0.def.tvsCols && W0.startAt && !W0.prac);
+	$("#mg").classList.toggle("tvcols", cols);
+	if (cols) return tvsCols(fw, fh, dt);
+	const cam = T.scam || (T.scam = new THREE.PerspectiveCamera(40, 1, 0.5, 400));
 	const ms = T.worlds.map((s) => s.W.me),
 		zs = ms.map((e) => e.z),
 		zc = zs.reduce((a, b) => a + b, 0) / zs.length,
@@ -4278,6 +4282,76 @@ function tvsShared(fw, fh, dt) {
 	W0.sun.position.set(T.st.x + so[0], so[1], T.st.z + so[2]);
 	W0.sun.target.position.copy(T.st);
 	GFX.r.render(W0.sc, cam);
+}
+/* a column per lane, each with its own camera from def.tvsCols(W, lane, aspect, bottom) → [target, position] (bottom =
+   the share of the screen the player cards cover); each column is framed in its player's colour and its card sits under
+   it. The shadows render once a frame, not once per column. */
+function tvsCols(fw, fh, dt) {
+	const T = TVS,
+		W0 = T.worlds[0].W,
+		r = GFX.r,
+		n = W0.plist.length,
+		gap = Math.max(4, Math.round(fw * 0.005)),
+		cw = (fw - gap * (n + 1)) / n,
+		box = $("#mg");
+	if (!T.cols || T.cols.n !== n) {
+		box.querySelectorAll(".tvcolf").forEach((el) => el.remove());
+		const el = document.createElement("div");
+		el.className = "tvcolf";
+		el.innerHTML = W0.plist.map((p) => `<i style="--c:${pcol(p)}"></i>`).join("");
+		box.prepend(el);
+		T.cols = { n, el, sz: "", v: [] };
+	}
+	const C = T.cols;
+	if (C.sz !== fw + "x" + fh) {
+		C.sz = fw + "x" + fh;
+		[...C.el.children].forEach((c, i) =>
+			Object.assign(c.style, { left: gap + i * (cw + gap) + "px", width: cw + "px" }),
+		);
+		box.style.setProperty("--tvcn", n);
+		box.style.setProperty("--tvcg", gap + "px");
+	}
+	const ce = box.querySelector(".tvscards"),
+		cr = ce && ce.getBoundingClientRect(),
+		b = cr && cr.height ? Math.max(0, Math.min(0.35, (fh - cr.top) / fh + 0.01)) : 0,
+		k = 1 - Math.exp(-dt * 5),
+		au = r.shadowMap.autoUpdate;
+	r.setScissorTest(false);
+	r.setViewport(0, 0, fw, fh);
+	r.setClearColor("#151B24");
+	r.clear();
+	r.setScissorTest(true);
+	r.shadowMap.autoUpdate = false;
+	r.shadowMap.needsUpdate = true;
+	const so = W0.def.sun || [14, 26, 12];
+	W0.sun.position.set(so[0], so[1], so[2]);
+	W0.sun.target.position.set(0, 0, 0);
+	try {
+		for (let i = 0; i < n; i++) {
+			const v = C.v[i] || (C.v[i] = { cam: new THREE.PerspectiveCamera(40, 1, 0.5, 400), p: null, t: null }),
+				a = cw / fh,
+				[tgt, pos] = W0.def.tvsCols(W0, i, a, b);
+			if (!v.p) {
+				v.p = pos.clone();
+				v.t = tgt.clone();
+			}
+			v.p.lerp(pos, k);
+			v.t.lerp(tgt, k);
+			v.cam.aspect = a;
+			v.cam.updateProjectionMatrix();
+			v.cam.position.copy(v.p);
+			v.cam.lookAt(v.t);
+			v.cam.updateMatrixWorld();
+			const x = Math.round(gap + i * (cw + gap));
+			r.setViewport(x, 0, Math.round(cw), fh);
+			r.setScissor(x, 0, Math.round(cw), fh);
+			r.render(W0.sc, v.cam);
+		}
+	} finally {
+		r.setScissorTest(false);
+		r.setViewport(0, 0, fw, fh);
+		r.shadowMap.autoUpdate = au;
+	}
 }
 /* Drift Race with two drivers: each half follows its own driver; when they're close the cameras blend into one view and the divider fades away */
 function tvsDyn(fw, fh, dt) {

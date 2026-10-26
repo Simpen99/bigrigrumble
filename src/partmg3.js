@@ -5056,6 +5056,44 @@ Object.assign(MG, {
 				t = new THREE.Vector3(-D * tn * a * c, (y0 + y1) / 2 - D * tn * b, 0);
 			return [t, t.clone().add(new THREE.Vector3(0, D * 0.06, D))];
 		},
+		/* the TV once the game is on: a column per board (part4a's tvsCols), the whole board while planning, aiming and in
+		   the reveal, zoomed in on the ball while it falls (at least TVHW either side of it, TVHH above and below) and on
+		   its slot after; b = the share the player cards cover at the bottom, TVTOP the timer's at the top */
+		TVHW: 5,
+		TVHH: 8,
+		TVTOP: 0.06,
+		tvsCols(W, i, a, b) {
+			const tn = Math.tan((20 * Math.PI) / 180),
+				S = this.sched(W),
+				e = W.ents[W.plist[i].key],
+				ox = W.laneX(i),
+				y0 = this.wy(this.GY - 0.4),
+				y1 = this.wy(this.HDR + 1),
+				hwB = this.K * (this.HW + 1),
+				sh = b - this.TVTOP,
+				whole =
+					!e ||
+					W.t < 0 ||
+					S.plan ||
+					(S.E !== null && (W.t < S.E || S.over)) ||
+					![1, 2].includes(e.local ? e.st : e.f && e.f.st),
+				Dw = Math.max((y1 - y0) / 2 / (1 - b - this.TVTOP) / tn, hwB / (tn * a)) * 1.03;
+			let D = Dw,
+				x = ox,
+				y = (y0 + y1) / 2 - D * tn * sh;
+			if (!whole) {
+				D = Math.min(Dw, Math.max(this.TVHH, this.TVHW / a) / tn);
+				const H = D * tn,
+					mx = Math.max(0, hwB - H * a),
+					[fx, fy] = (e.local && e.cf) || [e.x, e.y],
+					lo = y0 + H * (1 - 2 * b),
+					hi = y1 - H * (1 - 2 * this.TVTOP);
+				x = ox + Math.max(-mx, Math.min(mx, fx - ox));
+				y = lo > hi ? (lo + hi) / 2 : Math.max(lo, Math.min(hi, fy - H * sh));
+			}
+			const t = new THREE.Vector3(x, y, 0);
+			return [t, t.clone().add(new THREE.Vector3(0, D * 0.06, D))];
+		},
 		/* ---- drawing ---- */
 		render(W, e, dt) {
 			this.scene(W, dt);
