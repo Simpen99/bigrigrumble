@@ -3607,6 +3607,13 @@ function openTvCtl(mg, p) {
 						TVC.b++;
 						tvcTick();
 					},
+					/* a second finger position: ax = x (null keeps it), ay = 1 while the finger is down */
+					move(x, on) {
+						if (!TVC) return;
+						if (x !== null) TVC.inp.ax = x;
+						TVC.inp.ay = on ? 1 : 0;
+						tvcTick();
+					},
 				});
 			else if (def.pad)
 				wirePad(
