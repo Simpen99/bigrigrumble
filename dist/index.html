@@ -1160,7 +1160,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-26 03:49 dab9292";
+const BUILD = "2026-10-26 04:18 2664247";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -35165,7 +35165,7 @@ Object.assign(MG, {
 				W.mag[p.key] = g;
 			});
 			W.trapV = {};
-			W.bpill = {};
+			W.smk = {};
 		},
 		spawn: (W, i) => ({ x: W.laneX(i), z: 0, yaw: i % 2 ? Math.PI : 0 }),
 		initEnt(W, e) {
@@ -36549,6 +36549,147 @@ Object.assign(MG, {
 			}
 			this.fitCursor(m.fr, g, 1 + 0.05 * Math.sin(W.t * 8));
 		},
+		/* while planning: a smoke screen rolls over every board but the one your phone is sabotaging (on the TV all of
+		   them), with a plate in the middle: PLANNING… in the board's colour, READY ✓ once its owner is ready (the
+		   saboteur of a board planning is someone else, so the plate is about the board's own player, who is also
+		   planning on another board); at the end of planning the smoke blows away */
+		SMOKEN: 20,
+		smoke(W, bi, pl, S, on) {
+			const k = pl.key;
+			let m = W.smk[k];
+			if (!m) {
+				if (!on) return;
+				W.puffTex =
+					W.puffTex ||
+					[0, 1].map((v) =>
+						canvasTex(128, 128, (x, w, h) => {
+							for (let i = 0; i < 9; i++) {
+								const a = (i / 9) * Math.PI * 2 + v,
+									r = i ? 18 + ((i * 7 + v * 5) % 11) : 0,
+									cx = w / 2 + Math.cos(a) * r,
+									cy = h / 2 + Math.sin(a) * r * 0.8,
+									rad = i ? 26 + ((i * 5 + v * 3) % 9) : 40,
+									gr = x.createRadialGradient(cx, cy, 0, cx, cy, rad);
+								gr.addColorStop(0, "rgba(255,255,255,0.7)");
+								gr.addColorStop(0.6, "rgba(255,255,255,0.3)");
+								gr.addColorStop(1, "rgba(255,255,255,0)");
+								x.fillStyle = gr;
+								x.fillRect(0, 0, w, h);
+							}
+						}),
+					);
+				const g = new THREE.Group(),
+					puffs = [];
+				for (let i = 0; i < this.SMOKEN; i++) {
+					const c = i % 4,
+						r = i >> 2,
+						mt = new THREE.SpriteMaterial({
+							map: W.puffTex[i % 2],
+							color: i % 3 ? "#C7CBDD" : "#9FA6C2",
+							transparent: true,
+							depthWrite: false,
+							opacity: 0,
+						}),
+						sp = new THREE.Sprite(mt),
+						q = {
+							sp,
+							mt,
+							x: -10.5 + c * 7 + (Math.random() - 0.5) * 2,
+							y: 5 + r * 5.6 + (Math.random() - 0.5) * 2,
+							sz: 9.5 + Math.random() * 2.5,
+							ph: Math.random() * 6.3,
+							sn: Math.random() < 0.5 ? -1 : 1,
+						};
+					sp.renderOrder = 6;
+					g.add(sp);
+					puffs.push(q);
+				}
+				const cv = document.createElement("canvas");
+				cv.width = 512;
+				cv.height = 176;
+				const tex = new THREE.CanvasTexture(cv),
+					plate = new THREE.Sprite(
+						new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false, depthWrite: false }),
+					);
+				plate.renderOrder = 12;
+				g.add(plate);
+				W.bg[bi].add(g);
+				m = W.smk[k] = { g, puffs, plate, cv, tex, key: "", on: false, t: -9, rdT: -9, rd: false };
+			}
+			if (!!on !== m.on) {
+				m.on = !!on;
+				m.t = W.t;
+			}
+			const u = Math.min(1, (W.t - m.t) / (m.on ? 0.7 : 1));
+			m.g.visible = m.on || u < 1;
+			if (!m.g.visible) return;
+			const e = W.ents[k],
+				a = e && (e.local ? e.pd : e.f && e.f.pd),
+				rd = !!(a && a[S.r] !== undefined);
+			if (rd && !m.rd) m.rdT = W.t;
+			m.rd = rd;
+			const tt = Math.max(0, W.t);
+			m.puffs.forEach((q) => {
+				const ox = q.x + Math.sin(tt * 0.35 + q.ph) * 1,
+					oy = q.y + Math.cos(tt * 0.27 + q.ph * 1.7) * 0.9,
+					br = 0.8 + 0.2 * Math.sin(tt * 0.6 + q.ph * 2),
+					out = m.on ? 0 : u * u * 9;
+				let sc = q.sz * (m.on ? 0.55 + 0.45 * (1 - (1 - u) * (1 - u)) : 1 + 0.7 * u);
+				q.sp.position.set(ox + (ox / 14) * out, oy + out * 0.5 + (oy - 17) * 0.04 * out, 2.6 + (q.ph % 1));
+				q.sp.scale.set(sc, sc, 1);
+				q.mt.rotation = q.ph + tt * 0.08 * q.sn;
+				q.mt.opacity = br * (m.on ? u : Math.pow(1 - u, 1.6));
+			});
+			/* the plate: PLANNING with dots ticking, READY ✓ on green; pops when it turns */
+			const dots = rd ? 0 : Math.floor(tt * 2.5) % 4,
+				col = pcol(pl),
+				key = (rd ? "R" : "P" + dots) + col;
+			if (m.key !== key) {
+				m.key = key;
+				const x = m.cv.getContext("2d"),
+					w = m.cv.width,
+					h = m.cv.height;
+				x.clearRect(0, 0, w, h);
+				x.fillStyle = "#151B24";
+				rr(x, 4, 4, w - 8, h - 20, 34);
+				x.fill();
+				x.fillStyle = rd ? "#1FA35C" : col;
+				rr(x, 4, 4, w - 8, h - 30, 34);
+				x.fill();
+				x.fillStyle = rd ? "#1FA35C" : "#1C2330";
+				rr(x, 16, 16, w - 32, h - 54, 24);
+				x.fill();
+				x.font = "52px Bungee, 'Arial Black', Impact, sans-serif";
+				x.textAlign = "center";
+				x.textBaseline = "middle";
+				x.lineWidth = 10;
+				x.strokeStyle = "#151B24";
+				x.lineJoin = "round";
+				const tx = rd ? "READY ✓" : "PLANNING",
+					cy = (h - 22) / 2 + 4;
+				if (rd) {
+					x.strokeText(tx, w / 2, cy, w - 70);
+					x.fillStyle = "#FFFFFF";
+					x.fillText(tx, w / 2, cy, w - 70);
+				} else {
+					const tw = Math.min(w - 120, x.measureText(tx).width),
+						lx = w / 2 - tw / 2 - 14;
+					x.fillStyle = "#FFFFFF";
+					x.fillText(tx, lx + tw / 2, cy, w - 120);
+					for (let i = 0; i < 3; i++) {
+						x.fillStyle = i < dots ? "#FFFFFF" : "rgba(255,255,255,0.25)";
+						x.beginPath();
+						x.arc(lx + tw + 16 + i * 16, cy + 14, 5.5, 0, Math.PI * 2);
+						x.fill();
+					}
+				}
+				m.tex.needsUpdate = true;
+			}
+			const pop = W.t - m.rdT < 0.35 ? 1 + 0.25 * Math.sin(((W.t - m.rdT) / 0.35) * Math.PI) : 1,
+				ps = (m.on ? Math.min(1, u * 1.6) : Math.max(0, 1 - u * 3)) * pop;
+			m.plate.position.set(0, 17, 3.6);
+			m.plate.scale.set(19 * ps, 6.5 * ps, 1);
+		},
 		/* trap models, hidden until set off (or the reveal after the round) */
 		trapMesh(W, t, g, d) {
 			const T = this.TRAPS[t],
@@ -36846,23 +36987,7 @@ Object.assign(MG, {
 					}
 					it.m.scale.setScalar(full ? Math.min(1, 0.3 + (W.t - tv.seen[id]) * 4) : 1);
 				});
-				/* planning: a pill over each board, PLANNING or READY */
-				let pp = W.bpill[k];
-				if (S.plan && !pp) {
-					pp = W.bpill[k] = pillSprite();
-					W.bg[bi].add(pp.sp);
-				}
-				if (pp) {
-					pp.sp.visible = !!S.plan;
-					if (S.plan) {
-						const e = W.ents[k],
-							a = e && (e.local ? e.pd : e.f && e.f.pd),
-							ready = a && a[S.r] !== undefined;
-						pp.set(ready ? "READY ✓" : "PLANNING…", pcol(pl));
-						pp.sp.position.set(0, 1.4, 2.2);
-						pp.sp.scale.set(10, 3.3, 1);
-					}
-				}
+				this.smoke(W, bi, pl, S, S.plan && W.t >= 0 && !see);
 				this.planMarks(W, bi, k, S, see, dt);
 			});
 			/* every board's flippers, bumpers, gates and TNT */
