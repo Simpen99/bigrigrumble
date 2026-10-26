@@ -1173,7 +1173,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-26 05:38 fb725d7";
+const BUILD = "2026-10-26 08:03 e794467";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -36782,11 +36782,11 @@ Object.assign(MG, {
 			}
 			this.fitCursor(m.fr, g, 1 + 0.05 * Math.sin(W.t * 8));
 		},
-		/* while planning: a smoke screen rolls over every board but the one your phone is sabotaging (on the TV all of
-		   them), with a plate in the middle: PLANNING… in the board's colour, READY ✓ once its owner is ready (the
+		/* from the countdown and while planning: a smoke screen (a fog layer and drifting puffs) rolls over every board but
+		   the one your phone is sabotaging (on the TV all of them), with a plate in the middle once planning starts: PLANNING… in the board's colour, READY ✓ once its owner is ready (the
 		   saboteur of a board planning is someone else, so the plate is about the board's own player, who is also
 		   planning on another board); at the end of planning the smoke blows away */
-		SMOKEN: 20,
+		SMOKEN: 30,
 		smoke(W, bi, pl, S, on) {
 			const k = pl.key;
 			let m = W.smk[k];
@@ -36803,19 +36803,43 @@ Object.assign(MG, {
 									cy = h / 2 + Math.sin(a) * r * 0.8,
 									rad = i ? 26 + ((i * 5 + v * 3) % 9) : 40,
 									gr = x.createRadialGradient(cx, cy, 0, cx, cy, rad);
-								gr.addColorStop(0, "rgba(255,255,255,0.7)");
-								gr.addColorStop(0.6, "rgba(255,255,255,0.3)");
+								gr.addColorStop(0, "rgba(255,255,255,0.85)");
+								gr.addColorStop(0.6, "rgba(255,255,255,0.4)");
 								gr.addColorStop(1, "rgba(255,255,255,0)");
 								x.fillStyle = gr;
 								x.fillRect(0, 0, w, h);
 							}
 						}),
 					);
+				/* the fog: the board's face, its edges soft */
+				W.fogTex =
+					W.fogTex ||
+					canvasTex(128, 256, (x, w, h) => {
+						x.fillStyle = "#FFFFFF";
+						x.globalAlpha = 0.16;
+						for (let i = 0; i < 12; i++) {
+							rr(x, 4 + i * 2, 4 + i * 2, w - 8 - i * 4, h - 8 - i * 4, 24);
+							x.fill();
+						}
+					});
 				const g = new THREE.Group(),
-					puffs = [];
+					puffs = [],
+					fog = new THREE.Mesh(
+						new THREE.PlaneGeometry(2 * this.HW + 1, this.TOPY + 3.4),
+						new THREE.MeshBasicMaterial({
+							map: W.fogTex,
+							color: "#8F96B2",
+							transparent: true,
+							opacity: 0,
+							depthWrite: false,
+						}),
+					);
+				fog.position.set(0, (this.TOPY + 3.4) / 2 - 0.4, 2.3);
+				fog.renderOrder = 5;
+				g.add(fog);
 				for (let i = 0; i < this.SMOKEN; i++) {
-					const c = i % 4,
-						r = i >> 2,
+					const c = i % 5,
+						r = Math.floor(i / 5),
 						mt = new THREE.SpriteMaterial({
 							map: W.puffTex[i % 2],
 							color: i % 3 ? "#C7CBDD" : "#9FA6C2",
@@ -36827,9 +36851,9 @@ Object.assign(MG, {
 						q = {
 							sp,
 							mt,
-							x: -10.5 + c * 7 + (Math.random() - 0.5) * 2,
-							y: 5 + r * 5.6 + (Math.random() - 0.5) * 2,
-							sz: 9.5 + Math.random() * 2.5,
+							x: -11.2 + c * 5.6 + (Math.random() - 0.5) * 2,
+							y: 4.5 + r * 5 + (Math.random() - 0.5) * 2,
+							sz: 10 + Math.random() * 3,
 							ph: Math.random() * 6.3,
 							sn: Math.random() < 0.5 ? -1 : 1,
 						};
@@ -36847,7 +36871,7 @@ Object.assign(MG, {
 				plate.renderOrder = 12;
 				g.add(plate);
 				W.bg[bi].add(g);
-				m = W.smk[k] = { g, puffs, plate, cv, tex, key: "", on: false, t: -9, rdT: -9, rd: false };
+				m = W.smk[k] = { g, puffs, fog, plate, cv, tex, key: "", on: false, t: -99, rdT: -9, rd: false };
 			}
 			if (!!on !== m.on) {
 				m.on = !!on;
@@ -36861,7 +36885,8 @@ Object.assign(MG, {
 				rd = !!(a && a[S.r] !== undefined);
 			if (rd && !m.rd) m.rdT = W.t;
 			m.rd = rd;
-			const tt = Math.max(0, W.t);
+			const tt = W.t + 30;
+			m.fog.material.opacity = 0.8 * (m.on ? u : Math.pow(1 - u, 1.6));
 			m.puffs.forEach((q) => {
 				const ox = q.x + Math.sin(tt * 0.35 + q.ph) * 1,
 					oy = q.y + Math.cos(tt * 0.27 + q.ph * 1.7) * 0.9,
@@ -36919,7 +36944,7 @@ Object.assign(MG, {
 				m.tex.needsUpdate = true;
 			}
 			const pop = W.t - m.rdT < 0.35 ? 1 + 0.25 * Math.sin(((W.t - m.rdT) / 0.35) * Math.PI) : 1,
-				ps = (m.on ? Math.min(1, u * 1.6) : Math.max(0, 1 - u * 3)) * pop;
+				ps = (m.on ? Math.min(1, u * 1.6) : Math.max(0, 1 - u * 3)) * pop * Math.max(0, Math.min(1, W.t * 3));
 			m.plate.position.set(0, 17, 3.6);
 			m.plate.scale.set(19 * ps, 6.5 * ps, 1);
 		},
@@ -37220,7 +37245,7 @@ Object.assign(MG, {
 					}
 					it.m.scale.setScalar(full ? Math.min(1, 0.3 + (W.t - tv.seen[id]) * 4) : 1);
 				});
-				this.smoke(W, bi, pl, S, S.plan && W.t >= 0 && !see);
+				this.smoke(W, bi, pl, S, (S.plan || W.t < 0) && !see);
 				this.planMarks(W, bi, k, S, see, dt);
 			});
 			/* every board's flippers, bumpers, gates and TNT */
