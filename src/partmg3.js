@@ -7591,7 +7591,7 @@ Object.assign(MG, {
 		CARV: 9,
 		CARCOL: MG.hop.CARCOL,
 		/* traffic cars at CARS of Rush Hour's size; traffic waves (a car in every lane) met round these shares of the run */
-		CARS: 0.85,
+		CARS: 0.7 /* was 0.85 (see TSC) */,
 		WAVES: [0.13, 0.3, 0.48, 0.66, 0.84],
 		/* the cash truck ramming a car: left with CARHIT of its speed, CARSLOW m/s off its top speed for CART s: no slowdown
 		   now, just a nudge sideways (tried ~11 m, ~7 m, ~5 m and ~0.1 m lost a car) */
@@ -7639,6 +7639,7 @@ Object.assign(MG, {
 		WHH: 5 /* held up on the chain this long */,
 		WHL: 0.7 /* then flung into the furthest guardrail for WHL s, landing WHB m behind the truck */,
 		WHB: 4,
+		WHHY: 2 /* the held cop hangs this high (its wheels, m) from the claw arm on the roof, swinging */,
 		HPA: 0.4,
 		HPT: 0.9,
 		/* each cop's second button is its own truck's trick (by TRUCKS[].kind): lobs land a hazard ZL s later in front of the
@@ -7686,6 +7687,15 @@ Object.assign(MG, {
 		   nearest cop ahead used to harpoon it, the helicopter only if there was none) and slung up the road in an arc
 		   TOWH m high, landing TOWB m behind that cop (never closer than TOWHB m behind the truck); its buttons wait
 		   TOWCD s after landing and it can't be towed again for TOWAG s */
+		/* sizes: the trucks bigger and the traffic smaller so they read on a TV across the room (cops TSC, was 0.8; the
+		   cash truck TSO, was 1.16; cars CARS, was 0.85): a cop still slips between two cars side by side with the same
+		   room to spare (~0.7 m) */
+		TSC: 1,
+		TSO: 1.35,
+		/* the ability props (props): the cash truck's body rides SAGU truck units high while SLAM is ready and sags SAGD
+		   while it reloads */
+		SAGU: 0.1,
+		SAGD: 0.1,
 		TOWZ: 34,
 		TOWW: 3 /* was 1.5 */,
 		TOWB: 7,
@@ -7729,6 +7739,7 @@ Object.assign(MG, {
 		OILCD: 8 /* was 7, then 9 */,
 		OILT: 8,
 		OILR: 1.9,
+		OILDROP: 0.3 /* the drum falls this long before it bursts and the slick spreads (and works) */,
 		/* the ready screen's controls panel: [icon or button label, what it does, small print] */
 		controls: (side) =>
 			side === 0
@@ -8404,20 +8415,34 @@ Object.assign(MG, {
 				e.snapA = {};
 				e.mass = 3.2;
 				e.rad = 1.6;
-				/* the armoured version of its own truck (buildTruck mode "armour"), a size up */
-				const sc = 0.8 * 1.45;
+				/* the armoured version of its own truck (buildTruck mode "armour"), a size up (TSO), with its ability props:
+				   the claw arm on the roof, the oil drum on the push bar */
 				e.g.remove(e.tr);
 				e.tr = buildTruck(e.p.truck, "armour");
-				e.tr.scale.setScalar(sc);
+				e.tr.scale.setScalar(this.TSO);
 				e.g.add(e.tr);
-				e.g.children.forEach((o) => {
-					if (o.isSprite) o.position.y = 3.8;
-				});
 				e.f = { bg: this.BAGS, bm: e.bm, lb: [], oil: [], sp: [], hs: [], esc: 0 };
 			} else {
+				e.tr.scale.setScalar(this.TSC);
 				e.f = {};
 			}
+			/* the disc under it and the name tag over it grow with it (the tag clears the claw arm raised up) */
 			this.hitBox(e);
+			if (e.side === 0) this.cashProps(e);
+			const k = (e.side === 0 ? this.TSO : this.TSC) / 0.8;
+			e.g.children.forEach((o) => {
+				if (o.userData.disc) o.scale.set(k, 1, k);
+			});
+			if (e.side === 0) {
+				e.tr.updateMatrixWorld(true);
+				const top = new THREE.Box3().setFromObject(e.tr).max.y - e.g.position.y;
+				e.g.children.forEach((o) => {
+					if (o.isSprite) o.position.y = top + 0.45;
+				});
+			} else
+				e.g.children.forEach((o) => {
+					if (o.isSprite) o.position.y = 2.5 * k;
+				});
 		},
 		/* the hitbox: the truck's own body as a box (e.hb = [half width, half length] on the road, which the engine's
 		   collide uses instead of the round e.rad), measured before the light bar or bag nets go on */
@@ -8566,10 +8591,10 @@ Object.assign(MG, {
 			if (solo) this.hazards(W, e, dt);
 			e.f.t = Math.round(W.t * 100) / 100;
 		},
-		/* a clawed cop: the claw flies WHF s (it keeps driving), then it's reeled in (WHY s) and held clamped right in front
-		   of the truck's nose for WHH s (no control: pushed along like a plough; the engine doesn't collide the two, see
-		   noCollide), then flung across the road into the furthest guardrail (WHL s), where it crashes and spins out WHS s,
-		   WHB m behind the truck; true while the claw has it */
+		/* a clawed cop: the claw flies WHF s (it keeps driving), then it's reeled in and lifted (WHY s) and held up in the
+		   air right in front of the truck's nose for WHH s, hanging WHHY m up from the claw arm on the roof (no control;
+		   the engine doesn't collide the two, see noCollide), then flung across the road into the furthest guardrail (WHL
+		   s), where it crashes and spins out WHS s, WHB m behind the truck; true while the claw has it */
 		yankStep(W, e, T, dt) {
 			const Y = e.yank,
 				a = W.t - Y.t - this.WHF,
@@ -8607,14 +8632,15 @@ Object.assign(MG, {
 				const k = (a - hold) / this.WHL;
 				e.x = Y.hx + (Y.fx - Y.hx) * (1 - (1 - k) * (1 - k));
 				e.z = T.z + Y.hz + (this.WHB - Y.hz) * k;
-				e.y = Math.sin(k * Math.PI) * 1.2;
+				e.y = this.WHHY * (1 - k) + Math.sin(k * Math.PI) * 1.2;
 				e.yaw += (dt || 0.016) * 14 * Y.fd;
 				return true;
 			}
 			if (a >= this.WHY) {
-				/* clamped right in front of the nose, on the road */
+				/* held up in front of the nose, bobbing a little */
 				e.x = T.x;
 				e.z = T.z + nose;
+				e.y = this.WHHY + Math.sin((a - this.WHY) * 5) * 0.12;
 				e.yaw = Math.PI / 2;
 				return true;
 			}
@@ -8622,10 +8648,11 @@ Object.assign(MG, {
 				Y.x0 = e.x;
 				Y.z0 = e.z - T.z;
 			}
-			/* reeled in, faster and faster */
+			/* reeled in and lifted, faster and faster */
 			const k = a / this.WHY;
 			e.x = Y.x0 + (T.x - Y.x0) * k * k;
 			e.z = T.z + Y.z0 + (nose - Y.z0) * k * k;
+			e.y = this.WHHY * k * k;
 			return true;
 		},
 		/* the tow (on the cop's own device): it counts how long the cop has been far behind; after TOWW s the line flies 0.3 s
@@ -8841,7 +8868,6 @@ Object.assign(MG, {
 			const r = (v) => Math.round(v * 100) / 100;
 			e.f.oil = e.f.oil.concat([[e.oilN, r(e.x), r(e.z + 3.2), r(W.t)]]).slice(-4);
 			mgLog(W, `${mgName(e)} drops oil`);
-			if (this.heard(W, e)) sfxPack("splash");
 		},
 		/* the cash truck's slam: a hop, then a shockwave ring round it (shared as e.f.sw = [id, time pressed]) */
 		slam(W, e) {
@@ -9221,7 +9247,13 @@ Object.assign(MG, {
 				}
 				/* oil slicks */
 				(tf.oil || []).forEach(([id, x, z, t]) => {
-					if (W.t - t > this.OILT || e.oilHit[id] || Math.hypot(e.x - x, e.z - z) > this.OILR || this.towing(W, e, 1))
+					if (
+						W.t - t < this.OILDROP ||
+						W.t - t > this.OILT + this.OILDROP ||
+						e.oilHit[id] ||
+						Math.hypot(e.x - x, e.z - z) > this.OILR ||
+						this.towing(W, e, 1)
+					)
 						return;
 					e.oilHit[id] = 1;
 					e.spinT = W.t + 1.1;
@@ -9249,6 +9281,10 @@ Object.assign(MG, {
 		fmtE(W, e) {
 			if (e.side === 0) return `💰 ${e.local ? e.bags : e.f && e.f.bg !== undefined ? e.f.bg : this.BAGS}`;
 			return `+${Math.round(e.sc)} 💰`;
+		},
+		/* the top chip: the cash truck's bags still on, a cop's bags knocked off (its score is only 1000 + bags at the end) */
+		fmt(W, e) {
+			return e.side === 0 ? `${e.bags} 💰 left` : `${Math.round(e.sc)} 💰 knocked off`;
 		},
 		fmtTeam(v, s) {
 			if (s === 0) return v >= 1000 ? `Escaped with ${v - 1000} 💰` : v > 0 ? `Caught with ${v} 💰` : "Stripped clean";
@@ -9433,7 +9469,10 @@ Object.assign(MG, {
 					});
 				}
 			} else {
-				if (!e.bar) e.bar = this.copBar(e.tr);
+				if (!e.bar) {
+					e.bar = this.copBar(e.tr);
+					e.trick = this.trickProp(e);
+				}
 				this.towFx(W, e);
 				this.harpoonFx(W, e);
 				this.spearFx(W, e);
@@ -9453,34 +9492,363 @@ Object.assign(MG, {
 				e.bar.red.material.emissiveIntensity = ph ? 1.6 : 0.1;
 				e.bar.blue.material.emissiveIntensity = ph ? 0.1 : 1.6;
 			}
-			this.readyPops(W, e);
+			this.props(W, e, dt);
 		},
-		/* a button back from its cooldown pops up over the truck in its phone button's colour (readyPop; the main button
-		   red, the second orange, the third blue); only on the device running the truck (the cooldowns live there), only
-		   for players' trucks (CPUs' pops were clutter), only after a wait of RPMIN s or more (the harpoon's 4 s reload
-		   popped every few seconds), not for the buttons waking up at the start (ARM) */
-		RPMIN: 6,
-		readyPops(W, e) {
-			if (!e.local || e.gone || (e.f && e.f.esc) || !e.p || e.p.bot) return;
-			const B =
-				e.side === 0
-					? [
-							["oilCd", "OIL", "#E5484D"],
-							["swCd", "SLAM", "#FF8A1F"],
-							["spCd", "CLAW", "#2F7DE1"],
-						]
-					: [
-							["hpCd", this.ahead(W, e, this.solo(W)) ? "SPIKES" : "HARPOON", "#E5484D"],
-							["abCd", this.abOf(e).lbl, "#FF8A1F"],
-						];
-			/* e.rdy[f] = true while ready, else when its cooldown started: only a wait of RPMIN s or more pops */
-			e.rdy = e.rdy || {};
-			for (const [f, lbl, col] of B) {
-				const on = W.t >= (e[f] || 0),
-					t0 = e.rdy[f];
-				if (on && typeof t0 === "number" && W.t - t0 >= this.RPMIN && t0 > this.ARM - 0.5) readyPop(W, e, lbl, col);
-				e.rdy[f] = on ? true : typeof t0 === "number" ? t0 : W.t;
+		/* the ability props: each button's state shows on the truck itself, and a glint goes off on the prop the moment
+		   it's ready again (players' trucks only, not for the buttons waking up at the start).
+		   Cash truck: OIL = the drum on the push bar (gone once dropped, it drops back in over the last OILIN s), SLAM =
+		   the suspension (the body rides high on glowing coil-overs while ready, sags on dull ones while it reloads,
+		   springing back up), CLAW = the arm on the roof (raised over the cab like a scorpion's tail while ready, swung
+		   out while it grabs, folded flat while it reloads). Cops: the harpoon bolt in the gun (gone once fired, it
+		   slides back in over the last BOLTIN s) and its trick's prop on a rack behind the light bar (trickProp: gone once
+		   used, popping back in over the last TRKIN s).
+		   The cooldowns' end times are shared as e.f.cd ([oil, slam, claw] / [harpoon, trick], game time), so every
+		   device draws everyone's props */
+		OILIN: 0.5,
+		BOLTIN: 0.45,
+		TRKIN: 0.5,
+		ARM1: 0.8,
+		ARM2: 0.7,
+		/* the arm's poses [shoulder, elbow] in rad (0 = straight ahead, up is +): raised, folded, grabbing */
+		ARMUP: [2.05, -2.35],
+		ARMFOLD: [3.05, -2.95],
+		ARMOUT: [0.45, -0.35],
+		cdShare(W, e) {
+			if (!e.local) return (e.f && e.f.cd) || [];
+			const rd = (v) => Math.round((v || 0) * 100) / 100,
+				a = (e.side === 0 ? [e.oilCd, e.swCd, e.spCd] : [e.hpCd, e.abCd]).map(rd),
+				o = e.f.cd;
+			if (!o || a.some((v, i) => v !== o[i])) e.f.cd = a;
+			return a;
+		},
+		props(W, e, dt) {
+			const cd = this.cdShare(W, e),
+				left = (i) => Math.max(0, (cd[i] ?? this.ARM) - W.t),
+				gl = !!(e.p && !e.p.bot) && W.t > this.ARM + 0.2 && !e.gone,
+				/* a spring towards a target (it overshoots and settles): s = {v, d} */
+				spring = (s, k, tgt, K, D) => {
+					s[k + "v"] = (s[k + "v"] || 0) + ((tgt - s[k]) * K - (s[k + "v"] || 0) * D) * dt;
+					s[k] += s[k + "v"] * dt;
+				};
+			e.rdy = e.rdy || [];
+			const ready = (i, obj) => {
+				const on = left(i) === 0;
+				if (on && e.rdy[i] === false && gl) glint(W, e, obj);
+				const was = e.rdy[i];
+				e.rdy[i] = on;
+				return [on, on && was === false];
+			};
+			if (e.side === 1) {
+				/* the harpoon bolt: hidden while the line is out (harpoonFx) or it reloads, sliding back into the gun */
+				const b = e.bar && e.bar.tip;
+				if (!b) return;
+				const l = left(0);
+				ready(0, b);
+				b.position.x = b.userData.x0 - Math.min(1, l / this.BOLTIN) * 0.7;
+				b.visible = b.visible && l < this.BOLTIN;
+				/* the trick's prop on the rack: gone once used, popping back in (overshooting) over the last TRKIN s */
+				const P = e.trick;
+				if (P) {
+					const lt = left(1),
+						u = 1 - Math.min(1, lt / this.TRKIN),
+						s = 1 + 2.7 * Math.pow(u - 1, 3) + 1.7 * Math.pow(u - 1, 2);
+					ready(1, P);
+					P.visible = lt < this.TRKIN && !e.gone;
+					P.scale.setScalar(Math.max(0.01, s));
+				}
+				return;
 			}
+			const P = e.props;
+			if (!P) return;
+			/* OIL: the drum drops back onto the push bar */
+			{
+				const l = left(0),
+					u = 1 - Math.min(1, l / this.OILIN);
+				ready(0, P.drum);
+				P.drum.visible = l < this.OILIN && !e.gone;
+				P.drum.position.y = P.drumY + (1 - u) * (1 - u) * 0.9;
+				P.drum.scale.setScalar(0.6 + 0.4 * u);
+			}
+			/* SLAM: the suspension, sagging through the slam's landing and while it reloads */
+			{
+				const f = e.f || {},
+					hop = f.sw && W.t >= f.sw[1] && W.t < f.sw[1] + this.SWHOP + 0.15,
+					[on, now] = ready(1, P.spot);
+				if (now) P.flash = W.t;
+				spring(P, "sag", on && !hop ? this.SAGU : -this.SAGD, 240, 11);
+				P.sag = Math.max(-this.SAGD - 0.03, Math.min(this.SAGU + 0.06, P.sag));
+				sagSet(e.tr, P.sag);
+				const m = e.tr.userData.springM;
+				if (m) {
+					const fl = Math.max(0, 1 - (W.t - (P.flash ?? -9)) / 0.9);
+					m.color.set(on ? "#FFC83D" : "#8C7B52");
+					m.emissive.set(on ? "#FF9A1F" : "#000000");
+					m.emissiveIntensity = on ? 0.45 + 2.2 * fl + Math.sin(W.t * 5) * 0.1 : 0;
+				}
+			}
+			/* CLAW: the arm raised while ready, swung out while it grabs (its claw flies: spearFx), folded while it reloads */
+			{
+				const A = P.arm,
+					sr = (e.f || {}).sr,
+					a = sr ? W.t - sr[1] : 99,
+					out = a >= 0 && a < this.WHF + this.WHY + this.WHH,
+					[on] = ready(2, A.head),
+					pose = out ? this.ARMOUT : on ? this.ARMUP : this.ARMFOLD;
+				spring(A, "a1", pose[0], 90, 10);
+				spring(A, "a2", pose[1], 90, 10);
+				A.p1.rotation.z = A.a1;
+				A.p2.rotation.z = A.a2;
+				A.head.visible = !out;
+				const op = out ? 1 : on ? 0.55 : 0.1;
+				A.head.userData.fingers.forEach(
+					(q) => (q.rotation.x += (0.15 + op * 0.75 - q.rotation.x) * Math.min(1, dt * 10)),
+				);
+			}
+		},
+		/* the cash truck's props, on its body (the lift group, so they sag with it) */
+		cashProps(e) {
+			const tr = e.tr,
+				L = tr.userData.lift || tr,
+				v = tr.userData.vault || { x: 0, y: 1 },
+				r = tr.userData.rear || { x: -1.8, y: 0.2 },
+				look = TRUCKS[e.p.truck] || {},
+				arm = this.clawArm(look.color, look.accent),
+				drum = this.oilDrum();
+			arm.g.position.set(v.x, v.y, 0);
+			arm.g.scale.setScalar(1.3);
+			L.add(arm.g);
+			drum.position.set(r.x - 0.12, r.y + 0.29, 0);
+			L.add(drum);
+			/* where SLAM's glint goes: the rear left coil-over */
+			const sh = (tr.userData.shocks || []).slice().sort((a, b) => a.capT.position.x - b.capT.position.x)[0];
+			e.props = {
+				arm,
+				drum,
+				drumY: drum.position.y,
+				spot: sh ? sh.spr : drum,
+				sag: this.SAGU,
+			};
+			arm.a1 = this.ARMUP[0];
+			arm.a2 = this.ARMUP[1];
+			arm.p1.rotation.z = arm.a1;
+			arm.p2.rotation.z = arm.a2;
+		},
+		/* the claw arm (truck units, built along +x = the truck's front), its booms in the truck's own paint (col) with a
+		   stripe in its accent (acc): a steel turret on the deck with gold badges, a
+		   shoulder (p1, turning about z) with the first boom ARM1 long and a hydraulic ram along it, an elbow knuckle
+		   (p2) with the second boom ARM2 long sitting a little above the first (so folded they lie one on the other), the
+		   claw (clawModel) at its tip pointing along it; tip = where the chain starts when it grabs */
+		clawArm(col = "#5A6272", acc = "#FFC83D") {
+			const g = new THREE.Group(),
+				p1 = new THREE.Group(),
+				p2 = new THREE.Group(),
+				tip = new THREE.Object3D(),
+				ST = "#5A6272",
+				DK = "#3D424C",
+				YE = "#FFC83D",
+				L1 = this.ARM1,
+				L2 = this.ARM2;
+			g.add(
+				Cy(0.3, 0.34, 0.1, 12, DK, 0, 0.05, 0),
+				Cy(0.24, 0.27, 0.14, 12, ST, 0, 0.17, 0),
+				B(0.2, 0.26, 0.34, DK, 0, 0.32, 0),
+			);
+			[-1, 1].forEach((sd) =>
+				g.add(B(0.18, 0.14, 0.03, YE, 0, 0.17, sd * 0.27), B(0.1, 0.07, 0.03, "#C8961E", 0, 0.17, sd * 0.285)),
+			);
+			p1.position.set(0, 0.36, 0);
+			const knuckle = (L) => {
+				const c = Cy(0.11, 0.11, 0.3, 10, DK, L, 0, 0);
+				c.rotation.x = Math.PI / 2;
+				return c;
+			};
+			p1.add(knuckle(0), B(L1, 0.15, 0.17, col, L1 / 2, 0, 0), B(L1 * 0.9, 0.04, 0.19, acc, L1 / 2, 0.095, 0));
+			/* the ram: a chrome rod under the boom */
+			p1.add(Cy(0.035, 0.035, L1 * 0.7, 6, "#C9CED8", L1 * 0.45, -0.11, 0));
+			p1.children[p1.children.length - 1].rotation.z = Math.PI / 2;
+			p2.position.set(L1, 0, 0);
+			p2.add(knuckle(0), B(L2, 0.13, 0.15, col, L2 / 2, 0.14, 0), B(L2 * 0.85, 0.04, 0.17, acc, L2 / 2, 0.225, 0));
+			p2.add(B(0.12, 0.24, 0.13, DK, 0.02, 0.07, 0));
+			const head = this.clawModel();
+			head.scale.setScalar(0.8);
+			head.rotation.z = -Math.PI / 2;
+			head.position.set(L2 + 0.1, 0.14, 0);
+			tip.position.set(L2 + 0.12, 0.14, 0);
+			p2.add(head, tip);
+			p1.add(p2);
+			g.add(p1);
+			return { g, p1, p2, head, tip, a1: 0, a2: 0 };
+		},
+		/* a cop's trick prop on a rack behind its light bar (props): on the longest flat stretch of its back two thirds (a
+		   box's roof, a pickup's bed, the top of a tank), measured on the truck alone like copBar;
+		   returns the prop's group (the part that pops in) */
+		trickProp(e) {
+			const kind = this.abOf(e).kind;
+			/* Rusty's crushed car hangs from its crane's hook instead (where the wrecking ball swings it from) */
+			if (kind === "tow" && e.tr.userData.hook) {
+				const item = this.trickModel(kind),
+					h = new THREE.Box3().setFromObject(item).getSize(new THREE.Vector3()).y * 0.95;
+				item.scale.setScalar(0.95);
+				item.position.y = -0.5 - h;
+				e.tr.userData.hook.add(item);
+				return item;
+			}
+			const tr = e.tr,
+				par = tr.parent,
+				bar = e.bar && e.bar.g;
+			if (par) par.remove(tr);
+			if (bar) tr.remove(bar);
+			tr.updateMatrixWorld(true);
+			const box = new THREE.Box3().setFromObject(tr),
+				rc = new THREE.Raycaster(),
+				hits = [],
+				x1 = box.max.x - (box.max.x - box.min.x) * 0.36;
+			for (let x = box.min.x + 0.3; x < x1; x += 0.04) {
+				rc.set(new THREE.Vector3(x, box.max.y + 1, 0), new THREE.Vector3(0, -1, 0));
+				const h = rc.intersectObject(tr, true)[0];
+				if (h) hits.push([x, h.point.y]);
+			}
+			if (bar) tr.add(bar);
+			if (par) par.add(tr);
+			const sc = tr.scale.x,
+				/* the longest flat run along it (the highest of equal ones): a crane's boom is higher but short */
+				runs = [];
+			hits.forEach((h, i) => {
+				const r = runs[runs.length - 1];
+				if (r && i && Math.abs(h[1] - hits[i - 1][1]) < 0.03) r.push(h);
+				else runs.push([h]);
+			});
+			const best = runs.reduce(
+					(b, r) => (!b || r.length > b.length + 2 || (r.length >= b.length - 2 && r[0][1] > b[0][1] + 0.05) ? r : b),
+					null,
+				),
+				hy = best ? Math.max(...best.map((h) => h[1])) : box.max.y,
+				x = best ? (best[0][0] + best[best.length - 1][0]) / 2 : box.min.x + 0.6,
+				rack = new THREE.Group(),
+				item = this.trickModel(kind);
+			/* a low rack: a plate, corner posts set in from its edge, rails between them */
+			rack.add(B(0.84, 0.04, 0.74, "#3D424C", 0, 0.02, 0));
+			[-1, 1].forEach((sd) => {
+				rack.add(
+					B(0.66, 0.04, 0.03, "#5A6272", 0, 0.14, sd * 0.31),
+					B(0.03, 0.04, 0.56, "#5A6272", sd * 0.36, 0.12, 0),
+				);
+				[-1, 1].forEach((fs) => rack.add(B(0.06, 0.14, 0.06, "#5A6272", fs * 0.36, 0.1, sd * 0.31)));
+			});
+			item.position.y = 0.04;
+			rack.add(item);
+			rack.position.set(x / sc, hy / sc, 0);
+			rack.scale.setScalar(1 / sc);
+			tr.add(rack);
+			return item;
+		},
+		/* a cop's trick as a prop, about 0.8 m across, standing on y 0, facing +x: what it lobs (lobModel), NITRO
+		   bottles, JUMP booster rockets (nozzles back, towards the TV), two of Garbo's bins, the hot-sauce bottle, a
+		   water cannon with its tank, the crushed car Rusty swings */
+		trickModel(kind) {
+			const A = this.AB[kind] || this.AB.pickup,
+				g = new THREE.Group(),
+				C = "#C9CED8";
+			if (A.lob) g.add(this.lobModel(A.lob, 0));
+			else if (kind === "pickup")
+				[-0.18, 0.18].forEach((z) =>
+					g.add(
+						Cy(0.15, 0.15, 0.62, 12, "#2F7DE1", 0, 0.31, z),
+						Cy(0.12, 0.15, 0.08, 12, C, 0, 0.66, z),
+						Cy(0.04, 0.04, 0.1, 6, C, 0, 0.74, z),
+						B(0.12, 0.04, 0.04, "#E5484D", 0, 0.8, z),
+						Cy(0.17, 0.17, 0.06, 12, "#F4F6F9", 0, 0.4, z),
+					),
+				);
+			else if (kind === "monster")
+				[-0.2, 0.2].forEach((z) => {
+					const body = Cy(0.13, 0.13, 0.6, 10, "#F4F6F9", 0, 0.15, z),
+						nose = Cy(0, 0.13, 0.22, 10, "#E5484D", 0.41, 0.15, z),
+						noz = Cy(0.13, 0.09, 0.12, 10, "#3D424C", -0.36, 0.15, z),
+						band = Cy(0.15, 0.15, 0.08, 10, "#FF8A1F", -0.12, 0.15, z);
+					body.rotation.z = nose.rotation.z = noz.rotation.z = band.rotation.z = -Math.PI / 2;
+					g.add(body, nose, noz, band, B(0.5, 0.03, 0.06, "#3D424C", 0, 0.015, z));
+				});
+			else if (kind === "garbage")
+				[-0.92, 0.92].forEach((z) => {
+					const b = wheelieBinModel("#3D8B4F", "trash", "bottle");
+					b.position.z = z;
+					g.add(b);
+				});
+			else if (kind === "food")
+				g.add(
+					Cy(0.16, 0.16, 0.42, 8, "#E5484D", 0, 0.21, 0),
+					Cy(0.07, 0.12, 0.16, 8, "#F4F6F9", 0, 0.5, 0),
+					Cy(0.08, 0.08, 0.1, 8, "#2E7D32", 0, 0.62, 0),
+					Cy(0.18, 0.18, 0.14, 8, "#FFC83D", 0, 0.2, 0),
+				);
+			else if (kind === "fire") {
+				const tank = B(0.44, 0.3, 0.5, "#5AA9FF", -0.12, 0.15, 0, { roughness: 0.2 }),
+					noz = Cy(0.05, 0.08, 0.42, 8, C, 0.28, 0.44, 0);
+				noz.rotation.z = -Math.PI / 2 + 0.3;
+				g.add(
+					tank,
+					B(0.46, 0.05, 0.52, "#E5484D", -0.12, 0.31, 0),
+					Cy(0.1, 0.12, 0.2, 10, "#E5484D", 0.14, 0.38, 0),
+					noz,
+				);
+			} else {
+				const car = crushedCarModel("sedan", "#7C8593");
+				g.add(car);
+			}
+			/* fitted: about 0.8 across, on its base, centred */
+			g.updateMatrixWorld(true);
+			const bb = new THREE.Box3().setFromObject(g),
+				sz = bb.getSize(new THREE.Vector3()),
+				k = 0.8 / Math.max(sz.x, sz.z, sz.y * 0.85),
+				out = new THREE.Group();
+			g.scale.setScalar(k);
+			g.position.set((-(bb.min.x + bb.max.x) / 2) * k, -bb.min.y * k, (-(bb.min.z + bb.max.z) / 2) * k);
+			out.add(g);
+			return out;
+		},
+		/* the cops' harpoon bolt (along +x, its origin at the head's base): a yellow barbed head, a dark shaft back
+		   through the gun's barrel, red and yellow fins at its tail */
+		boltModel() {
+			const g = new THREE.Group(),
+				head = Cy(0, 0.11, 0.3, 6, "#FFC83D", 0.15, 0, 0),
+				shaft = Cy(0.03, 0.03, 0.95, 6, "#2E323A", -0.47, 0, 0);
+			head.rotation.z = shaft.rotation.z = -Math.PI / 2;
+			g.add(head, shaft);
+			[-1, 1].forEach((sd) => {
+				const b = B(0.16, 0.03, 0.03, "#FFC83D", 0.02, 0, sd * 0.09);
+				b.rotation.y = sd * 0.6;
+				g.add(b);
+			});
+			g.add(B(0.2, 0.2, 0.02, "#E5484D", -0.84, 0, 0), B(0.16, 0.02, 0.2, "#FFC83D", -0.84, 0, 0));
+			return g;
+		},
+		/* an oil drum lying across the push bar on a cradle: black with orange hazard bands and a spout, strapped down */
+		oilDrum() {
+			const g = new THREE.Group(),
+				R = 0.21,
+				Ln = 0.56,
+				body = Cy(R, R, Ln, 14, "#23272F", 0, 0, 0);
+			body.rotation.x = Math.PI / 2;
+			g.add(body);
+			[-0.17, 0.17].forEach((z) => {
+				const b = Cy(R + 0.015, R + 0.015, 0.06, 14, "#FF8A1F", 0, 0, z);
+				b.rotation.x = Math.PI / 2;
+				g.add(b);
+			});
+			[-1, 1].forEach((sd) => {
+				const lid = Cy(R - 0.03, R - 0.03, 0.06, 14, "#3D424C", 0, 0, sd * (Ln / 2 + 0.01));
+				lid.rotation.x = Math.PI / 2;
+				g.add(lid);
+			});
+			const sp = Cy(0.04, 0.05, 0.12, 8, "#C9CED8", -0.12, -0.15, 0.1);
+			sp.rotation.z = 0.7;
+			g.add(sp, B(0.05, 0.03, 0.05, "#E5484D", -0.17, -0.2, 0.1));
+			/* the cradle under it and a strap over it */
+			[-0.18, 0.18].forEach((z) => g.add(B(0.36, 0.08, 0.05, "#3D424C", 0, -R - 0.02, z)));
+			const st = new THREE.Mesh(new THREE.TorusGeometry(R + 0.012, 0.018, 6, 20, Math.PI), M("#5A6272"));
+			g.add(st);
+			return g;
 		},
 		/* a cop's light bar on its roof (red and blue, kept inside the roof's width) with the harpoon gun beside it, in
 		   world-size units whatever the truck's scale */
@@ -9507,14 +9875,17 @@ Object.assign(MG, {
 				red = B(0.26, 0.14, 0.36, "#E5484D", 0, -0.03, -0.2, { emissive: "#FF2A2A", emissiveIntensity: 1 }),
 				blue = B(0.26, 0.14, 0.36, "#2F7DE1", 0, -0.03, 0.2, { emissive: "#2A6BFF", emissiveIntensity: 1 }),
 				gun = new THREE.Group(),
-				tip = Cy(0, 0.1, 0.26, 6, "#FFC83D", 0.5, 0, 0);
+				tip = this.boltModel();
 			g.add(B(0.3, 0.1, 0.86, "#23272F", 0, -0.13, 0), red, blue);
-			/* the harpoon gun: a mount, a barrel, the yellow harpoon head in its muzzle */
+			/* the harpoon gun: a mount, a barrel, the harpoon bolt loaded in it (its head out of the muzzle, its fins out of
+			   the back, where the TV's camera sees them), a size up so it reads from the couch */
 			const bar = Cy(0.07, 0.08, 0.62, 8, "#3D424C", 0.12, 0, 0);
 			bar.rotation.z = -Math.PI / 2;
-			tip.rotation.z = -Math.PI / 2;
+			tip.position.set(0.5, 0, 0);
+			tip.userData.x0 = 0.5;
 			gun.add(B(0.2, 0.14, 0.2, "#5A6272", 0, -0.1, 0), bar, tip);
 			gun.position.set(0.28, 0.02, 0);
+			gun.scale.setScalar(1.3);
 			g.add(gun);
 			g.position.set(top.x / sc, (top.y + 0.18) / sc, 0);
 			g.scale.setScalar(1 / sc);
@@ -10023,7 +10394,7 @@ Object.assign(MG, {
 			if (h[2] && !snapped && age < this.HPT) {
 				const tb = new THREE.Vector3(T.x, 1.3, T.z).addScaledVector(
 					new THREE.Vector3(Math.cos(T.yaw), 0, -Math.sin(T.yaw)),
-					-2.1,
+					-(T.hb[1] - 0.1),
 				);
 				b = age < 0.2 ? a.clone().lerp(tb, age / 0.2) : tb;
 				/* where it holds, relative to the gun: a snapped line whips back from there */
@@ -10671,13 +11042,23 @@ Object.assign(MG, {
 				fb(W, c, "GET OVER HERE!", { tone: "bad" });
 				if (this.heard(W, c) || T.isMe) sfxPack("whip");
 			}
-			/* from the truck's bull bar to the cop's tail: the claw flies open, then closes on it */
-			const fw = new THREE.Vector3(Math.cos(T.yaw), 0, -Math.sin(T.yaw)),
-				p0 = new THREE.Vector3(T.x, 0.9, T.z).addScaledVector(fw, T.hb[1] + 0.1),
-				tgt = new THREE.Vector3(c.x, 0.9, c.z).addScaledVector(fw, -(c.hb[1] - 0.15)),
+			/* from the tip of the truck's claw arm (swung out over its cab) to the cop's roof: the claw flies open, then
+			   closes on it */
+			const fw = new THREE.Vector3(Math.cos(T.yaw), 0, -Math.sin(T.yaw));
+			if (T.props) T.tr.updateMatrixWorld(true);
+			const p0 = T.props
+					? T.props.arm.tip.getWorldPosition(new THREE.Vector3())
+					: new THREE.Vector3(T.x, 0.9, T.z).addScaledVector(fw, T.hb[1] + 0.1),
+				tgt = new THREE.Vector3(c.x, c.g.position.y + 1.45, c.z),
 				p1 = a < this.WHF ? p0.clone().lerp(tgt, a / this.WHF) : tgt,
 				open = a < this.WHF ? 1 : Math.max(0, 1 - (a - this.WHF) / 0.12);
 			v.head.userData.fingers.forEach((q) => (q.rotation.x = 0.15 + open * 0.75));
+			/* the cop hangs from the claw by its roof: it swings and dips its nose */
+			if (a >= this.WHF && a < this.WHF + this.WHY + this.WHH) {
+				const h = Math.min(1, (a - this.WHF) / this.WHY);
+				c.tr.rotation.x += Math.sin(W.t * 6) * 0.1 * h;
+				c.tr.rotation.z -= 0.18 * h;
+			}
 			const d = p1.clone().sub(p0),
 				len = Math.max(0.01, d.length());
 			v.line.position.copy(p0).addScaledVector(d, 0.5);
@@ -10952,19 +11333,67 @@ Object.assign(MG, {
 			});
 			if (W.wLamp) W.wLamp.emissiveIntensity = Math.floor(W.t * 2.5) % 2 ? 1.8 : 0.15;
 			if (W.wArrow) W.wArrow.material.emissiveIntensity = Math.floor(W.t * 2) % 2 ? 1.1 : 0.25;
+			/* oil: the drum drops off the truck's push bar, tumbles down onto the road (OILDROP s), bursts and splashes the
+			   slick out from there */
 			const oil = (T && T.f && T.f.oil) || [];
+			W.oilD = W.oilD || {};
 			oil.forEach(([id, x, z, t]) => {
 				let m = W.oilM[id];
 				if (!m) {
 					m = W.oilM[id] = decal(W.sc, new THREE.CircleGeometry(this.OILR, 18), "#101317", x, 0.13, z, 0.85);
-					m.scale.set(1, 0.75, 1);
 					m.userData.t = t;
+					m.visible = false;
+					if (W.t - t < this.OILDROP) {
+						const g = this.oilDrum(),
+							p0 = new THREE.Vector3(x, 1.2, z - 0.8);
+						if (T.props) {
+							T.tr.updateMatrixWorld(true);
+							T.props.drum.getWorldPosition(p0);
+						}
+						g.scale.setScalar(T.tr.scale.x);
+						g.position.copy(p0);
+						W.sc.add(g);
+						W.oilD[id] = { g, p0, x, z, t };
+					}
 				}
 			});
+			for (const id in W.oilD) {
+				const d = W.oilD[id],
+					k = Math.min(1, (W.t - d.t) / this.OILDROP);
+				d.g.position.set(d.p0.x + (d.x - d.p0.x) * k, d.p0.y + (0.3 - d.p0.y) * k * k, d.p0.z + (d.z - d.p0.z) * k);
+				d.g.rotation.x = k * 2.2;
+				if (k < 1) continue;
+				W.sc.remove(d.g);
+				delete W.oilD[id];
+				burst(W.sc, d.x, 0.4, d.z, {
+					n: 26,
+					shape: "ico",
+					cols: ["#101317", "#23272F", "#3A2F1F"],
+					spd: 6,
+					up: 5,
+					grav: 16,
+					life: 0.8,
+					size: 1.3,
+				});
+				burst(W.sc, d.x, 0.5, d.z, {
+					n: 10,
+					shape: "cube",
+					cols: ["#FF8A1F", "#23272F", "#C9CED8"],
+					spd: 5,
+					up: 6,
+					grav: 16,
+					life: 0.9,
+					size: 0.9,
+				});
+				if (this.heard(W, T)) sfxPack("splash");
+			}
 			for (const id in W.oilM) {
 				const m = W.oilM[id],
-					a = W.t - m.userData.t;
-				m.visible = a < this.OILT;
+					a = W.t - m.userData.t - this.OILDROP,
+					u = Math.min(1, Math.max(0, a / 0.25)),
+					sp = 0.25 + 0.75 * (1 - (1 - u) * (1 - u));
+				m.visible = a >= 0 && a < this.OILT;
+				m.scale.set(sp, 0.75 * sp, 1);
 				if (m.visible) m.material.opacity = 0.85 * Math.min(1, (this.OILT - a) / 1.5) * Math.min(1, a * 4 + 0.3);
 			}
 		},

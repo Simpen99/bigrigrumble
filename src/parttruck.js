@@ -770,6 +770,9 @@ function liftWheels(g, xs, wheelsL, R, DY, ZW) {
 	[...g.children].forEach((o) => lift.add(o));
 	g.add(lift);
 	g.userData.lift = lift;
+	g.userData.liftY0 = DY;
+	/* the coil-overs (sagSet moves them with the body) */
+	g.userData.shocks = [];
 	/* axles: close tandem axles share one big tyre, and the two ends stay a tyre apart */
 	const ax = [];
 	xs.slice()
@@ -799,6 +802,7 @@ function liftWheels(g, xs, wheelsL, R, DY, ZW) {
 				capT = cyl(0.07, 0.07, 0.08, 8, D, x, bot - 0.02, zz),
 				capB = cyl(0.07, 0.07, 0.08, 8, D, x, R + 0.1, zz);
 			add(g, rod, spr, capT, capB);
+			g.userData.shocks.push({ rod, spr, capT, R, bot, rodH: h + 0.1, sprH: h * 0.55 });
 			/* the tyre: tread, dark rim and cap stay still (merged), the tread blocks, spike and bolts turn */
 			const z = sd * ZW,
 				wg = new THREE.Group();
@@ -920,9 +924,10 @@ function monsterize(g, xs, anims, wheelsL, own) {
 /* armour mode (Getaway's cash truck): the truck's own body made chunkier (beefUp: longer, taller, wider) and lifted on big
    treaded tyres (liftWheels), then built up as a war rig (inspired by Mad Max style builds, kept chunky and toy-like):
    steel fenders over the tyres, a spiked tube cowcatcher across the front, bars over every window, a blower with three
-   chrome stacks on the hood, a heavy rear push bar, and a steel strongbox with gold badges (the money bags sit on it) in
-   a tube roll cage with spotlights and amber beacons: on the roof, in the pickup's bed, on the tow truck's deck, on a
-   braced platform over the mixer's drum and the tanker's tank. W = the beefed-up width, R = the tyres' radius */
+   chrome stacks on the hood, a heavy rear push bar, and a deck plate (Getaway mounts its claw arm there) in a tube roll
+   cage with spotlights and amber beacons: on the roof, in the pickup's bed, on the tow truck's deck, on a braced
+   platform over the mixer's drum and the tanker's tank. The body and all of that sit in the lift group, so it can sag
+   on its coil-overs (sagSet). W = the beefed-up width, R = the tyres' radius */
 function armourize(g, W, wheelsL, kind, mount, R) {
 	g.updateMatrixWorld(true);
 	const body = g.userData.lift || g,
@@ -932,7 +937,6 @@ function armourize(g, W, wheelsL, kind, mount, R) {
 		ST = "#5A6272",
 		DK = "#3D424C",
 		CH = "#C9CED8",
-		GO = "#FFC83D",
 		up = new THREE.Vector3(0, 1, 0),
 		/* a cone spike at (x, y, z) pointing along dir */
 		spike = (len, r, x, y, z, dir) => {
@@ -962,7 +966,11 @@ function armourize(g, W, wheelsL, kind, mount, R) {
 	if (sb > 5) sb = 0.45;
 	if (fb > 5) fb = 0.4;
 	const hoodY = hAt(fx - 0.3, 0, body),
-		tyres = (wheelsL || []).map(({ g: wg }) => wg.position);
+		tyres = (wheelsL || []).map(({ g: wg }) => wg.position),
+		/* what stays on the axles when the body sags (sagSet): the tyres, axles and coil-overs, and the fenders below; the
+		   rest goes into the body's lift group at the end */
+		keep = new Set(g.children);
+	keep.delete(body);
 	/* fenders over the tyres: a plate, angled ends, a bracket to the body, spikes along the outer edge */
 	tyres.forEach((p) => {
 		const sd = Math.sign(p.z) || 1,
@@ -982,6 +990,7 @@ function armourize(g, W, wheelsL, kind, mount, R) {
 	});
 	/* where the fenders' plates are (top surface, in truck units): Getaway hangs its money bags on them */
 	g.userData.fend = tyres.map((p) => ({ x: p.x, z: p.z, y: 2 * R + 0.08 + 0.035, l: 2 * R + 0.2 }));
+	g.children.forEach((o) => keep.add(o));
 	/* bars over the windows: a rail and uprights just off every outward face of the glass (front or back; the sides of a
 	   pane that spans the cab, or a side window) */
 	const barsX = (b, x) => {
@@ -1008,10 +1017,11 @@ function armourize(g, W, wheelsL, kind, mount, R) {
 		if (sx > sz) barsZ(b, (b.min.z + b.max.z) / 2 > 0 ? b.max.z + 0.04 : b.min.z - 0.04);
 		else if (sz > W * 0.8 && sx >= 0.18) [b.max.z + 0.04, b.min.z - 0.04].forEach((z) => barsZ(b, z));
 	});
-	/* the cowcatcher: ahead of the front tyres and as wide as them, from just off the ground up past the body's front
+	/* the cowcatcher: ahead of the front tyres and as wide as their fenders (its side frames just outside them: the body
+	   sags and they don't), from just off the ground up past the body's front
 	   edge; tubes in a wedge, side frames, uprights, spikes along the bottom, arms back into the chassis */
 	const tf = Math.max(fx, ...tyres.map((p) => p.x + R)),
-		cw = Math.max(W / 2 + 0.22, ...tyres.map((p) => Math.abs(p.z) + 0.26)),
+		cw = Math.max(W / 2 + 0.22, ...tyres.map((p) => Math.abs(p.z) + 0.4)),
 		bx = tf + 0.08,
 		c0 = 0.26,
 		c1 = Math.max(0.92, fb + 0.3),
@@ -1045,7 +1055,10 @@ function armourize(g, W, wheelsL, kind, mount, R) {
 	const py = Math.max(0.42, sb + 0.06);
 	strut(g, [rx - 0.1, py, -W / 2 - 0.05], [rx - 0.1, py, W / 2 + 0.05], 0.12, DK, 1);
 	[-0.32, 0.32].forEach((z) => strut(g, [rx - 0.1, py, z], [rx + 0.06, py, z], 0.08, DK, 2));
-	/* where the strongbox goes */
+	/* where the push bar runs (in the lift group's units): Getaway puts its oil drum on it */
+	const ly = body.position.y;
+	g.userData.rear = { x: rx - 0.1, y: py - ly };
+	/* where the deck is (was the strongbox's spot) */
 	const bed = kind === "pickup",
 		deck = (bed || kind === "tow") && mount,
 		drum = kind === "mixer" || kind === "tanker";
@@ -1077,8 +1090,9 @@ function armourize(g, W, wheelsL, kind, mount, R) {
 		g.add(B_(x1 - x0 + 0.2, 0.06, W * 0.92, ST, (x0 + x1) / 2, pY + 0.03, 0));
 		top = { x: (x0 + x1) / 2, y: pY + 0.06 };
 	} else top = deck ? { x: mount.x + (bed ? 0.03 : 0), y: mount.y } : truckTop(body);
-	/* the strongbox, a gold badge each side, and round it a roll cage with spotlights and beacons (in a pickup's bed
-	   there's no room: the lights go on a bar over the cab); vault = where it sits, so a game can put the money bags on it */
+	/* a steel deck plate there and round it a roll cage with spotlights and beacons (in a pickup's bed there's no room:
+	   the lights go on a bar over the cab); vault = the deck's middle (in the lift group's units), where Getaway mounts
+	   its claw arm (it was a strongbox with gold badges) */
 	const bw = bed ? 0.54 : 0.86,
 		bd = W * 0.6,
 		bh = bed ? 0.36 : 0.32,
@@ -1086,18 +1100,8 @@ function armourize(g, W, wheelsL, kind, mount, R) {
 		rw = bw / 2 + 0.12,
 		rd = bd / 2 + 0.12,
 		ry = by + 0.3;
-	g.add(
-		B_(bw, bh, bd, ST, top.x, by, 0),
-		B_(bw + 0.06, 0.05, bd + 0.06, DK, top.x, by + bh / 2 + 0.02, 0),
-		B_(bw + 0.06, 0.05, bd + 0.06, DK, top.x, by - bh / 2 + 0.02, 0),
-	);
-	g.userData.vault = { x: top.x, y: by + bh / 2 + 0.045 };
-	[-1, 1].forEach((sd) => {
-		g.add(
-			B_(0.24, 0.2, 0.03, GO, top.x, by, sd * (bd / 2 + 0.02)),
-			B_(0.14, 0.11, 0.03, "#C8961E", top.x, by, sd * (bd / 2 + 0.035)),
-		);
-	});
+	g.add(B_(bw + 0.06, 0.05, bd + 0.06, DK, top.x, top.y + 0.005, 0));
+	g.userData.vault = { x: top.x, y: top.y + 0.03 - ly };
 	const lamp = (x, y, z) => {
 			const sp = Cy(0.09, 0.11, 0.14, 8, DK, x, y, z),
 				ln = Cy(0.075, 0.075, 0.03, 8, "#FFF1C2", x + 0.08, y, z, { emissive: "#FFF1C2", emissiveIntensity: 1.2 });
@@ -1115,14 +1119,44 @@ function armourize(g, W, wheelsL, kind, mount, R) {
 			lamp(cx + 0.09, cy + 0.14, sd * 0.2);
 			beaconA(cx, cy + 0.14, sd * W * 0.4);
 		});
-		return;
-	}
-	[-1, 1].forEach((sd) => {
-		[-1, 1].forEach((fs) => strut(g, [top.x + fs * rw, top.y, sd * rd], [top.x + fs * rw, ry, sd * rd], 0.07, DK, 1));
-		strut(g, [top.x - rw, ry, sd * rd], [top.x + rw, ry, sd * rd], 0.07, DK, 2);
-		strut(g, [top.x + sd * rw, ry, -rd], [top.x + sd * rw, ry, rd], 0.07, DK, 2);
-		lamp(top.x + rw + 0.02, ry + 0.06, sd * (rd - 0.14));
-		beaconA(top.x - rw, ry + 0.09, sd * rd);
+	} else
+		/* the cage is open across its ends, so the claw arm can fold down and swing out between its sides */
+		[-1, 1].forEach((sd) => {
+			[-1, 1].forEach((fs) => strut(g, [top.x + fs * rw, top.y, sd * rd], [top.x + fs * rw, ry, sd * rd], 0.07, DK, 1));
+			strut(g, [top.x - rw, ry, sd * rd], [top.x + rw, ry, sd * rd], 0.07, DK, 2);
+			lamp(top.x + rw + 0.02, ry + 0.08, sd * rd);
+			beaconA(top.x - rw, ry + 0.09, sd * rd);
+		});
+	/* everything built on the body goes into its lift group, so it sags with it; the coil-overs move in sagSet, their
+	   springs sharing one material of their own so a game can make them glow */
+	[...g.children].forEach((o) => {
+		if (keep.has(o) || o === body) return;
+		o.position.y -= ly;
+		body.add(o);
+	});
+	const sm = (g.userData.shocks || []).length ? g.userData.shocks[0].spr.material.clone() : null;
+	(g.userData.shocks || []).forEach((q) => {
+		q.rod.userData.dyn = q.spr.userData.dyn = q.capT.userData.dyn = true;
+		q.spr.material = sm;
+	});
+	g.userData.springM = sm;
+}
+/* armour mode's suspension: the body and everything on it d truck units up (+) or down (-) from where it was built, the
+   coil-overs stretching or squashing to match (the tyres, axles and fenders stay) */
+function sagSet(tr, d) {
+	const L = tr.userData.lift,
+		S = tr.userData.shocks;
+	if (!L || !S) return;
+	L.position.y = tr.userData.liftY0 + d;
+	S.forEach((q) => {
+		const top = q.bot + d,
+			b0 = q.R + 0.08,
+			len = Math.max(0.03, top - 0.06 - b0);
+		q.capT.position.y = top - 0.02;
+		q.rod.scale.y = (top - q.R + 0.1) / q.rodH;
+		q.rod.position.y = (q.R + top) / 2;
+		q.spr.scale.y = len / q.sprH;
+		q.spr.position.y = b0 + len / 2;
 	});
 }
 /* plain box for the monster kit (no chamfer: small parts stay crisp) */

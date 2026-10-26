@@ -1511,11 +1511,21 @@ function rdyOff() {
 }
 /* the canvas fills the window frame's inside while the ready screen is up (full screen otherwise), seen through a hole in the
    pastel background (its mask); the frame's rounded border covers the corners. The stage zooms to the screen: TV / PC
-   1280 x 720, phones on their side 960 x 444, portrait screens a column 420 wide */
+   1280 x 720, phones on their side 960 x 444, portrait screens a column 420 wide (it scrolls). Meanwhile the canvas lives
+   in the ready screen's scroller, placed in its content's coordinates, so it scrolls with the frame (fixed on the
+   screen and moved after each scroll it lagged behind it), and the background reaches the bottom of the content */
 function rdyFit() {
-	const st = document.querySelector("#mg.rdy .rdy");
-	let R = null;
-	if (st && document.body.classList.contains("mgrdy")) {
+	const st = document.querySelector("#mg.rdy .rdy"),
+		cv = GFX.r && GFX.r.domElement,
+		bg = document.getElementById("rdybg");
+	let R = null,
+		H = 0;
+	if (st && cv && bg && document.body.classList.contains("mgrdy")) {
+		if (cv.parentNode !== st) {
+			if (!cv.classList.contains("inrdy")) GFX.cvHome = [cv.parentNode, cv.nextSibling];
+			st.insertBefore(cv, bg.nextSibling);
+			cv.classList.add("inrdy");
+		}
 		const w = innerWidth,
 			h = innerHeight,
 			a = w / h,
@@ -1528,26 +1538,36 @@ function rdyFit() {
 			st.classList.toggle("wide", lay === "wide");
 			st.style.setProperty("--rk", k.toFixed(4));
 		}
-		const el = document.getElementById("rdywin");
+		const el = document.getElementById("rdywin"),
+			sg = st.querySelector(".rdy-st");
 		if (el) {
 			const b = el.getBoundingClientRect(),
+				o = st.getBoundingClientRect(),
 				bw = el.clientLeft * k;
 			if (b.width > 30 && b.height > 30)
 				R = {
-					x: Math.round(b.left + bw),
-					y: Math.round(b.top + bw),
+					x: Math.round(b.left - o.left + st.scrollLeft + bw),
+					y: Math.round(b.top - o.top + st.scrollTop + bw),
 					w: Math.round(b.width - 2 * bw),
 					h: Math.round(b.height - 2 * bw),
 				};
+			if (sg) H = Math.max(st.clientHeight, Math.ceil(sg.getBoundingClientRect().bottom - o.top + st.scrollTop));
 		}
-	}
-	const key = R ? [R.x, R.y, R.w, R.h].join() : "";
+	} else rdyHome();
+	const key = R ? [R.x, R.y, R.w, R.h, H].join() : "";
 	if (key === (GFX.rdyK || "")) return;
 	GFX.rdyK = key;
 	GFX.rdy = R;
-	const bg = document.getElementById("rdybg");
-	if (bg && R) bg.style.cssText = `--hx:${R.x}px;--hy:${R.y}px;--hw:${R.w}px;--hh:${R.h}px`;
+	if (bg && R) bg.style.cssText = `--hx:${R.x}px;--hy:${R.y}px;--hw:${R.w}px;--hh:${R.h}px;bottom:auto;height:${H}px`;
 	gfxResize();
+}
+/* the canvas back where it lives outside the ready screen (also if the screen was swapped out with it inside) */
+function rdyHome() {
+	const cv = GFX.r && GFX.r.domElement;
+	if (!cv || !cv.classList.contains("inrdy")) return;
+	cv.classList.remove("inrdy");
+	const [p, n] = GFX.cvHome || [document.body, null];
+	p.insertBefore(cv, n && n.parentNode === p ? n : p.firstChild);
 }
 /* a world's scene and game hooks, thrown away (stop3D without leaving the minigame) */
 function dropWorld(w) {
@@ -2685,6 +2705,29 @@ function fbStep(W) {
 			return true;
 		});
 	}
+	/* glints (glint): the halo swells and fades, the star turns and twinkles out */
+	if (W.gls && W.gls.length)
+		W.gls = W.gls.filter((q) => {
+			const age = (now - q.t0) / 1000,
+				life = 0.6;
+			if (age > life || q.e.gone) {
+				W.sc.remove(q.halo, q.star);
+				q.halo.material.dispose();
+				q.star.material.dispose();
+				return false;
+			}
+			const p = q.obj.getWorldPosition(q.halo.position),
+				k = camK(p),
+				u = age / life;
+			q.star.position.copy(p);
+			q.halo.scale.setScalar(k * (0.5 + 1.3 * Math.sqrt(u)));
+			q.halo.material.opacity = 0.75 * (1 - u);
+			const s = Math.sin(Math.PI * Math.min(1, age / 0.5));
+			q.star.scale.setScalar(k * 1.3 * s);
+			q.star.material.rotation = age * 2.5;
+			q.star.material.opacity = Math.min(1, s * 1.5);
+			return true;
+		});
 	for (const e of W.list) {
 		if (e.ihS) {
 			const u = e.ihU,
@@ -2815,6 +2858,57 @@ function readyPop(W, e, label, col) {
 	});
 	if (e.isMe) sfx("ready");
 }
+/* a glint: something on a truck that's ready again (a prop, obj) flashes: a soft halo swells and fades behind a
+   four-point star that turns and twinkles out, in about half a second, sized by the camera's distance so it reads on a
+   whole-road TV shot. Shown like feedback (fbShow), with the ready ding for your own truck */
+const FB_GL = {};
+function glint(W, e, obj, col = "#FFE7A0") {
+	if (!W || !e || e.gone || !obj || !fbShow(W, e)) return;
+	const tex = (k, draw) => FB_GL[k + col] || (FB_GL[k + col] = canvasTex(128, 128, draw)),
+		halo = tex("h", (x, w, h) => {
+			const g = x.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2);
+			g.addColorStop(0, "rgba(255,255,255,.95)");
+			g.addColorStop(0.25, col);
+			g.addColorStop(1, "rgba(255,255,255,0)");
+			x.fillStyle = g;
+			x.fillRect(0, 0, w, h);
+		}),
+		star = tex("s", (x, w, h) => {
+			const c = w / 2;
+			x.fillStyle = "#fff";
+			x.beginPath();
+			for (let i = 0; i < 8; i++) {
+				const a = (i / 8) * Math.PI * 2,
+					r = i % 2 ? 9 : c - 4;
+				x.lineTo(c + Math.cos(a) * r, c + Math.sin(a) * r);
+			}
+			x.fill();
+			const g = x.createRadialGradient(c, c, 0, c, c, 22);
+			g.addColorStop(0, "#fff");
+			g.addColorStop(1, "rgba(255,255,255,0)");
+			x.fillStyle = g;
+			x.fillRect(0, 0, w, h);
+		}),
+		sprite = (map) => {
+			const sp = new THREE.Sprite(
+				new THREE.SpriteMaterial({
+					map,
+					depthTest: false,
+					depthWrite: false,
+					transparent: true,
+					opacity: 0,
+					blending: THREE.AdditiveBlending,
+				}),
+			);
+			sp.renderOrder = 12;
+			sp.userData.fb = true;
+			W.sc.add(sp);
+			return sp;
+		};
+	W.gls = W.gls || [];
+	W.gls.push({ e, obj, halo: sprite(halo), star: sprite(star), t0: performance.now() });
+	if (e.isMe) sfx("ready");
+}
 /* a pill sprite with its own canvas that redraws when its text changes (live numbers, e.g. Ramp Jump's edge
    distances), drawn like a pop-up pill: dark, ringed in the colour; 3:1, text fitted */
 function pillSprite() {
@@ -2941,7 +3035,9 @@ function hud3(dt) {
 	if (!W.tv)
 		$("#m3s").textContent =
 			W.me.d && W.myFinal !== undefined
-				? `Final: ${fmtScore(def, W.myFinal)}`
+				? def.fmtTeam && W.me.side !== undefined && W.mg.team
+					? def.fmtTeam(W.myFinal, W.me.side)
+					: `Final: ${fmtScore(def, W.myFinal)}`
 				: def.fmt
 					? def.fmt(W, W.me)
 					: fmtScore(def, Math.round(W.me.sc));
