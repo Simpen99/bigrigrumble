@@ -828,6 +828,15 @@ body.ctl .btn{min-height:58px;font-size:18px}
 .tvc .rjctl{left:0;right:0;top:0;bottom:0;height:auto;gap:0}
 .tvc .rjb{border-radius:0;border-width:0 2px;font-size:30px}
 .tvc .rjb.pkhop{order:3;flex:2;border-left-width:4px}
+.sbslide{display:none}
+@media (orientation:landscape){body:not(.ctl) .sbctl .rjctl{left:12px;right:12px;height:30%;gap:8px}body:not(.ctl) .sbctl .rjb.sbl,body:not(.ctl) .sbctl .rjb.sbr{flex:0 0 14%}body:not(.ctl) .sbctl .rjb.sbr{order:1}body:not(.ctl) .sbctl .rjb.sbh{order:2;flex:0 0 27%;margin-left:auto}}
+.sbh .sbn{font-style:normal;font-size:15px;background:rgba(0,0,0,.28);border-radius:999px;padding:2px 10px}
+.sbh.off{filter:saturate(.35) brightness(.8)}
+.tvc .sbctl .sbl,.tvc .sbctl .sbr{display:none}
+.tvc .sbslide{display:block;position:relative;flex:0 0 58%;touch-action:none;-webkit-user-select:none;user-select:none;background:linear-gradient(180deg,#1B2A4F,#16213D);border-right:3px solid #151B24}
+.tvc .sbslide::after{content:"";position:absolute;left:10%;right:10%;top:62%;height:6px;margin-top:-3px;border-radius:3px;background:rgba(255,255,255,.22);pointer-events:none}
+.tvc .sbslide .tvchint{top:30%}
+.tvc .sbctl .rjb.sbh{flex:1}
 .swl{position:absolute;display:flex;align-items:center;gap:8px;color:#fff;font-weight:800;text-shadow:0 2px 0 rgba(0,0,0,.45);pointer-events:none;opacity:.9}
 .swl i{font-style:normal;font-size:40px;line-height:1;color:var(--bc);filter:drop-shadow(0 0 2px rgba(255,255,255,.75));animation:swn 1.1s ease-in-out infinite}
 .swl b{font-size:15px;letter-spacing:.04em;text-transform:uppercase}
@@ -1164,7 +1173,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-26 08:03 fb725d7";
+const BUILD = "2026-10-26 08:03 e794467";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -18173,6 +18182,13 @@ function openTvCtl(mg, p) {
 						TVC.b++;
 						tvcTick();
 					},
+					/* a second finger position: ax = x (null keeps it), ay = 1 while the finger is down */
+					move(x, on) {
+						if (!TVC) return;
+						if (x !== null) TVC.inp.ax = x;
+						TVC.inp.ay = on ? 1 : 0;
+						tvcTick();
+					},
 				});
 			else if (def.pad)
 				wirePad(
@@ -34779,14 +34795,18 @@ Object.assign(MG, {
 /* Plinko Sabotage: every truck has its own small Plinko board (the same base layout for everyone, side by side). Each of
    DROPS rounds: PLANT s of planning, where your phone shows your target's board and you spend a coin budget placing traps
    in the gaps between its pegs (a ring from the seed: everyone sabotages exactly one rival, a different one each round
-   when there are 3+), then everyone drops at once. Traps are hidden, on the TV too, until a ball sets them off; the
+   when there are 3+), then everyone drops. Your truck sits on a gantry over your board and works a claw on its winch
+   cable: move it (◀ ▶, the TV controller's slide) and DROP its NB small balls one by one (it reloads in LOADT s), for
+   DROPT s; then whatever is left drops by itself, AUTOG s apart. No steering: physics does the rest, and every ball
+   scores its slot. Traps are hidden, on the TV too, until a ball sets them off (later balls can go round them); the
    saboteur scores TRAPPTS per trap hit. After the last ball lands every trap is revealed for BETWEEN s.
    Planning happens on the 3D board: the phone's camera moves to your target's board, you drag onto a gap and lift to drop
    the selected trap (W.sbIn from a raycast, planInput). The TV shows no traps or cursors while planning, only a PLANNING…
    / READY ✓ pill per board; the phone controller draws its own view of the target's board (tvcOpen) beside the tray.
    The controls (ctlHTML) hold the plan panel and the play buttons, switched by data-ph on the root; on the TV the phones
    mirror the TV's copy and send taps back as button presses, so the same handlers run everywhere.
-   Shared per truck in e.f: an / tt / st / hp / ls / lt as in Plinko, pd [round] = when it pressed READY,
+   Shared per truck in e.f: st / ls / lt as in Plinko, pd [round] = when it pressed READY, cl = balls left in the claw,
+   bb = its balls this round in drop order (split copies after them): [x, y] board-local while falling, 1 once down,
    tr {r, l: [[trap, gap]]} = the traps it placed this round, tg {r, l: [trap index]} = the traps on its board it set off */
 Object.assign(MG, {
 	sabo: {
@@ -34796,7 +34816,7 @@ Object.assign(MG, {
 		truckMode: "springs",
 		hi: true,
 		unit: "pts",
-		dur: 290,
+		dur: 330,
 		bare: true,
 		sun: [0, 9, 31.6],
 		lt: { amb: 0.84, sun: 0.44, warm: 0.28, haze: 70 },
@@ -34804,19 +34824,24 @@ Object.assign(MG, {
 		/* the ready screen's controls panel: [icon or button label, what it does, small print] */
 		controls: [
 			["pad", "Plan: hide traps", "Tap a gap on a rival's board"],
-			["◀ ▶", "Steer"],
-			["HOP", "Pop off the pegs"],
+			["slide", "Move the claw"],
+			["DROP", "Drop a ball", "5 a round"],
 		],
-		how: "Every round: hide traps on a rival's board (wall off their way to the ×2 and SPLIT gates, plant a fake ×2, mine their pegs), then everyone drops. Traps stay hidden until hit; you score from your slots, plus points for every trap your rival hits!",
+		how: "Every round: hide traps on a rival's board (wall off their way to the ×2 and SPLIT gates, plant a fake ×2, mine their pegs), then drop your 5 balls from the claw. Traps stay hidden until hit, so aim round the ones you find; every ball scores its slot, plus points for every trap your rival hits!",
 		tvHint:
-			"Planning: your phone shows your rival's board: pick a trap, tap a gap. Playing: LEFT / RIGHT move and steer, HOP on the right half.",
+			"Planning: your phone shows your rival's board: pick a trap, tap a gap. Dropping: slide on the left to move the claw, DROP on the right.",
 		tapHint:
-			"Planning: pick a trap, tap a gap on your rival's board (swipe to look around). Playing: ◀ ▶ move and steer, HOP pops you off the pegs.",
+			"Planning: pick a trap, tap a gap on your rival's board (swipe to look around). Dropping: ◀ ▶ move the claw, DROP lets a ball go.",
 		pad: ".sbpad",
 		ctlPhases: true,
 		clock(W) {
-			const S = this.sched(W);
-			return S.plan ? `Plan ${Math.max(0, Math.ceil(S.P + this.PLANT - W.t))} s` : `Round ${S.r + 1}/${this.DROPS}`;
+			const S = this.sched(W),
+				dl = S.D !== null && W.t >= S.D ? S.D + this.DROPT - W.t : -1;
+			return S.plan
+				? `Plan ${Math.max(0, Math.ceil(S.P + this.PLANT - W.t))} s`
+				: dl > 0 && !S.over
+					? `Drop ${Math.ceil(dl)} s`
+					: `Round ${S.r + 1}/${this.DROPS}`;
 		},
 		/* one board: COLS slots SW wide between walls at ±HW, ROWS peg rows RY apart from Y0 up; boards BW apart */
 		/* each board is a full Plinko board in Plinko's units (the physics too, so it plays the same), drawn at K scale
@@ -34835,30 +34860,31 @@ Object.assign(MG, {
 		DW: 0.24,
 		GY: -2.6,
 		BW: 21,
-		R: 0.83,
-		TS: 0.43,
-		WB: 0.63,
+		R: 0.6 /* a ball */,
+		GTS: 1 /* the truck on the gantry */,
 		TOPY: 31.6 /* a hanging ball's centre (the top peg row is at 28.8) */,
 		CEIL: 33.8,
-		RAIL: 34.7,
-		HDR: 36,
+		RAIL: 34.25 /* the gantry's two rails (their middle), RZ either side of the board's plane */,
+		RZ: 0.66,
+		HDR: 37.8,
 		VAL: [100, 300, 50, 500, 50, 300, 100],
 		SCOL: { 500: "#FFC83D", 300: "#1FA35C", 100: "#2F7DE1", 50: "#E5484D" },
 		MP: 11,
 		DROPS: 3,
 		PLANT: 60,
-		AIMT: 4,
-		ROUNDT: 25,
+		AIMT: 3,
+		ROUNDT: 34,
+		NB: 5,
+		DROPT: 15,
+		LOADT: 0.6,
+		AUTOG: 0.4,
+		CLAWV: 12,
 		BETWEEN: 4.5 /* the reveal after a round: every trap shows, phones zoom out to all boards */,
 		BUDGET: 100,
 		TRAPPTS: 40,
 		GRAV: 13,
 		PEGR: 0.68,
 		FRIC: 0.05,
-		PUSH: 2.6,
-		HOPV: 6.5,
-		HOPCD: 1.1,
-		AIMV: 7,
 		/* the Plinko board parts on every board, the same layout for everyone each round (Plinko's layout() with these
 		   counts, rows LR and sizes): flippers, x2 gates, one split gate, pop bumpers, TNT */
 		NFLIP: 3,
@@ -34883,7 +34909,7 @@ Object.assign(MG, {
 		TRAPS: [
 			{ k: "wall", n: "Wall", ic: "▬", c: 20, col: "#8E96A3", on: "s" },
 			{ k: "fake", n: "Fake ×2", ic: "½", c: 30, col: "#3DDC84", on: "h" },
-			{ k: "stun", n: "Stun", ic: "⚡", c: 25, col: "#E0A800", on: "s" },
+			{ k: "stun", n: "Jam", ic: "⚡", c: 25, col: "#E0A800", on: "s" },
 			{ k: "grav", n: "Gravity", ic: "⇅", c: 25, col: "#8E5BE0", on: "s" },
 			{ k: "flip", n: "Flipper", ic: "↗", c: 20, col: "#2F7DE1", on: "p" },
 			{ k: "bomb", n: "Mine", ic: "✹", c: 35, col: "#FF8A1F", on: "p" },
@@ -34891,8 +34917,7 @@ Object.assign(MG, {
 		kits() {
 			loadPlanck();
 		},
-		/* borrowed from Plinko: the ball model, physics bits, the sliding x3 sign, the round end from landing times */
-		ball: MG.plinko.ball,
+		/* borrowed from Plinko: physics bits, the sliding x3 sign, the round end from landing times */
 		shapeT: MG.plinko.shapeT,
 		touching: MG.plinko.touching,
 		mpos: MG.plinko.mpos,
@@ -34902,7 +34927,20 @@ Object.assign(MG, {
 		boardFx: MG.plinko.boardFx,
 		tntModel: MG.plinko.tntModel,
 		flipA: MG.plinko.flipA,
-		mkBall: MG.plinko.mkBall,
+		/* a ball (they bump into each other, unlike Plinko's two); gx = the x2 gates it went through */
+		mkBall(e, x, y, vx, vy, gx) {
+			const V = window.planck.Vec2,
+				b = e.pw.createBody({
+					type: "dynamic",
+					position: V(x, y),
+					linearDamping: 0.02,
+					angularDamping: 0.3,
+					bullet: true,
+				});
+			b.createFixture(this.shapeT(), { density: 1, friction: this.FRIC, restitution: 0.35 });
+			b.setLinearVelocity(V(vx, vy));
+			return { b, gx: gx.slice(), py0: y, lastTouch: -9, stk: 0, done: false, hv: 0, hx: {} };
+		},
 		slotX(k) {
 			return -this.HW + (k + 0.5) * this.SW;
 		},
@@ -35145,7 +35183,16 @@ Object.assign(MG, {
 				);
 			np.position.set(ox, HDR, 1.74);
 			s.add(np);
-			s.add(B(2 * HW, 0.3, 0.36, "#8E96A3", ox, this.RAIL, 0));
+			/* the gantry: two rails the truck drives along (its cable hangs between them), end stops in hazard stripes */
+			[-1, 1].forEach((sd) => {
+				const z = sd * this.RZ;
+				s.add(B(2 * HW, 0.3, 0.26, "#8E96A3", ox, this.RAIL, z));
+				[-1, 1].forEach((ex) =>
+					[0, 1].forEach((j) =>
+						s.add(B(0.2, 0.5, 0.34, j ? "#151B24" : "#FFC83D", ox + ex * (HW - 0.35 - j * 0.2), this.RAIL + 0.32, z)),
+					),
+				);
+			});
 			s.add(B(2 * HW, -GY, 3.6, "#2A3550", ox, GY / 2, -0.1));
 			s.add(B(2 * HW - 0.4, 0.14, 0.08, "#8E96A3", ox, -0.55, 1.74));
 			const sf = [];
@@ -35229,43 +35276,33 @@ Object.assign(MG, {
 				return g;
 			});
 			this.setBoard(W, 0);
-			/* magnets on the rail, one per truck */
-			W.mag = {};
-			W.plist.forEach((p) => {
-				const g = new THREE.Group(),
-					cab = Cy(0.05, 0.05, 1, 5, "#3A3F48", 0, 0, 0),
-					mg = new THREE.Group();
-				g.add(B(1, 0.5, 0.8, "#FFC83D", 0, this.RAIL, 0), B(0.6, 0.18, 0.6, "#23272F", 0, this.RAIL - 0.34, 0));
-				mg.add(Cy(0.75, 0.75, 0.3, 12, "#2A2F3A", 0, 0.15, 0), Cy(0.78, 0.78, 0.08, 12, "#E5484D", 0, 0.04, 0));
-				g.add(cab, mg);
-				g.userData = { cab, mg };
-				W.bg[W.plist.indexOf(p)].add(g);
-				W.mag[p.key] = g;
-			});
 			W.trapV = {};
 			W.smk = {};
 		},
 		spawn: (W, i) => ({ x: W.laneX(i), z: 0, yaw: i % 2 ? Math.PI : 0 }),
 		initEnt(W, e) {
-			e.fc = e.i % 2 ? -1 : 1;
 			e.ox = e.x;
 			e.st = 0;
 			e.ax = 0;
-			e.y = this.wy(this.TOPY);
-			e.ang = e.tt = 0;
+			e.cl = this.NB;
+			e.relT = e.loadT = -9;
+			e.pitch = 0;
 			e.dn = 0;
 			e.lt = [];
 			e.pd = [];
 			e.trp = [];
 			e.tgl = [];
 			e.sel = 0;
-			e.g.scale.setScalar(this.TS * this.K);
+			e.g.scale.setScalar(this.GTS * this.K);
+			/* how far its wheels reach below its origin (board units), so it stands on the rails */
+			e.g.updateMatrixWorld(true);
+			e.ylo = Math.min(0, (new THREE.Box3().setFromObject(e.tr).min.y - e.g.position.y) / this.K);
 			e.balls = [];
+			this.aim(W, e, 0);
 			e.f = {
-				an: 0,
-				tt: 0,
 				st: 0,
-				hp: 0,
+				cl: this.NB,
+				bb: [],
 				ls: [0, 0, 0],
 				lt: [],
 				pd: [],
@@ -35277,7 +35314,6 @@ Object.assign(MG, {
 				bp: [0, 0],
 				tx: [0, 0],
 				sg: [0, 0],
-				c2: 0,
 			};
 			loadPlanck();
 		},
@@ -35289,7 +35325,7 @@ Object.assign(MG, {
 				(t, i) =>
 					`<button class="sbt" data-t="${i}" style="--bc:${t.col}"><i>${t.ic}</i><b>${t.n}</b><em>${t.c}</em></button>`,
 			).join("");
-			return `<div class="sbctl" data-ph="play"><div class="sbplan"><div class="sbpad"><span class="sbhint">Tap a gap to drop the trap · swipe to look around</span><span class="sbhint tv">Slide to move your cursor on the TV · lift to drop</span></div><div class="sbbot"><div class="sbtop"><b class="sbtgt">Sabotage</b><span class="sbcoin">${this.BUDGET}</span><span class="sbtime">${this.PLANT} s</span></div><div class="sbtray">${tray}<button class="sbdone">READY</button></div></div></div><div class="rjctl"><button class="rjb sbl" style="--bc:#2F7DE1" aria-label="Left"><i>◀</i></button><button class="rjb pkhop sbh" style="--bc:#FF8A1F" aria-label="Hop"><b>HOP</b></button><button class="rjb sbr" style="--bc:#2F7DE1" aria-label="Right"><i>▶</i></button></div></div>`;
+			return `<div class="sbctl" data-ph="play"><div class="sbplan"><div class="sbpad"><span class="sbhint">Tap a gap to drop the trap · swipe to look around</span><span class="sbhint tv">Slide to move your cursor on the TV · lift to drop</span></div><div class="sbbot"><div class="sbtop"><b class="sbtgt">Sabotage</b><span class="sbcoin">${this.BUDGET}</span><span class="sbtime">${this.PLANT} s</span></div><div class="sbtray">${tray}<button class="sbdone">READY</button></div></div></div><div class="rjctl"><div class="sbslide"><span class="tvchint">Slide to move the claw</span></div><button class="rjb sbl" style="--bc:#2F7DE1" aria-label="Left"><i>◀</i></button><button class="rjb pkhop sbh" style="--bc:#FF8A1F" aria-label="Drop"><b>DROP</b><em class="sbn">${this.NB}</em></button><button class="rjb sbr" style="--bc:#2F7DE1" aria-label="Right"><i>▶</i></button></div></div>`;
 		},
 		wire() {
 			document.querySelectorAll(".sbctl").forEach((root) => {
@@ -35368,7 +35404,18 @@ Object.assign(MG, {
 				);
 			});
 		},
-		press: MG.plinko.press,
+		/* ◀ ▶ held move the claw (e.tl = +1 / -1), DROP is queued as the time it was pressed */
+		press(W, side, on) {
+			if (!W || !W.me) return;
+			const e = W.me;
+			if (side === "h") {
+				if (on) e.dropQ = W.t;
+				return;
+			}
+			e.tb = e.tb || {};
+			e.tb[side] = on;
+			e.tl = (e.tb.l ? 1 : 0) - (e.tb.r ? 1 : 0);
+		},
 		onKey(W, k, down) {
 			if (k === "arrowleft" || k === "a") this.press(W, "l", down);
 			else if (k === "arrowright" || k === "d") this.press(W, "r", down);
@@ -35532,6 +35579,44 @@ Object.assign(MG, {
 			};
 			wrap.addEventListener("pointerup", up);
 			wrap.addEventListener("pointercancel", up);
+			/* dropping: the slide on the left moves the claw to the finger (sent as the second stick: ax, ay = 1 while down);
+			   its dot lives outside the mirrored controls */
+			const dot = document.createElement("i");
+			dot.className = "paddot";
+			dot.hidden = true;
+			if (api.col) dot.style.setProperty("--c", api.col);
+			wrap.parentNode.appendChild(dot);
+			let sid = null;
+			const slide = (ev) => {
+				const el = wrap.querySelector(".sbslide"),
+					r = el && el.getBoundingClientRect();
+				if (!r || !r.width) return;
+				const u = Math.max(0, Math.min(1, (ev.clientX - r.left) / r.width));
+				dot.hidden = false;
+				dot.style.left = r.left + u * r.width + "px";
+				dot.style.top = r.top + r.height * 0.62 + "px";
+				if (api.move) api.move(u * 2 - 1, true);
+			};
+			wrap.addEventListener("pointerdown", (ev) => {
+				if (sid !== null || !ev.target.closest || !ev.target.closest(".sbslide")) return;
+				ev.preventDefault();
+				sid = ev.pointerId;
+				try {
+					ev.target.setPointerCapture(sid);
+				} catch (e) {}
+				slide(ev);
+			});
+			wrap.addEventListener("pointermove", (ev) => {
+				if (ev.pointerId === sid) slide(ev);
+			});
+			const sup = (ev) => {
+				if (ev.pointerId !== sid) return;
+				sid = null;
+				dot.hidden = true;
+				if (api.move) api.move(null, false);
+			};
+			wrap.addEventListener("pointerup", sup);
+			wrap.addEventListener("pointercancel", sup);
 			const loop = () => {
 				V.raf = requestAnimationFrame(loop);
 				const root = wrap.querySelector(".sbctl"),
@@ -35629,6 +35714,7 @@ Object.assign(MG, {
 				} catch (e) {}
 				cv.remove();
 				hint.remove();
+				dot.remove();
 			};
 		},
 		/* the spot nearest a point on the board (board-local) that trap t fits; strict: -1 when it's not near any */
@@ -35726,13 +35812,12 @@ Object.assign(MG, {
 			e.pw = null;
 			e.b = null;
 			e.balls = [];
-			e.split2 = false;
-			e.f.c2 = 0;
-			e.cf = null;
 			e.st = 0;
-			e.ax = 0;
-			e.swing = 0;
-			e.z = 0;
+			e.cl = this.NB;
+			e.relT = e.loadT = -9;
+			e.dropQ = e.autoT = undefined;
+			e.f.cl = this.NB;
+			e.f.bb = [];
 			e.trp = [];
 			e.tgl = [];
 			e.trig = {};
@@ -35747,13 +35832,23 @@ Object.assign(MG, {
 			if (e.isMe) W.sbIn = W.sbY = null;
 			this.aim(W, e, 0);
 		},
+		/* the truck drives the claw along the gantry: ◀ ▶ (e.tl), or on the TV the controller's slide (inp.ax while ay is
+		   set: the claw goes to the finger); it faces the way it goes; none of it while jammed */
 		aim(W, e, dt) {
-			const lim = this.HW - 1.4;
-			e.ax = Math.max(-lim, Math.min(lim, e.ax - (e.tl || 0) * this.AIMV * dt));
-			e.swing = (e.swing || 0) + ((e.tl || 0) * 0.12 - (e.swing || 0)) * Math.min(1, dt * 5);
+			const lim = this.HW - 1.2,
+				i = e === W.me && W.split ? W.inp : null;
+			let v = 0;
+			if (dt > 0 && !(W.t < e.stunT)) {
+				if (i && i.ay > 0.5) v = Math.max(-1.6, Math.min(1.6, ((i.ax || 0) * lim - e.ax) * 0.8)) * this.CLAWV;
+				else v = -(e.tl || 0) * this.CLAWV;
+			}
+			const nx = Math.max(-lim, Math.min(lim, e.ax + v * dt));
+			e.vx = dt > 0 ? ((nx - e.ax) / dt) * this.K : 0;
+			e.ax = nx;
+			if (Math.abs(e.vx) > 0.3) e.yaw = e.vx > 0 ? 0 : Math.PI;
 			e.x = this.wx(e, e.ax);
-			e.y = this.wy(this.TOPY);
-			e.tt = e.swing + Math.sin(W.t * 2.2 + e.i) * 0.03;
+			e.y = this.wy(this.RAIL + 0.15 - (e.ylo || 0));
+			e.z = 0;
 		},
 		/* a board's flipper fire times this round (W.fT[key]: set by its owner's balls, or heard through e.f.fp) */
 		flipTimes(W, k) {
@@ -35834,19 +35929,20 @@ Object.assign(MG, {
 			e.acc = 0;
 			return w;
 		},
-		drop(W, e) {
-			const m = this.mkBall(e, e.ax, this.TOPY, 0, -1, []);
-			m.main = true;
-			m.hv = 0;
-			m.hx = {};
-			e.balls = [m];
-			e.b = m.b;
-			e.split2 = false;
-			e.st = 1;
-			e.lastTouch = -9;
-			e.hopQ = undefined;
-			mgLog(W, `${mgName(e)} drops in round ${e.rr + 1} (${e.traps.length} traps on the board)`);
-			if (e.isMe) sfx("magnet");
+		/* the claw lets the ball go; the next one comes down the cable LOADT s later (AUTOG s once they drop by themselves) */
+		drop(W, e, auto) {
+			const q = this.mkBall(e, e.ax, this.TOPY, 0, -0.5, []);
+			q.main = true;
+			e.balls.push(q);
+			e.cl--;
+			e.relT = W.t;
+			e.loadT = W.t + (auto ? this.AUTOG : this.LOADT);
+			e.dropQ = undefined;
+			mgLog(
+				W,
+				`${mgName(e)} drops ball ${this.NB - e.cl} at x ${e.ax.toFixed(1)}${auto ? " (auto)" : ""} in round ${e.rr + 1} (${e.traps.length} traps on the board)`,
+			);
+			if (W.split || e.isMe) sfx("magnet");
 		},
 		/* a trap goes off on this truck's board under ball q: its effect; the first time also shown to everyone (e.f.tg) and
 		   scored by the saboteur. A fake x2 halves every ball that goes through it */
@@ -35879,8 +35975,10 @@ Object.assign(MG, {
 			}
 			if (T.k === "fake") fb(W, e, "FAKE! ×½", { tone: "bad", at });
 			else if (T.k === "stun") {
+				/* the claw jams for 3 s: no moving or dropping */
 				e.stunT = W.t + 3;
-				fb(W, e, "STUNNED!", { tone: "bad", at });
+				fb(W, e, "JAMMED!", { tone: "bad", at });
+				fb(W, e, "⚡", { tone: "bad" });
 			} else if (T.k === "grav") {
 				e.gravT = W.t;
 				fb(W, e, "GRAVITY!", { tone: "bad", at });
@@ -35926,14 +36024,8 @@ Object.assign(MG, {
 			if (S.over) {
 				e.st = 3;
 				e.d = true;
-				e.b = null;
 				e.balls = [];
-				e.f.c2 = 0;
-				e.cf = null;
-				e.x = e.ox + (e.i % 2 ? 1 : -1) * 4;
-				e.z = 4.4;
-				e.y = this.GY + this.R * this.K;
-				e.ang = e.tt = 0;
+				e.f.bb = [];
 				e.vx = 0;
 				e.f.st = 3;
 				fb(W, e, `${e.sc}`, { stamp: true });
@@ -35953,17 +36045,21 @@ Object.assign(MG, {
 				this.sync(e);
 				return;
 			}
-			if (e.st === 0) {
-				this.aim(W, e, dt);
-				e.hopQ = undefined;
-				if (S.D !== null && W.t >= S.D) {
-					if (!this.world(W, e)) return this.sync(e);
-					this.drop(W, e);
-				} else return this.sync(e);
+			/* the claw moves from the end of planning; the balls drop from S.D */
+			this.aim(W, e, dt);
+			if (S.D === null || W.t < S.D || !this.world(W, e)) {
+				e.dropQ = undefined;
+				return this.sync(e);
 			}
-			const w = this.world(W, e);
-			if (!w || !e.balls.length) return this.sync(e);
-			const V = window.planck.Vec2,
+			if (e.st === 0) e.st = 1;
+			const open = W.t < S.D + this.DROPT;
+			if (e.cl > 0 && W.t >= e.loadT && !(W.t < e.stunT)) {
+				if (open && e.dropQ !== undefined && W.t - e.dropQ < 0.25) this.drop(W, e, false);
+				else if (!open) this.drop(W, e, true);
+			}
+			if (e.dropQ !== undefined && W.t - e.dropQ >= 0.25) e.dropQ = undefined;
+			const w = e.pw,
+				V = window.planck.Vec2,
 				FT = this.flipTimes(W, e.k),
 				TF = this.trapFT(W, e.k),
 				gT = W.t - e.gravT,
@@ -35975,98 +36071,53 @@ Object.assign(MG, {
 				w.setGravity(V(0, gUp ? this.GRAV : -this.GRAV));
 				if (gOn) fb(W, e, gUp ? "⇈" : "⇊", { tone: "bad" });
 			}
-			/* fixed physics steps; ◀ ▶ push every ball still falling (not while stunned) */
+			/* fixed physics steps */
 			e.acc = Math.min(0.1, e.acc + dt);
 			if (Math.abs(e.ptm - W.t) > 0.1) e.ptm = W.t;
 			while (e.acc >= 1 / 60) {
 				const h = 1 / 60,
-					live = e.st === 1 ? e.balls.filter((q) => !q.done) : [],
-					tl = e.tl || 0;
+					live = e.balls.filter((q) => !q.done);
 				e.ptm += h;
 				e.flb.forEach(({ f, b }, i) => b.setAngularVelocity((this.flipA(f, e.ptm - FT[i]) - b.getAngle()) / h));
 				e.tfb.forEach(({ f, b, idx }) =>
 					b.setAngularVelocity((this.flipA(f, e.ptm - (TF[idx] ?? -99)) - b.getAngle()) / h),
 				);
-				live.forEach((q) => {
-					if (tl && W.t >= e.stunT) q.b.applyForceToCenter(V(-tl * this.PUSH * q.b.getMass(), 0), true);
-				});
 				w.step(h, 8, 3);
-				live.forEach((q) => this.ballStep(W, e, q));
+				live.forEach((q) => !q.done && this.ballStep(W, e, q));
 				e.acc -= h;
 			}
-			if (e.st === 1) {
-				let hopped = false;
-				e.balls.forEach((q) => {
-					if (q.done) return;
-					const b = q.b,
-						p = b.getPosition();
-					if (p.y < this.SH && W.t - q.lastTouch < 0.05) return this.score(W, e, q);
-					if (W.t >= S.D + this.ROUNDT) {
-						q.done = true;
-						fb(W, e, "Stuck!", { tone: "bad", at: [this.wx(e, p.x), this.wy(p.y + 1.6), 0] });
-						mgLog(W, `${mgName(e)} stuck in round ${e.rr + 1}`);
-						return;
-					}
-					if (
-						e.hopQ !== undefined &&
-						W.t - e.hopQ < 0.2 &&
-						W.t - q.lastTouch < 0.25 &&
-						W.t >= q.hopCd &&
-						W.t >= e.stunT &&
-						p.y >= this.SH
-					) {
-						/* off the surface, whichever way gravity points */
-						const ux = -(e.tl || 0) * 0.55,
-							l = Math.hypot(ux, 1),
-							v = b.getLinearVelocity(),
-							sg = e.gUp ? -1 : 1;
-						b.setLinearVelocity(
-							V(v.x * 0.4 + (ux / l) * this.HOPV, sg * (Math.max(0, sg * v.y) * 0.3 + (1 / l) * this.HOPV)),
-						);
-						q.hopCd = W.t + this.HOPCD;
-						hopped = true;
-					}
-					q.stk = b.getLinearVelocity().length() < 0.35 ? q.stk + dt : 0;
-					if (q.stk > 1.6) {
-						q.stk = 0;
-						b.setLinearVelocity(V((Math.random() < 0.5 ? -1 : 1) * 3, 2));
-					}
-				});
-				if (hopped) {
-					e.hopQ = undefined;
-					e.f.hp++;
+			e.balls.forEach((q) => {
+				if (q.done) return;
+				const b = q.b,
+					p = b.getPosition();
+				if (p.y < this.SH && W.t - q.lastTouch < 0.05) return this.score(W, e, q);
+				if (W.t >= S.D + this.ROUNDT) {
+					this.land(e, q);
+					fb(W, e, "Stuck!", { tone: "bad", at: [this.wx(e, p.x), this.wy(p.y + 1.6), 0] });
+					mgLog(W, `${mgName(e)} stuck in round ${e.rr + 1}`);
+					return;
 				}
-				/* the last ball down ends the truck's round */
-				if (e.balls.every((q) => q.done)) {
-					e.st = 2;
-					e.dn++;
-					e.lt[e.rr] = Math.round(W.t * 100) / 100;
-					e.f.lt = e.lt.slice();
+				/* a ball resting on something gets a nudge */
+				q.stk = b.getLinearVelocity().length() < 0.35 ? q.stk + dt : 0;
+				if (q.stk > 1.6) {
+					q.stk = 0;
+					b.setLinearVelocity(V((Math.random() < 0.5 ? -1 : 1) * 3, 2));
 				}
+			});
+			/* every ball dropped and down: this truck's round is over */
+			if (e.st === 1 && !e.cl && e.balls.every((q) => q.done)) {
+				e.st = 2;
+				e.dn++;
+				e.lt[e.rr] = Math.round(W.t * 100) / 100;
+				e.f.lt = e.lt.slice();
 			}
-			/* the copy from a split gate, for the other screens: [x (world), y, spin, tilt]; the camera follows a ball still
-			   falling (the copy once the main ball is down) */
-			const c = e.balls[1];
-			if (c) {
-				const cp = c.b.getPosition(),
-					cvx = c.b.getLinearVelocity().x;
-				c.tt +=
-					(Math.max(-0.35, Math.min(0.35, -cvx * 0.05)) + (c.done ? 0 : (e.tl || 0) * 0.22) - c.tt) *
-					Math.min(1, dt * 6);
-				e.f.c2 = [this.wx(e, cp.x), this.wy(cp.y), c.b.getAngle(), c.tt].map((v) => Math.round(v * 100) / 100);
-			} else e.f.c2 = 0;
-			const fq = e.balls.find((q) => !q.done) || e.balls[0],
-				fp = fq.b.getPosition();
-			e.cf = [this.wx(e, fp.x), this.wy(fp.y)];
-			const p = e.b.getPosition(),
-				vx = e.b.getLinearVelocity().x;
-			e.ang = e.b.getAngle();
-			e.x = this.wx(e, p.x);
-			e.y = this.wy(p.y);
-			e.vx = vx;
-			const tg = Math.max(-0.35, Math.min(0.35, -vx * 0.05)) + (e.st === 1 ? (e.tl || 0) * 0.22 : 0);
-			e.tt += (tg - e.tt) * Math.min(1, dt * 6);
 			this.sync(e);
+		},
+		/* a ball is done (scored or stuck): out of the physics */
+		land(e, q) {
+			q.done = true;
+			if (q.b && e.pw) e.pw.destroyBody(q.b);
+			q.b = null;
 		},
 		/* one physics step's aftermath for one ball: what it touches (a wall trap, a flipper, a bumper, the live TNT), the x2
 		   gates and the split gate it crosses, and the traps in the gaps it drops through */
@@ -36098,12 +36149,12 @@ Object.assign(MG, {
 				if (e.isMe) sfx("coin");
 			});
 			L.splits.forEach((g, i) => {
-				if (!q.main || e.split2 || !crossed(g)) return;
-				e.split2 = true;
-				const v = b.getLinearVelocity();
+				if (!q.main || q.spl || !crossed(g)) return;
+				q.spl = true;
+				const v = b.getLinearVelocity(),
+					sx = Math.min(this.HW - this.R, p.x + 2.1 * this.R);
 				b.setLinearVelocity(window.planck.Vec2(v.x - this.SPLITV / 2, v.y));
-				const c2 = this.mkBall(e, p.x, p.y, v.x + this.SPLITV / 2, v.y, q.gx);
-				c2.tt = q.tt;
+				const c2 = this.mkBall(e, sx, p.y, v.x + this.SPLITV / 2, v.y, q.gx);
 				c2.hv = q.hv;
 				c2.hx = Object.assign({}, q.hx);
 				e.balls.push(c2);
@@ -36202,10 +36253,11 @@ Object.assign(MG, {
 			if (W.split || e.isMe) sfx("cannon");
 		},
 		sync(e) {
+			const r = (v) => Math.round(v * 100) / 100;
 			e.vz = 0;
-			e.f.an = Math.round(e.ang * 100) / 100;
-			e.f.tt = Math.round(e.tt * 100) / 100;
 			e.f.st = e.st;
+			e.f.cl = e.cl;
+			e.f.bb = e.balls.map((q) => (q.done ? 1 : [r(q.b.getPosition().x), r(q.b.getPosition().y)]));
 		},
 		/* a ball lands: the slot's value, x3 under the sign, x2 per gate it went through, x½ per fake it went through */
 		score(W, e, q) {
@@ -36214,7 +36266,7 @@ Object.assign(MG, {
 				x3 = k === this.mslot(W.t),
 				m = 2 ** q.gx.length * 0.5 ** q.hv,
 				v = Math.round(this.VAL[k] * (x3 ? 3 : 1) * m);
-			q.done = true;
+			this.land(e, q);
 			e.sc += v;
 			e.f.ls = [e.f.ls[0] + 1, k, x3 ? 1 : 0];
 			fb(W, e, `+${v}`, {
@@ -36233,7 +36285,11 @@ Object.assign(MG, {
 		},
 		fmt: (W, e) => `${e.sc} pts`,
 		/* ---- cameras ---- */
-		btmCover: MG.plinko.btmCover,
+		/* the share of the screen the buttons cover at the bottom: none in landscape (they sit either side of the board) */
+		btmCover(W) {
+			if (!W.split && !W.tv && GFX.w > GFX.h) return 0.02;
+			return MG.plinko.btmCover.call(this, W);
+		},
 		/* planning (phone mode): the shares of the screen the tray covers [at the bottom, at the right] (landscape: a column on
 		   the right) */
 		cover(W) {
@@ -36252,8 +36308,8 @@ Object.assign(MG, {
 				pv = S.plan && W.t >= 0 && W.ents[this.victimOf(W, e.k, S.r)],
 				[b, rc] = pv ? this.cover(W) : [this.btmCover(W), 0],
 				ox = (pv ? pv.ox : e.ox) || 0;
-			/* your target's whole board while planning, your own while aiming (and on the ready screen), then it follows
-			   your ball; the reveal after each round (and the end) zooms out to every board, square on above the buttons */
+			/* your target's whole board while planning, your own while dropping (and on the ready screen); the reveal after
+			   each round (and the end) zooms out to every board, square on above the buttons */
 			W.camShift = null;
 			if (S.E !== null && W.t >= 0 && (W.t < S.E || S.over)) {
 				const y0 = this.wy(this.GY - 0.4),
@@ -36275,7 +36331,7 @@ Object.assign(MG, {
 				W.camShift = [0, (b - tc) / 2];
 				return [t, new THREE.Vector3(t.x, t.y, D)];
 			}
-			if (e.st !== 1 && e.st !== 2) {
+			{
 				const y0 = this.wy(this.GY - 0.4),
 					y1 = this.wy(this.HDR + 1),
 					top = !W.split && !W.tv && document.querySelector("#mg .m3top"),
@@ -36308,19 +36364,6 @@ Object.assign(MG, {
 				const t = new THREE.Vector3(ox + D * tn * asp * rc, cy - D * tn * (b - tc), 0);
 				return [t, t.clone().add(new THREE.Vector3(0, D * 0.08, D))];
 			}
-			/* following the ball: framed like Plinko's (in its units) */
-			const D = (asp < 1 ? 26 : 24) * this.K,
-				hw = D * tn * asp,
-				hh = D * tn,
-				sh = hh * b,
-				mx = this.K * (this.HW + 1) - hw,
-				lo = this.wy(this.GY - 0.5) + hh * (1 - b) - sh,
-				hi = this.wy(this.HDR + 0.6) - hh,
-				[fx, fy] = e.cf || [e.x, e.y],
-				x = ox + (mx <= 0 ? 0 : Math.max(-mx, Math.min(mx, fx - ox))),
-				y = lo > hi ? (lo + hi) / 2 : Math.max(lo, Math.min(hi, fy - sh)),
-				t = new THREE.Vector3(x, y, 0);
-			return [t, t.clone().add(new THREE.Vector3(0, D * 0.1, D))];
 		},
 		/* the TV: every board */
 		tvsCam(W, a) {
@@ -36337,9 +36380,9 @@ Object.assign(MG, {
 				t = new THREE.Vector3(-D * tn * a * c, (y0 + y1) / 2 - D * tn * b, 0);
 			return [t, t.clone().add(new THREE.Vector3(0, D * 0.06, D))];
 		},
-		/* the TV once the game is on: a column per board (part4a's tvsCols), the whole board while planning, aiming and in
-		   the reveal, zoomed in on the ball while it falls (at least TVHW either side of it, TVHH above and below) and on
-		   its slot after; b = the share the player cards cover at the bottom, TVTOP the timer's at the top */
+		/* the TV once the game is on: a column per board (part4a's tvsCols), the whole board while planning, dropping and in
+		   the reveal; once the claw is empty it zooms in on the balls still falling (at least TVHW either side, TVHH above
+		   and below); b = the share the player cards cover at the bottom, TVTOP the timer's at the top */
 		TVHW: 5,
 		TVHH: 8,
 		TVTOP: 0.06,
@@ -36352,21 +36395,28 @@ Object.assign(MG, {
 				y1 = this.wy(this.HDR + 1),
 				hwB = this.K * (this.HW + 1),
 				sh = b - this.TVTOP,
+				bl = e ? this.liveBalls(W, e) : [],
 				whole =
 					!e ||
 					W.t < 0 ||
 					S.plan ||
 					(S.E !== null && (W.t < S.E || S.over)) ||
-					![1, 2].includes(e.local ? e.st : e.f && e.f.st),
+					!bl.length ||
+					(e.local ? e.cl : e.f && e.f.cl) > 0,
 				Dw = Math.max((y1 - y0) / 2 / (1 - b - this.TVTOP) / tn, hwB / (tn * a)) * 1.03;
 			let D = Dw,
 				x = ox,
 				y = (y0 + y1) / 2 - D * tn * sh;
 			if (!whole) {
-				D = Math.min(Dw, Math.max(this.TVHH, this.TVHW / a) / tn);
+				const xs = bl.map((q) => q[0]),
+					ys = bl.map((q) => q[1]),
+					fx = (Math.min(...xs) + Math.max(...xs)) / 2,
+					fy = (Math.min(...ys) + Math.max(...ys)) / 2,
+					ex = (Math.max(...xs) - Math.min(...xs)) / 2 + 2,
+					ey = (Math.max(...ys) - Math.min(...ys)) / 2 + 2.5;
+				D = Math.min(Dw, Math.max(this.TVHH, ey / (1 - b - this.TVTOP), this.TVHW / a, ex / a) / tn);
 				const H = D * tn,
 					mx = Math.max(0, hwB - H * a),
-					[fx, fy] = (e.local && e.cf) || [e.x, e.y],
 					lo = y0 + H * (1 - 2 * b),
 					hi = y1 - H * (1 - 2 * this.TVTOP);
 				x = ox + Math.max(-mx, Math.min(mx, fx - ox));
@@ -36375,43 +36425,30 @@ Object.assign(MG, {
 			const t = new THREE.Vector3(x, y, 0);
 			return [t, t.clone().add(new THREE.Vector3(0, D * 0.06, D))];
 		},
+		/* a truck's balls still falling, world [x, y]: its own, or as its device shares them (e.f.bb) */
+		liveBalls(W, e) {
+			if (e.local)
+				return e.balls
+					.filter((q) => !q.done)
+					.map((q) => [this.wx(e, q.b.getPosition().x), this.wy(q.b.getPosition().y)]);
+			return ((e.f && e.f.bb) || []).filter(Array.isArray).map(([x, y]) => [this.wx(e, x), this.wy(y)]);
+		},
 		/* ---- drawing ---- */
 		render(W, e, dt) {
 			this.scene(W, dt);
-			const f = e.f || {};
-			if (!e.local) {
-				const k = 1 - Math.exp(-dt * 14);
-				e.ang = lerpA(e.ang || 0, f.an || 0, k);
-				e.tt = (e.tt || 0) + ((f.tt || 0) - (e.tt || 0)) * k;
-				const n = e.net;
-				if (n && Math.hypot(n.x - e.x, (n.y || 0) - e.y, n.z - e.z) > 6) {
-					e.x = n.x;
-					e.y = n.y || 0;
-					e.z = n.z;
-				}
-			}
-			e.pitch = e.tt * e.fc;
-			e.tr.rotation.z = e.pitch;
-			const K = this.K;
-			e.g.position.set(e.x + this.WB * K * Math.sin(e.tt), e.y - this.WB * K * Math.cos(e.tt), e.z);
-			const bl = this.ball(W, e),
-				ha = e.hopT === undefined ? 9 : W.t - e.hopT,
-				q = ha >= 0 && ha < 0.35 ? 0.13 * Math.sin((ha / 0.35) * Math.PI) : 0;
-			bl.g.visible = !e.gone;
-			bl.g.position.set(e.x, e.y, e.z);
-			bl.g.scale.set((1 + q) * K, (1 - q) * K, (1 + q) * K);
-			bl.spin.rotation.z = e.ang;
-			const col = pcol(e.p),
-				st = e.local ? e.st : f.st || 0;
-			if ((f.hp || 0) !== (e.hpSeen || 0)) {
-				e.hpSeen = f.hp || 0;
-				e.hopT = W.t;
-				if (W.split || e.isMe) sfx("step");
+			const f = e.f || {},
+				col = pcol(e.p);
+			/* a release: here when the claw lets go, elsewhere when its count of balls drops */
+			if (e.local) e.relTr = e.relT;
+			else {
+				if (f.cl !== undefined && e.clSeen !== undefined && f.cl < e.clSeen) e.relTr = W.t;
+				e.clSeen = f.cl;
 			}
 			{
-				const sa = e.hopT === undefined ? 9 : W.t - e.hopT;
+				const sa = W.t - (e.relTr ?? -9);
 				springSet(e.tr, sa < 0 ? 0 : sa < 0.07 ? (sa / 0.07) * 0.3 : Math.max(0, 0.3 * (1 - (sa - 0.07) / 0.3)));
 			}
+			this.rig(W, e, f, col, dt);
 			if (f.ls && f.ls[0] !== (e.lsSeen || 0)) {
 				e.lsSeen = f.ls[0];
 				const sl = W.slotF[e.i] && W.slotF[e.i][f.ls[1]];
@@ -36429,25 +36466,118 @@ Object.assign(MG, {
 				});
 			}
 			this.parts(W, e, f, col);
-			const mg = W.mag[e.k];
-			if (mg) {
-				const hang = st === 0 && !e.gone,
-					u = mg.userData,
-					my = hang ? this.ly(e.y) + this.R - 0.02 : this.RAIL - 1.3;
-				mg.position.x = hang ? (e.x - e.ox) / K : mg.position.x * (1 - Math.min(1, dt * 3));
-				u.my = u.my === undefined ? my : u.my + (my - u.my) * Math.min(1, dt * (hang ? 20 : 3));
-				u.mg.position.y = u.my;
-				u.mg.rotation.z = hang ? e.tt * 0.3 : 0;
-				const top = this.RAIL - 0.43,
-					len = Math.max(0.05, top - u.my - 0.3);
-				u.cab.scale.y = len;
-				u.cab.position.y = u.my + 0.3 + len / 2;
-				mg.visible = !e.gone;
-			}
 			if (e === W.me) this.ui(W, e);
 		},
+		/* the winch cable from the truck's belly down between the rails to the claw (three fingers round the next ball,
+		   opening when it lets go, swinging as the truck drives), and the truck's balls on its board: its own physics, or
+		   e.f.bb from its device. All in board units in the board's group */
+		rig(W, e, f, col, dt) {
+			let r = e.rig;
+			if (!r) {
+				const hang = new THREE.Group(),
+					hy = this.TOPY + this.R + 0.32,
+					top = this.RAIL + 0.2,
+					cab = Cy(0.05, 0.05, top - hy, 5, "#2A2F3A", 0, -(top - hy) / 2, 0),
+					hub = new THREE.Group(),
+					fingers = [];
+				hub.position.y = hy - top;
+				hub.add(
+					Cy(0.3, 0.34, 0.26, 10, "#FFC83D", 0, 0.05, 0),
+					Cy(0.16, 0.16, 0.18, 8, "#2A2F3A", 0, 0.27, 0),
+					Cy(0.36, 0.36, 0.08, 10, "#2A2F3A", 0, -0.12, 0),
+				);
+				for (let j = 0; j < 3; j++) {
+					const a = (j / 3) * Math.PI * 2 + Math.PI / 6,
+						pv = new THREE.Group(),
+						arm = new THREE.Group(),
+						tip = new THREE.Group();
+					pv.position.set(Math.cos(a) * 0.26, -0.14, Math.sin(a) * 0.26);
+					pv.rotation.y = -a;
+					arm.rotation.z = 0.5;
+					arm.add(B(0.1, 0.72, 0.12, "#5E636D", 0, -0.36, 0));
+					tip.position.y = -0.7;
+					tip.rotation.z = -1.2;
+					tip.add(B(0.1, 0.36, 0.12, "#5E636D", 0, -0.16, 0), B(0.12, 0.1, 0.14, "#FFC83D", 0, -0.33, 0));
+					arm.add(tip);
+					pv.add(arm);
+					hub.add(pv);
+					fingers.push(pv);
+				}
+				hang.add(cab, hub);
+				W.sbBallG = W.sbBallG || new THREE.IcosahedronGeometry(this.R, 1);
+				W.sbBandG = W.sbBandG || new THREE.TorusGeometry(this.R * 0.98, 0.07, 4, 18);
+				const bm = new THREE.MeshStandardMaterial({ color: col, roughness: 0.45, flatShading: true }),
+					km = new THREE.MeshStandardMaterial({
+						color: new THREE.Color(col).lerp(new THREE.Color("#FFFFFF"), 0.55),
+						roughness: 0.5,
+					}),
+					mk = () => {
+						const g = new THREE.Group(),
+							band = new THREE.Mesh(W.sbBandG, km);
+						band.rotation.y = Math.PI / 2;
+						g.add(new THREE.Mesh(W.sbBallG, bm), band);
+						g.userData.dyn = true;
+						return g;
+					},
+					held = mk();
+				hub.add(held);
+				held.position.y = this.TOPY - hy;
+				W.bg[e.i].add(hang);
+				r = e.rig = { hang, hub, held, fingers, top, hy, balls: [], mk, sw: 0, px: e.x };
+			}
+			const vx = dt > 0 ? (e.x - r.px) / dt : 0,
+				cx = (e.x - e.ox) / this.K,
+				cl = e.local ? e.cl : (f.cl ?? this.NB),
+				rel = W.t - (e.relTr ?? -9),
+				tl = (e.relTr ?? -9) + (e.local ? e.loadT - e.relT : this.LOADT),
+				jam = e.local && W.t < e.stunT;
+			r.px = e.x;
+			r.sw += (Math.max(-0.35, Math.min(0.35, -vx * 0.06)) - r.sw) * Math.min(1, dt * 5);
+			r.hang.position.set(cx, r.top, 0);
+			r.hang.rotation.z = r.sw + (jam ? Math.sin(W.t * 40) * 0.04 : 0);
+			r.hang.visible = !e.gone;
+			/* the fingers open as the ball goes, and close again */
+			const op = rel >= 0 && rel < 0.45 ? Math.sin((rel / 0.45) * Math.PI) * 0.55 : 0;
+			r.fingers.forEach((pv) => (pv.rotation.z = op));
+			/* the next ball comes down the cable */
+			const u = cl > 0 ? Math.max(0, Math.min(1, (W.t - (tl - 0.3)) / 0.3)) : 0,
+				ue = u * u * (3 - 2 * u);
+			r.held.visible = u > 0;
+			r.held.position.y = this.TOPY - r.hy + (1 - ue) * (r.top - this.TOPY - 0.4);
+			r.held.scale.setScalar(0.4 + 0.6 * ue);
+			/* the balls on the board */
+			const src = e.local ? e.balls.map((q) => (q.done ? 1 : q)) : f.bb || [];
+			src.forEach((q, i) => {
+				const m = r.balls[i] || (r.balls[i] = r.mk());
+				if (!m.parent) W.bg[e.i].add(m);
+				const on = q !== 1 && !!q && !e.gone;
+				if (!on) {
+					m.visible = false;
+					return;
+				}
+				let x, y;
+				if (e.local) {
+					const p = q.b.getPosition();
+					x = p.x;
+					y = p.y;
+					m.rotation.z = q.b.getAngle();
+				} else {
+					[x, y] = q;
+					if (m.visible && Math.hypot(x - m.position.x, y - m.position.y) < 3) {
+						const k = 1 - Math.exp(-dt * 18),
+							nx = m.position.x + (x - m.position.x) * k;
+						m.rotation.z -= (nx - m.position.x) / this.R;
+						x = nx;
+						y = m.position.y + (y - m.position.y) * k;
+					}
+				}
+				m.position.set(x, y, 0);
+				m.visible = true;
+			});
+			for (let i = src.length; i < r.balls.length; i++) r.balls[i].visible = false;
+		},
 		/* a truck's board parts as its e.f reports them (here or from its device): gates and the split gate flash, flippers
-		   fire, bumpers kick, TNT goes off; and the copy from a split gate, a second truck in a second ball */
+		   fire, bumpers kick, TNT goes off */
 		parts(W, e, f, col) {
 			const bx = W.bx && W.bx[e.i],
 				L = W.L,
@@ -36502,27 +36632,6 @@ Object.assign(MG, {
 				TF[f.tf[1]] = Math.max(TF[f.tf[1]] ?? -99, f.tf[2]);
 				if (W.split || e.isMe) sfx("click");
 			}
-			const c2 = f.c2;
-			if (c2 && !e.tr2) {
-				e.g2 = new THREE.Group();
-				e.tr2 = buildTruck(e.p.truck, "springs");
-				e.tr2.scale.setScalar(0.8);
-				e.tr2.rotation.order = "YXZ";
-				e.g2.add(e.tr2);
-				e.g2.scale.setScalar(this.TS * this.K);
-				W.sc.add(e.g2);
-			}
-			const b2 = c2 ? this.ball(W, e, "ball2") : e.ball2;
-			if (e.g2) e.g2.visible = !!c2 && !e.gone;
-			if (b2) b2.g.visible = !!c2 && !e.gone;
-			if (c2 && !e.gone) {
-				const [x, y, an, tt] = c2;
-				e.tr2.rotation.set(0, e.yaw, tt * e.fc);
-				e.g2.position.set(x + this.WB * this.K * Math.sin(tt), y - this.WB * this.K * Math.cos(tt), 0);
-				b2.g.position.set(x, y, 0);
-				b2.g.scale.setScalar(this.K);
-				b2.spin.rotation.z = an;
-			}
 		},
 		/* the controls' root for this world (the TV keeps one copy per phone) */
 		root(W) {
@@ -36539,7 +36648,15 @@ Object.assign(MG, {
 			const S = this.sched(W),
 				ph = S.plan && !S.over ? "plan" : "play";
 			if (root.getAttribute("data-ph") !== ph) root.setAttribute("data-ph", ph);
-			if (ph !== "plan") return;
+			if (ph !== "plan") {
+				/* DROP: the balls left, dimmed while the claw reloads, is jammed or before the drop */
+				const n = root.querySelector(".sbn"),
+					b = root.querySelector(".sbh"),
+					off = !e.cl || S.D === null || W.t < S.D || W.t < e.loadT || W.t < e.stunT;
+				if (n && n.textContent !== String(e.cl)) n.textContent = String(e.cl);
+				if (b && b.classList.contains("off") !== off) b.classList.toggle("off", off);
+				return;
+			}
 			const vk = this.victimOf(W, e.k, S.r),
 				v = W.ents[vk],
 				left = this.BUDGET - this.spent(e),
@@ -37192,48 +37309,48 @@ Object.assign(MG, {
 				W.bigT = W.t + 0.2;
 			}
 		},
-		/* CPUs: aim for the middle-ish, then steer towards the best slot (counting the x3) and hop when stuck */
+		/* CPUs: for each ball pick a spot along the gantry (aimAt), drive the claw there, think a moment, DROP */
 		bot(W, e, dt) {
 			e.sk = e.sk ?? 0.3 + 0.7 * cpuSk(e);
 			const S = this.sched(W);
-			if (S.plan) return null;
-			if (e.st === 0) {
-				if (e.aimR !== S.r) {
-					e.aimR = S.r;
-					e.aimX = (Math.random() - 0.5) * (Math.random() < 0.5 ? 2 : 10);
-				}
-				const dx = e.aimX - e.ax;
-				e.tl = Math.abs(dx) > 0.3 ? (dx < 0 ? 1 : -1) : 0;
-				return null;
+			e.tl = 0;
+			if (S.plan || e.cl <= 0 || S.D === null) return null;
+			const key = S.r + ":" + e.cl;
+			if (e.aimK !== key) {
+				e.aimK = key;
+				e.aimX = this.aimAt(W, e);
+				e.thinkT = W.t + skv(e, 1.4, 0.8, 0.35) * (0.5 + Math.random());
 			}
-			if (e.st !== 1 || !e.b) {
-				e.tl = 0;
-				return null;
-			}
-			e.bt = (e.bt || 0) - dt;
-			if (e.bt > 0) return null;
-			e.bt = 0.12 + 0.35 * (1 - e.sk) + Math.random() * 0.1;
-			const p = e.b.getPosition(),
-				m = this.mslot(W.t + Math.sqrt((2 * Math.max(0, p.y - this.SH)) / this.GRAV) * 1.7);
-			let best = -1e9,
-				tx = p.x;
-			for (let k = 0; k < this.COLS; k++) {
-				const x = this.slotX(k),
-					v = this.VAL[k] * (k === m ? 3 : 1) - Math.abs(x - p.x) * (60 + 400 / Math.max(1, p.y));
-				if (v > best) {
-					best = v;
-					tx = x;
-				}
-			}
-			const dx = tx - p.x;
-			e.tl = dx > 0.5 ? -1 : dx < -0.5 ? 1 : 0;
-			if (
-				p.y > this.SH + 0.6 &&
-				W.t - e.lastTouch < 0.2 &&
-				((e.balls[0] && e.balls[0].stk) > 0.4 || Math.random() < 0.08 * e.sk)
-			)
-				e.hopQ = W.t;
+			const dx = e.aimX - e.ax;
+			if (Math.abs(dx) > 0.3) e.tl = dx < 0 ? 1 : -1;
+			else if (W.t >= S.D && W.t >= e.thinkT && W.t >= e.loadT) e.dropQ = W.t;
 			return null;
+		},
+		/* where a CPU drops its next ball: a ball spreads out on its way down, so a spot is worth the slots round it (the x3
+		   where the sign will be when it lands), plus the x2 / split gates under it, minus the traps it has found there;
+		   easier CPUs read it worse */
+		aimAt(W, e) {
+			const lim = this.HW - 1.2,
+				m = this.mslot(W.t + 4),
+				G0 = this.gaps(W),
+				found = (e.traps || []).filter((q, idx) => e.trig && e.trig[idx]).map(([t, gi]) => [this.TRAPS[t].k, G0[gi]]),
+				err = skv(e, 5, 2.5, 0.8),
+				best = [];
+			for (let x = -lim; x <= lim; x += 0.5) {
+				let v = 0;
+				for (let k = 0; k < this.COLS; k++) {
+					const d = (this.slotX(k) - x) / 4.5;
+					v += this.VAL[k] * (k === m ? 3 : 1) * Math.exp(-d * d);
+				}
+				W.L.gates.forEach((g) => (v += 160 * Math.max(0, 1 - Math.abs(g.x - x) / this.SW)));
+				W.L.splits.forEach((g) => (v += 220 * Math.max(0, 1 - Math.abs(g.x - x) / this.SW)));
+				found.forEach(([k, g]) => {
+					if (g) v -= (k === "fake" ? 260 : 140) * Math.max(0, 1 - Math.abs(g.x - x) / (this.SW * 1.2));
+				});
+				best.push([v + (Math.random() - 0.5) * err * 60, x]);
+			}
+			best.sort((p, q) => q[0] - p[0]);
+			return Math.max(-lim, Math.min(lim, best[0][1] + (Math.random() - 0.5) * err));
 		},
 		watchSum: (W) =>
 			W.list
