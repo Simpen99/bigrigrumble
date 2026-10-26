@@ -953,6 +953,10 @@ body.tv #mg .m3top{max-width:900px}
 #mg .tvq.t{top:0}#mg .tvq.b{bottom:0;flex-direction:column-reverse}#mg .tvq.r{align-items:flex-end}
 #mg.tvshared .tvscards{position:absolute;left:1em;right:1em;bottom:1em;display:flex;gap:.7em;justify-content:center;font-size:clamp(12px,1.2vw,26px);pointer-events:none!important}
 #mg.tvshared .tvscards .tvpc{flex:0 1 auto}
+.tvcolf{position:absolute;inset:0;pointer-events:none}
+#mg:not(.tvcols) .tvcolf{display:none}
+.tvcolf i{position:absolute;top:0;bottom:0;box-sizing:border-box;border:.3vw solid var(--c);border-top-width:.5vw}
+#mg.tvcols .tvscards{left:var(--tvcg);right:var(--tvcg);gap:var(--tvcg);display:grid;grid-template-columns:repeat(var(--tvcn),minmax(0,1fr));justify-items:center}
 .tvpc{position:relative;display:flex;align-items:center;gap:.5em;height:3.1em;min-width:0;max-width:16em;padding:0 1em 0 .3em;background:var(--hb);border:.19em solid var(--c);border-radius:1.55em .9em .9em 1.55em;box-shadow:0 .22em 0 var(--ledge);color:#fff}
 .tvpc.r{flex-direction:row-reverse;padding:0 .3em 0 1em;border-radius:.9em 1.55em 1.55em .9em}
 .tvpc[hidden]{display:none}
@@ -1160,7 +1164,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-26 04:18 2664247";
+const BUILD = "2026-10-26 04:29 cd74756";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -18788,12 +18792,16 @@ function tvsFrame() {
 	}
 	tvsSend();
 }
-/* lane games: everyone is side by side, so the TV shows one wide view of world 0 */
+/* lane games: everyone is side by side, so the TV shows one wide view of world 0 (or, with def.tvsCols, a column per
+   lane once the game is on) */
 function tvsShared(fw, fh, dt) {
 	const T = TVS,
 		s0 = T.worlds[0],
 		W0 = s0.W,
-		cam = T.scam || (T.scam = new THREE.PerspectiveCamera(40, 1, 0.5, 400));
+		cols = !!(W0.def.tvsCols && W0.startAt && !W0.prac);
+	$("#mg").classList.toggle("tvcols", cols);
+	if (cols) return tvsCols(fw, fh, dt);
+	const cam = T.scam || (T.scam = new THREE.PerspectiveCamera(40, 1, 0.5, 400));
 	const ms = T.worlds.map((s) => s.W.me),
 		zs = ms.map((e) => e.z),
 		zc = zs.reduce((a, b) => a + b, 0) / zs.length,
@@ -18840,6 +18848,76 @@ function tvsShared(fw, fh, dt) {
 	W0.sun.position.set(T.st.x + so[0], so[1], T.st.z + so[2]);
 	W0.sun.target.position.copy(T.st);
 	GFX.r.render(W0.sc, cam);
+}
+/* a column per lane, each with its own camera from def.tvsCols(W, lane, aspect, bottom) → [target, position] (bottom =
+   the share of the screen the player cards cover); each column is framed in its player's colour and its card sits under
+   it. The shadows render once a frame, not once per column. */
+function tvsCols(fw, fh, dt) {
+	const T = TVS,
+		W0 = T.worlds[0].W,
+		r = GFX.r,
+		n = W0.plist.length,
+		gap = Math.max(4, Math.round(fw * 0.005)),
+		cw = (fw - gap * (n + 1)) / n,
+		box = $("#mg");
+	if (!T.cols || T.cols.n !== n) {
+		box.querySelectorAll(".tvcolf").forEach((el) => el.remove());
+		const el = document.createElement("div");
+		el.className = "tvcolf";
+		el.innerHTML = W0.plist.map((p) => `<i style="--c:${pcol(p)}"></i>`).join("");
+		box.prepend(el);
+		T.cols = { n, el, sz: "", v: [] };
+	}
+	const C = T.cols;
+	if (C.sz !== fw + "x" + fh) {
+		C.sz = fw + "x" + fh;
+		[...C.el.children].forEach((c, i) =>
+			Object.assign(c.style, { left: gap + i * (cw + gap) + "px", width: cw + "px" }),
+		);
+		box.style.setProperty("--tvcn", n);
+		box.style.setProperty("--tvcg", gap + "px");
+	}
+	const ce = box.querySelector(".tvscards"),
+		cr = ce && ce.getBoundingClientRect(),
+		b = cr && cr.height ? Math.max(0, Math.min(0.35, (fh - cr.top) / fh + 0.01)) : 0,
+		k = 1 - Math.exp(-dt * 5),
+		au = r.shadowMap.autoUpdate;
+	r.setScissorTest(false);
+	r.setViewport(0, 0, fw, fh);
+	r.setClearColor("#151B24");
+	r.clear();
+	r.setScissorTest(true);
+	r.shadowMap.autoUpdate = false;
+	r.shadowMap.needsUpdate = true;
+	const so = W0.def.sun || [14, 26, 12];
+	W0.sun.position.set(so[0], so[1], so[2]);
+	W0.sun.target.position.set(0, 0, 0);
+	try {
+		for (let i = 0; i < n; i++) {
+			const v = C.v[i] || (C.v[i] = { cam: new THREE.PerspectiveCamera(40, 1, 0.5, 400), p: null, t: null }),
+				a = cw / fh,
+				[tgt, pos] = W0.def.tvsCols(W0, i, a, b);
+			if (!v.p) {
+				v.p = pos.clone();
+				v.t = tgt.clone();
+			}
+			v.p.lerp(pos, k);
+			v.t.lerp(tgt, k);
+			v.cam.aspect = a;
+			v.cam.updateProjectionMatrix();
+			v.cam.position.copy(v.p);
+			v.cam.lookAt(v.t);
+			v.cam.updateMatrixWorld();
+			const x = Math.round(gap + i * (cw + gap));
+			r.setViewport(x, 0, Math.round(cw), fh);
+			r.setScissor(x, 0, Math.round(cw), fh);
+			r.render(W0.sc, v.cam);
+		}
+	} finally {
+		r.setScissorTest(false);
+		r.setViewport(0, 0, fw, fh);
+		r.shadowMap.autoUpdate = au;
+	}
 }
 /* Drift Race with two drivers: each half follows its own driver; when they're close the cameras blend into one view and the divider fades away */
 function tvsDyn(fw, fh, dt) {
@@ -36257,6 +36335,44 @@ Object.assign(MG, {
 				c = !W.startAt || W.t < 0 ? 0.3 : 0,
 				D = Math.max((y1 - y0) / 2 / (1 - b) / tn, half / (1 - c) / (tn * a)) * 1.03,
 				t = new THREE.Vector3(-D * tn * a * c, (y0 + y1) / 2 - D * tn * b, 0);
+			return [t, t.clone().add(new THREE.Vector3(0, D * 0.06, D))];
+		},
+		/* the TV once the game is on: a column per board (part4a's tvsCols), the whole board while planning, aiming and in
+		   the reveal, zoomed in on the ball while it falls (at least TVHW either side of it, TVHH above and below) and on
+		   its slot after; b = the share the player cards cover at the bottom, TVTOP the timer's at the top */
+		TVHW: 5,
+		TVHH: 8,
+		TVTOP: 0.06,
+		tvsCols(W, i, a, b) {
+			const tn = Math.tan((20 * Math.PI) / 180),
+				S = this.sched(W),
+				e = W.ents[W.plist[i].key],
+				ox = W.laneX(i),
+				y0 = this.wy(this.GY - 0.4),
+				y1 = this.wy(this.HDR + 1),
+				hwB = this.K * (this.HW + 1),
+				sh = b - this.TVTOP,
+				whole =
+					!e ||
+					W.t < 0 ||
+					S.plan ||
+					(S.E !== null && (W.t < S.E || S.over)) ||
+					![1, 2].includes(e.local ? e.st : e.f && e.f.st),
+				Dw = Math.max((y1 - y0) / 2 / (1 - b - this.TVTOP) / tn, hwB / (tn * a)) * 1.03;
+			let D = Dw,
+				x = ox,
+				y = (y0 + y1) / 2 - D * tn * sh;
+			if (!whole) {
+				D = Math.min(Dw, Math.max(this.TVHH, this.TVHW / a) / tn);
+				const H = D * tn,
+					mx = Math.max(0, hwB - H * a),
+					[fx, fy] = (e.local && e.cf) || [e.x, e.y],
+					lo = y0 + H * (1 - 2 * b),
+					hi = y1 - H * (1 - 2 * this.TVTOP);
+				x = ox + Math.max(-mx, Math.min(mx, fx - ox));
+				y = lo > hi ? (lo + hi) / 2 : Math.max(lo, Math.min(hi, fy - H * sh));
+			}
+			const t = new THREE.Vector3(x, y, 0);
 			return [t, t.clone().add(new THREE.Vector3(0, D * 0.06, D))];
 		},
 		/* ---- drawing ---- */
