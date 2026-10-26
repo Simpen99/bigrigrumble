@@ -2654,6 +2654,37 @@ function fbStep(W) {
 			q.sp.material.opacity = Math.max(0, op);
 			return true;
 		});
+	/* ready pops (readyPop): spring in (overshoot), the ring grows out and fades, then the button floats up and fades */
+	if (W.rps && W.rps.length && cam) {
+		const r = new THREE.Vector3().setFromMatrixColumn(cam.matrixWorld, 0);
+		W.rps = W.rps.filter((q) => {
+			const age = (now - q.t0) / 1000,
+				life = 1;
+			if (age > life || q.e.gone) {
+				W.sc.remove(q.btn, q.ring);
+				q.btn.material.dispose();
+				q.ring.material.dispose();
+				return false;
+			}
+			const g = q.e.g.position,
+				off = q.n ? (q.n % 2 ? 1 : -1) * Math.ceil(q.n / 2) * 0.8 : 0,
+				p = q.btn.position;
+			p.set(g.x, g.y + 3.1, g.z);
+			const k = camK(p),
+				u = Math.min(1, age / 0.28),
+				back = 1 + 2.9 * Math.pow(u - 1, 3) + 1.9 * Math.pow(u - 1, 2),
+				s = 0.75 * k * back;
+			p.addScaledVector(r, off * k);
+			p.y += (0.4 + Math.max(0, age - 0.4) * 0.4) * k;
+			q.btn.scale.set(s, s, 1);
+			q.btn.material.opacity = Math.max(0, Math.min(1, u * 3, (life - age) / 0.3));
+			const ra = Math.min(1, age / 0.45);
+			q.ring.position.copy(p);
+			q.ring.scale.setScalar(k * (0.65 + ra * 0.9));
+			q.ring.material.opacity = Math.max(0, 1 - ra) * 0.9;
+			return true;
+		});
+	}
 	for (const e of W.list) {
 		if (e.ihS) {
 			const u = e.ihU,
@@ -2699,7 +2730,15 @@ function fbBtnTex(label, col, down) {
 		x.fill();
 		const c = col || "#E5484D",
 			gr = x.createRadialGradient(cx - 14, cy - 18, 4, cx, cy, R);
-		gr.addColorStop(0, down ? c : "#FFB0B2");
+		/* the highlight: the red button's own pink, other colours a lighter shade of themselves */
+		gr.addColorStop(
+			0,
+			down
+				? c
+				: c === "#E5484D"
+					? "#FFB0B2"
+					: "#" + new THREE.Color(c).lerp(new THREE.Color("#fff"), 0.55).getHexString(),
+		);
 		gr.addColorStop(1, c);
 		x.fillStyle = gr;
 		x.beginPath();
@@ -2736,6 +2775,45 @@ function inputHint(W, e, label, mode, col) {
 		W.sc.add(e.ihS);
 	}
 	e.ihU = { label, mode, col, at: performance.now() };
+}
+/* a ready pop: a button back from its cooldown pops up over the truck as a small copy of the phone's button (in its
+   colour, col), springing in with a ring flashing out of it, then floating up a touch and fading after a second; several
+   at once line up side by side. On the TV for every truck, in phone mode only for your own (call it on the device that
+   knows the cooldown); a soft ding for players' trucks */
+const FB_RING = {};
+function readyPop(W, e, label, col) {
+	if (!W || !e || e.gone || !fbShow(W, e)) return;
+	const sprite = (map) => {
+		const sp = new THREE.Sprite(
+			new THREE.SpriteMaterial({ map, depthTest: false, depthWrite: false, transparent: true, opacity: 0 }),
+		);
+		sp.renderOrder = 12;
+		sp.userData.fb = true;
+		W.sc.add(sp);
+		return sp;
+	};
+	const ring =
+		FB_RING[col] ||
+		(FB_RING[col] = canvasTex(128, 128, (x, w, h) => {
+			x.strokeStyle = col;
+			x.lineWidth = 10;
+			x.beginPath();
+			x.arc(w / 2, h / 2, w / 2 - 8, 0, 7);
+			x.stroke();
+			x.strokeStyle = "rgba(255,255,255,.85)";
+			x.lineWidth = 4;
+			x.stroke();
+		}));
+	const now = performance.now();
+	W.rps = W.rps || [];
+	W.rps.push({
+		e,
+		btn: sprite(fbBtnTex(label, col, false)),
+		ring: sprite(ring),
+		t0: now,
+		n: W.rps.filter((q) => q.e === e && now - q.t0 < 400).length,
+	});
+	if (e.isMe) sfx("ready");
 }
 /* a pill sprite with its own canvas that redraws when its text changes (live numbers, e.g. Ramp Jump's edge
    distances), drawn like a pop-up pill: dark, ringed in the colour; 3:1, text fitted */

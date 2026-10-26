@@ -1157,7 +1157,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-25 18:31 c5b4cb8";
+const BUILD = "2026-10-25 21:00 98fa129";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -10221,6 +10221,11 @@ function sfx(n) {
 				[523, 659, 784, 1047].forEach((f, i) => tone(f, 0.22, "square", 0.08, 0, i * 0.08));
 				tone(1568, 0.4, "triangle", 0.1, 0, 0.34);
 				break;
+			case "ready":
+				/* a button back from its cooldown (readyPop): a soft rising ding */
+				tone(1175, 0.08, "triangle", 0.06);
+				tone(1760, 0.18, "triangle", 0.06, 0, 0.07);
+				break;
 			case "event":
 				[880, 1175, 1568].forEach((f, i) => tone(f, 0.14, "triangle", 0.1, 0, i * 0.06));
 				break;
@@ -17173,6 +17178,37 @@ function fbStep(W) {
 			q.sp.material.opacity = Math.max(0, op);
 			return true;
 		});
+	/* ready pops (readyPop): spring in (overshoot), the ring grows out and fades, then the button floats up and fades */
+	if (W.rps && W.rps.length && cam) {
+		const r = new THREE.Vector3().setFromMatrixColumn(cam.matrixWorld, 0);
+		W.rps = W.rps.filter((q) => {
+			const age = (now - q.t0) / 1000,
+				life = 1;
+			if (age > life || q.e.gone) {
+				W.sc.remove(q.btn, q.ring);
+				q.btn.material.dispose();
+				q.ring.material.dispose();
+				return false;
+			}
+			const g = q.e.g.position,
+				off = q.n ? (q.n % 2 ? 1 : -1) * Math.ceil(q.n / 2) * 0.8 : 0,
+				p = q.btn.position;
+			p.set(g.x, g.y + 3.1, g.z);
+			const k = camK(p),
+				u = Math.min(1, age / 0.28),
+				back = 1 + 2.9 * Math.pow(u - 1, 3) + 1.9 * Math.pow(u - 1, 2),
+				s = 0.75 * k * back;
+			p.addScaledVector(r, off * k);
+			p.y += (0.4 + Math.max(0, age - 0.4) * 0.4) * k;
+			q.btn.scale.set(s, s, 1);
+			q.btn.material.opacity = Math.max(0, Math.min(1, u * 3, (life - age) / 0.3));
+			const ra = Math.min(1, age / 0.45);
+			q.ring.position.copy(p);
+			q.ring.scale.setScalar(k * (0.65 + ra * 0.9));
+			q.ring.material.opacity = Math.max(0, 1 - ra) * 0.9;
+			return true;
+		});
+	}
 	for (const e of W.list) {
 		if (e.ihS) {
 			const u = e.ihU,
@@ -17218,7 +17254,15 @@ function fbBtnTex(label, col, down) {
 		x.fill();
 		const c = col || "#E5484D",
 			gr = x.createRadialGradient(cx - 14, cy - 18, 4, cx, cy, R);
-		gr.addColorStop(0, down ? c : "#FFB0B2");
+		/* the highlight: the red button's own pink, other colours a lighter shade of themselves */
+		gr.addColorStop(
+			0,
+			down
+				? c
+				: c === "#E5484D"
+					? "#FFB0B2"
+					: "#" + new THREE.Color(c).lerp(new THREE.Color("#fff"), 0.55).getHexString(),
+		);
 		gr.addColorStop(1, c);
 		x.fillStyle = gr;
 		x.beginPath();
@@ -17255,6 +17299,45 @@ function inputHint(W, e, label, mode, col) {
 		W.sc.add(e.ihS);
 	}
 	e.ihU = { label, mode, col, at: performance.now() };
+}
+/* a ready pop: a button back from its cooldown pops up over the truck as a small copy of the phone's button (in its
+   colour, col), springing in with a ring flashing out of it, then floating up a touch and fading after a second; several
+   at once line up side by side. On the TV for every truck, in phone mode only for your own (call it on the device that
+   knows the cooldown); a soft ding for players' trucks */
+const FB_RING = {};
+function readyPop(W, e, label, col) {
+	if (!W || !e || e.gone || !fbShow(W, e)) return;
+	const sprite = (map) => {
+		const sp = new THREE.Sprite(
+			new THREE.SpriteMaterial({ map, depthTest: false, depthWrite: false, transparent: true, opacity: 0 }),
+		);
+		sp.renderOrder = 12;
+		sp.userData.fb = true;
+		W.sc.add(sp);
+		return sp;
+	};
+	const ring =
+		FB_RING[col] ||
+		(FB_RING[col] = canvasTex(128, 128, (x, w, h) => {
+			x.strokeStyle = col;
+			x.lineWidth = 10;
+			x.beginPath();
+			x.arc(w / 2, h / 2, w / 2 - 8, 0, 7);
+			x.stroke();
+			x.strokeStyle = "rgba(255,255,255,.85)";
+			x.lineWidth = 4;
+			x.stroke();
+		}));
+	const now = performance.now();
+	W.rps = W.rps || [];
+	W.rps.push({
+		e,
+		btn: sprite(fbBtnTex(label, col, false)),
+		ring: sprite(ring),
+		t0: now,
+		n: W.rps.filter((q) => q.e === e && now - q.t0 < 400).length,
+	});
+	if (e.isMe) sfx("ready");
 }
 /* a pill sprite with its own canvas that redraws when its text changes (live numbers, e.g. Ramp Jump's edge
    distances), drawn like a pop-up pill: dark, ringed in the colour; 3:1, text fitted */
@@ -38668,21 +38751,22 @@ Object.assign(MG, {
 		VLV: 26.4,
 		VLX: 8.4,
 		VLTH: 3.2,
-		/* the tow (catch-up): a cop more than TOWZ m behind the cash truck for TOWW s is harpooned by the nearest cop ahead
-		   of it that's still in the chase (or winched by the helicopter if there's none) and slung up the road in an arc
+		/* the tow (catch-up): a cop more than TOWZ m behind the cash truck for TOWW s is winched by the helicopter (the
+		   nearest cop ahead used to harpoon it, the helicopter only if there was none) and slung up the road in an arc
 		   TOWH m high, landing TOWB m behind that cop (never closer than TOWHB m behind the truck); its buttons wait
 		   TOWCD s after landing and it can't be towed again for TOWAG s */
 		TOWZ: 34,
-		TOWW: 1.5,
+		TOWW: 3 /* was 1.5 */,
 		TOWB: 7,
 		TOWHB: 16,
 		TOWH: 5,
 		TOWCD: 1,
 		TOWAG: 3,
-		/* the TV's camera: the trucks TVA m ahead of the cash truck to TVB m behind it, half the pack framed up to TVHL m,
-		   through a TVFOV degree lens (see cam) */
+		/* the TV's camera: the trucks TVA m ahead of the cash truck to TVB m behind it and the road TVL m ahead of it, half
+		   the pack framed up to TVHL m, through a TVFOV degree lens (see cam) */
 		TVA: 28,
-		TVB: 40,
+		TVB: 30 /* was 40, then 22 */,
+		TVL: 14,
 		TVHL: 34,
 		TVFOV: 30,
 		/* cooldowns by how hard a trick hits: self buffs and light knocks 7-8 s, slows and obstacles 11-12 s, the ones that
@@ -39630,29 +39714,14 @@ Object.assign(MG, {
 				e.lagT = far ? (e.lagT || 0) + dt : 0;
 				if (e.lagT < this.TOWW) return false;
 				e.lagT = 0;
-				/* the nearest cop ahead that's in the chase itself (not far behind, not on a tow of its own) */
-				let by = null;
-				for (const o of W.list)
-					if (
-						o !== e &&
-						o.side === 1 &&
-						!o.gone &&
-						o.z < e.z - 20 &&
-						o.z - T.z < this.TOWZ - 10 &&
-						!this.towing(W, o) &&
-						(!by || o.z > by.z)
-					)
-						by = o;
-				const who = by ? by.k : "H",
+				/* always the helicopter (it was the nearest cop ahead still in the chase, the helicopter only if there was none) */
+				const who = "H",
 					rd = (v) => Math.round(v * 100) / 100,
 					dur = rd(Math.max(0.9, Math.min(1.8, (e.z - this.towGoal(W, who).z) / 40)));
 				e.tow = { pull: W.t + 0.3, dur, who };
 				e.f.tw = [rd(W.t), rd(W.t + 0.3), dur, who];
 				this.letGo(W, e, "towed");
-				mgLog(
-					W,
-					`${mgName(e)} towed up from ${Math.round(e.z - T.z)} m behind by ${by ? mgName(by) : "the helicopter"}`,
-				);
+				mgLog(W, `${mgName(e)} towed up from ${Math.round(e.z - T.z)} m behind by the helicopter`);
 				return false;
 			}
 			if (W.t < w.pull) return false;
@@ -40269,11 +40338,14 @@ Object.assign(MG, {
 			if (W.tv) {
 				/* the chase is about the cash truck: the trucks within TVA m ahead of it to TVB m behind it (a cop racing far
 				   ahead or a straggler far back drops out of the shot with a pill at the screen's edge, edgePill; the truck
-				   never does; was 25 / 60 m, and a cop that far back gets towed up: TOWZ) */
+				   never does; was 25 / 60 m, then 28 / 40 m, and a cop that far back gets towed up: TOWZ); the shot always
+				   reaches TVL m up the road ahead of the cash truck (easing in over the first 2 s), so you see what's coming */
 				const T = this.solo(W),
 					L = W.list.filter((e) => !e.gone && (!T || (e.z > T.z - this.TVA && e.z < T.z + this.TVB))),
 					zs = (L.length ? L : W.list).map((e) => e.z),
-					z0 = Math.min(...zs),
+					lead = T && !T.gone ? this.TVL * Math.min(1, Math.max(0, W.t / 2)) : 0;
+				if (lead) zs.push(T.z - lead);
+				const z0 = Math.min(...zs),
 					z1 = Math.max(...zs),
 					sp = z1 - z0;
 				/* a fixed tilt (35 degrees down) at the middle of the pack, pulled back as its length grows (hl = half the
@@ -40449,6 +40521,34 @@ Object.assign(MG, {
 				const ph = Math.floor(W.t * 6 + e.i) % 2;
 				e.bar.red.material.emissiveIntensity = ph ? 1.6 : 0.1;
 				e.bar.blue.material.emissiveIntensity = ph ? 0.1 : 1.6;
+			}
+			this.readyPops(W, e);
+		},
+		/* a button back from its cooldown pops up over the truck in its phone button's colour (readyPop; the main button
+		   red, the second orange, the third blue); only on the device running the truck (the cooldowns live there), only
+		   for players' trucks (CPUs' pops were clutter), only after a wait of RPMIN s or more (the harpoon's 4 s reload
+		   popped every few seconds), not for the buttons waking up at the start (ARM) */
+		RPMIN: 6,
+		readyPops(W, e) {
+			if (!e.local || e.gone || (e.f && e.f.esc) || !e.p || e.p.bot) return;
+			const B =
+				e.side === 0
+					? [
+							["oilCd", "OIL", "#E5484D"],
+							["swCd", "SLAM", "#FF8A1F"],
+							["spCd", "CLAW", "#2F7DE1"],
+						]
+					: [
+							["hpCd", this.ahead(W, e, this.solo(W)) ? "SPIKES" : "HARPOON", "#E5484D"],
+							["abCd", this.abOf(e).lbl, "#FF8A1F"],
+						];
+			/* e.rdy[f] = true while ready, else when its cooldown started: only a wait of RPMIN s or more pops */
+			e.rdy = e.rdy || {};
+			for (const [f, lbl, col] of B) {
+				const on = W.t >= (e[f] || 0),
+					t0 = e.rdy[f];
+				if (on && typeof t0 === "number" && W.t - t0 >= this.RPMIN && t0 > this.ARM - 0.5) readyPop(W, e, lbl, col);
+				e.rdy[f] = on ? true : typeof t0 === "number" ? t0 : W.t;
 			}
 		},
 		/* a cop's light bar on its roof (red and blue, kept inside the roof's width) with the harpoon gun beside it, in
@@ -41323,9 +41423,11 @@ Object.assign(MG, {
 				T = this.solo(W);
 			if (!H || !T) return;
 			/* ahead of the cash truck out over the roadside, easing after it: high on a phone (out of your view: you see its
-			   shadow and beam), lower on the TV, whose camera looks down from higher up */
+			   shadow and beam), lower on the TV, whose camera looks down from higher up; there it keeps off the road, 4 m out
+			   past its left-hand edge (over the road it hid the trucks in a long shot, and the TV's player cards cover the
+			   right; the bridge's pylons stand 5 m inside that, clear of the rotor) */
 			const tv = !!W.tv,
-				tx = T.x * 0.4 + (tv ? 6 : 9),
+				tx = tv ? -(this.LANES * this.LW) / 2 - 4 : T.x * 0.4 + 9,
 				tz = T.z - (tv ? 8 : 17),
 				k = 1 - Math.exp(-dt * 1.6);
 			H.p.x += (tx - H.p.x) * k;

@@ -1479,6 +1479,11 @@ function sfx(n) {
 				[523, 659, 784, 1047].forEach((f, i) => tone(f, 0.22, "square", 0.08, 0, i * 0.08));
 				tone(1568, 0.4, "triangle", 0.1, 0, 0.34);
 				break;
+			case "ready":
+				/* a button back from its cooldown (readyPop): a soft rising ding */
+				tone(1175, 0.08, "triangle", 0.06);
+				tone(1760, 0.18, "triangle", 0.06, 0, 0.07);
+				break;
 			case "event":
 				[880, 1175, 1568].forEach((f, i) => tone(f, 0.14, "triangle", 0.1, 0, i * 0.06));
 				break;
