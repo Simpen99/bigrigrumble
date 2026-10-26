@@ -3501,13 +3501,12 @@ Object.assign(MG, {
    when there are 3+), then everyone drops at once. Traps are hidden, on the TV too, until a ball sets them off; the
    saboteur scores TRAPPTS per trap hit. After the last ball lands every trap is revealed for BETWEEN s.
    Planning happens on the 3D board: the phone's camera moves to your target's board, you drag onto a gap and lift to drop
-   the selected trap (W.sbIn from a raycast, planInput). On the TV every board shows its saboteur's traps and cursor live
-   (they vanish at the drop), and the phone is a trackpad (def.pad: inp.x / inp.y, a lift = inp.boost) plus the tray.
+   the selected trap (W.sbIn from a raycast, planInput). The TV shows no traps or cursors while planning, only a PLANNING…
+   / READY ✓ pill per board; the phone controller draws its own view of the target's board (tvcOpen) beside the tray.
    The controls (ctlHTML) hold the plan panel and the play buttons, switched by data-ph on the root; on the TV the phones
    mirror the TV's copy and send taps back as button presses, so the same handlers run everywhere.
    Shared per truck in e.f: an / tt / st / hp / ls / lt as in Plinko, pd [round] = when it pressed READY,
-   tr {r, l: [[trap, gap]]} = the traps it placed this round, tg {r, l: [trap index]} = the traps on its board it set off,
-   cu [gap, trap, finger down] = its planning cursor (0 outside planning) */
+   tr {r, l: [[trap, gap]]} = the traps it placed this round, tg {r, l: [trap index]} = the traps on its board it set off */
 Object.assign(MG, {
 	sabo: {
 		name: "Plinko Sabotage",
@@ -4462,7 +4461,6 @@ Object.assign(MG, {
 			e.gUp = false;
 			e.f.tr = { r, l: [] };
 			e.f.tg = { r, l: [] };
-			e.f.cu = 0;
 			e.cu = this.nearGap(W, 0, this.Y0 + 3 * this.RY, false, e.sel);
 			e.cuH = 0;
 			if (e.isMe) W.sbIn = W.sbY = null;
@@ -4662,7 +4660,6 @@ Object.assign(MG, {
 				return;
 			}
 			this.sabTick(W, e, S);
-			if (!S.plan && e.f.cu) e.f.cu = 0;
 			if (S.plan) {
 				if (e.bot) {
 					this.botPlan(W, e, S);
@@ -4671,7 +4668,6 @@ Object.assign(MG, {
 						e.f.pd = e.pd.slice();
 					}
 				} else if (e.isMe) this.planInput(W, e, S);
-				e.f.cu = [e.cu, e.sel, e.cuH];
 				this.aim(W, e, 0);
 				this.sync(e);
 				return;
@@ -5277,9 +5273,8 @@ Object.assign(MG, {
 				}))
 			);
 		},
-		/* while planning: faint dashed frames in the gaps of a board being sabotaged, and its saboteur's cursor (a frame
-		   in their colour with the selected trap's icon; on the TV always, with their name, until they're READY; on a
-		   phone only your own, while your finger is down) */
+		/* while planning, on the phone sabotaging this board: faint dashed frames in its gaps, and your cursor (a frame in
+		   your colour with the selected trap's icon) while your finger is down */
 		planMarks(W, bi, k, S, see, dt) {
 			W.pm = W.pm || {};
 			let m = W.pm[k];
@@ -5313,11 +5308,11 @@ Object.assign(MG, {
 				ic.position.z = 0.4;
 				cur.add(fr, ic);
 				W.bg[bi].add(cur);
-				m = W.pm[k] = { gm: null, r: -1, cur, fr, ic, t: -1, p: null, pill: null };
+				m = W.pm[k] = { gm: null, r: -1, cur, fr, ic, t: -1, p: null };
 			}
 			const sk = this.sabOf(W, k, S.r),
 				sb = W.ents[sk],
-				d = sb && (sb.local ? [sb.cu, sb.sel, sb.cuH] : sb.f && sb.f.cu),
+				d = sb && sb.local ? [sb.cu, sb.sel, sb.cuH] : null,
 				fk = W.lr + ":" + ((d && this.TRAPS[d[1]] && this.TRAPS[d[1]].on) || "s");
 			/* the dashed markers of the spots the saboteur's selected trap fits, this round */
 			if (see && m.r !== fk) {
@@ -5330,16 +5325,8 @@ Object.assign(MG, {
 				m.r = fk;
 			}
 			if (m.gm) m.gm.visible = !!see;
-			const pd = sb && (sb.local ? sb.pd : sb.f && sb.f.pd),
-				tvw = !!(W.split || W.tv),
-				on =
-					!!see &&
-					!!d &&
-					d[0] >= 0 &&
-					d[0] < this.gaps(W).length &&
-					(tvw ? !(pd && pd[S.r] !== undefined) : sk === (W.me && W.me.k) && !!d[2]);
+			const on = !!see && !!d && d[0] >= 0 && d[0] < this.gaps(W).length && sk === (W.me && W.me.k) && !!d[2];
 			m.cur.visible = on;
-			if (m.pill) m.pill.sp.visible = on && tvw;
 			if (!on) {
 				m.p = null;
 				return;
@@ -5358,15 +5345,6 @@ Object.assign(MG, {
 				m.ic.material.needsUpdate = true;
 			}
 			this.fitCursor(m.fr, g, 1 + 0.05 * Math.sin(W.t * 8));
-			if (tvw) {
-				if (!m.pill) {
-					m.pill = pillSprite();
-					W.bg[bi].add(m.pill.sp);
-				}
-				m.pill.set(sb.p.name.slice(0, 10), pcol(sb.p));
-				m.pill.sp.position.set(m.p.x, m.p.y + 2.4, 1.6);
-				m.pill.sp.scale.set(6.6, 2.2, 1);
-			}
 		},
 		/* trap models, hidden until set off (or the reveal after the round) */
 		trapMesh(W, t, g, d) {
@@ -5602,14 +5580,14 @@ Object.assign(MG, {
 					s.m.emissive.copy(fl ? s.fc : s.c).multiplyScalar(Math.max(gl, fl * 0.8));
 				}),
 			);
-			/* traps: built from each saboteur's list for this round, shown once set off or in the reveal; while planning, the
-			   TV shows every board's traps and its saboteur's cursor, a phone only the board it's sabotaging */
+			/* traps: built from each saboteur's list for this round, shown once set off or in the reveal; while planning a phone
+			   shows the board it's sabotaging, the TV none (everyone would see where the others put theirs) */
 			const reveal = S.E !== null && W.t >= 0,
 				tvw = !!(W.split || W.tv),
 				myV = W.me && W.t >= 0 ? this.victimOf(W, W.me.k, S.r) : null;
 			W.plist.forEach((pl, bi) => {
 				const k = pl.key,
-					see = S.plan && W.t >= 0 && (tvw || k === myV),
+					see = S.plan && W.t >= 0 && !tvw && k === myV,
 					L = S.plan && !see ? [] : this.trapsOn(W, k, S.r),
 					key = S.r + ":" + JSON.stringify(L),
 					tv = W.trapV[k] || (W.trapV[k] = { key: "", g: null, items: [] });
