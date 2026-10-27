@@ -62,6 +62,8 @@ The user tunes models in `dist/index.html?models` and pastes JSON like `{"model"
 - **Minigame entity fields**: `e.k` is the player key. Never reuse `k`, `i`, `p`, `g` (the truck's group), `tr`, `sc`, `d`, `al`, `c`, `f` for game data.
 - **Never put a `//` comment mid-line**: it comments out the rest of the line.
 - `obj.add(x)` returns `obj`, not `x`.
+- **Minigame def helpers must not reuse engine hook names** (`look`, `cam`, `phys`, `fog`, `night`, `sun`, `lt`, `fx`, `bare`...): the engine reads them off the def (a helper called `look` switched Plinko Sabotage to the new-look lighting). Check part4a before naming one.
+- **Soft see-through canvas textures speckle on phones** (faint pixels un-premultiplied wrongly): draw them as an opaque black / white mask and use it as `alphaMap` with the tint in the material colour (lava haze, Getaway glows, Sabotage smoke).
 - Tile symbol holes (`symHoles`) must never touch each other.
 - Frame-rate independence: use real time (`performance.now()`, physics substeps).
 - Reduced motion: infinite CSS animations also need `animation-iteration-count:1`.
