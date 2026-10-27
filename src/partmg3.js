@@ -3532,7 +3532,7 @@ Object.assign(MG, {
 			["slide", "Move the claw"],
 			["DROP", "Drop a ball", "5 a round"],
 		],
-		how: "Every round: hide traps on a rival's board (wall off their way to the ×2 and SPLIT gates, plant a fake ×2, mine their pegs and gates), then drop your 5 balls from the claw. Each gate works for the first ball through only. Traps stay hidden until hit, so aim round the ones you find; every ball scores its slot, plus points for every trap your rival hits!",
+		how: "Every round: hide traps on a rival's board (wall off their way to the ×2 and SPLIT gates, plant a fake ×2, a Thief that steals the ball's points, a Warp, a Lead weight, mine their pegs and gates), then drop your 5 balls from the claw. Each gate works for the first ball through only. Traps stay hidden until hit, so aim round the ones you find; every ball scores its slot, plus points for every trap your rival hits!",
 		tvHint:
 			"Planning: your phone shows your rival's board: pick a trap, tap a gap. Dropping: slide on the left to move the claw, DROP on the right.",
 		tapHint:
@@ -3609,16 +3609,73 @@ Object.assign(MG, {
 		GFT: 1.5,
 		MR: 4.7,
 		MINEV: 13.5,
-		/* traps: key, name, icon, cost, colour, where it goes (s: between two pegs, straight or diagonal; h: straight only;
-		   p: on a peg) */
+		/* traps: key, name, cost, colour, where it goes (s: between two pegs, straight or diagonal; h: straight only;
+		   p: on a peg). Thief: the ball's points go to the saboteur; warp: two ends placed one after the other (the second
+		   free), a ball through the first comes out of the second; lead: the ball goes heavy and drops straight through the
+		   pegs */
 		TRAPS: [
-			{ k: "wall", n: "Wall", ic: "▬", c: 20, col: "#8E96A3", on: "s" },
-			{ k: "fake", n: "Fake ×2", ic: "½", c: 30, col: "#3DDC84", on: "h" },
-			{ k: "stun", n: "Jam", ic: "⚡", c: 25, col: "#E0A800", on: "s" },
-			{ k: "grav", n: "Gravity", ic: "⇅", c: 25, col: "#8E5BE0", on: "s" },
-			{ k: "flip", n: "Flipper", ic: "↗", c: 20, col: "#2F7DE1", on: "p" },
-			{ k: "bomb", n: "Mine", ic: "✹", c: 35, col: "#FF8A1F", on: "p" },
+			{ k: "wall", n: "Wall", c: 20, col: "#8E96A3", on: "s" },
+			{ k: "fake", n: "Fake ×2", c: 30, col: "#3DDC84", on: "h" },
+			{ k: "thief", n: "Thief", c: 30, col: "#E0A800", on: "s" },
+			{ k: "grav", n: "Gravity", c: 25, col: "#8E5BE0", on: "s" },
+			{ k: "flip", n: "Flipper", c: 20, col: "#2F7DE1", on: "p" },
+			{ k: "bomb", n: "Mine", c: 35, col: "#FF8A1F", on: "p" },
+			{ k: "warp", n: "Warp", c: 30, col: "#12A9C4", on: "s" },
+			{ k: "lead", n: "Lead", c: 25, col: "#5B6472", on: "s" },
 		],
+		WARPS: 2 /* times one ball can warp */,
+		/* the traps' icons (48 x 48, white with a dark outline): the tray's buttons and the badges on the board */
+		svg(k) {
+			const O = "#151B24",
+				f = `fill="#fff" stroke="${O}" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"`,
+				line = (d, w) =>
+					`<path d="${d}" fill="none" stroke="${O}" stroke-width="${w + 5}" stroke-linecap="round" stroke-linejoin="round"/><path d="${d}" fill="none" stroke="#fff" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"/>`,
+				spikes = [0, 1, 2, 3, 4, 5, 6, 7]
+					.map((i) => {
+						const a = (i / 8) * Math.PI * 2 + 0.39,
+							c = Math.cos(a),
+							n = Math.sin(a);
+						return `M${(24 + c * 10).toFixed(1)} ${(28 + n * 10).toFixed(1)}L${(24 + c * 17).toFixed(1)} ${(28 + n * 17).toFixed(1)}`;
+					})
+					.join(""),
+				I = {
+					wall: `<g ${f}><rect x="4" y="8" width="18" height="9" rx="2"/><rect x="26" y="8" width="18" height="9" rx="2"/><rect x="4" y="20" width="8" height="9" rx="2"/><rect x="15" y="20" width="18" height="9" rx="2"/><rect x="36" y="20" width="8" height="9" rx="2"/><rect x="4" y="32" width="18" height="9" rx="2"/><rect x="26" y="32" width="18" height="9" rx="2"/></g>`,
+					fake: `<path ${f} d="M5 13h38v7.5a3.5 3.5 0 0 0 0 7V35H5v-7.5a3.5 3.5 0 0 0 0-7z"/><path d="M25 13l-4 7 6 4-5 5 3 6" fill="none" stroke="${O}" stroke-width="3" stroke-linejoin="round"/><path d="M11 20l6 8M17 20l-6 8M31 21h7v3h-7v3h7" fill="none" stroke="${O}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>`,
+					thief: `<path d="M41 20l5-4M41 24l5 2" fill="none" stroke="${O}" stroke-width="3.5" stroke-linecap="round"/><path ${f} d="M3 21c6-7 14-7 21-3 7-4 15-4 21 3-1 9-6 14-12 13-4-1-6-4-9-4s-5 3-9 4C9 35 4 30 3 21z"/><ellipse cx="14.5" cy="24.5" rx="4.5" ry="3.2" fill="${O}"/><ellipse cx="33.5" cy="24.5" rx="4.5" ry="3.2" fill="${O}"/>`,
+					grav: `<path ${f} d="M15 4L5 16h7v27h6V16h7z"/><path ${f} d="M33 44l10-12h-7V5h-6v27h-7z"/>`,
+					flip:
+						line("M37 31q4 4 1 9M42 25q6 6 2 14", 3) +
+						`<path ${f} d="M9 31L35 9l5 6L14 37z"/><circle ${f} cx="11" cy="34" r="6"/>`,
+					bomb:
+						line(spikes, 3) +
+						`<circle ${f} cx="24" cy="28" r="11"/><circle cx="20" cy="24" r="3" fill="${O}" opacity=".25"/>` +
+						line("M24 17q0-7 7-9", 2.5) +
+						`<path d="M33 3l1.5 3.5L38 8l-3.5 1.5L33 13l-1.5-3.5L28 8l3.5-1.5z" fill="#FFE27A" stroke="${O}" stroke-width="2" stroke-linejoin="round"/>`,
+					warp: line(
+						"M25 23a2 2 0 0 1 1 3a5 5 0 0 1-7 0a7 7 0 0 1 1-9a10 10 0 0 1 12 2a12 12 0 0 1-2 16a15 15 0 0 1-19-2",
+						4,
+					),
+					out: `<ellipse cx="24" cy="13" rx="14" ry="6" fill="none" stroke="${O}" stroke-width="9"/><ellipse cx="24" cy="13" rx="14" ry="6" fill="none" stroke="#fff" stroke-width="4"/><path ${f} d="M20 18h8v13h7L24 44 13 31h7z"/>`,
+					lead:
+						line("M17 17a7 7 0 0 1 14 0", 4) +
+						`<path ${f} d="M11 17h26l7 25H4z"/><path d="M9 33h30" fill="none" stroke="${O}" stroke-width="2.5" opacity=".35"/>`,
+				};
+			return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">${I[k] || ""}</svg>`;
+		},
+		/* the other end of warp idx in trap list L ([t, spot, 0 in / 1 out]: the nth in pairs with the nth out), or -1 */
+		warpPair(L, idx) {
+			const wi = L.map((q, i) => i).filter((i) => this.TRAPS[L[i][0]] && this.TRAPS[L[i][0]].k === "warp"),
+				ins = wi.filter((i) => L[i][2] !== 1),
+				outs = wi.filter((i) => L[i][2] === 1),
+				n = ins.indexOf(idx),
+				m = outs.indexOf(idx);
+			return n >= 0 ? (outs[n] ?? -1) : m >= 0 ? (ins[m] ?? -1) : -1;
+		},
+		/* is there a warp in list L still waiting for its way out */
+		warpOpen(L) {
+			const w = L.filter((q) => this.TRAPS[q[0]] && this.TRAPS[q[0]].k === "warp");
+			return w.filter((q) => q[2] !== 1).length > w.filter((q) => q[2] === 1).length;
+		},
 		kits() {
 			loadPlanck();
 		},
@@ -4039,6 +4096,7 @@ Object.assign(MG, {
 				tx: [0, 0],
 				sg: [0, 0],
 				gu: { r: 0, l: [] },
+				sl: { r: 0, n: 0 },
 			};
 			loadPlanck();
 		},
@@ -4048,7 +4106,7 @@ Object.assign(MG, {
 		ctlHTML() {
 			const tray = this.TRAPS.map(
 				(t, i) =>
-					`<button class="sbt" data-t="${i}" style="--bc:${t.col}"><i>${t.ic}</i><b>${t.n}</b><em>${t.c}</em></button>`,
+					`<button class="sbt" data-t="${i}" style="--bc:${t.col}"><i>${this.svg(t.k)}</i><b>${t.n}</b><em>${t.c}</em></button>`,
 			).join("");
 			return `<div class="sbctl" data-ph="play"><div class="sbplan"><div class="sbpad"><span class="sbhint">Tap a gap to drop the trap · swipe to look around</span><span class="sbhint tv">Slide to move your cursor on the TV · lift to drop</span></div><div class="sbbot"><div class="sbtop"><b class="sbtgt">Sabotage</b><span class="sbcoin">${this.BUDGET}</span><span class="sbtime">${this.PLANT} s</span></div><div class="sbtray">${tray}<button class="sbdone">READY</button></div></div></div><div class="rjctl"><div class="sbslide"><span class="tvchint">Slide to move the claw</span></div><button class="rjb sbl" style="--bc:#2F7DE1" aria-label="Left"><i>◀</i></button><button class="rjb pkhop sbh" style="--bc:#FF8A1F" aria-label="Drop"><b>DROP</b><em class="sbn">${this.NB}</em></button><button class="rjb sbr" style="--bc:#2F7DE1" aria-label="Right"><i>▶</i></button></div></div>`;
 		},
@@ -4161,23 +4219,39 @@ Object.assign(MG, {
 			if (e.isMe) sfx("click");
 		},
 		spent(e) {
-			return (e.trp || []).reduce((a, [t]) => a + this.TRAPS[t].c, 0);
+			return (e.trp || []).reduce(
+				(a, [t, gi, d]) => a + (this.TRAPS[t].k === "warp" && d === 1 ? 0 : this.TRAPS[t].c),
+				0,
+			);
 		},
 		/* put trap t on spot gi: the same trap there again takes it back (a flipper first turns round: [t, gi, direction]),
 		   another one swaps it; false when it can't go there or doesn't fit the coins left (5 walls can't close a row:
 		   there's always a way through) */
 		place(W, e, t, gi) {
-			const i = e.trp.findIndex((q) => q[1] === gi),
-				old = i >= 0 ? e.trp.splice(i, 1)[0] : null,
-				g = this.gaps(W)[gi],
-				flip = this.TRAPS[t] && this.TRAPS[t].k === "flip";
+			const g = this.gaps(W)[gi],
+				T = this.TRAPS[t],
+				flip = T && T.k === "flip",
+				warp = T && T.k === "warp",
+				add = () => {
+					const role = warp && this.warpOpen(e.trp) ? 1 : 0,
+						ok = this.fits(t, g) && (role === 1 || this.spent(e) + T.c <= this.BUDGET);
+					if (ok) e.trp.push(flip ? [t, gi, this.flipDir(g)] : warp ? [t, gi, role] : [t, gi]);
+					return ok;
+				};
+			const i = e.trp.findIndex((q) => q[1] === gi);
 			let ok = true;
-			if (old && old[0] === t && flip && old[2] === this.flipDir(g)) e.trp.splice(i, 0, [t, gi, -old[2]]);
-			else if (!old || old[0] !== t) {
-				const T = this.TRAPS[t];
-				ok = this.fits(t, g) && this.spent(e) + T.c <= this.BUDGET;
-				if (ok) e.trp.push(flip ? [t, gi, this.flipDir(g)] : [t, gi]);
-				else if (old) e.trp.splice(i, 0, old);
+			if (i >= 0 && this.TRAPS[e.trp[i][0]].k === "warp") {
+				/* either end of a warp takes both away; another trap then goes there */
+				const pj = this.warpPair(e.trp, i);
+				e.trp = e.trp.filter((q, j) => j !== i && j !== pj);
+				if (!warp) ok = add();
+			} else {
+				const old = i >= 0 ? e.trp.splice(i, 1)[0] : null;
+				if (old && old[0] === t && flip && old[2] === this.flipDir(g)) e.trp.splice(i, 0, [t, gi, -old[2]]);
+				else if (!old || old[0] !== t) {
+					ok = add();
+					if (!ok && old) e.trp.splice(i, 0, old);
+				}
 			}
 			e.f.tr = { r: e.rr, l: e.trp.map((q) => q.slice()) };
 			return ok;
@@ -4514,6 +4588,20 @@ Object.assign(MG, {
 						);
 					if (!g.length) break;
 					left -= this.TRAPS[t].c;
+					if (this.TRAPS[t].k === "warp") {
+						/* in high up, out just over a 50 */
+						const hi = g.filter((i) => G0[i].row >= 3),
+							sx = this.slotX(Math.random() < 0.5 ? 2 : 4),
+							lo = G0.map((q, i) => i)
+								.filter((i) => G0[i].row <= 2 && this.fits(t, G0[i]) && !e.bq.some((q) => q[1] === i))
+								.sort((a, b) => Math.abs(G0[a].x - sx) - Math.abs(G0[b].x - sx));
+						if (!hi.length || !lo.length) {
+							left += this.TRAPS[t].c;
+							continue;
+						}
+						e.bq.push([t, hi[Math.floor(Math.random() * hi.length)]], [t, lo[0]]);
+						continue;
+					}
 					e.bq.push([t, g[Math.floor(Math.random() * g.length)]]);
 				}
 				e.bnext = W.t + 1.5 + Math.random() * 2;
@@ -4547,7 +4635,8 @@ Object.assign(MG, {
 			e.tgl = [];
 			e.trig = {};
 			e.tgSeen = {};
-			e.stunT = -9;
+			e.sl = e.slGot = 0;
+			e.f.sl = { r, n: 0 };
 			e.gravT = -99;
 			e.gUp = false;
 			e.f.tr = { r, l: [] };
@@ -4560,12 +4649,12 @@ Object.assign(MG, {
 			this.aim(W, e, 0);
 		},
 		/* the truck drives the claw along the gantry: ◀ ▶ (e.tl), or on the TV the controller's slide (inp.ax while ay is
-		   set: the claw goes to the finger); it faces the way it goes; none of it while jammed */
+		   set: the claw goes to the finger); it faces the way it goes */
 		aim(W, e, dt) {
 			const lim = this.HW - 1.2,
 				i = e === W.me && W.split ? W.inp : null;
 			let v = 0;
-			if (dt > 0 && !(W.t < e.stunT)) {
+			if (dt > 0) {
 				if (i && i.ay > 0.5) v = Math.max(-1.6, Math.min(1.6, ((i.ax || 0) * lim - e.ax) * 0.8)) * this.CLAWV;
 				else v = -(e.tl || 0) * this.CLAWV;
 			}
@@ -4606,7 +4695,8 @@ Object.assign(MG, {
 				w = new pl.World({ gravity: V(0, -this.GRAV) }),
 				g = w.createBody(),
 				{ HW, SW, SH, FLOOR, DW, PR } = this,
-				fx = (sh, r, f, u) => g.createFixture({ shape: sh, restitution: r, friction: f, userData: u || null });
+				fx = (sh, r, f, u, c) =>
+					g.createFixture({ shape: sh, restitution: r, friction: f, userData: u || null, filterCategoryBits: c || 1 });
 			fx(pl.Edge(V(-HW - 1, FLOOR), V(HW + 1, FLOOR)), 0, 0.7);
 			[-1, 1].forEach((sd) => fx(pl.Edge(V(sd * HW, 0), V(sd * HW, this.CEIL + 1)), 0.23, 0.2));
 			fx(pl.Edge(V(-HW, this.CEIL), V(HW, this.CEIL)), 0.23, 0.2);
@@ -4619,12 +4709,15 @@ Object.assign(MG, {
 			e.traps.forEach(([t, gi]) => {
 				if (this.TRAPS[t].k === "flip") under[G0[gi].pi] = 1;
 			});
-			e.pegFx = L.pegs.map(([x, y], i) => (under[i] ? null : fx(pl.Circle(V(x, y), PR), this.PEGR, 0.4, { peg: i })));
-			L.bumps.forEach((q, i) => fx(pl.Circle(V(q.x, q.y), this.BR), 0.69, 0.2, { bump: i }));
+			/* pegs, bumpers, flippers and trap walls in category 2, which a lead ball falls through */
+			e.pegFx = L.pegs.map(([x, y], i) =>
+				under[i] ? null : fx(pl.Circle(V(x, y), PR), this.PEGR, 0.4, { peg: i }, 2),
+			);
+			L.bumps.forEach((q, i) => fx(pl.Circle(V(q.x, q.y), this.BR), 0.69, 0.2, { bump: i }, 2));
 			const FT = this.flipTimes(W, e.k);
 			e.flb = L.flips.map((f, i) => {
 				const b = w.createBody({ type: "kinematic", position: V(f.x, f.y), angle: this.flipA(f, W.t - FT[i]) }),
-					o = { restitution: 0.35, friction: 0.3, userData: { flip: i } };
+					o = { restitution: 0.35, friction: 0.3, userData: { flip: i }, filterCategoryBits: 2 };
 				b.createFixture(pl.Box(this.FL / 2, 0.16, V(this.FL / 2, 0), 0), o);
 				b.createFixture(pl.Circle(V(0, 0), 0.32), o);
 				b.createFixture(pl.Circle(V(this.FL, 0), 0.16), o);
@@ -4641,11 +4734,11 @@ Object.assign(MG, {
 			e.traps.forEach(([t, gi, d], idx) => {
 				const q = G0[gi],
 					k = this.TRAPS[t].k;
-				if (k === "wall") fx(pl.Box(q.cl / 2 - 0.02, 0.16, V(q.x, q.y), q.ang), 0.35, 0.3, { trap: idx });
+				if (k === "wall") fx(pl.Box(q.cl / 2 - 0.02, 0.16, V(q.x, q.y), q.ang), 0.35, 0.3, { trap: idx }, 2);
 				else if (k === "flip") {
 					const f = this.trapFlip(q, d),
 						b = w.createBody({ type: "kinematic", position: V(q.x, q.y), angle: this.flipA(f, 99) }),
-						o = { restitution: 0.35, friction: 0.3, userData: { trap: idx } };
+						o = { restitution: 0.35, friction: 0.3, userData: { trap: idx }, filterCategoryBits: 2 };
 					b.createFixture(pl.Box(this.FL / 2, 0.16, V(this.FL / 2, 0), 0), o);
 					b.createFixture(pl.Circle(V(0, 0), 0.32), o);
 					b.createFixture(pl.Circle(V(this.FL, 0), 0.16), o);
@@ -4680,10 +4773,20 @@ Object.assign(MG, {
 				V = window.planck.Vec2,
 				p = b.getPosition(),
 				at = [this.wx(e, p.x), this.wy(p.y + 1.6), 0];
+			const ex = T.k === "warp" ? this.gaps(W)[(e.traps[this.warpPair(e.traps, idx)] || [])[1]] : null;
 			if (T.k === "fake") {
 				if (q.hx[idx]) return;
 				q.hx[idx] = 1;
 				q.hv++;
+			} else if (T.k === "thief") {
+				if (q.th !== undefined) return;
+				q.th = this.sabOf(W, e.k, e.rr);
+			} else if (T.k === "lead") {
+				if (q.lead) return;
+				q.lead = 1;
+			} else if (T.k === "warp") {
+				if (!ex || e.traps[idx][2] === 1 || (q.wp || 0) >= this.WARPS) return;
+				q.wp = (q.wp || 0) + 1;
 			} else if (T.k === "flip") {
 				/* a flipper trap fires every time a ball lands on it (it only counts as hit the first time) */
 				const TF = this.trapFT(W, e.k);
@@ -4701,11 +4804,32 @@ Object.assign(MG, {
 				if (e.isMe) sfx("loss");
 			}
 			if (T.k === "fake") fb(W, e, "FAKE! ×½", { tone: "bad", at });
-			else if (T.k === "stun") {
-				/* the claw jams for 3 s: no moving or dropping */
-				e.stunT = W.t + 3;
-				fb(W, e, "JAMMED!", { tone: "bad", at });
-				fb(W, e, "⚡", { tone: "bad" });
+			else if (T.k === "thief") fb(W, e, "STOLEN!", { tone: "bad", at });
+			else if (T.k === "lead") {
+				/* heavy: no more pegs, bumpers, flippers or walls, straight down */
+				const fl = b.getFixtureList();
+				if (fl) {
+					fl.setFilterData({ groupIndex: 0, categoryBits: 1, maskBits: 0xffff & ~2 });
+					fl.setRestitution(0.05);
+				}
+				b.setGravityScale(1.5);
+				b.setLinearVelocity(V(0, Math.min(b.getLinearVelocity().y, -3)));
+				fb(W, e, "LEAD!", { tone: "bad", at });
+			} else if (T.k === "warp") {
+				/* out of the other end, falling */
+				b.setTransform(V(ex.x, ex.y - 0.2 - this.R), b.getAngle());
+				b.setLinearVelocity(V(0, -2));
+				q.wj = true;
+				fb(W, e, "WARP!", { tone: "bad", at });
+				if (W.split || e.isMe)
+					burst(W.sc, this.wx(e, ex.x), this.wy(ex.y), 1.4, {
+						n: 14,
+						shape: "ico",
+						cols: ["#12A9C4", "#7FE7F7", "#FFFFFF"],
+						spd: 3,
+						up: 1,
+						life: 0.5,
+					});
 			} else if (T.k === "grav") {
 				e.gravT = W.t;
 				fb(W, e, "GRAVITY!", { tone: "bad", at });
@@ -4743,6 +4867,22 @@ Object.assign(MG, {
 				mgLog(W, `${mgName(e)} scores ${this.TRAPPTS} for a trap`);
 				if (e.isMe) sfx("coin");
 			});
+			const sn = this.stolenOn(W, vk, S.r);
+			if (sn > e.slGot) {
+				const d = sn - e.slGot;
+				e.slGot = sn;
+				e.sc += d;
+				fb(W, e, `+${d} stolen!`, { tone: "good" });
+				mgLog(W, `${mgName(e)} gets ${d} stolen points`);
+				if (e.isMe) sfx("coin");
+			}
+		},
+		/* the points k's balls lost to the Thief this round */
+		stolenOn(W, k, rd) {
+			const e = W.ents[k];
+			if (!e) return 0;
+			if (e.local) return e.rr === rd ? e.sl || 0 : 0;
+			return e.f && e.f.sl && e.f.sl.r === rd ? e.f.sl.n : 0;
 		},
 		rules(W, e, dt) {
 			if (e.d) return;
@@ -4780,7 +4920,7 @@ Object.assign(MG, {
 			}
 			if (e.st === 0) e.st = 1;
 			const open = W.t < S.D + this.DROPT;
-			if (e.cl > 0 && W.t >= e.loadT && !(W.t < e.stunT)) {
+			if (e.cl > 0 && W.t >= e.loadT) {
 				if (open && e.dropQ !== undefined && W.t - e.dropQ < 0.25) this.drop(W, e, false);
 				else if (!open) this.drop(W, e, true);
 			}
@@ -4899,16 +5039,25 @@ Object.assign(MG, {
 			});
 			/* traps on its way: lines it crosses (stun, gravity, fake x2), a mine it comes close to */
 			const G0 = this.gaps(W);
-			e.traps.forEach(([t, gi], idx) => {
+			e.traps.forEach(([t, gi, d], idx) => {
 				const k = this.TRAPS[t].k,
 					g = G0[gi];
+				if (q.wj) return;
 				if (k === "bomb") {
 					if (!e.trig[idx] && Math.hypot(p.x - g.x, p.y - g.y) < this.R + this.PR + 0.45) this.trigger(W, e, q, idx);
-				} else if (k !== "wall" && k !== "flip" && this.crosses(g, q.px0 ?? p.x, q.py0, p.x, p.y))
+				} else if (
+					k !== "wall" &&
+					k !== "flip" &&
+					!(k === "warp" && d === 1) &&
+					this.crosses(g, q.px0 ?? p.x, q.py0, p.x, p.y)
+				)
 					this.trigger(W, e, q, idx);
 			});
-			q.px0 = p.x;
-			q.py0 = p.y;
+			/* after a warp: carry on from its way out */
+			const p2 = b.getPosition();
+			q.wj = false;
+			q.px0 = p2.x;
+			q.py0 = p2.y;
 		},
 		flipHit(W, e, i) {
 			const FT = this.flipTimes(W, e.k);
@@ -4991,7 +5140,17 @@ Object.assign(MG, {
 			e.vz = 0;
 			e.f.st = e.st;
 			e.f.cl = e.cl;
-			e.f.bb = e.balls.map((q) => (q.done ? 1 : [r(q.b.getPosition().x), r(q.b.getPosition().y)]));
+			e.f.bb = e.balls.map((q) => {
+				if (q.done) return 1;
+				const a = [r(q.b.getPosition().x), r(q.b.getPosition().y)],
+					lk = this.look(q);
+				if (lk) a.push(lk);
+				return a;
+			});
+		},
+		/* a ball's look: 0 its own colour, 1 stolen (the thief's colour), 2 lead */
+		look(q) {
+			return q.lead ? 2 : q.th !== undefined ? 1 : 0;
 		},
 		/* a ball lands: the slot's value, x3 under the sign, x2 per gate it went through, x½ per fake it went through */
 		score(W, e, q) {
@@ -5001,8 +5160,17 @@ Object.assign(MG, {
 				m = 2 ** q.gx.length * 0.5 ** q.hv,
 				v = Math.round(this.VAL[k] * (x3 ? 3 : 1) * m);
 			this.land(e, q);
-			e.sc += v;
 			e.f.ls = [e.f.ls[0] + 1, k, x3 ? 1 : 0];
+			if (q.th !== undefined) {
+				/* a stolen ball scores for the saboteur (sabTick picks it up from e.f.sl) */
+				e.sl += v;
+				e.f.sl = { r: e.rr, n: e.sl };
+				fb(W, e, `−${v} stolen`, { tone: "bad", at: [this.wx(e, p.x), this.wy(p.y + 1.6), 0] });
+				mgLog(W, `${mgName(e)} round ${e.rr + 1}: ${v} stolen by ${mgName(W.ents[q.th])}`);
+				if (e.isMe) sfx("loss");
+				return;
+			}
+			e.sc += v;
 			fb(W, e, `+${v}`, {
 				tone: v >= 300 ? "good" : v <= 50 ? "bad" : "",
 				at: [this.wx(e, p.x), this.wy(p.y + 1.6), 0],
@@ -5257,18 +5425,17 @@ Object.assign(MG, {
 				hub.add(held);
 				held.position.y = this.TOPY - hy;
 				W.bg[e.i].add(hang);
-				r = e.rig = { hang, hub, held, fingers, top, hy, balls: [], mk, sw: 0, px: e.x };
+				r = e.rig = { hang, hub, held, fingers, top, hy, balls: [], mk, sw: 0, px: e.x, bm };
 			}
 			const vx = dt > 0 ? (e.x - r.px) / dt : 0,
 				cx = (e.x - e.ox) / this.K,
 				cl = e.local ? e.cl : (f.cl ?? this.NB),
 				rel = W.t - (e.relTr ?? -9),
-				tl = (e.relTr ?? -9) + (e.local ? e.loadT - e.relT : this.LOADT),
-				jam = e.local && W.t < e.stunT;
+				tl = (e.relTr ?? -9) + (e.local ? e.loadT - e.relT : this.LOADT);
 			r.px = e.x;
 			r.sw += (Math.max(-0.35, Math.min(0.35, -vx * 0.06)) - r.sw) * Math.min(1, dt * 5);
 			r.hang.position.set(cx, r.top, 0);
-			r.hang.rotation.z = r.sw + (jam ? Math.sin(W.t * 40) * 0.04 : 0);
+			r.hang.rotation.z = r.sw;
 			r.hang.visible = !e.gone;
 			/* the fingers open as the ball goes, and close again */
 			const op = rel >= 0 && rel < 0.45 ? Math.sin((rel / 0.45) * Math.PI) * 0.55 : 0;
@@ -5289,6 +5456,23 @@ Object.assign(MG, {
 					m.visible = false;
 					return;
 				}
+				/* stolen balls in the thief's colour, lead ones dark metal */
+				const lk = e.local ? this.look(q) : q[2] || 0,
+					sab = lk === 1 && W.ents[this.sabOf(W, e.k, this.sched(W).r)],
+					tc = sab ? pcol(sab.p) : "#E0A800",
+					TM = (W.sbThM = W.sbThM || {});
+				m.children[0].material =
+					lk === 2
+						? W.sbLeadM ||
+							(W.sbLeadM = new THREE.MeshStandardMaterial({
+								color: "#4A515C",
+								metalness: 0.5,
+								roughness: 0.3,
+								flatShading: true,
+							}))
+						: lk === 1
+							? TM[tc] || (TM[tc] = new THREE.MeshStandardMaterial({ color: tc, roughness: 0.45, flatShading: true }))
+							: r.bm;
 				let x, y;
 				if (e.local) {
 					const p = q.b.getPosition();
@@ -5383,10 +5567,10 @@ Object.assign(MG, {
 				ph = S.plan && !S.over ? "plan" : "play";
 			if (root.getAttribute("data-ph") !== ph) root.setAttribute("data-ph", ph);
 			if (ph !== "plan") {
-				/* DROP: the balls left, dimmed while the claw reloads, is jammed or before the drop */
+				/* DROP: the balls left, dimmed while the claw reloads or before the drop */
 				const n = root.querySelector(".sbn"),
 					b = root.querySelector(".sbh"),
-					off = !e.cl || S.D === null || W.t < S.D || W.t < e.loadT || W.t < e.stunT;
+					off = !e.cl || S.D === null || W.t < S.D || W.t < e.loadT;
 				if (n && n.textContent !== String(e.cl)) n.textContent = String(e.cl);
 				if (b && b.classList.contains("off") !== off) b.classList.toggle("off", off);
 				return;
@@ -5398,7 +5582,8 @@ Object.assign(MG, {
 				done = e.pd[S.r] !== undefined,
 				no = W.sbNo !== undefined && W.t - W.sbNo < 0.6,
 				used = e.trp.length > 0 || !!root.dataset.used,
-				sig = JSON.stringify([vk, left, secs, e.sel, done, no, used]);
+				wo = this.warpOpen(e.trp),
+				sig = JSON.stringify([vk, left, secs, e.sel, done, no, used, wo]);
 			if (root.sbSig === sig) return;
 			root.sbSig = sig;
 			const set = (sel, txt, cls) => {
@@ -5416,17 +5601,25 @@ Object.assign(MG, {
 			set(".sbtime", `${secs} s`, secs <= 10 ? "sbtime low" : "sbtime");
 			set(".sbdone", done ? "READY ✓" : "READY", done ? "sbdone on" : "sbdone");
 			root.querySelectorAll(".sbt").forEach((b, i) => {
-				const c = (i === e.sel ? "on" : "") + (this.TRAPS[i].c > left ? " off" : "");
+				const T = this.TRAPS[i],
+					out = T.k === "warp" && wo,
+					c = (i === e.sel ? "on" : "") + (!out && T.c > left ? " off" : "") + (out ? " out" : "");
+				if (T.k === "warp") {
+					const nb = b.querySelector("b"),
+						ne = b.querySelector("em");
+					if (nb && nb.textContent !== (out ? "Exit" : T.n)) nb.textContent = out ? "Exit" : T.n;
+					if (ne && ne.textContent !== (out ? "free" : String(T.c))) ne.textContent = out ? "free" : String(T.c);
+				}
 				if ((b.getAttribute("class") || "") !== ("sbt " + c).trim()) b.setAttribute("class", ("sbt " + c).trim());
 			});
 		},
-		/* a trap's icon: a round badge in its colour */
-		iconTex(W, t) {
-			const T = this.TRAPS[t];
+		/* a trap's icon: a round badge in its colour with its SVG icon (drawn in once the image loads); out = a warp's way out */
+		iconTex(W, t, out) {
+			const T = this.TRAPS[t],
+				id = t + (out ? "o" : "");
 			W.trapTex = W.trapTex || {};
-			return (
-				W.trapTex[t] ||
-				(W.trapTex[t] = canvasTex(128, 128, (x, w, h) => {
+			if (W.trapTex[id]) return W.trapTex[id];
+			const tex = (W.trapTex[id] = canvasTex(128, 128, (x, w, h) => {
 					x.fillStyle = "#151B24";
 					x.beginPath();
 					x.arc(w / 2, h / 2, w / 2 - 4, 0, Math.PI * 2);
@@ -5435,13 +5628,15 @@ Object.assign(MG, {
 					x.beginPath();
 					x.arc(w / 2, h / 2, w / 2 - 14, 0, Math.PI * 2);
 					x.fill();
-					x.font = "900 64px Arial, sans-serif";
-					x.textAlign = "center";
-					x.textBaseline = "middle";
-					x.fillStyle = "#FFFFFF";
-					x.fillText(T.ic, w / 2, h / 2 + 4);
-				}))
-			);
+				})),
+				img = new Image();
+			img.onload = () => {
+				const c = tex.image.getContext("2d");
+				c.drawImage(img, 26, 26, 76, 76);
+				tex.needsUpdate = true;
+			};
+			img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(this.svg(out ? "out" : T.k));
+			return tex;
 		},
 		/* while planning, on the phone sabotaging this board: faint dashed frames in its gaps, and your cursor (a frame in
 		   your colour with the selected trap's icon) while your finger is down */
@@ -5760,7 +5955,12 @@ Object.assign(MG, {
 			} else {
 				const st = new THREE.Mesh(
 					new THREE.BoxGeometry(L - 0.05, 0.21, 2.4),
-					new THREE.MeshBasicMaterial({ color: T.col, transparent: true, opacity: 0.7, depthWrite: false }),
+					new THREE.MeshBasicMaterial({
+						color: T.col,
+						transparent: true,
+						opacity: T.k === "warp" && d === 1 ? 0.4 : 0.7,
+						depthWrite: false,
+					}),
 				);
 				st.position.z = -0.3;
 				body.add(st);
@@ -5769,7 +5969,11 @@ Object.assign(MG, {
 			m.add(body);
 			/* its icon in a pill over it */
 			const ic = new THREE.Sprite(
-				new THREE.SpriteMaterial({ map: this.iconTex(W, t), depthTest: false, transparent: true }),
+				new THREE.SpriteMaterial({
+					map: this.iconTex(W, t, T.k === "warp" && d === 1),
+					depthTest: false,
+					transparent: true,
+				}),
 			);
 			ic.scale.setScalar(1.8);
 			ic.position.set(0, 1.25, 1.4);
@@ -5949,7 +6153,7 @@ Object.assign(MG, {
 				tv.items.forEach((it, idx) => {
 					const T = this.TRAPS[L[idx][0]],
 						id = L[idx].join("."),
-						hit = hits.includes(idx),
+						hit = hits.includes(idx) || (T.k === "warp" && L[idx][2] === 1 && hits.includes(this.warpPair(L, idx))),
 						full = reveal || see || hit,
 						u = it.m.userData,
 						on = full || (T.k === "fake" && W.t >= 0 && !S.plan);
@@ -6088,7 +6292,8 @@ Object.assign(MG, {
 				W.L.gates.forEach((g, i) => off["g" + i] || (v += 160 * Math.max(0, 1 - Math.abs(g.x - x) / this.SW)));
 				W.L.splits.forEach((g, i) => off["s" + i] || (v += 220 * Math.max(0, 1 - Math.abs(g.x - x) / this.SW)));
 				found.forEach(([k, g]) => {
-					if (g) v -= (k === "fake" ? 260 : 140) * Math.max(0, 1 - Math.abs(g.x - x) / (this.SW * 1.2));
+					if (g)
+						v -= (k === "fake" || k === "thief" ? 260 : 140) * Math.max(0, 1 - Math.abs(g.x - x) / (this.SW * 1.2));
 				});
 				best.push([v + (Math.random() - 0.5) * err * 60, x]);
 			}
