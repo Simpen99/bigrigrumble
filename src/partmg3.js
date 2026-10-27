@@ -5143,13 +5143,13 @@ Object.assign(MG, {
 			e.f.bb = e.balls.map((q) => {
 				if (q.done) return 1;
 				const a = [r(q.b.getPosition().x), r(q.b.getPosition().y)],
-					lk = this.look(q);
+					lk = this.ballLook(q);
 				if (lk) a.push(lk);
 				return a;
 			});
 		},
 		/* a ball's look: 0 its own colour, 1 stolen (the thief's colour), 2 lead */
-		look(q) {
+		ballLook(q) {
 			return q.lead ? 2 : q.th !== undefined ? 1 : 0;
 		},
 		/* a ball lands: the slot's value, x3 under the sign, x2 per gate it went through, x½ per fake it went through */
@@ -5457,7 +5457,7 @@ Object.assign(MG, {
 					return;
 				}
 				/* stolen balls in the thief's colour, lead ones dark metal */
-				const lk = e.local ? this.look(q) : q[2] || 0,
+				const lk = e.local ? this.ballLook(q) : q[2] || 0,
 					sab = lk === 1 && W.ents[this.sabOf(W, e.k, this.sched(W).r)],
 					tc = sab ? pcol(sab.p) : "#E0A800",
 					TM = (W.sbThM = W.sbThM || {});
@@ -5721,10 +5721,14 @@ Object.assign(MG, {
 			let m = W.smk[k];
 			if (!m) {
 				if (!on) return;
+				/* puffs and fog are opaque black / white masks used as alphaMap, the tint in the material colour: a see-through
+				   canvas gets its faint pixels un-premultiplied into wrong colours on phones (specks, as the lava haze did) */
 				W.puffTex =
 					W.puffTex ||
 					[0, 1].map((v) =>
 						canvasTex(128, 128, (x, w, h) => {
+							x.fillStyle = "#000";
+							x.fillRect(0, 0, w, h);
 							for (let i = 0; i < 9; i++) {
 								const a = (i / 9) * Math.PI * 2 + v,
 									r = i ? 18 + ((i * 7 + v * 5) % 11) : 0,
@@ -5744,6 +5748,8 @@ Object.assign(MG, {
 				W.fogTex =
 					W.fogTex ||
 					canvasTex(128, 256, (x, w, h) => {
+						x.fillStyle = "#000";
+						x.fillRect(0, 0, w, h);
 						x.fillStyle = "#FFFFFF";
 						x.globalAlpha = 0.16;
 						for (let i = 0; i < 12; i++) {
@@ -5756,7 +5762,7 @@ Object.assign(MG, {
 					fog = new THREE.Mesh(
 						new THREE.PlaneGeometry(2 * this.HW + 1, this.TOPY + 3.4),
 						new THREE.MeshBasicMaterial({
-							map: W.fogTex,
+							alphaMap: W.fogTex,
 							color: "#8F96B2",
 							transparent: true,
 							opacity: 0,
@@ -5770,7 +5776,7 @@ Object.assign(MG, {
 					const c = i % 5,
 						r = Math.floor(i / 5),
 						mt = new THREE.SpriteMaterial({
-							map: W.puffTex[i % 2],
+							alphaMap: W.puffTex[i % 2],
 							color: i % 3 ? "#C7CBDD" : "#9FA6C2",
 							transparent: true,
 							depthWrite: false,
