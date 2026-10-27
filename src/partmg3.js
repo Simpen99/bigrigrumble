@@ -2333,15 +2333,16 @@ Object.assign(MG, {
 					});
 				st.position.set(q.x, q.y, -0.3);
 				st.renderOrder = 1;
-				[1.35, -1.6].forEach((z, j) => {
+				const hs = [1.35, -1.6].map((z, j) => {
 					const h = new THREE.Mesh(new THREE.PlaneGeometry(q.w + (j ? 1.6 : 0.8), j ? 1.54 : 0.91), hm);
 					h.position.set(q.x, q.y, z);
 					h.renderOrder = 4;
 					s.add(h);
+					return h;
 				});
 				lb.position.set(q.x, q.y - 0.95, -1.64);
 				s.add(st, lb);
-				return { m, hm, fl: -9, col };
+				return { m, hm, fl: -9, col, st, lb, hs };
 			};
 			const spl =
 				W.splTex ||
@@ -2385,15 +2386,16 @@ Object.assign(MG, {
 					});
 				st.position.set(q.x, q.y, -0.3);
 				st.renderOrder = 1;
-				[1.35, -1.6].forEach((z, j) => {
+				const hs = [1.35, -1.6].map((z, j) => {
 					const h = new THREE.Mesh(new THREE.PlaneGeometry(q.w + (j ? 1.6 : 0.8), j ? 1.54 : 0.91), hm);
 					h.position.set(q.x, q.y, z);
 					h.renderOrder = 4;
 					s.add(h);
+					return h;
 				});
 				lb.position.set(q.x, q.y - 0.95, -1.64);
 				s.add(st, lb);
-				return { m, hm, fl: -9 };
+				return { m, hm, fl: -9, st, lb, hs };
 			});
 			const bumpG = L.bumps.map((q) => {
 				const g = new THREE.Group(),
@@ -3530,7 +3532,7 @@ Object.assign(MG, {
 			["slide", "Move the claw"],
 			["DROP", "Drop a ball", "5 a round"],
 		],
-		how: "Every round: hide traps on a rival's board (wall off their way to the ×2 and SPLIT gates, plant a fake ×2, mine their pegs), then drop your 5 balls from the claw. Traps stay hidden until hit, so aim round the ones you find; every ball scores its slot, plus points for every trap your rival hits!",
+		how: "Every round: hide traps on a rival's board (wall off their way to the ×2 and SPLIT gates, plant a fake ×2, mine their pegs and gates), then drop your 5 balls from the claw. Each gate works for the first ball through only. Traps stay hidden until hit, so aim round the ones you find; every ball scores its slot, plus points for every trap your rival hits!",
 		tvHint:
 			"Planning: your phone shows your rival's board: pick a trap, tap a gap. Dropping: slide on the left to move the claw, DROP on the right.",
 		tapHint:
@@ -3815,6 +3817,25 @@ Object.assign(MG, {
 			const a = e.local ? { r: e.rr, l: e.tgl || [] } : e.f && e.f.tg;
 			return a && a.r === rd ? a.l || [] : [];
 		},
+		/* the x2 / split gates on k's board that are out this round: {g0 / s0 ...: 1 used (each works for the first ball
+		   through), 2 blown up by a mine that went off within MR of it} */
+		gatesOff(W, k, rd) {
+			const e = W.ents[k],
+				out = {};
+			if (!e) return out;
+			const a = e.local ? { r: e.rr, l: e.gu || [] } : e.f && e.f.gu;
+			if (a && a.r === rd) (a.l || []).forEach((id) => (out[id] = 1));
+			const L = this.trapsOn(W, k, rd),
+				G0 = this.gaps(W),
+				near = (q, g) => Math.hypot(Math.max(0, Math.abs(q.x - g.x) - q.w / 2), q.y - g.y) <= this.MR;
+			this.hitsOn(W, k, rd).forEach((idx) => {
+				const g = L[idx] && this.TRAPS[L[idx][0]].k === "bomb" && G0[L[idx][1]];
+				if (!g) return;
+				W.L.gates.forEach((q, i) => near(q, g) && (out["g" + i] = 2));
+				W.L.splits.forEach((q, i) => near(q, g) && (out["s" + i] = 2));
+			});
+			return out;
+		},
 		/* the round schedule, the same on every device: planning from P until PE (when everyone pressed DONE, or after PLANT
 		   s), the drop at D = PE + AIMT, the end E from the landing times (as in Plinko). plan / over flags */
 		planEnd(W, rd, P) {
@@ -4017,6 +4038,7 @@ Object.assign(MG, {
 				bp: [0, 0],
 				tx: [0, 0],
 				sg: [0, 0],
+				gu: { r: 0, l: [] },
 			};
 			loadPlanck();
 		},
@@ -4530,6 +4552,8 @@ Object.assign(MG, {
 			e.gUp = false;
 			e.f.tr = { r, l: [] };
 			e.f.tg = { r, l: [] };
+			e.gu = [];
+			e.f.gu = { r, l: [] };
 			e.cu = this.nearGap(W, 0, this.Y0 + 3 * this.RY, false, e.sel);
 			e.cuH = 0;
 			if (e.isMe) W.sbIn = W.sbY = null;
@@ -4843,8 +4867,14 @@ Object.assign(MG, {
 				}
 			}
 			const crossed = (g) => q.py0 >= g.y && p.y < g.y && Math.abs(p.x - g.x) <= g.w / 2 - this.PR;
+			const off = this.gatesOff(W, e.k, e.rr),
+				use = (id) => {
+					e.gu.push(id);
+					e.f.gu = { r: e.rr, l: e.gu.slice() };
+				};
 			L.gates.forEach((g, i) => {
-				if (q.gx.includes(i) || !crossed(g)) return;
+				if (off["g" + i] || q.gx.includes(i) || !crossed(g)) return;
+				use("g" + i);
 				q.gx.push(i);
 				e.f.gt = [e.f.gt[0] + 1, i];
 				fb(W, e, q.gx.length > 1 ? "×4!" : "×2!", { tone: "good", at: [this.wx(e, p.x), this.wy(p.y + 1.6), 0] });
@@ -4852,7 +4882,8 @@ Object.assign(MG, {
 				if (e.isMe) sfx("coin");
 			});
 			L.splits.forEach((g, i) => {
-				if (!q.main || q.spl || !crossed(g)) return;
+				if (off["s" + i] || !q.main || q.spl || !crossed(g)) return;
+				use("s" + i);
 				q.spl = true;
 				const v = b.getLinearVelocity(),
 					sx = Math.min(this.HW - this.R, p.x + 2.1 * this.R);
@@ -5961,11 +5992,19 @@ Object.assign(MG, {
 					b.g.scale.setScalar(1 + 0.18 * k);
 					b.rm.color.set(k > 0.3 ? "#FFFFFF" : "#FFE27A");
 				});
-				bx.gateM.concat(bx.splitM).forEach((g) => {
-					const k = W.t >= g.fl ? Math.max(0, 1 - (W.t - g.fl) / 0.6) : 0;
-					g.m.opacity = 0.5 + 0.12 * wv + k * 0.4;
-					g.hm.opacity = 0.5 + 0.15 * wv + k * 0.35;
-					g.m.color.set(k > 0.5 ? "#FFFFFF" : g.col || "#8CFFC0");
+				/* a used gate goes grey after its flash, one a mine blew up is gone */
+				const off = this.gatesOff(W, bx.k, S.r),
+					ids = W.L.gates.map((q, i) => "g" + i).concat(W.L.splits.map((q, i) => "s" + i));
+				bx.gateM.concat(bx.splitM).forEach((g, j) => {
+					const k = W.t >= g.fl ? Math.max(0, 1 - (W.t - g.fl) / 0.6) : 0,
+						o = off[ids[j]],
+						dim = o === 1 && k < 0.5;
+					g.st.visible = g.lb.visible = o !== 2;
+					g.hs.forEach((h) => (h.visible = o !== 2));
+					g.m.opacity = dim ? 0.2 : 0.5 + 0.12 * wv + k * 0.4;
+					g.hm.opacity = dim ? 0 : 0.5 + 0.15 * wv + k * 0.35;
+					g.lb.material.opacity = dim ? 0.3 : 1;
+					g.m.color.set(k > 0.5 ? "#FFFFFF" : dim ? "#9AA3AE" : g.col || "#8CFFC0");
 				});
 				const q = this.tntNow(W, bx.k),
 					g = bx.tntG;
@@ -6038,6 +6077,7 @@ Object.assign(MG, {
 				G0 = this.gaps(W),
 				found = (e.traps || []).filter((q, idx) => e.trig && e.trig[idx]).map(([t, gi]) => [this.TRAPS[t].k, G0[gi]]),
 				err = skv(e, 5, 2.5, 0.8),
+				off = this.gatesOff(W, e.k, e.rr),
 				best = [];
 			for (let x = -lim; x <= lim; x += 0.5) {
 				let v = 0;
@@ -6045,8 +6085,8 @@ Object.assign(MG, {
 					const d = (this.slotX(k) - x) / 4.5;
 					v += this.VAL[k] * (k === m ? 3 : 1) * Math.exp(-d * d);
 				}
-				W.L.gates.forEach((g) => (v += 160 * Math.max(0, 1 - Math.abs(g.x - x) / this.SW)));
-				W.L.splits.forEach((g) => (v += 220 * Math.max(0, 1 - Math.abs(g.x - x) / this.SW)));
+				W.L.gates.forEach((g, i) => off["g" + i] || (v += 160 * Math.max(0, 1 - Math.abs(g.x - x) / this.SW)));
+				W.L.splits.forEach((g, i) => off["s" + i] || (v += 220 * Math.max(0, 1 - Math.abs(g.x - x) / this.SW)));
 				found.forEach(([k, g]) => {
 					if (g) v -= (k === "fake" ? 260 : 140) * Math.max(0, 1 - Math.abs(g.x - x) / (this.SW * 1.2));
 				});
