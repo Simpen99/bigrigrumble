@@ -1173,7 +1173,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-28 02:14 a18355f";
+const BUILD = "2026-10-28 02:31 0df5815";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -45366,6 +45366,10 @@ Object.assign(MG, {
 		bound: { t: "sq", h: 15 },
 		water: false,
 		bare: true,
+		/* light panel: ambient 0.36, sun 0.74, height 38, angle 41°, warmth 0.50, haze 50, smooth edges */
+		sun: [13.9, 38, 12.1],
+		lt: { amb: 0.36, sun: 0.74, warm: 0.5, haze: 50 },
+		fx: { aa: 1 },
 		ramLabel: "DROP",
 		controls: [
 			["stick", "Drive"],
@@ -45524,17 +45528,41 @@ Object.assign(MG, {
 				}
 			W.covI = kits.map((kit, k) => byInst(s, kit, lists[k], 0.3));
 			W.kind = kind;
-			/* pools: bombs, flame puffs, pick-ups, drop warnings, scorch marks */
+			/* pools: bombs, flames (beams along the arms, rounded tips, glowing floor tiles), drop warnings, scorch marks */
 			W.bPool = [];
-			W.fire = new THREE.InstancedMesh(
-				new THREE.IcosahedronGeometry(0.5, 1),
+			const inst = (geo, mat, n) => {
+				const im = new THREE.InstancedMesh(geo, mat, n);
+				/* the colour buffer is sized by count when first made, so make it before count drops to 0 */
+				im.setColorAt(0, new THREE.Color("#fff"));
+				im.count = 0;
+				im.frustumCulled = false;
+				s.add(im);
+				return im;
+			};
+			W.beam = inst(
+				new THREE.CylinderGeometry(1, 1, 1, 12, 1, true),
 				new THREE.MeshBasicMaterial({ color: "#ffffff", toneMapped: false }),
-				700,
+				400,
 			);
-			W.fire.count = 0;
-			W.fire.frustumCulled = false;
-			W.fire.setColorAt(0, new THREE.Color("#fff"));
-			s.add(W.fire);
+			W.ball = inst(
+				new THREE.SphereGeometry(1, 14, 8),
+				new THREE.MeshBasicMaterial({ color: "#ffffff", toneMapped: false }),
+				400,
+			);
+			W.glow = inst(
+				new THREE.PlaneGeometry(T * 0.94, T * 0.94).rotateX(-Math.PI / 2),
+				new THREE.MeshBasicMaterial({
+					color: "#ffffff",
+					transparent: true,
+					depthWrite: false,
+					blending: THREE.AdditiveBlending,
+					polygonOffset: true,
+					polygonOffsetFactor: -4,
+					toneMapped: false,
+				}),
+				400,
+			);
+			W.glow.renderOrder = 2;
 			W.warn = [];
 			for (let i = 0; i < 6; i++) {
 				const m = new THREE.Mesh(
@@ -46245,47 +46273,96 @@ Object.assign(MG, {
 				v.spark.scale.setScalar(0.45 + Math.random() * 0.3);
 				v.ring.material.opacity = 0.45 + pulse * 0.3;
 			}
-			/* flames: puffs along each arm of the cross, swelling fast and shrinking away */
-			const F = W.fire,
-				o = W.fireO || (W.fireO = new THREE.Object3D()),
+			/* flames, bomber style: each arm a solid beam reaching exactly the tiles it burns, ending in a rounded tip, in three
+			   layers (orange outside, yellow core, white-hot middle line, each a little taller so the steep camera sees all three);
+			   every burning tile glows on the floor. The beams snap out, flicker, then thin away. */
+			const o = W.fireO || (W.fireO = new THREE.Object3D()),
 				col = W.fireC || (W.fireC = new THREE.Color()),
-				cols = ["#FFF3B0", "#FFD45A", "#FF9A2E", "#FF6A2A"];
-			let n = 0;
+				LAY = [
+					["#FF6A1F", 0.95, 0.42],
+					["#FFC83D", 0.58, 0.56],
+					["#FFF6D0", 0.26, 0.64],
+				];
+			let nb = 0,
+				ns = 0,
+				ng = 0;
 			W.flames = W.flames.filter((fl) => t - fl.t0 < BY.FLV);
 			for (const fl of W.flames) {
 				const u = (t - fl.t0) / BY.FLV,
-					k = u < 0.18 ? u / 0.18 : 1 - Math.pow((u - 0.18) / 0.82, 1.6),
-					cx = byX(fl.ci % BY.C),
-					cz = byZ(Math.floor(fl.ci / BY.C));
+					k =
+						(u < 0.1 ? Math.sin((u / 0.1) * 2) / Math.sin(2) : u < 0.55 ? 1 : 1 - Math.pow((u - 0.55) / 0.45, 1.4)) *
+						(1 + Math.sin(t * 40 + fl.ci) * 0.05),
+					c0 = fl.ci % BY.C,
+					r0 = Math.floor(fl.ci / BY.C),
+					cx = byX(c0),
+					cz = byZ(r0),
+					arm = [0, 0, 0, 0];
 				for (const q of fl.cells) {
-					const x = byX(q % BY.C),
-						z = byZ(Math.floor(q / BY.C)),
-						dx = Math.sign(x - cx),
-						dz = Math.sign(z - cz),
-						mid = q === fl.ci,
-						far = Math.max(Math.abs(x - cx), Math.abs(z - cz)) / BY.T,
-						tip = far >= fl.rg || W.G[q] !== 0 ? 0.75 : 1;
-					for (let j = 0; j < (mid ? 4 : 3) && n < 700; j++) {
-						const h = (q * 7 + j * 13 + fl.ci) % 17,
-							w = Math.sin(t * 18 + h) * 0.08,
-							sz = (mid ? 1.5 : 1.1) * tip * k * (0.75 + (h % 5) * 0.09) + w;
-						o.position.set(
-							x + (dx ? (j - 1) * 0.55 * dx : ((h % 3) - 1) * 0.18),
-							0.55 + (j % 2) * 0.35 + u * 0.6,
-							z + (dz ? (j - 1) * 0.55 * dz : ((h % 4) - 1.5) * 0.14),
-						);
-						o.rotation.set(h, h * 0.7, 0);
-						o.scale.set(sz * (dx ? 1.25 : 1), sz * 0.9, sz * (dz ? 1.25 : 1));
+					const dc = (q % BY.C) - c0,
+						dr = Math.floor(q / BY.C) - r0;
+					if (dc > 0) arm[0] = Math.max(arm[0], dc);
+					else if (dc < 0) arm[1] = Math.max(arm[1], -dc);
+					else if (dr > 0) arm[2] = Math.max(arm[2], dr);
+					else if (dr < 0) arm[3] = Math.max(arm[3], -dr);
+					if (ng < 400) {
+						o.position.set(byX(q % BY.C), 0.03, byZ(Math.floor(q / BY.C)));
+						o.rotation.set(0, 0, 0);
+						o.scale.setScalar(1);
 						o.updateMatrix();
-						F.setMatrixAt(n, o.matrix);
-						F.setColorAt(n, col.set(cols[Math.min(3, Math.floor(((j + h) % 4) * 0.7 + u * 2))]));
-						n++;
+						W.glow.setMatrixAt(ng, o.matrix);
+						W.glow.setColorAt(ng++, col.set("#FF7A1A").multiplyScalar(Math.max(0, k) * 0.8));
 					}
 				}
+				LAY.forEach(([c, hr, vr]) => {
+					const h = hr * k,
+						v = vr * Math.max(0, k);
+					col.set(c);
+					if (h <= 0.01) return;
+					[
+						[1, 0],
+						[-1, 0],
+						[0, 1],
+						[0, -1],
+					].forEach(([dx, dz], ai) => {
+						const L = arm[ai] * BY.T;
+						if (!L || nb >= 400 || ns >= 400) return;
+						o.position.set(cx + (dx * L) / 2, v, cz + (dz * L) / 2);
+						if (dx) {
+							o.rotation.set(0, 0, Math.PI / 2);
+							o.scale.set(v, L, h);
+						} else {
+							o.rotation.set(Math.PI / 2, 0, 0);
+							o.scale.set(h, L, v);
+						}
+						o.updateMatrix();
+						W.beam.setMatrixAt(nb, o.matrix);
+						W.beam.setColorAt(nb++, col);
+						o.position.set(cx + dx * L, v, cz + dz * L);
+						o.rotation.set(0, 0, 0);
+						o.scale.set(h, v, h);
+						o.updateMatrix();
+						W.ball.setMatrixAt(ns, o.matrix);
+						W.ball.setColorAt(ns++, col);
+					});
+					if (ns < 400) {
+						o.position.set(cx, v, cz);
+						o.rotation.set(0, 0, 0);
+						o.scale.set(h * 1.2, v * 1.15, h * 1.2);
+						o.updateMatrix();
+						W.ball.setMatrixAt(ns, o.matrix);
+						W.ball.setColorAt(ns++, col);
+					}
+				});
 			}
-			F.count = n;
-			F.instanceMatrix.needsUpdate = true;
-			if (F.instanceColor) F.instanceColor.needsUpdate = true;
+			[
+				[W.beam, nb],
+				[W.ball, ns],
+				[W.glow, ng],
+			].forEach(([im, n]) => {
+				im.count = n;
+				im.instanceMatrix.needsUpdate = true;
+				if (im.instanceColor) im.instanceColor.needsUpdate = true;
+			});
 			/* pick-ups: pop up once the flames are gone, bob and spin */
 			for (const ci in W.picks) {
 				const pk = W.picks[ci];
