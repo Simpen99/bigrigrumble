@@ -1124,7 +1124,7 @@ Object.assign(MG, {
 					rr = b.r + FD.TR * 0.85;
 				if (d >= rr || d < 0.001) return;
 				if (sp > FD.BRKT) {
-					W.claim(b.i + 1);
+					if (W.claim(b.i + 1)) e.c.push(b.i + 1);
 					e.vx *= 0.8;
 					e.vz *= 0.8;
 					return;
@@ -1364,7 +1364,7 @@ Object.assign(MG, {
 					rr = q.r + R;
 				if (d >= rr || d < 0.001) return;
 				if (hsp > FD.BRKV) {
-					W.claim(q.i + 1);
+					if (W.claim(q.i + 1)) e.c.push(q.i + 1);
 					b.vx *= 0.7;
 					b.vz *= 0.7;
 					return;
@@ -1540,6 +1540,7 @@ Object.assign(MG, {
 				const pk = W.picks[k];
 				if (W.claimed.has(pk.id) || Math.hypot(pk.x - e.x, pk.z - e.z) > 1.5) continue;
 				if (!W.claim(pk.id)) continue;
+				e.c.push(pk.id);
 				if (pk.k === "wrench") {
 					e.dent = Math.max(0, e.dent - 50);
 					fb(W, e, "−50%", { tone: "good" });

@@ -1178,7 +1178,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-28 08:18 7aac295";
+const BUILD = "2026-10-28 08:21 d247589";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -48903,7 +48903,7 @@ Object.assign(MG, {
 					rr = b.r + FD.TR * 0.85;
 				if (d >= rr || d < 0.001) return;
 				if (sp > FD.BRKT) {
-					W.claim(b.i + 1);
+					if (W.claim(b.i + 1)) e.c.push(b.i + 1);
 					e.vx *= 0.8;
 					e.vz *= 0.8;
 					return;
@@ -49143,7 +49143,7 @@ Object.assign(MG, {
 					rr = q.r + R;
 				if (d >= rr || d < 0.001) return;
 				if (hsp > FD.BRKV) {
-					W.claim(q.i + 1);
+					if (W.claim(q.i + 1)) e.c.push(q.i + 1);
 					b.vx *= 0.7;
 					b.vz *= 0.7;
 					return;
@@ -49319,6 +49319,7 @@ Object.assign(MG, {
 				const pk = W.picks[k];
 				if (W.claimed.has(pk.id) || Math.hypot(pk.x - e.x, pk.z - e.z) > 1.5) continue;
 				if (!W.claim(pk.id)) continue;
+				e.c.push(pk.id);
 				if (pk.k === "wrench") {
 					e.dent = Math.max(0, e.dent - 50);
 					fb(W, e, "−50%", { tone: "good" });
