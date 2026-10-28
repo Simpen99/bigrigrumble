@@ -1173,7 +1173,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-28 03:52 61bf3ff";
+const BUILD = "2026-10-28 04:01 7d8652a";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -45867,7 +45867,10 @@ Object.assign(MG, {
 			}
 			v.on = true;
 			v.g.visible = v.ring.visible = true;
+			/* pooled: a thrown bomb blown up mid-air left its tumble on the model */
 			v.g.position.set(b.x, 0, b.z);
+			v.g.rotation.set(0, 0, 0);
+			v.g.scale.setScalar(1);
 			v.ring.position.set(b.x, 0.03, b.z);
 			const o = W.ents[b.own];
 			v.ring.material.color.set(o ? pcol(o.p) : "#E5484D");

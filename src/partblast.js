@@ -904,7 +904,10 @@ Object.assign(MG, {
 			}
 			v.on = true;
 			v.g.visible = v.ring.visible = true;
+			/* pooled: a thrown bomb blown up mid-air left its tumble on the model */
 			v.g.position.set(b.x, 0, b.z);
+			v.g.rotation.set(0, 0, 0);
+			v.g.scale.setScalar(1);
 			v.ring.position.set(b.x, 0.03, b.z);
 			const o = W.ents[b.own];
 			v.ring.material.color.set(o ? pcol(o.p) : "#E5484D");
