@@ -1173,7 +1173,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-28 02:49 ae38a34";
+const BUILD = "2026-10-28 02:53 d9b3708";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -46412,7 +46412,8 @@ Object.assign(MG, {
 					),
 				);
 			L.forEach((b, i) => crosses[i].forEach((q) => (dz[q] = Math.min(dz[q], b.bt))));
-			for (const ci in W.flC) if (W.flC[ci].t1 > W.t) dz[ci] = Math.min(dz[ci], W.t - 1);
+			/* a cell burning now counts from when its blast went off, so it stays deadly until the flames die */
+			for (const ci in W.flC) if (W.flC[ci].t1 > W.t) dz[ci] = Math.min(dz[ci], W.flC[ci].t1 - BY.FLT);
 			return dz;
 		},
 		/* breadth-first search from e's cell over open cells that are not burning when e gets there */

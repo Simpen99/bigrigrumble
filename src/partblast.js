@@ -1449,7 +1449,8 @@ Object.assign(MG, {
 					),
 				);
 			L.forEach((b, i) => crosses[i].forEach((q) => (dz[q] = Math.min(dz[q], b.bt))));
-			for (const ci in W.flC) if (W.flC[ci].t1 > W.t) dz[ci] = Math.min(dz[ci], W.t - 1);
+			/* a cell burning now counts from when its blast went off, so it stays deadly until the flames die */
+			for (const ci in W.flC) if (W.flC[ci].t1 > W.t) dz[ci] = Math.min(dz[ci], W.flC[ci].t1 - BY.FLT);
 			return dz;
 		},
 		/* breadth-first search from e's cell over open cells that are not burning when e gets there */
