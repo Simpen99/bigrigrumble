@@ -2348,6 +2348,7 @@ Object.assign(MG, {
 		bfs(W, e, dz, from, avoid) {
 			const N = BY.C * BY.R,
 				C = BY.C,
+				imp = (e.ai && e.ai.imp) || 0,
 				dist = new Int16Array(N).fill(-1),
 				prev = new Int16Array(N).fill(-1),
 				q = [from],
@@ -2372,8 +2373,9 @@ Object.assign(MG, {
 					/* a truck is on a tile from halfway across the one before until halfway out of it */
 					const inT = W.t + (dist[p] + 0.5) * cellT - 0.1,
 						outT = W.t + (dist[p] + 1.5) * cellT + 0.15;
-					if (avoid && dz[n] < Infinity) continue;
-					if (outT > dz[n] - 0.15 && inT < dz[n] + BY.FLT + 0.2) continue;
+					/* an impatient CPU (imp s) plans through flames about to die and past bombs it thinks it can beat */
+					if (avoid && dz[n] < Infinity && !(imp && dz[n] + BY.FLT - imp * 1.5 < W.t)) continue;
+					if (outT > dz[n] - 0.15 + imp && inT < dz[n] + BY.FLT + 0.2 - imp * 1.5) continue;
 					dist[n] = dist[p] + 1;
 					prev[n] = p;
 					q.push(n);
@@ -2402,6 +2404,9 @@ Object.assign(MG, {
 				dz = W.dz || this.danger(W);
 			A.path = [];
 			A.drop = false;
+			/* human mistakes: now and then (often on Easy, seldom on Normal, never on Hard) this think is impatient, cutting
+			   the timing of flames and fuses short by imp s, so it may drive into a blast that isn't over yet */
+			A.imp = Math.random() < skv(e, 0.3, 0.1, 0) ? 0.15 + Math.random() * 0.3 : 0;
 			if (cur < 0) return;
 			if (dz[cur] < Infinity) {
 				/* in a blast's way: run to the nearest safe cell */
@@ -2522,7 +2527,8 @@ Object.assign(MG, {
 				/* don't step into a cell that is burning or about to */
 				const dz = W.dz,
 					cur = byCell(e.x, e.z);
-				if (dz && q !== cur && dz[q] < W.t + 0.3 && dz[q] + BY.FLT + 0.1 > W.t) break;
+				const imp = A.imp || 0;
+				if (dz && q !== cur && dz[q] < W.t + 0.3 - imp && dz[q] + BY.FLT + 0.1 - imp * 1.5 > W.t) break;
 				const dx = x - e.x,
 					dzz = z - e.z;
 				if (Math.abs(dx) > Math.abs(dzz)) out.x = Math.sign(dx);
