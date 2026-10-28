@@ -33,6 +33,7 @@ const FD = {
 	LOUT: 5 /* just after a whip */,
 	LCH: 1.6 /* the chain power-up adds this */,
 	CONE: 1.2 /* the ball swings at most this far (rad) off the boom's line */,
+	CONEV: 4 /* rad/s (round the tip) at most that it swings back in when it is out of that */,
 	REELV: 7 /* m/s the chain reels in or pays out */,
 	WHIP: 8 /* m/s kick along the swing when REEL is let go */,
 	WCD: 0.9 /* whip cooldown */,
@@ -996,30 +997,33 @@ Object.assign(MG, {
 				e.stR = Math.max(Math.min(r, 20), (e.stR || 0) * Math.exp(-5 * dt));
 			}
 			e.spd = pw === "heavy" ? 0.9 : 1;
+			if (e.st) e.dv = null;
 			if (e.st === 0) {
 				const ip =
 					inp && !e.d
 						? { x: inp.x * (e.bot ? e.botK || 1 : 1), y: inp.y * (e.bot ? e.botK || 1 : 1), boost: false }
 						: null;
 				if (inp) inp.boost = false;
-				/* the chain's pull (e.tg, added in fdBall) drags the truck but doesn't turn it: it faces the way it drives,
-				   so a yank backwards slides it instead of swinging it round 180 */
+				/* the truck faces the way the driver drives (e.dv: the stick's own push, eased like arenaPhys does the
+				   speed), never the way the chain or a hit shoves it, so a yank slides it instead of swinging it round */
 				const yaw0 = e.yaw;
 				arenaPhys(W, e, ip, dt);
 				{
-					const tg = e.tg || (e.tg = [0, 0]),
-						k = Math.exp(-2.6 * dt),
-						sp = Math.hypot(e.vx, e.vz);
-					tg[0] *= k;
-					tg[1] *= k;
-					const tl = Math.hypot(tg[0], tg[1]);
-					if (tl > sp) {
-						tg[0] *= sp / tl;
-						tg[1] *= sp / tl;
+					const dv = e.dv || (e.dv = [0, 0]),
+						k = Math.exp(-2.6 * dt);
+					if (ip) {
+						dv[0] += ip.x * 32 * e.spd * dt;
+						dv[1] += ip.y * 32 * e.spd * dt;
 					}
-					const dx = e.vx - tg[0],
-						dz = e.vz - tg[1];
-					e.yaw = Math.hypot(dx, dz) > 0.6 ? lerpA(yaw0, Math.atan2(-dz, dx), Math.min(1, dt * 10)) : yaw0;
+					dv[0] *= k;
+					dv[1] *= k;
+					const l = Math.hypot(dv[0], dv[1]),
+						mx = 11.5 * e.spd;
+					if (l > mx) {
+						dv[0] *= mx / l;
+						dv[1] *= mx / l;
+					}
+					e.yaw = l > 0.6 ? lerpA(yaw0, Math.atan2(-dv[1], dv[0]), Math.min(1, dt * 10)) : yaw0;
 				}
 				this.fdTruckWorld(W, e, dt);
 			} else if (e.st === 1) {
@@ -1419,12 +1423,9 @@ Object.assign(MG, {
 						b.vz -= nz * vr * (1 - share);
 						if (e.st === 0) {
 							/* the pull drags the truck, but never past its own top speed */
-							const s0 = Math.max(11.5, Math.hypot(e.vx, e.vz)),
-								tg = e.tg || (e.tg = [0, 0]);
+							const s0 = Math.max(11.5, Math.hypot(e.vx, e.vz));
 							e.vx += nx * vr * share * 0.8;
 							e.vz += nz * vr * share * 0.8;
-							tg[0] += nx * vr * share * 0.8;
-							tg[1] += nz * vr * share * 0.8;
 							const s1 = Math.hypot(e.vx, e.vz);
 							if (s1 > s0) {
 								e.vx *= s0 / s1;
@@ -1441,20 +1442,22 @@ Object.assign(MG, {
 						dh = Math.hypot(dx, dz);
 					if (dh > 0.6) {
 						const ba = Math.atan2(Math.sin(e.yaw), -Math.cos(e.yaw)),
-							off = Math.atan2(Math.sin(Math.atan2(dz, dx) - ba), Math.cos(Math.atan2(dz, dx) - ba));
-						if (Math.abs(off) > FD.CONE) {
-							const a = ba + Math.sign(off) * FD.CONE,
-								ux = Math.cos(a),
-								uz = Math.sin(a);
-							b.x = H[0] + ux * dh;
-							b.z = H[2] + uz * dh;
-							/* the cone's wall: no speed (relative to the tip) further out of it */
-							const wx = -uz * Math.sign(off),
-								wz = ux * Math.sign(off),
-								vw = (b.vx - hvx) * wx + (b.vz - hvz) * wz;
-							if (vw > 0) {
-								b.vx -= wx * vw;
-								b.vz -= wz * vw;
+							ca = Math.atan2(dz, dx),
+							off = Math.atan2(Math.sin(ca - ba), Math.cos(ca - ba));
+						if (Math.abs(off) <= FD.CONE) e.cS = 0;
+						else {
+							/* the side it went out on sticks (round the front it doesn't flip over), and its speed (relative to the
+						   tip) is steered back into the cone: never moved by hand, so it doesn't jump and hits at its real speed */
+							if (!e.cS || Math.abs(off) < 2.4) e.cS = Math.sign(off);
+							const sd = e.cS,
+								ex = sd * off > 0 ? Math.abs(off) - FD.CONE : 2 * Math.PI - Math.abs(off) - FD.CONE,
+								wx = (-dz / dh) * sd,
+								wz = (dx / dh) * sd,
+								vw = (b.vx - hvx) * wx + (b.vz - hvz) * wz,
+								back = -Math.min(ex * 6, FD.CONEV) * dh;
+							if (vw > back) {
+								b.vx -= wx * (vw - back);
+								b.vz -= wz * (vw - back);
 							}
 						}
 					}
