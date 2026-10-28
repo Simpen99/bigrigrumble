@@ -265,7 +265,7 @@ function fdGantry() {
 	g.add(Cy(0.5, 0.5, 0.2, 12, "#3A3F48", 0, h + 2.5, 0));
 	[-1, 1].forEach((sx) =>
 		[-1, 1].forEach((sz) => {
-			const a = (sz * Math.PI) / 8 + (sx < 0 ? Math.PI : 0),
+			const a = sx < 0 ? Math.PI - (sz * Math.PI) / 8 : (sz * Math.PI) / 8,
 				tx = Math.cos(a) * RC,
 				tz = Math.sin(a) * RC,
 				fx = sx * P,
