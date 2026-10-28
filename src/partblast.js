@@ -18,7 +18,7 @@ const BY = {
 	SPDUP: 0.85,
 	NB0: 1,
 	NBMAX: 6,
-	RG0: 2,
+	RG0: 1,
 	RGMAX: 7,
 	SPMAX: 4,
 	FILL: 0.64 /* share of open cells with cover */,
