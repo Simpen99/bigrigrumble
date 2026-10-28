@@ -1173,7 +1173,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-28 04:12 f191be0";
+const BUILD = "2026-10-28 04:20 6ba90ee";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -44996,6 +44996,8 @@ const BY = {
 	LOBT: 2 /* s of holding from LOB0 to LOB1 (2 s for 2 tiles = a tile a second) */,
 	FLY0: 0.3 /* a throw's flight time: FLY0 + FLYK per tile (the fuse keeps running) */,
 	FLYK: 0.07,
+	STORM: 3 /* sudden death brings a sandstorm, fading in over this many s */,
+	WIND: 1.6 /* m/s the storm pushes trucks along the wind */,
 };
 /* spawn cells, corners first */
 const BY_SP = [
@@ -45162,6 +45164,7 @@ function byBombModel() {
 			emissive: "#FF2A10",
 			emissiveIntensity: 0,
 			roughness: 0.6,
+			fog: false /* shows through the sandstorm */,
 		}),
 		tape = M("#22252C");
 	[
@@ -45545,12 +45548,12 @@ Object.assign(MG, {
 			};
 			W.beam = inst(
 				new THREE.CylinderGeometry(1, 1, 1, 12, 1, true),
-				new THREE.MeshBasicMaterial({ color: "#ffffff", toneMapped: false }),
+				new THREE.MeshBasicMaterial({ color: "#ffffff", toneMapped: false, fog: false }),
 				400,
 			);
 			W.ball = inst(
 				new THREE.SphereGeometry(1, 14, 8),
-				new THREE.MeshBasicMaterial({ color: "#ffffff", toneMapped: false }),
+				new THREE.MeshBasicMaterial({ color: "#ffffff", toneMapped: false, fog: false }),
 				400,
 			);
 			W.glow = inst(
@@ -45563,6 +45566,7 @@ Object.assign(MG, {
 					polygonOffset: true,
 					polygonOffsetFactor: -4,
 					toneMapped: false,
+					fog: false,
 				}),
 				400,
 			);
@@ -45611,53 +45615,108 @@ Object.assign(MG, {
 				s.add(sh, ol);
 				W.warn.push({ sh, ol });
 			}
-			/* scorch: one mark per tile a blast has burnt (shown once burnt, a turn of its own per tile) */
-			W.scorchI = new THREE.InstancedMesh(
-				new THREE.PlaneGeometry(T * 1.05, T * 1.05).rotateX(-Math.PI / 2),
+			/* scorch that follows the blast: a soft blot where it went off and a streak along each arm out to its reach, mirrored
+			   at random; the newest SCN marks are kept (a ring buffer) */
+			const mask = (w, h, fn) =>
+				canvasTex(w, h, (x) => {
+					const im = x.createImageData(w, h);
+					for (let j = 0; j < h; j++)
+						for (let i = 0; i < w; i++) {
+							const v = Math.max(0, Math.min(255, Math.round(fn(i / (w - 1), j / (h - 1)) * 255))),
+								p = (j * w + i) * 4;
+							im.data[p] = im.data[p + 1] = im.data[p + 2] = v;
+							im.data[p + 3] = 255;
+						}
+					x.putImageData(im, 0, 0);
+				});
+			const streaks = [
+				[0.5, 0.05, 1, 0.45],
+				[0.32, 0.035, 0.8, 0.35],
+				[0.66, 0.04, 0.9, 0.38],
+				[0.2, 0.03, 0.55, 0.3],
+				[0.8, 0.03, 0.62, 0.3],
+				[0.42, 0.025, 0.7, 0.25],
+			];
+			const scMat = (tex) =>
 				new THREE.MeshBasicMaterial({
 					color: "#2A1E16",
-					alphaMap: canvasTex(128, 128, (x, w, h) => {
-						x.fillStyle = "#000";
-						x.fillRect(0, 0, w, h);
-						const q = x.createRadialGradient(w / 2, h / 2, 4, w / 2, h / 2, w / 2);
-						q.addColorStop(0, "#6A6A6A");
-						q.addColorStop(0.55, "#383838");
-						q.addColorStop(1, "#000");
-						x.fillStyle = q;
-						x.fillRect(0, 0, w, h);
-						x.strokeStyle = "#262626";
-						x.lineCap = "round";
-						for (let i = 0; i < 9; i++) {
-							const a = (i / 9) * 6.283 + i * 0.4,
-								l = 34 + (i % 4) * 7;
-							x.lineWidth = 3 + (i % 3) * 2;
-							x.beginPath();
-							x.moveTo(w / 2 + Math.cos(a) * 16, h / 2 + Math.sin(a) * 16);
-							x.lineTo(w / 2 + Math.cos(a) * l, h / 2 + Math.sin(a) * l);
-							x.stroke();
-						}
-					}),
+					alphaMap: tex,
 					transparent: true,
 					depthWrite: false,
 					polygonOffset: true,
 					polygonOffsetFactor: -1,
-				}),
-				BY.C * BY.R,
+				});
+			const scInst = (geo, mat, n) => {
+				const im = new THREE.InstancedMesh(geo, mat, n);
+				im.count = 0;
+				im.frustumCulled = false;
+				im.renderOrder = 1;
+				s.add(im);
+				return im;
+			};
+			W.scArm = scInst(
+				new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2).translate(0.5, 0, 0),
+				scMat(
+					mask(256, 64, (u, v) => {
+						const band = Math.pow(Math.max(0, 1 - Math.abs(v - 0.5) / 0.5), 1.6),
+							fade = Math.max(0, 1 - Math.pow(u, 2.2)) * Math.min(1, (1 - u) * 6);
+						let a = 0.34 * band * fade;
+						for (const [c, w, l, k] of streaks)
+							if (u < l) a += k * Math.exp(-Math.pow((v - c) / w, 2)) * Math.sqrt(1 - u / l) * Math.min(1, u * 8 + 0.3);
+						return Math.min(0.72, a);
+					}),
+				),
+				240,
 			);
-			W.scorchI.count = BY.C * BY.R;
-			W.scorchI.frustumCulled = false;
-			W.scorchI.renderOrder = 1;
-			{
-				const o = new THREE.Object3D();
-				o.scale.setScalar(0.0001);
-				o.updateMatrix();
-				for (let i = 0; i < BY.C * BY.R; i++) W.scorchI.setMatrixAt(i, o.matrix);
-			}
-			s.add(W.scorchI);
-			W.burnt = new Uint8Array(BY.C * BY.R);
+			W.scBlot = scInst(
+				new THREE.PlaneGeometry(T * 1.25, T * 1.25).rotateX(-Math.PI / 2),
+				scMat(
+					mask(128, 128, (u, v) => {
+						const d = Math.hypot(u - 0.5, v - 0.5) / 0.5;
+						return Math.max(0, 0.62 * (1 - Math.pow(d, 1.8)));
+					}),
+				),
+				80,
+			);
+			W.scN = 0;
+			W.scB = 0;
 			/* shockwave rings rolling out along the floor, flying debris */
 			W.waves = [];
 			W.deb = [];
+			/* sandstorm (sudden death): the wind blows across the TV picture, which way from the seed; dust streaks fly with it */
+			W.windDir = mulberry((W.mg.seed || 1) + 99)() < 0.5 ? 1 : -1;
+			W.dust = new THREE.InstancedMesh(
+				new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2),
+				new THREE.MeshBasicMaterial({
+					color: "#EAD5AA",
+					alphaMap: mask(
+						128,
+						16,
+						(u, v) => Math.sin(u * Math.PI) * Math.pow(Math.max(0, 1 - Math.abs(v - 0.5) * 2), 1.5),
+					),
+					transparent: true,
+					depthWrite: false,
+					fog: false,
+				}),
+				80,
+			);
+			W.dust.count = 0;
+			W.dust.frustumCulled = false;
+			W.dust.renderOrder = 4;
+			s.add(W.dust);
+			W.dustP = [];
+			{
+				const q = mulberry((W.mg.seed || 1) + 7);
+				for (let i = 0; i < 80; i++)
+					W.dustP.push({
+						x0: q() * 48,
+						z: (q() - 0.5) * 34,
+						y: 0.4 + q() * 4.5,
+						v: 9 + q() * 9,
+						l: 2.5 + q() * 4.5,
+						w: 0.12 + q() * 0.22,
+					});
+			}
 			W.debG = {
 				plank: new THREE.BoxGeometry(1.35, 0.12, 0.3),
 				brick: new THREE.BoxGeometry(0.4, 0.22, 0.2),
@@ -46063,18 +46122,7 @@ Object.assign(MG, {
 				op: 0.4,
 			});
 			this.wave(W, b.x, b.z, (b.rg + 0.6) * BY.T);
-			/* scorch on every tile it burnt */
-			const o = W.scO || (W.scO = new THREE.Object3D());
-			for (const q of cells) {
-				if (W.burnt[q]) continue;
-				W.burnt[q] = 1;
-				o.position.set(byX(q % BY.C), 0.012, byZ(Math.floor(q / BY.C)));
-				o.rotation.set(0, (q * 2.39) % 6.283, 0);
-				o.scale.setScalar(0.85 + ((q * 7) % 5) * 0.06);
-				o.updateMatrix();
-				W.scorchI.setMatrixAt(q, o.matrix);
-			}
-			W.scorchI.instanceMatrix.needsUpdate = true;
+			this.scorch(W, b.ci, cells);
 			/* trucks on or next to a burning tile get jolted (just for show) */
 			for (const e of W.list) {
 				if (e.gone || !e.al || e.fly) continue;
@@ -46084,6 +46132,109 @@ Object.assign(MG, {
 					er = Math.floor(c / BY.C);
 				if (cells.some((q) => Math.abs((q % BY.C) - ec) + Math.abs(Math.floor(q / BY.C) - er) <= 1)) e.jolt = W.t;
 			}
+		},
+		/* scorch marks for a blast at cell ci over cells: a blot in the middle, a streak along each arm */
+		scorch(W, ci, cells) {
+			const o = W.scO || (W.scO = new THREE.Object3D()),
+				c0 = ci % BY.C,
+				r0 = Math.floor(ci / BY.C),
+				arm = [0, 0, 0, 0];
+			for (const q of cells) {
+				const dc = (q % BY.C) - c0,
+					dr = Math.floor(q / BY.C) - r0;
+				if (dc > 0) arm[0] = Math.max(arm[0], dc);
+				else if (dc < 0) arm[1] = Math.max(arm[1], -dc);
+				else if (dr > 0) arm[2] = Math.max(arm[2], dr);
+				else if (dr < 0) arm[3] = Math.max(arm[3], -dr);
+			}
+			const x = byX(c0),
+				z = byZ(r0);
+			[0, Math.PI, -Math.PI / 2, Math.PI / 2].forEach((ry, i) => {
+				if (!arm[i]) return;
+				o.position.set(x, 0.012, z);
+				o.rotation.set(0, ry, 0);
+				o.scale.set(
+					arm[i] * BY.T + BY.T * 0.55,
+					1,
+					BY.T * (0.85 + Math.random() * 0.15) * (Math.random() < 0.5 ? -1 : 1),
+				);
+				o.updateMatrix();
+				W.scArm.setMatrixAt(W.scN % 240, o.matrix);
+				W.scN++;
+			});
+			o.position.set(x, 0.013, z);
+			o.rotation.set(0, Math.random() * 6.283, 0);
+			o.scale.setScalar(0.9 + Math.random() * 0.2);
+			o.updateMatrix();
+			W.scBlot.setMatrixAt(W.scB % 80, o.matrix);
+			W.scB++;
+			W.scArm.count = Math.min(240, W.scN);
+			W.scBlot.count = Math.min(80, W.scB);
+			W.scArm.instanceMatrix.needsUpdate = W.scBlot.instanceMatrix.needsUpdate = true;
+		},
+		/* how far the sandstorm has blown in: 0 before sudden death, 1 once it is full */
+		storm: (W) => Math.max(0, Math.min(1, (W.t - BY.SD) / BY.STORM)),
+		/* the storm pushes a truck along the wind (lane by lane like driving: blocked tiles stop it, never between lanes) */
+		windPush(W, e, dt) {
+			const k = this.storm(W);
+			if (!k) return;
+			const ci = byCell(e.x, e.z);
+			if (ci < 0) return;
+			const c = ci % BY.C,
+				r = Math.floor(ci / BY.C),
+				d = W.windDir,
+				step = BY.WIND * k * dt;
+			if (Math.abs(e.z - byZ(r)) > 0.35) return;
+			const ahead = c + d < 0 || c + d >= BY.C ? -1 : r * BY.C + c + d;
+			if (this.open(W, e, ahead)) e.x += d * step;
+			else {
+				const toC = (byX(c) - e.x) * d;
+				if (toC > 0) e.x += d * Math.min(toC, step);
+			}
+		},
+		/* the storm's look: sandy haze closing in, the sun turning orange, dust streaks; and its sound */
+		stormFx(W, dt) {
+			const k = this.storm(W),
+				sc = W.sc;
+			if (!W.st0 && sc.fog)
+				W.st0 = {
+					fc: sc.fog.color.clone(),
+					n: sc.fog.near,
+					fa: sc.fog.far,
+					bg: sc.background && sc.background.isColor ? sc.background.clone() : null,
+					sun: W.sun.color.clone(),
+				};
+			if (W.st0) {
+				const S = W.st0,
+					sand = W.sandC || (W.sandC = new THREE.Color("#D8B98A"));
+				sc.fog.color.copy(S.fc).lerp(sand, k);
+				sc.fog.near = S.n + (12 - S.n) * k;
+				sc.fog.far = S.fa + (72 - S.fa) * k;
+				if (S.bg) sc.background.copy(S.bg).lerp(sand, k);
+				W.sun.color.copy(S.sun).lerp(W.sunO || (W.sunO = new THREE.Color("#FFB070")), k * 0.6);
+			}
+			const D = W.dust;
+			if (!k) {
+				D.count = 0;
+				return;
+			}
+			const o = W.dO || (W.dO = new THREE.Object3D());
+			D.material.opacity = 0.55 * k;
+			W.dustP.forEach((p, i) => {
+				const x = ((((p.x0 + W.t * p.v) % 48) + 48) % 48) - 24;
+				o.position.set(x * W.windDir, p.y, p.z);
+				o.rotation.set(0, 0, 0);
+				o.scale.set(p.l, 1, p.w);
+				o.updateMatrix();
+				D.setMatrixAt(i, o.matrix);
+			});
+			D.count = W.dustP.length;
+			D.instanceMatrix.needsUpdate = true;
+			if (!W.windS && !W.prac) W.windS = windSnd() || { set() {}, stop() {} };
+			if (W.windS) W.windS.set(0.35 + 0.45 * k, !W.over);
+		},
+		stop(W) {
+			if (W.windS) W.windS.stop();
 		},
 		/* a flat ring rolling out along the floor */
 		wave(W, x, z, r, col = "#FFE2A8", dur = 0.4) {
@@ -46517,6 +46668,7 @@ Object.assign(MG, {
 			}
 			if (inp) inp.boost = false;
 			if (inp) inp.lob = 0;
+			if (e.al && !e.d) this.windPush(W, e, dt);
 			if (!e.al || e.d) {
 				e.chg = undefined;
 				e.f.am = -1;
@@ -46645,6 +46797,7 @@ Object.assign(MG, {
 			W.fxT = W.t;
 			this.drawFx(W, dt);
 			this.debStep(W, dt);
+			this.stormFx(W, dt);
 		},
 		drawFx(W, dt) {
 			const t = W.t;
@@ -46698,7 +46851,7 @@ Object.assign(MG, {
 					const b = W.bombs[id],
 						fr = Math.max(0, Math.min(1, (b.bt - t) / BY.FUSE)),
 						pulse = 0.5 + 0.5 * Math.sin((t - b.t) * (2 + 8 * (1 - fr)) * 6.283),
-						k = (0.12 + 0.42 * Math.pow(1 - fr, 1.5)) * (0.75 + 0.25 * pulse);
+						k = (0.12 + 0.42 * Math.pow(1 - fr, 1.5)) * (0.75 + 0.25 * pulse) * (1 - this.storm(W));
 					for (const q of this.cross(W, b.ci, b.rg)) {
 						if (np >= 400) break;
 						o.position.set(byX(q % BY.C), 0.028, byZ(Math.floor(q / BY.C)));
