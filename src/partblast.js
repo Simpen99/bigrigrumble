@@ -1897,6 +1897,8 @@ Object.assign(MG, {
 						sb = Math.sign(a ? ix : iy),
 						other = Math.abs(a ? ix : iy) > mag * 0.38;
 					if (!this.axisMove(W, e, a, sa, step) && other) this.axisMove(W, e, 1 - a, sb, step);
+					/* the way the stick points (its main axis), so the truck can turn on the spot to aim a throw over a wall */
+					e.want = a ? (sa > 0 ? -Math.PI / 2 : Math.PI / 2) : sa > 0 ? 0 : Math.PI;
 				}
 			}
 			if (inp) inp.boost = false;
@@ -1912,6 +1914,8 @@ Object.assign(MG, {
 			e.vx = vx;
 			e.vz = vz;
 			if (Math.hypot(vx, vz) > 0.5) e.yaw = lerpA(e.yaw, Math.atan2(-vz, vx), Math.min(1, dt * 16));
+			else if (e.want !== undefined) e.yaw = lerpA(e.yaw, e.want, Math.min(1, dt * 16));
+			e.want = undefined;
 		},
 		/* move e along axis a (0 = x, 1 = z) in direction s by up to step; returns how far it got */
 		axisMove(W, e, a, s, step) {
