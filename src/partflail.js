@@ -25,10 +25,13 @@ const FD = {
 	GAP0: [0, 2, 4, 6] /* sides open from the start (side k faces angle k * 45°) */,
 	TR: 0.95 /* truck radius against rails and props */,
 	BR: 0.6 /* ball radius */,
-	L0: 4.4 /* chain length */,
-	LIN: 2.1 /* reeled in */,
-	LOUT: 6.2 /* just after a whip */,
-	LCH: 1.8 /* the chain power-up adds this */,
+	ARM: 1.9 /* the stiff boom (the flail's handle): reaches this far back from the tail */,
+	ARMY: 1.3 /* its tip's height */,
+	SWEEP: 9 /* most the boom's sweep adds to the tip's speed (m/s) */,
+	L0: 3.2 /* chain length (from the boom's tip) */,
+	LIN: 1.4 /* reeled in */,
+	LOUT: 5 /* just after a whip */,
+	LCH: 1.6 /* the chain power-up adds this */,
 	REELV: 7 /* m/s the chain reels in or pays out */,
 	WHIP: 8 /* m/s kick along the swing when REEL is let go */,
 	WCD: 0.9 /* whip cooldown */,
@@ -40,9 +43,9 @@ const FD = {
 	HCD: 0.45 /* s between two hits of one ball on one truck */,
 	DMG: 0.85 /* dent % per m/s of impact over 3 */,
 	KB0: 3.5 /* knock: (KB0 + KBV * impact) * (1 + dent / KBD) */,
-	KBV: 0.42,
-	KBD: 55,
-	AIRK: 12 /* knocks harder than this lift the truck */,
+	KBV: 0.3,
+	KBD: 45,
+	AIRK: 14 /* knocks harder than this lift the truck */,
 	CREDIT: 5 /* s a hit keeps the credit for a KO */,
 	KO: 3,
 	SHIELD: 2 /* s safe after landing back on the deck */,
@@ -230,6 +233,34 @@ function fdBallModel(col) {
 	spk.visible = false;
 	g.add(spk);
 	return { g, ball, spk };
+}
+/* the flail's handle: a stiff boom off the tow hitch, angled up and back (built facing -x from the truck's tail at x 0):
+   a swivel block, a box beam with a stripe in the player's colour on top, a brace under it, a sheave at the tip where
+   the chain comes off */
+function fdArmModel(col) {
+	const g = new THREE.Group(),
+		y0 = 0.62,
+		dy = FD.ARMY - y0,
+		L = Math.hypot(FD.ARM, dy),
+		th = Math.atan2(dy, FD.ARM),
+		D = "#3A3F48";
+	g.add(B(0.4, 0.34, 0.46, D, 0.05, 0.55, 0));
+	g.add(Cy(0.16, 0.16, 0.5, 8, "#5A6070", -0.12, 0.62, 0).rotateX(Math.PI / 2));
+	const bm = new THREE.Group();
+	bm.position.set(-FD.ARM / 2 - 0.06, y0 + dy / 2, 0);
+	bm.rotation.z = -th;
+	bm.add(B(L, 0.18, 0.2, "#4A505A", 0, 0, 0));
+	bm.add(B(L * 0.86, 0.05, 0.24, col, -0.02, 0.105, 0));
+	[-0.3, 0, 0.3].forEach((t) => bm.add(B(0.06, 0.22, 0.28, D, t * L, 0, 0)));
+	g.add(bm);
+	strut(g, [-0.05, 0.4, 0], [-FD.ARM * 0.55, y0 + dy * 0.55 - 0.1, 0], 0.1, D, 1);
+	/* the tip: cheek plates either side of a sheave */
+	const tx = -FD.ARM - 0.08,
+		ty = FD.ARMY;
+	[-1, 1].forEach((sz) => g.add(B(0.34, 0.3, 0.04, "#4A505A", tx, ty, sz * 0.11)));
+	g.add(Cy(0.13, 0.13, 0.14, 10, "#C9CED8", tx, ty, 0, { metalness: 0.5 }).rotateX(Math.PI / 2));
+	g.add(Cy(0.05, 0.05, 0.3, 6, D, tx, ty, 0).rotateX(Math.PI / 2));
+	return g;
 }
 /* the respawn magnet: a dark disc with a red band, a hook frame and a cable up out of the picture */
 function fdMagnetModel() {
@@ -528,19 +559,18 @@ Object.assign(MG, {
 			const bb = new THREE.Box3().setFromObject(e.tr);
 			e.rearX = Math.max(0.9, -bb.min.x);
 			{
+				/* the boom bolted to the tail (in the truck's own, scaled units) */
 				const k = 1 / e.tr.scale.x,
-					hx = (-e.rearX - 0.05) * k;
-				e.tr.add(B(0.34 * k, 0.22 * k, 0.5 * k, "#2A2F3A", hx + 0.1 * k, 0.62 * k, 0));
-				const eye = mesh(new THREE.TorusGeometry(0.12 * k, 0.045 * k, 5, 10), "#5A6070", { metalness: 0.4 });
-				eye.rotation.x = Math.PI / 2;
-				eye.position.set(hx - 0.12 * k, 0.72 * k, 0);
-				e.tr.add(eye);
+					arm = fdArmModel(pcol(e.p));
+				arm.scale.setScalar(k);
+				arm.position.set((-e.rearX + 0.05) * k, 0, 0);
+				e.tr.add(arm);
 			}
 			const fw = [Math.cos(e.yaw), -Math.sin(e.yaw)];
 			e.ball = {
-				x: e.x - fw[0] * (e.rearX + FD.L0 * 0.8),
+				x: e.x - fw[0] * (e.rearX + FD.ARM + FD.L0 * 0.8),
 				y: FD.BR,
-				z: e.z - fw[1] * (e.rearX + FD.L0 * 0.8),
+				z: e.z - fw[1] * (e.rearX + FD.ARM + FD.L0 * 0.8),
 				vx: 0,
 				vy: 0,
 				vz: 0,
@@ -1243,11 +1273,26 @@ Object.assign(MG, {
 			e.whipT = W.t;
 			if (W.tv || e.isMe) sfx("whoosh");
 		},
+		/* the tip's speed: the truck's own plus its sweep round the truck, the sweep capped at FD.SWEEP so a snap turn
+		   flings the ball instead of launching it into orbit */
+		fdTipV(e, H0, H1, dt) {
+			const k = 1 / Math.max(dt, 0.001),
+				tx = e.st === 0 ? e.vx : 0,
+				tz = e.st === 0 ? e.vz : 0;
+			let sx = (H1[0] - H0[0]) * k - tx,
+				sz = (H1[2] - H0[2]) * k - tz;
+			const l = Math.hypot(sx, sz);
+			if (l > FD.SWEEP) {
+				sx *= FD.SWEEP / l;
+				sz *= FD.SWEEP / l;
+			}
+			return [tx + sx, (H1[1] - H0[1]) * k, tz + sz];
+		},
 		fdHitch(e) {
 			const c = Math.cos(e.yaw),
 				s = Math.sin(e.yaw),
-				r = e.rearX + 0.2;
-			return [e.x - c * r, e.y + 0.7, e.z + s * r];
+				r = e.rearX + FD.ARM;
+			return [e.x - c * r, e.y + FD.ARMY - 0.12, e.z + s * r];
 		},
 		/* one local truck's ball: gravity, the deck or the pit floor, the chain, rails, columns, props, the other balls, and
 		   hits on other trucks (shared in e.f.hx) */
@@ -1257,7 +1302,16 @@ Object.assign(MG, {
 				R = FD.BR * (pw === "heavy" ? 1.35 : 1),
 				share = pw === "heavy" ? 0.48 : FD.BMASS,
 				n = Math.max(1, Math.ceil(dt / (1 / 120))),
-				h = dt / n;
+				h = dt / n,
+				/* the boom's tip this frame and last: it sweeps round when the truck turns, so its own speed (not just the
+				   truck's) is what the chain pulls the ball with */
+				H1 = this.fdHitch(e),
+				H0 = e.hp && Math.hypot(e.hp[0] - H1[0], e.hp[2] - H1[2]) < 3 ? e.hp : H1,
+				hv = this.fdTipV(e, H0, H1, dt),
+				hvx = hv[0],
+				hvy = hv[1],
+				hvz = hv[2];
+			e.hp = H1;
 			for (let s = 0; s < n; s++) {
 				const wasIn = fdOnDeck(b.x, b.z);
 				b.vy -= FD.BG * h;
@@ -1305,7 +1359,8 @@ Object.assign(MG, {
 					}
 				}
 				/* the chain: never longer than e.L; a pull on it drags the truck too */
-				const H = this.fdHitch(e),
+				const f = (s + 1) / n,
+					H = [H0[0] + (H1[0] - H0[0]) * f, H0[1] + (H1[1] - H0[1]) * f, H0[2] + (H1[2] - H0[2]) * f],
 					dx = b.x - H[0],
 					dy = b.y - H[1],
 					dz = b.z - H[2],
@@ -1317,9 +1372,7 @@ Object.assign(MG, {
 					b.x = H[0] + nx * e.L;
 					b.y = H[1] + ny * e.L;
 					b.z = H[2] + nz * e.L;
-					const tvx = e.st === 0 ? e.vx : 0,
-						tvz = e.st === 0 ? e.vz : 0,
-						vr = (b.vx - tvx) * nx + b.vy * ny + (b.vz - tvz) * nz;
+					const vr = (b.vx - hvx) * nx + (b.vy - hvy) * ny + (b.vz - hvz) * nz;
 					if (vr > 0) {
 						b.vx -= nx * vr * (1 - share);
 						b.vy -= ny * vr * (1 - share);
