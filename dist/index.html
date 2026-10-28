@@ -1178,7 +1178,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-28 08:48 b38dbb9";
+const BUILD = "2026-10-28 08:59 dd21cd3";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -47816,6 +47816,7 @@ const FD = {
 	WCD: 0.9 /* whip cooldown */,
 	BG: 24 /* ball gravity */,
 	BFR: 1.4 /* ball ground friction a second */,
+	BAIR: 0.35 /* ball air drag a second */,
 	BMASS: 0.34 /* ball share of a pull on the chain (the truck feels the rest) */,
 	BVMAX: 32,
 	HITV: 5 /* slowest ball (relative to the truck) that counts as a hit */,
@@ -48761,6 +48762,7 @@ Object.assign(MG, {
 				e.f.pw = 0;
 			}
 			const pw = e.pw && e.pw[0];
+			e.steer = !!(inp && !e.d && Math.hypot(inp.x || 0, inp.y || 0) > 0.3);
 			e.spd = pw === "heavy" ? 0.9 : 1;
 			if (e.st === 0) {
 				const ip =
@@ -49058,6 +49060,9 @@ Object.assign(MG, {
 			const k = 1 / Math.max(dt, 0.001),
 				tx = e.st === 0 ? e.vx : 0,
 				tz = e.st === 0 ? e.vz : 0;
+			/* only while the driver steers: a truck the ball is dragging round turns with it, and counting that sweep
+			   fed the ball its own energy back (it spun forever after a few donuts) */
+			if (!e.steer) return [tx, (H1[1] - H0[1]) * k, tz];
 			let sx = (H1[0] - H0[0]) * k - tx,
 				sz = (H1[2] - H0[2]) * k - tz;
 			const l = Math.hypot(sx, sz);
@@ -49118,7 +49123,14 @@ Object.assign(MG, {
 							b.vz -= vn * nz;
 						}
 					}
-				} else if (!inDeck && b.y < FD.PIT + R) {
+				} else if (b.y > R + 0.05) {
+					/* air drag */
+					const k = Math.exp(-FD.BAIR * h);
+					b.vx *= k;
+					b.vy *= k;
+					b.vz *= k;
+				}
+				if (!inDeck && b.y < FD.PIT + R) {
 					b.y = FD.PIT + R;
 					b.vy = Math.max(0, -b.vy * 0.2);
 					b.vx *= Math.exp(-4 * h);
@@ -49157,8 +49169,15 @@ Object.assign(MG, {
 						b.vy -= ny * vr * (1 - share);
 						b.vz -= nz * vr * (1 - share);
 						if (e.st === 0) {
+							/* the pull drags the truck, but never past its own top speed */
+							const s0 = Math.max(11.5, Math.hypot(e.vx, e.vz));
 							e.vx += nx * vr * share * 0.8;
 							e.vz += nz * vr * share * 0.8;
+							const s1 = Math.hypot(e.vx, e.vz);
+							if (s1 > s0) {
+								e.vx *= s0 / s1;
+								e.vz *= s0 / s1;
+							}
 						}
 					}
 				}
