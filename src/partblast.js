@@ -33,6 +33,8 @@ const BY = {
 	LOBT: 2 /* s of holding from LOB0 to LOB1 (2 s for 2 tiles = a tile a second) */,
 	FLY0: 0.3 /* a throw's flight time: FLY0 + FLYK per tile (the fuse keeps running) */,
 	FLYK: 0.07,
+	SPX: 64 /* scorch canvas px per tile */,
+	EMBER: 2.6 /* s a scorch's glowing rim takes to fade */,
 	STORM: 3 /* sudden death brings a sandstorm, fading in over this many s */,
 	WIND: 1.6 /* m/s the storm pushes trucks along the wind */,
 };
@@ -652,8 +654,6 @@ Object.assign(MG, {
 				s.add(sh, ol);
 				W.warn.push({ sh, ol });
 			}
-			/* scorch that follows the blast: a soft blot where it went off and a streak along each arm out to its reach, mirrored
-			   at random; the newest SCN marks are kept (a ring buffer) */
 			const mask = (w, h, fn) =>
 				canvasTex(w, h, (x) => {
 					const im = x.createImageData(w, h);
@@ -666,56 +666,59 @@ Object.assign(MG, {
 						}
 					x.putImageData(im, 0, 0);
 				});
-			const scMat = (tex) =>
-				new THREE.MeshBasicMaterial({
-					color: "#2A1E16",
-					alphaMap: tex,
-					transparent: true,
-					depthWrite: false,
-					polygonOffset: true,
-					polygonOffsetFactor: -1,
-					side: THREE.DoubleSide /* mirrored copies face down */,
-				});
-			const scInst = (geo, mat, n) => {
-				const im = new THREE.InstancedMesh(geo, mat, n);
-				im.count = 0;
-				im.frustumCulled = false;
-				im.renderOrder = 1;
-				s.add(im);
-				return im;
-			};
-			W.scArm = scInst(
-				new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2).translate(0.5, 0, 0),
-				scMat(
-					/* a wide soot band along the arm (u = 0 at the centre, 1 past the last tile), soft at its sides, ending in
-					   jagged spikes (longest in the middle), faint grain along it */
-					mask(256, 64, (u, v) => {
-						const ac = Math.abs(v - 0.5) * 2,
-							side = Math.max(0, Math.min(1, (1 - ac) / 0.3)),
-							teeth = Math.pow(Math.abs(Math.sin(v * Math.PI * 7 + Math.sin(v * 23) * 1.3)), 0.7),
-							tip = 0.66 + 0.3 * (1 - ac * ac) * teeth,
-							end = u < tip ? 1 : Math.max(0, 1 - (u - tip) / 0.035),
-							grain = 0.86 + 0.14 * Math.sin(v * 71 + u * 9) * Math.sin(v * 37 - u * 5);
-						return 0.38 * side * end * grain;
-					}),
-				),
-				240,
-			);
-			W.scBlot = scInst(
-				new THREE.PlaneGeometry(T * 1.5, T * 1.5).rotateX(-Math.PI / 2),
-				scMat(
-					/* a ragged blot: heavier in the middle, its rim in jagged lobes */
-					mask(128, 128, (u, v) => {
-						const d = Math.hypot(u - 0.5, v - 0.5) / 0.5,
-							a = Math.atan2(v - 0.5, u - 0.5),
-							rim = 0.78 + 0.12 * Math.sin(a * 9) + 0.08 * Math.sin(a * 4 + 1);
-						return d < rim ? 0.38 * Math.min(1, (rim - d) / 0.25 + 0.35) : 0;
-					}),
-				),
-				80,
-			);
-			W.scN = 0;
-			W.scB = 0;
+			/* scorch: every blast is painted into one canvas laid exactly over the grid (BY.SPX px a tile): its cross outline
+			   with jagged ends, soot streaks and specks inside; a second, coarser canvas holds the glowing rims that fade after
+			   each blast (redrawn only while one is glowing). Both are opaque masks (no speckle on phones): the soot one is
+			   the alpha of a dark plane, the glow one is added on top. */
+			{
+				const mk = (k) => {
+						const c = document.createElement("canvas");
+						c.width = BY.C * BY.SPX * k;
+						c.height = BY.R * BY.SPX * k;
+						const x = c.getContext("2d");
+						x.fillStyle = "#000";
+						x.fillRect(0, 0, c.width, c.height);
+						const t = new THREE.CanvasTexture(c);
+						t.minFilter = THREE.LinearFilter;
+						t.generateMipmaps = false;
+						return { c, x, t, k };
+					},
+					geo = new THREE.PlaneGeometry(BY.C * T, BY.R * T).rotateX(-Math.PI / 2);
+				W.soot = mk(1);
+				W.ember = mk(0.5);
+				const a = new THREE.Mesh(
+						geo,
+						new THREE.MeshBasicMaterial({
+							color: "#24180F",
+							alphaMap: W.soot.t,
+							transparent: true,
+							depthWrite: false,
+							polygonOffset: true,
+							polygonOffsetFactor: -1,
+						}),
+					),
+					b = new THREE.Mesh(
+						geo,
+						new THREE.MeshBasicMaterial({
+							map: W.ember.t,
+							transparent: true,
+							depthWrite: false,
+							blending: THREE.AdditiveBlending,
+							polygonOffset: true,
+							polygonOffsetFactor: -2,
+							toneMapped: false,
+							fog: false,
+						}),
+					);
+				a.position.y = 0.012;
+				b.position.y = 0.014;
+				a.renderOrder = 1;
+				b.renderOrder = 2;
+				b.visible = false;
+				s.add(a, b);
+				W.emberM = b;
+				W.glowL = [];
+			}
 			/* shockwave rings rolling out along the floor, flying debris */
 			W.waves = [];
 			W.deb = [];
@@ -1169,44 +1172,196 @@ Object.assign(MG, {
 				if (cells.some((q) => Math.abs((q % BY.C) - ec) + Math.abs(Math.floor(q / BY.C) - er) <= 1)) e.jolt = W.t;
 			}
 		},
-		/* scorch marks for a blast at cell ci over cells: a blot in the middle, a streak along each arm */
+		/* the outline of a blast's scorch in canvas px (scale k): a plus shape from the arm lengths, each arm reaching the far
+		   edge of its last tile, sides a little ragged, the tips cut into spikes (longest in the middle); built from a seed so
+		   the soot and the glow trace the same edge */
+		scorchPath(cx, cy, arm, hw, seed, k) {
+			const P = BY.SPX * k,
+				q = mulberry(seed),
+				pts = [],
+				D = [
+					[1, 0],
+					[0, 1],
+					[-1, 0],
+					[0, -1],
+				];
+			D.forEach(([fx, fy], i) => {
+				const nx = fy,
+					ny = -fx,
+					L = arm[i] ? (arm[i] + 0.42) * P : hw * P,
+					h = hw * P,
+					at = (along, side) => pts.push([cx + fx * along + nx * side, cy + fy * along + ny * side]);
+				/* out along one side */
+				for (let a = h; a < L - 2 * k; a += 7 * k) at(a, h + (q() - 0.5) * 3 * k);
+				/* the tip: teeth across the arm */
+				const n = 5 + Math.floor(q() * 3);
+				for (let j = 0; j <= n; j++) {
+					const sd = h - (2 * h * j) / n,
+						mid = 1 - Math.abs(sd) / h,
+						sp = arm[i] ? (j % 2 ? (4 + q() * 10 + mid * 10) * k : -q() * 4 * k) : j % 2 ? q() * 4 * k : 0;
+					at(L + sp, sd);
+				}
+				/* back along the other side */
+				for (let a = L - 2 * k; a > h; a -= 7 * k) at(a, -h + (q() - 0.5) * 3 * k);
+			});
+			const p = new Path2D();
+			pts.forEach(([x, y], i) => (i ? p.lineTo(x, y) : p.moveTo(x, y)));
+			p.closePath();
+			return p;
+		},
+		/* scorch for a blast at cell ci over cells, painted into the soot canvas; its glowing rim joins W.glowL */
 		scorch(W, ci, cells) {
-			const o = W.scO || (W.scO = new THREE.Object3D()),
-				c0 = ci % BY.C,
+			const c0 = ci % BY.C,
 				r0 = Math.floor(ci / BY.C),
 				arm = [0, 0, 0, 0];
 			for (const q of cells) {
 				const dc = (q % BY.C) - c0,
 					dr = Math.floor(q / BY.C) - r0;
 				if (dc > 0) arm[0] = Math.max(arm[0], dc);
-				else if (dc < 0) arm[1] = Math.max(arm[1], -dc);
-				else if (dr > 0) arm[2] = Math.max(arm[2], dr);
+				else if (dr > 0) arm[1] = Math.max(arm[1], dr);
+				else if (dc < 0) arm[2] = Math.max(arm[2], -dc);
 				else if (dr < 0) arm[3] = Math.max(arm[3], -dr);
 			}
-			const x = byX(c0),
-				z = byZ(r0);
-			[0, Math.PI, -Math.PI / 2, Math.PI / 2].forEach((ry, i) => {
+			const S = W.soot,
+				x = S.x,
+				P = BY.SPX,
+				cx = (c0 + 0.5) * P,
+				cy = (r0 + 0.5) * P,
+				hw = 0.36 + Math.min(0.08, 0.02 * Math.max(...arm)),
+				seed = Math.floor(Math.random() * 1e9),
+				path = this.scorchPath(cx, cy, arm, hw, seed, 1),
+				q = mulberry(seed + 1);
+			x.save();
+			/* the soot itself, soft edged */
+			x.shadowColor = "rgba(255,255,255,.5)";
+			x.shadowBlur = 5;
+			x.fillStyle = "rgba(255,255,255,.14)";
+			x.fill(path);
+			x.shadowBlur = 0;
+			x.clip(path);
+			/* the blast is strongest at its centre: each arm's soot thins out toward its tip */
+			[
+				[1, 0],
+				[0, 1],
+				[-1, 0],
+				[0, -1],
+			].forEach(([fx, fy], i) => {
 				if (!arm[i]) return;
-				o.position.set(x, 0.012, z);
-				o.rotation.set(0, ry, 0);
-				o.scale.set(
-					arm[i] * BY.T + BY.T * 0.62,
-					1,
-					BY.T * (0.8 + Math.random() * 0.1) * (Math.random() < 0.5 ? -1 : 1),
+				const L = (arm[i] + 0.6) * P,
+					lg = x.createLinearGradient(cx, cy, cx + fx * L, cy + fy * L);
+				lg.addColorStop(0, "rgba(255,255,255,.3)");
+				lg.addColorStop(0.55, "rgba(255,255,255,.14)");
+				lg.addColorStop(1, "rgba(255,255,255,0)");
+				x.fillStyle = lg;
+				const w = hw * P * 1.4;
+				x.fillRect(
+					Math.min(cx, cx + fx * L) - (fy ? w : 0),
+					Math.min(cy, cy + fy * L) - (fx ? w : 0),
+					fx ? L : 2 * w,
+					fy ? L : 2 * w,
 				);
-				o.updateMatrix();
-				W.scArm.setMatrixAt(W.scN % 240, o.matrix);
-				W.scN++;
 			});
-			o.position.set(x, 0.013, z);
-			o.rotation.set(0, Math.random() * 6.283, 0);
-			o.scale.setScalar(0.9 + Math.random() * 0.2);
-			o.updateMatrix();
-			W.scBlot.setMatrixAt(W.scB % 80, o.matrix);
-			W.scB++;
-			W.scArm.count = Math.min(240, W.scN);
-			W.scBlot.count = Math.min(80, W.scB);
-			W.scArm.instanceMatrix.needsUpdate = W.scBlot.instanceMatrix.needsUpdate = true;
+			/* heavier in the middle */
+			const g = x.createRadialGradient(cx, cy, 2, cx, cy, P * 0.95);
+			g.addColorStop(0, "rgba(255,255,255,.34)");
+			g.addColorStop(1, "rgba(255,255,255,0)");
+			x.fillStyle = g;
+			x.fillRect(cx - P, cy - P, 2 * P, 2 * P);
+			/* soot streaks thrown out along each arm */
+			x.lineCap = "round";
+			[
+				[1, 0],
+				[0, 1],
+				[-1, 0],
+				[0, -1],
+			].forEach(([fx, fy], i) => {
+				if (!arm[i]) return;
+				const L = (arm[i] + 0.4) * P;
+				for (let j = 0; j < 5; j++) {
+					const sd = (q() - 0.5) * hw * 1.6 * P,
+						l = L * (0.45 + q() * 0.55);
+					x.strokeStyle = `rgba(255,255,255,${0.1 + q() * 0.14})`;
+					x.lineWidth = 1.5 + q() * 3;
+					x.beginPath();
+					x.moveTo(cx + fy * sd, cy - fx * sd);
+					x.lineTo(cx + fx * l + fy * sd, cy + fy * l - fx * sd);
+					x.stroke();
+				}
+			});
+			/* specks of burnt debris */
+			for (let j = 0; j < 10 + arm.reduce((a, b) => a + b, 0) * 3; j++) {
+				const i = Math.floor(q() * 4),
+					D = [
+						[1, 0],
+						[0, 1],
+						[-1, 0],
+						[0, -1],
+					][i],
+					l = q() * (arm[i] + 0.4) * P,
+					sd = (q() - 0.5) * hw * 1.7 * P,
+					px = cx + D[0] * l + D[1] * sd,
+					py = cy + D[1] * l - D[0] * sd,
+					r = 1.2 + q() * 2.4;
+				x.fillStyle = `rgba(255,255,255,${0.25 + q() * 0.3})`;
+				x.beginPath();
+				x.moveTo(px + r, py);
+				for (let v = 1; v < 5; v++)
+					x.lineTo(px + Math.cos(v * 1.3) * r * (0.6 + q() * 0.5), py + Math.sin(v * 1.3) * r * (0.6 + q() * 0.5));
+				x.fill();
+			}
+			x.restore();
+			S.t.needsUpdate = true;
+			W.glowL.push({ t0: W.t, cx, cy, arm, hw, seed });
+		},
+		/* the glowing rims: an orange edge and embers fading over BY.EMBER s after each blast */
+		emberStep(W) {
+			const E = W.ember,
+				L = (W.glowL = W.glowL.filter((g) => W.t - g.t0 < BY.EMBER));
+			if (!L.length && !W.emberM.visible) return;
+			/* at most 30 redraws a second (each re-uploads the canvas) */
+			if (L.length && Math.abs(W.t - (W.emT || -9)) < 0.033) return;
+			W.emT = W.t;
+			const x = E.x,
+				k = E.k;
+			x.fillStyle = "#000";
+			x.fillRect(0, 0, E.c.width, E.c.height);
+			for (const g of L) {
+				const u = (W.t - g.t0) / BY.EMBER,
+					a = Math.pow(1 - u, 1.6),
+					path = g.path || (g.path = this.scorchPath(g.cx * k, g.cy * k, g.arm, g.hw, g.seed, k)),
+					q = mulberry(g.seed + 2);
+				x.save();
+				x.shadowColor = `rgba(255,70,10,${a})`;
+				x.shadowBlur = 8;
+				x.strokeStyle = `rgba(255,${120 + Math.round(60 * a)},40,${a})`;
+				x.lineWidth = 2.5;
+				x.stroke(path);
+				x.shadowBlur = 0;
+				x.clip(path);
+				x.strokeStyle = `rgba(255,60,10,${a * 0.6})`;
+				x.lineWidth = 5;
+				x.stroke(path);
+				/* embers glowing on inside, flickering */
+				for (let j = 0; j < 14; j++) {
+					const i = Math.floor(q() * 4),
+						D = [
+							[1, 0],
+							[0, 1],
+							[-1, 0],
+							[0, -1],
+						][i],
+						l = q() * (g.arm[i] + 0.4) * BY.SPX * k,
+						sd = (q() - 0.5) * g.hw * 1.6 * BY.SPX * k,
+						fl = 0.6 + 0.4 * Math.sin(W.t * 9 + j * 2.1);
+					x.fillStyle = `rgba(255,${90 + j * 6},20,${a * fl * (0.4 + q() * 0.6)})`;
+					x.beginPath();
+					x.arc(g.cx * k + D[0] * l + D[1] * sd, g.cy * k + D[1] * l - D[0] * sd, 0.8 + q() * 1.4, 0, 6.283);
+					x.fill();
+				}
+				x.restore();
+			}
+			E.t.needsUpdate = true;
+			W.emberM.visible = L.length > 0;
 		},
 		/* how far the sandstorm has blown in: 0 before sudden death, 1 once it is full */
 		storm: (W) => Math.max(0, Math.min(1, (W.t - BY.SD) / BY.STORM)),
@@ -1834,6 +1989,7 @@ Object.assign(MG, {
 			this.drawFx(W, dt);
 			this.debStep(W, dt);
 			this.stormFx(W, dt);
+			this.emberStep(W);
 		},
 		drawFx(W, dt) {
 			const t = W.t;
