@@ -798,14 +798,19 @@ body.ctl .btn{min-height:58px;font-size:18px}
 .sbcoin::before{content:"🪙 "}
 .sbcoin.no,.sbtime.low{background:#E5484D}
 .sbtray{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
-.sbt{border:2.5px solid #151B24;border-radius:10px;background:var(--bc);color:#fff;min-height:44px;padding:3px 2px;display:flex;flex-direction:column;align-items:center;justify-content:center;font:800 10px/1.1 Rubik,Arial,sans-serif}
-.sbt i{font-style:normal;font-size:18px;line-height:1}
-.sbt em{font-style:normal;opacity:.85}
-.sbt.on{outline:3px solid #fff;outline-offset:1px}
-.sbt.off{opacity:.35}
-.sbdone{border:2.5px solid #151B24;border-radius:10px;background:#1FA35C;color:#fff;font-family:var(--display);font-size:15px;min-height:44px;padding:3px 2px}
-.sbdone.on{background:#2A3550;color:#9AA3B2}
-@media (orientation:landscape){.sbbot{left:auto;top:calc(env(safe-area-inset-top,0px) + 56px);width:min(36%,320px)}.sbtop{flex-wrap:wrap;font-size:14px}.sbtgt{flex-basis:100%}.sbtray{flex:1;grid-template-columns:repeat(2,1fr);grid-auto-rows:1fr}}
+.sbt,.sbdone{position:relative;border:2.5px solid #151B24;border-radius:12px;color:#fff;min-height:46px;padding:5px 3px 7px;box-shadow:inset 0 -5px 0 rgba(0,0,0,.24),inset 0 2px 0 rgba(255,255,255,.4),0 3px 0 #151B24;transition:transform .08s,box-shadow .08s,filter .15s;-webkit-tap-highlight-color:transparent}
+.sbt{background:linear-gradient(180deg,color-mix(in srgb,var(--bc) 72%,#fff) 0%,var(--bc) 48%,color-mix(in srgb,var(--bc) 84%,#000) 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font:11px/1 var(--display);text-shadow:0 1.5px 0 rgba(0,0,0,.35)}
+.sbt:active,.sbdone:active{transform:translateY(2px);box-shadow:inset 0 -3px 0 rgba(0,0,0,.24),inset 0 2px 0 rgba(255,255,255,.4),0 1px 0 #151B24}
+.sbt i{display:block;width:26px;height:26px;flex:none;filter:drop-shadow(0 2px 0 rgba(0,0,0,.25))}
+.sbt i svg{width:100%;height:100%;display:block}
+.sbt b{font-weight:400;white-space:nowrap}
+.sbt em{position:absolute;top:-7px;right:-5px;font:11px/1 var(--display);font-style:normal;color:#151B24;background:linear-gradient(180deg,#FFE27A,#FFC83D);border:2px solid #151B24;border-radius:99px;padding:2px 5px 1px;text-shadow:none;box-shadow:0 2px 0 #151B24}
+.sbt.on{transform:translateY(-2px);box-shadow:inset 0 -5px 0 rgba(0,0,0,.24),inset 0 2px 0 rgba(255,255,255,.4),0 3px 0 #151B24,0 0 0 3px #fff,0 0 16px 3px var(--bc)}
+.sbt.off{filter:grayscale(.85) brightness(.65)}
+.sbt.out{outline:2.5px dashed #fff;outline-offset:-6px}
+.sbdone{grid-column:1/-1;background:linear-gradient(180deg,#5BD68F 0%,#1FA35C 50%,#178A4C 100%);font-family:var(--display);font-size:16px;letter-spacing:.04em;text-shadow:0 2px 0 rgba(0,0,0,.3)}
+.sbdone.on{background:linear-gradient(180deg,#3A4766,#2A3550);color:#9AA3B2;text-shadow:none}
+@media (orientation:landscape){.sbbot{left:auto;top:calc(env(safe-area-inset-top,0px) + 56px);width:min(36%,320px)}.sbtop{flex-wrap:wrap;font-size:14px}.sbtgt{flex-basis:100%}.sbtray{flex:1;grid-template-columns:repeat(2,1fr);grid-auto-rows:1fr;gap:7px 6px}.sbt{flex-direction:row;justify-content:flex-start;gap:6px;padding:4px 6px 6px}.sbt i{width:28px;height:28px}.sbtray{padding-top:4px}}
 #mg:has(.sbctl[data-ph=plan]) .m3lb{display:none}
 .tvc .sbplan{background:#151B24}
 .tvc .sbpad{top:0;right:42%;margin:10px;border:3px dashed rgba(255,255,255,.2);border-radius:18px;background:linear-gradient(180deg,#1B2A4F,#16213D)}
@@ -813,7 +818,7 @@ body.ctl .btn{min-height:58px;font-size:18px}
 .tvc .sbctl .sbhint.tv{display:block;top:50%;transform:translate(-50%,-50%);background:none;white-space:normal;text-align:center;width:80%;font-size:15px;opacity:.55}
 .tvc .sbbot{left:58%;right:0;top:0;bottom:0;width:auto;border-radius:0;background:none;padding:calc(env(safe-area-inset-top,0px) + 10px) 10px calc(env(safe-area-inset-bottom,0px) + 10px) 2px}
 .tvc .sbtray{flex:1;grid-template-columns:repeat(2,1fr);grid-auto-rows:1fr}
-.tvc .sbt{font-size:12px}.tvc .sbt i{font-size:22px}
+.tvc .sbt{font-size:12px}.tvc .sbt i{width:28px;height:28px}
 .paddot{position:fixed;width:44px;height:44px;margin:-22px 0 0 -22px;border-radius:50%;background:var(--c,#FFC83D);box-shadow:0 0 0 4px #151B24,0 0 0 7px #F4F6F9;pointer-events:none;z-index:60}
 .paddot[hidden]{display:none}
 .sbview{position:fixed;z-index:40;border-radius:15px;pointer-events:none}
