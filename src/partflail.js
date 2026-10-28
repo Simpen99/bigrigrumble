@@ -983,7 +983,17 @@ Object.assign(MG, {
 				e.f.pw = 0;
 			}
 			const pw = e.pw && e.pw[0];
-			e.steer = !!(inp && !e.d && Math.hypot(inp.x || 0, inp.y || 0) > 0.3);
+			/* how fast the driver turns the stick (rad/s, easing off over a moment): only that may add the boom's sweep to
+			   the ball (fdTipV), so a truck the ball drags round can't feed the ball (it spun forever) */
+			{
+				const on = !!(inp && !e.d && Math.hypot(inp.x || 0, inp.y || 0) > 0.3),
+					a = on ? Math.atan2(inp.y, inp.x) : null;
+				let r = 0;
+				if (on && e.stA !== null && e.stA !== undefined)
+					r = Math.abs(Math.atan2(Math.sin(a - e.stA), Math.cos(a - e.stA))) / Math.max(dt, 0.001);
+				e.stA = a;
+				e.stR = Math.max(Math.min(r, 20), (e.stR || 0) * Math.exp(-5 * dt));
+			}
 			e.spd = pw === "heavy" ? 0.9 : 1;
 			if (e.st === 0) {
 				const ip =
@@ -1281,15 +1291,14 @@ Object.assign(MG, {
 			const k = 1 / Math.max(dt, 0.001),
 				tx = e.st === 0 ? e.vx : 0,
 				tz = e.st === 0 ? e.vz : 0;
-			/* only while the driver steers: a truck the ball is dragging round turns with it, and counting that sweep
-			   fed the ball its own energy back (it spun forever after a few donuts) */
-			if (!e.steer) return [tx, (H1[1] - H0[1]) * k, tz];
 			let sx = (H1[0] - H0[0]) * k - tx,
 				sz = (H1[2] - H0[2]) * k - tz;
-			const l = Math.hypot(sx, sz);
-			if (l > FD.SWEEP) {
-				sx *= FD.SWEEP / l;
-				sz *= FD.SWEEP / l;
+			/* no faster than the stick's own turning would swing the tip (and never over FD.SWEEP) */
+			const l = Math.hypot(sx, sz),
+				cap = Math.min(FD.SWEEP, (e.stR || 0) * (e.rearX + FD.ARM) * 1.2);
+			if (l > cap) {
+				sx *= cap / l;
+				sz *= cap / l;
 			}
 			return [tx + sx, (H1[1] - H0[1]) * k, tz + sz];
 		},
