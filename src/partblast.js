@@ -26,7 +26,6 @@ const BY = {
 	SD: 78 /* sudden death: blocks start dropping */,
 	SDGAP: 0.42,
 	SDWARN: 1.6,
-	KILL: 150,
 	SCALE: 0.66 /* trucks are shrunk to fit the lanes */,
 };
 /* spawn cells, corners first */
@@ -397,7 +396,6 @@ Object.assign(MG, {
 		kind: "arena",
 		ctrl: "stick",
 		hi: true,
-		unit: "pts",
 		dur: 120,
 		lastStanding: true,
 		bound: { t: "sq", h: 15 },
@@ -1233,17 +1231,21 @@ Object.assign(MG, {
 			}
 			return Math.abs(nA - along) + Math.abs(nP - perp);
 		},
+		/* ranked by how long you lasted; kills only break ties (trucks out in the same blast, or alive at the end). The score
+		   is tenths of a second x 10 with the kills (up to 9) in the last digit, shown as "62 s · 2 KO" */
 		rules(W, e) {
-			if (e.al && !e.d) e.sc = Math.floor(W.t * 10);
+			if (e.al && !e.d) e.sc = Math.floor(W.t * 10) * 10;
 		},
 		timeUp(W, e) {
-			if (e.al) e.sc = this.dur * 10 + 100;
+			if (e.al) e.sc = this.dur * 100;
 		},
 		final(W, e) {
 			let k = 0;
 			for (const o of W.list) if (o !== e && o.f && o.f.ko === e.k) k++;
-			return e.sc + k * BY.KILL;
+			/* the engine's +100 for the last truck standing would read as a second more: it ranks first anyway */
+			return e.sc - (e.won ? 100 : 0) + Math.min(9, k);
 		},
+		fmtV: (v) => `${Math.floor(v / 100)} s${v % 10 ? ` · ${v % 10} KO` : ""}`,
 		ramReady: (W) => Object.values(W.bombs || {}).filter((b) => b.own === W.me.k).length < (W.me.nb || 1),
 		ramCd(W) {
 			const L = Object.values(W.bombs || {}).filter((b) => b.own === W.me.k);
@@ -1619,6 +1621,6 @@ Object.assign(MG, {
 		},
 		/* tools/nettest: the cover still standing must match on every device */
 		syncSnap: (W) => (W.G ? W.G.reduce((a, v, i) => (v === 2 ? a + i : a), 0) : 0),
-		botScore: () => 100 + rnd(600),
+		botScore: () => (30 + rnd(70)) * 100,
 	},
 });
