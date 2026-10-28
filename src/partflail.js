@@ -32,6 +32,7 @@ const FD = {
 	LIN: 1.4 /* reeled in */,
 	LOUT: 5 /* just after a whip */,
 	LCH: 1.6 /* the chain power-up adds this */,
+	CONE: 1.2 /* the ball swings at most this far (rad) off the boom's line */,
 	REELV: 7 /* m/s the chain reels in or pays out */,
 	WHIP: 8 /* m/s kick along the swing when REEL is let go */,
 	WCD: 0.9 /* whip cooldown */,
@@ -1001,7 +1002,25 @@ Object.assign(MG, {
 						? { x: inp.x * (e.bot ? e.botK || 1 : 1), y: inp.y * (e.bot ? e.botK || 1 : 1), boost: false }
 						: null;
 				if (inp) inp.boost = false;
+				/* the chain's pull (e.tg, added in fdBall) drags the truck but doesn't turn it: it faces the way it drives,
+				   so a yank backwards slides it instead of swinging it round 180 */
+				const yaw0 = e.yaw;
 				arenaPhys(W, e, ip, dt);
+				{
+					const tg = e.tg || (e.tg = [0, 0]),
+						k = Math.exp(-2.6 * dt),
+						sp = Math.hypot(e.vx, e.vz);
+					tg[0] *= k;
+					tg[1] *= k;
+					const tl = Math.hypot(tg[0], tg[1]);
+					if (tl > sp) {
+						tg[0] *= sp / tl;
+						tg[1] *= sp / tl;
+					}
+					const dx = e.vx - tg[0],
+						dz = e.vz - tg[1];
+					e.yaw = Math.hypot(dx, dz) > 0.6 ? lerpA(yaw0, Math.atan2(-dz, dx), Math.min(1, dt * 10)) : yaw0;
+				}
 				this.fdTruckWorld(W, e, dt);
 			} else if (e.st === 1) {
 				e.vy -= 28 * dt;
@@ -1400,13 +1419,42 @@ Object.assign(MG, {
 						b.vz -= nz * vr * (1 - share);
 						if (e.st === 0) {
 							/* the pull drags the truck, but never past its own top speed */
-							const s0 = Math.max(11.5, Math.hypot(e.vx, e.vz));
+							const s0 = Math.max(11.5, Math.hypot(e.vx, e.vz)),
+								tg = e.tg || (e.tg = [0, 0]);
 							e.vx += nx * vr * share * 0.8;
 							e.vz += nz * vr * share * 0.8;
+							tg[0] += nx * vr * share * 0.8;
+							tg[1] += nz * vr * share * 0.8;
 							const s1 = Math.hypot(e.vx, e.vz);
 							if (s1 > s0) {
 								e.vx *= s0 / s1;
 								e.vz *= s0 / s1;
+							}
+						}
+					}
+				}
+				/* the stiff boom carries the chain round: the ball never swings more than FD.CONE off the boom's line, so
+				   the chain trails off the tip instead of folding sideways (only the capped tip speed goes into the ball) */
+				{
+					const dx = b.x - H[0],
+						dz = b.z - H[2],
+						dh = Math.hypot(dx, dz);
+					if (dh > 0.6) {
+						const ba = Math.atan2(Math.sin(e.yaw), -Math.cos(e.yaw)),
+							off = Math.atan2(Math.sin(Math.atan2(dz, dx) - ba), Math.cos(Math.atan2(dz, dx) - ba));
+						if (Math.abs(off) > FD.CONE) {
+							const a = ba + Math.sign(off) * FD.CONE,
+								ux = Math.cos(a),
+								uz = Math.sin(a);
+							b.x = H[0] + ux * dh;
+							b.z = H[2] + uz * dh;
+							/* the cone's wall: no speed (relative to the tip) further out of it */
+							const wx = -uz * Math.sign(off),
+								wz = ux * Math.sign(off),
+								vw = (b.vx - hvx) * wx + (b.vz - hvz) * wz;
+							if (vw > 0) {
+								b.vx -= wx * vw;
+								b.vz -= wz * vw;
 							}
 						}
 					}
