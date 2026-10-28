@@ -1173,7 +1173,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-28 02:53 d9b3708";
+const BUILD = "2026-10-28 03:31 e967927";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -44990,6 +44990,12 @@ const BY = {
 	SDGAP: 0.42,
 	SDWARN: 1.6,
 	SCALE: 0.66 /* trucks are shrunk to fit the lanes */,
+	TAP: 0.22 /* DROP held shorter than this drops at your feet, longer aims a throw */,
+	LOB0: 2 /* throw distance in tiles: LOB0 at once, LOB1 after LOBT s more */,
+	LOB1: 4,
+	LOBT: 0.9,
+	FLY0: 0.3 /* a throw's flight time: FLY0 + FLYK per tile (the fuse keeps running) */,
+	FLYK: 0.07,
 };
 /* spawn cells, corners first */
 const BY_SP = [
@@ -45371,9 +45377,9 @@ Object.assign(MG, {
 		ramLabel: "DROP",
 		controls: [
 			["stick", "Drive"],
-			["DROP", "Drop dynamite"],
+			["DROP", "Tap: drop dynamite", "Hold to aim, let go to throw it over walls"],
 		],
-		how: "Blast crates for power-ups and trap your rivals in the flames. Last truck standing wins!",
+		how: "Blast crates for power-ups and trap your rivals in the flames. Tap DROP to drop dynamite, hold it to throw!",
 		noCollide: () => true,
 		/* every CPU and remote truck gets the same model: shrink the truck to fit a lane */
 		initEnt(W, e) {
@@ -45561,6 +45567,10 @@ Object.assign(MG, {
 				400,
 			);
 			W.glow.renderOrder = 2;
+			/* blast preview: the tiles a ticking bomb will reach glow red */
+			W.prev = inst(W.glow.geometry, W.glow.material.clone(), 400);
+			W.prev.renderOrder = 2;
+			W.aimM = {};
 			W.warn = [];
 			for (let i = 0; i < 6; i++) {
 				const m = new THREE.Mesh(
@@ -45789,10 +45799,29 @@ Object.assign(MG, {
 				}
 			return out;
 		},
-		addBomb(W, own, id, ci, t, rg) {
+		/* from = the cell a thrown bomb left (-1 = dropped): it flies there first, landing at b.land */
+		addBomb(W, own, id, ci, t, rg, from = -1) {
 			if (W.bombs[id] || W.bdone.has(id) || ci < 0 || W.G[ci] !== 0) return;
 			if (W.bAt[ci]) return;
-			const b = { id, own, ci, t, rg, bt: t + BY.FUSE, x: byX(ci % BY.C), z: byZ(Math.floor(ci / BY.C)) };
+			const b = {
+				id,
+				own,
+				ci,
+				t,
+				rg,
+				bt: t + BY.FUSE,
+				x: byX(ci % BY.C),
+				z: byZ(Math.floor(ci / BY.C)),
+				from,
+				land: t,
+			};
+			if (from >= 0) {
+				const n = Math.abs((from % BY.C) - (ci % BY.C)) + Math.abs(Math.floor(from / BY.C) - Math.floor(ci / BY.C));
+				b.land = t + BY.FLY0 + BY.FLYK * n;
+				b.fx = byX(from % BY.C);
+				b.fz = byZ(Math.floor(from / BY.C));
+				b.n = n;
+			}
 			W.bombs[id] = b;
 			W.bAt[ci] = b;
 			/* trucks on that cell may drive off it */
@@ -45844,16 +45873,61 @@ Object.assign(MG, {
 			v.ring.material.color.set(o ? pcol(o.p) : "#E5484D");
 			return v;
 		},
-		dropBomb(W, e) {
-			const ci = byCell(e.x, e.z);
-			if (ci < 0 || W.G[ci] !== 0 || W.bAt[ci]) return;
-			const live = Object.values(W.bombs).filter((b) => b.own === e.k).length;
-			if (live >= e.nb) return;
+		canDrop(W, e) {
+			return Object.values(W.bombs).filter((b) => b.own === e.k).length < e.nb;
+		},
+		/* tiles a throw goes for after holding DROP held s */
+		lobN: (held) =>
+			BY.LOB0 + Math.min(BY.LOB1 - BY.LOB0, Math.floor(((held - BY.TAP) / BY.LOBT) * (BY.LOB1 - BY.LOB0 + 1))),
+		/* where a throw of n tiles lands: straight ahead (the way the truck faces, or dir = [dc, dr]) over anything; a blocked
+		   tile bounces it on to the next open one, and with none before the edge it lands on the furthest open one short of it */
+		lobTarget(W, e, n, dir) {
+			const cur = byCell(e.x, e.z);
+			if (cur < 0) return -1;
+			let dc, dr;
+			if (dir) [dc, dr] = dir;
+			else {
+				const fx = Math.cos(e.yaw),
+					fz = -Math.sin(e.yaw);
+				[dc, dr] = Math.abs(fx) >= Math.abs(fz) ? [Math.sign(fx), 0] : [0, Math.sign(fz)];
+			}
+			const c0 = cur % BY.C,
+				r0 = Math.floor(cur / BY.C),
+				at = (k) => {
+					const c = c0 + dc * k,
+						r = r0 + dr * k;
+					return c < 0 || r < 0 || c >= BY.C || r >= BY.R ? -2 : r * BY.C + c;
+				},
+				free = (q) => q >= 0 && W.G[q] === 0 && !W.bAt[q];
+			for (let k = n; ; k++) {
+				const q = at(k);
+				if (q === -2) break;
+				if (free(q)) return q;
+			}
+			for (let k = n - 1; k >= 1; k--) if (free(at(k))) return at(k);
+			return -1;
+		},
+		/* n = 0: drop on your own cell; n > 0: throw n tiles */
+		dropBomb(W, e, n = 0, dir) {
+			const cur = byCell(e.x, e.z);
+			if (cur < 0 || !this.canDrop(W, e)) return;
+			let ci = cur,
+				from = -1;
+			if (n > 0) {
+				const q = this.lobTarget(W, e, n, dir);
+				if (q >= 0) {
+					ci = q;
+					from = cur;
+				}
+			}
+			if (W.G[ci] !== 0 || W.bAt[ci]) return;
 			const id = e.i * 1000 + (e.bn++ % 1000) + 1;
-			e.f.bm = e.f.bm.filter((q) => q[2] > W.t - BY.FUSE - 3).concat([[id, ci, Math.round(W.t * 1000) / 1000, e.rg]]);
-			this.addBomb(W, e.k, id, ci, W.t, e.rg);
-			mgLog(W, `BOMB ${mgName(e)} at ${ci} range ${e.rg}`);
-			if (W.tv || e.isMe) sfx("click");
+			e.f.bm = e.f.bm
+				.filter((q) => q[2] > W.t - BY.FUSE - 3)
+				.concat([[id, ci, Math.round(W.t * 1000) / 1000, e.rg, from]]);
+			this.addBomb(W, e.k, id, ci, W.t, e.rg, from);
+			mgLog(W, `BOMB ${mgName(e)} at ${ci}${from >= 0 ? " thrown" : ""} range ${e.rg}`);
+			if (W.tv || e.isMe) sfx(from >= 0 ? "whoosh" : "click");
 		},
 		explode(W, b, T) {
 			b.done = true;
@@ -46030,7 +46104,7 @@ Object.assign(MG, {
 				if (Array.isArray(L))
 					for (const q of L)
 						if (Array.isArray(q) && !W.bombs[q[0]] && !W.bdone.has(q[0]))
-							this.addBomb(W, e.k, +q[0], +q[1], +q[2], +q[3] || 2);
+							this.addBomb(W, e.k, +q[0], +q[1], +q[2], +q[3] || 2, q.length > 4 ? +q[4] : -1);
 			}
 			/* explosions in time order; a blast sets off any bomb it reaches at the same moment */
 			for (let guard = 0; guard < 64; guard++) {
@@ -46124,7 +46198,18 @@ Object.assign(MG, {
 			const x0 = e.x,
 				z0 = e.z;
 			if (e.al && !e.d && inp) {
-				if (inp.boost) this.dropBomb(W, e);
+				/* DROP: a tap drops at your feet; holding aims a throw (e.f.am = the tile, shown to everyone), letting go throws.
+				   CPUs throw straight away with inp.lob = tiles and inp.ld = [dc, dr] */
+				if (inp.lob) this.dropBomb(W, e, inp.lob, inp.ld);
+				else if (inp.boost && this.canDrop(W, e)) e.chg = W.t;
+				if (e.chg !== undefined) {
+					const held = W.t - e.chg;
+					if (!inp.hold) {
+						this.dropBomb(W, e, held < BY.TAP ? 0 : this.lobN(held));
+						e.chg = undefined;
+						e.f.am = -1;
+					} else e.f.am = held >= BY.TAP ? this.lobTarget(W, e, this.lobN(held)) : -1;
+				}
 				const ix = inp.x || 0,
 					iy = inp.y || 0,
 					mag = Math.hypot(ix, iy);
@@ -46138,6 +46223,11 @@ Object.assign(MG, {
 				}
 			}
 			if (inp) inp.boost = false;
+			if (inp) inp.lob = 0;
+			if (!e.al || e.d) {
+				e.chg = undefined;
+				e.f.am = -1;
+			}
 			const vx = (e.x - x0) / Math.max(dt, 1e-4),
 				vz = (e.z - z0) / Math.max(dt, 1e-4);
 			e.vx = vx;
@@ -46265,7 +46355,7 @@ Object.assign(MG, {
 				if (!v) continue;
 				const age = t - b.t,
 					fr = Math.max(0, Math.min(1, (b.bt - t) / BY.FUSE)),
-					pop = age < 0.25 ? Math.sin((age / 0.25) * 2.2) * 1.15 : 1,
+					pop = b.from >= 0 ? 1 : age < 0.25 ? Math.sin((age / 0.25) * 2.2) * 1.15 : 1,
 					hz = 2 + 10 * (1 - fr),
 					pulse = 0.5 + 0.5 * Math.sin(age * hz * 6.283);
 				v.g.scale.setScalar(Math.max(0.05, pop) * (1 + pulse * 0.08 * (1 - fr)));
@@ -46274,6 +46364,81 @@ Object.assign(MG, {
 				v.spark.position.set(0.05, 0.92 + 0.45 * Math.max(0.1, fr), 0);
 				v.spark.scale.setScalar(0.45 + Math.random() * 0.3);
 				v.ring.material.opacity = 0.45 + pulse * 0.3;
+				/* a thrown bomb arcs over to its tile, tumbling, and lands with a puff */
+				if (b.from >= 0) {
+					const u = Math.min(1, (t - b.t) / (b.land - b.t));
+					v.g.position.set(
+						b.fx + (b.x - b.fx) * u,
+						Math.sin(u * Math.PI) * (1.8 + 0.45 * b.n) + (1 - u) * 1.2,
+						b.fz + (b.z - b.fz) * u,
+					);
+					v.g.rotation.set(u < 1 ? u * 9 : 0, 0, u < 1 ? u * 5 : 0);
+					if (u >= 1 && !b.landed) {
+						b.landed = true;
+						burst(W.sc, b.x, 0.2, b.z, {
+							n: 8,
+							shape: "ico",
+							cols: ["#C9B9A6", "#A9A39A"],
+							spd: 2.4,
+							up: 2.5,
+							grav: 8,
+							life: 0.5,
+						});
+						if (W.tv || Math.hypot(b.x - W.me.x, b.z - W.me.z) < 12) sfx("land");
+					}
+				}
+			}
+			/* blast preview: every tile a ticking bomb will reach glows red, stronger and pulsing faster as its fuse runs down */
+			{
+				const o = W.fireO || (W.fireO = new THREE.Object3D()),
+					col = W.fireC || (W.fireC = new THREE.Color());
+				let np = 0;
+				for (const id in W.bombs) {
+					const b = W.bombs[id],
+						fr = Math.max(0, Math.min(1, (b.bt - t) / BY.FUSE)),
+						pulse = 0.5 + 0.5 * Math.sin((t - b.t) * (2 + 8 * (1 - fr)) * 6.283),
+						k = (0.12 + 0.42 * Math.pow(1 - fr, 1.5)) * (0.75 + 0.25 * pulse);
+					for (const q of this.cross(W, b.ci, b.rg)) {
+						if (np >= 400) break;
+						o.position.set(byX(q % BY.C), 0.028, byZ(Math.floor(q / BY.C)));
+						o.rotation.set(0, 0, 0);
+						o.scale.setScalar(1);
+						o.updateMatrix();
+						W.prev.setMatrixAt(np, o.matrix);
+						W.prev.setColorAt(np++, col.set("#FF3B1F").multiplyScalar(k));
+					}
+				}
+				W.prev.count = np;
+				W.prev.instanceMatrix.needsUpdate = true;
+				if (W.prev.instanceColor) W.prev.instanceColor.needsUpdate = true;
+			}
+			/* throw aim: a square in the thrower's colour on the tile it will land on */
+			for (const e of W.list) {
+				const am = e.f && e.f.am,
+					on = typeof am === "number" && am >= 0 && e.al && !e.d && !e.gone;
+				let m = W.aimM[e.k];
+				if (!on) {
+					if (m) m.visible = false;
+					continue;
+				}
+				if (!m) {
+					m = W.aimM[e.k] = new THREE.Mesh(
+						new THREE.RingGeometry(0.78, 1.02, 4, 1, Math.PI / 4).rotateX(-Math.PI / 2),
+						new THREE.MeshBasicMaterial({
+							color: pcol(e.p),
+							transparent: true,
+							depthWrite: false,
+							polygonOffset: true,
+							polygonOffsetFactor: -5,
+						}),
+					);
+					m.renderOrder = 3;
+					W.sc.add(m);
+				}
+				m.visible = true;
+				m.position.set(byX(am % BY.C), 0.05, byZ(Math.floor(am / BY.C)));
+				m.scale.setScalar(1 + 0.08 * Math.sin(t * 12));
+				m.material.opacity = 0.7 + 0.3 * Math.sin(t * 12);
 			}
 			/* flames, bomber style: each arm a solid beam reaching exactly the tiles it burns, ending in a rounded tip, in three
 			   layers (orange outside, yellow core, white-hot middle line, each a little taller so the steep camera sees all three);
@@ -46441,9 +46606,11 @@ Object.assign(MG, {
 					if (cc < 0 || rr < 0 || cc >= C || rr >= BY.R) continue;
 					const n = rr * C + cc;
 					if (dist[n] >= 0 || !this.open(W, e, n)) continue;
-					const at = W.t + (dist[p] + 1) * cellT + 0.15;
+					/* a truck is on a tile from halfway across the one before until halfway out of it */
+					const inT = W.t + (dist[p] + 0.5) * cellT - 0.1,
+						outT = W.t + (dist[p] + 1.5) * cellT + 0.15;
 					if (avoid && dz[n] < Infinity) continue;
-					if (at > dz[n] - 0.4 && at < dz[n] + BY.FLT + 0.25) continue;
+					if (outT > dz[n] - 0.15 && inT < dz[n] + BY.FLT + 0.2) continue;
 					dist[n] = dist[p] + 1;
 					prev[n] = p;
 					q.push(n);
@@ -46508,6 +46675,30 @@ Object.assign(MG, {
 					}
 				}
 			}
+			/* throw at a rival: a tile 2-4 away in a straight line whose blast reaches them and not this CPU */
+			if (live < e.nb && W.t > 2 && Math.random() < skv(e, 0.12, 0.35, 0.65)) {
+				for (const d of [
+					[1, 0],
+					[-1, 0],
+					[0, 1],
+					[0, -1],
+				])
+					for (let n = BY.LOB0; n <= BY.LOB1; n++) {
+						const q = this.lobTarget(W, e, n, d);
+						if (q < 0) continue;
+						const cells = this.cross(W, q, e.rg);
+						if (cells.includes(cur)) continue;
+						const hit = W.list.some(
+							(o) => o !== e && !o.gone && o.al && !o.d && !o.fly && cells.includes(byCell(o.x, o.z)),
+						);
+						if (!hit) continue;
+						const dz2 = this.danger(W, { ci: q, rg: e.rg, bt: W.t + BY.FUSE });
+						if (dz2[cur] < Infinity) continue;
+						A.lob = n;
+						A.ld = d;
+						return;
+					}
+			}
 			/* otherwise head for a pick-up, a spot that blasts crates or a rival, keeping out of blast zones */
 			const S = this.bfs(W, e, dz, cur, true);
 			let best = -1,
@@ -46547,6 +46738,12 @@ Object.assign(MG, {
 				this.think(W, e);
 			}
 			const out = { x: 0, y: 0, boost: false };
+			if (A.lob) {
+				out.lob = A.lob;
+				out.ld = A.ld;
+				A.lob = 0;
+				return out;
+			}
 			if (A.drop) {
 				A.drop = false;
 				out.boost = true;
@@ -46562,7 +46759,7 @@ Object.assign(MG, {
 				/* don't step into a cell that is burning or about to */
 				const dz = W.dz,
 					cur = byCell(e.x, e.z);
-				if (dz && q !== cur && dz[q] < W.t + 0.35 && dz[q] + BY.FLT > W.t && !(dz[cur] < Infinity)) break;
+				if (dz && q !== cur && dz[q] < W.t + 0.3 && dz[q] + BY.FLT + 0.1 > W.t) break;
 				const dx = x - e.x,
 					dzz = z - e.z;
 				if (Math.abs(dx) > Math.abs(dzz)) out.x = Math.sign(dx);
