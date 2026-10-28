@@ -1173,7 +1173,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-28 05:39 98f3383";
+const BUILD = "2026-10-28 05:41 fdab596";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -46262,15 +46262,29 @@ Object.assign(MG, {
 			D4.forEach(([fx, fy], i) => {
 				if (!arm[i]) return;
 				const L = (arm[i] + 0.4) * P;
-				for (let j = 0; j < 5; j++) {
+				/* soft streaks: random thickness, start and length, fading in and out along their length, blurred (only
+				   their shadow lands, like the smears) */
+				for (let j = 0; j < 4 + Math.floor(q() * 4); j++) {
 					const sd = (q() - 0.5) * hw * 1.4 * P,
-						l = L * (0.4 + q() * 0.5);
-					x.strokeStyle = `rgba(255,255,255,${0.06 + q() * 0.1})`;
-					x.lineWidth = 1.5 + q() * 3;
+						a0 = q() * 0.35 * L,
+						a1 = Math.min(L, a0 + L * (0.15 + q() * 0.65)),
+						al = 0.05 + q() * 0.12,
+						g = x.createLinearGradient(cx + fx * a0, cy + fy * a0, cx + fx * a1, cy + fy * a1);
+					g.addColorStop(0, "rgba(255,255,255,0)");
+					g.addColorStop(0.2 + q() * 0.3, `rgba(255,255,255,${al})`);
+					g.addColorStop(1, "rgba(255,255,255,0)");
+					x.save();
+					x.translate(-OFF, 0);
+					x.shadowOffsetX = OFF;
+					x.shadowColor = "#fff";
+					x.shadowBlur = 1.5 + q() * 3;
+					x.strokeStyle = g;
+					x.lineWidth = 1 + Math.pow(q(), 2) * 6;
 					x.beginPath();
-					x.moveTo(cx + fy * sd, cy - fx * sd);
-					x.lineTo(cx + fx * l + fy * sd, cy + fy * l - fx * sd);
+					x.moveTo(cx + fx * a0 + fy * sd, cy + fy * a0 - fx * sd);
+					x.lineTo(cx + fx * a1 + fy * sd, cy + fy * a1 - fx * sd);
 					x.stroke();
+					x.restore();
 				}
 			});
 			for (let j = 0; j < 10 + arm.reduce((a, b) => a + b, 0) * 3; j++) {
