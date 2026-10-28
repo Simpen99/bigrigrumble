@@ -1988,7 +1988,8 @@ Object.assign(MG, {
 			const asp = GFX.w / GFX.h,
 				up = Math.sin(1.13),
 				bk = Math.cos(1.13);
-			if (W.tv || !W.me.al) {
+			/* the TV (and a landscape screen whose truck is out) sees the whole yard */
+			if (W.tv || (!W.me.al && asp >= 1)) {
 				const gw = (BY.C * BY.T) / 2 + 1.6,
 					gd = (BY.R * BY.T) / 2 + 2.2,
 					t = Math.tan((20 * Math.PI) / 180),
@@ -1996,8 +1997,26 @@ Object.assign(MG, {
 					g = new THREE.Vector3(0, 0, 0.6);
 				return [g, g.clone().add(new THREE.Vector3(0, up * D, bk * D))];
 			}
-			const me = W.me,
-				D = asp < 1 ? 31 : 25,
+			/* out on a portrait phone: the whole yard would need the camera ~100 m away (lost in the sandstorm's haze), so
+			   follow one truck still playing instead: whoever blew you up, else the one nearest the camera, the next one
+			   when it goes out */
+			let me = W.me;
+			if (!me.al) {
+				const ok = (o) => o && !o.gone && o.al && !o.d && o !== W.me;
+				let f = W.ents[W.specK];
+				if (!ok(f)) {
+					const kb = W.ents[W.me.f.ko],
+						at = GFX.mgCam ? GFX.mgCam.t : { x: W.me.x, z: W.me.z };
+					f = ok(kb)
+						? kb
+						: W.list
+								.filter(ok)
+								.sort((p, q) => Math.hypot(p.x - at.x, p.z - at.z) - Math.hypot(q.x - at.x, q.z - at.z))[0];
+					W.specK = f ? f.k : null;
+				}
+				if (f) me = f;
+			}
+			const D = asp < 1 ? 31 : 25,
 				hx = (BY.C * BY.T) / 2 - (asp < 1 ? 6 : 9),
 				hz = (BY.R * BY.T) / 2 - 7,
 				g = new THREE.Vector3(Math.max(-hx, Math.min(hx, me.x)), 0, Math.max(-hz, Math.min(hz, me.z)) + 0.5);
