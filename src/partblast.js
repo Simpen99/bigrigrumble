@@ -666,14 +666,6 @@ Object.assign(MG, {
 						}
 					x.putImageData(im, 0, 0);
 				});
-			const streaks = [
-				[0.5, 0.05, 1, 0.45],
-				[0.32, 0.035, 0.8, 0.35],
-				[0.66, 0.04, 0.9, 0.38],
-				[0.2, 0.03, 0.55, 0.3],
-				[0.8, 0.03, 0.62, 0.3],
-				[0.42, 0.025, 0.7, 0.25],
-			];
 			const scMat = (tex) =>
 				new THREE.MeshBasicMaterial({
 					color: "#2A1E16",
@@ -682,6 +674,7 @@ Object.assign(MG, {
 					depthWrite: false,
 					polygonOffset: true,
 					polygonOffsetFactor: -1,
+					side: THREE.DoubleSide /* mirrored copies face down */,
 				});
 			const scInst = (geo, mat, n) => {
 				const im = new THREE.InstancedMesh(geo, mat, n);
@@ -694,23 +687,29 @@ Object.assign(MG, {
 			W.scArm = scInst(
 				new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2).translate(0.5, 0, 0),
 				scMat(
+					/* a wide soot band along the arm (u = 0 at the centre, 1 past the last tile), soft at its sides, ending in
+					   jagged spikes (longest in the middle), faint grain along it */
 					mask(256, 64, (u, v) => {
-						const band = Math.pow(Math.max(0, 1 - Math.abs(v - 0.5) / 0.5), 1.6),
-							fade = Math.max(0, 1 - Math.pow(u, 2.2)) * Math.min(1, (1 - u) * 6);
-						let a = 0.34 * band * fade;
-						for (const [c, w, l, k] of streaks)
-							if (u < l) a += k * Math.exp(-Math.pow((v - c) / w, 2)) * Math.sqrt(1 - u / l) * Math.min(1, u * 8 + 0.3);
-						return Math.min(0.72, a);
+						const ac = Math.abs(v - 0.5) * 2,
+							side = Math.max(0, Math.min(1, (1 - ac) / 0.3)),
+							teeth = Math.pow(Math.abs(Math.sin(v * Math.PI * 7 + Math.sin(v * 23) * 1.3)), 0.7),
+							tip = 0.66 + 0.3 * (1 - ac * ac) * teeth,
+							end = u < tip ? 1 : Math.max(0, 1 - (u - tip) / 0.035),
+							grain = 0.86 + 0.14 * Math.sin(v * 71 + u * 9) * Math.sin(v * 37 - u * 5);
+						return 0.38 * side * end * grain;
 					}),
 				),
 				240,
 			);
 			W.scBlot = scInst(
-				new THREE.PlaneGeometry(T * 1.25, T * 1.25).rotateX(-Math.PI / 2),
+				new THREE.PlaneGeometry(T * 1.5, T * 1.5).rotateX(-Math.PI / 2),
 				scMat(
+					/* a ragged blot: heavier in the middle, its rim in jagged lobes */
 					mask(128, 128, (u, v) => {
-						const d = Math.hypot(u - 0.5, v - 0.5) / 0.5;
-						return Math.max(0, 0.62 * (1 - Math.pow(d, 1.8)));
+						const d = Math.hypot(u - 0.5, v - 0.5) / 0.5,
+							a = Math.atan2(v - 0.5, u - 0.5),
+							rim = 0.78 + 0.12 * Math.sin(a * 9) + 0.08 * Math.sin(a * 4 + 1);
+						return d < rim ? 0.38 * Math.min(1, (rim - d) / 0.25 + 0.35) : 0;
 					}),
 				),
 				80,
@@ -1191,9 +1190,9 @@ Object.assign(MG, {
 				o.position.set(x, 0.012, z);
 				o.rotation.set(0, ry, 0);
 				o.scale.set(
-					arm[i] * BY.T + BY.T * 0.55,
+					arm[i] * BY.T + BY.T * 0.62,
 					1,
-					BY.T * (0.85 + Math.random() * 0.15) * (Math.random() < 0.5 ? -1 : 1),
+					BY.T * (0.8 + Math.random() * 0.1) * (Math.random() < 0.5 ? -1 : 1),
 				);
 				o.updateMatrix();
 				W.scArm.setMatrixAt(W.scN % 240, o.matrix);
