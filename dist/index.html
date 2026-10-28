@@ -1173,7 +1173,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-28 05:41 fdab596";
+const BUILD = "2026-10-28 05:52 3b43334";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -46152,7 +46152,7 @@ Object.assign(MG, {
 			D.forEach(([fx, fy], i) => {
 				const nx = fy,
 					ny = -fx,
-					L = arm[i] ? (arm[i] + 0.42) * P : hw * P,
+					L = arm[i] ? (arm[i] + 0.2) * P : hw * P,
 					h = hw * P,
 					at = (along, side) => pts.push([cx + fx * along + nx * side, cy + fy * along + ny * side]);
 				/* out along one side */
@@ -46162,7 +46162,7 @@ Object.assign(MG, {
 				for (let j = 0; j <= n; j++) {
 					const sd = h - (2 * h * j) / n,
 						mid = 1 - Math.abs(sd) / h,
-						sp = arm[i] ? (j % 2 ? (4 + q() * 10 + mid * 10) * k : -q() * 4 * k) : j % 2 ? q() * 4 * k : 0;
+						sp = arm[i] ? (j % 2 ? (3 + q() * 6 + mid * 6) * k : -q() * 4 * k) : j % 2 ? q() * 4 * k : 0;
 					at(L + sp, sd);
 				}
 				/* back along the other side */
@@ -46229,7 +46229,7 @@ Object.assign(MG, {
 			/* each arm a smear, darkest at the centre and gone by the tip */
 			D4.forEach(([fx, fy], i) => {
 				if (!arm[i]) return;
-				const L = (arm[i] + 0.4) * P,
+				const L = (arm[i] + 0.15) * P,
 					lg = x.createLinearGradient(cx, cy, cx + fx * L, cy + fy * L);
 				lg.addColorStop(0, "rgba(255,255,255,.5)");
 				lg.addColorStop(0.5, "rgba(255,255,255,.3)");
@@ -46261,7 +46261,7 @@ Object.assign(MG, {
 			x.lineCap = "round";
 			D4.forEach(([fx, fy], i) => {
 				if (!arm[i]) return;
-				const L = (arm[i] + 0.4) * P;
+				const L = (arm[i] + 0.15) * P;
 				/* soft streaks: random thickness, start and length, fading in and out along their length, blurred (only
 				   their shadow lands, like the smears) */
 				for (let j = 0; j < 4 + Math.floor(q() * 4); j++) {
@@ -46290,7 +46290,7 @@ Object.assign(MG, {
 			for (let j = 0; j < 10 + arm.reduce((a, b) => a + b, 0) * 3; j++) {
 				const i = Math.floor(q() * 4),
 					D = D4[i],
-					l = Math.pow(q(), 1.6) * (arm[i] + 0.3) * P,
+					l = Math.pow(q(), 1.6) * (arm[i] + 0.1) * P,
 					sd = (q() - 0.5) * hw * 1.5 * P,
 					px = cx + D[0] * l + D[1] * sd,
 					py = cy + D[1] * l - D[0] * sd,
@@ -46355,7 +46355,7 @@ Object.assign(MG, {
 							[-1, 0],
 							[0, -1],
 						][i],
-						l = q() * (g.arm[i] + 0.4) * BY.SPX * k,
+						l = q() * (g.arm[i] + 0.15) * BY.SPX * k,
 						sd = (q() - 0.5) * g.hw * 1.6 * BY.SPX * k,
 						fl = 0.6 + 0.4 * Math.sin(W.t * 9 + j * 2.1);
 					x.fillStyle = `rgba(255,${90 + j * 6},20,${a * fl * (0.4 + q() * 0.6)})`;
