@@ -1173,7 +1173,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-28 05:33 3d07b52";
+const BUILD = "2026-10-28 05:39 98f3383";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -44997,6 +44997,7 @@ const BY = {
 	FLY0: 0.3 /* a throw's flight time: FLY0 + FLYK per tile (the fuse keeps running) */,
 	FLYK: 0.07,
 	SPX: 64 /* scorch canvas px per tile */,
+	SOOTF: 0.09 /* share of the scorch that fades every 2 s */,
 	EMBER: 2.6 /* s a scorch's glowing rim takes to fade */,
 	STORM: 3 /* sudden death brings a sandstorm, fading in over this many s */,
 	WIND: 1.6 /* m/s the storm pushes trucks along the wind */,
@@ -46186,64 +46187,85 @@ Object.assign(MG, {
 				else if (dr < 0) arm[3] = Math.max(arm[3], -dr);
 			}
 			const S = W.soot,
-				x = S.x,
 				P = BY.SPX,
 				cx = (c0 + 0.5) * P,
 				cy = (r0 + 0.5) * P,
 				hw = 0.36 + Math.min(0.08, 0.02 * Math.max(...arm)),
 				seed = Math.floor(Math.random() * 1e9),
 				path = this.scorchPath(cx, cy, arm, hw, seed, 1),
-				q = mulberry(seed + 1);
+				q = mulberry(seed + 1),
+				D4 = [
+					[1, 0],
+					[0, 1],
+					[-1, 0],
+					[0, -1],
+				];
+			/* the blast is drawn on its own scratch canvas first: there its parts take the darker of each other
+			   ("lighten" on a white mask), so the arms don't double up into a square where they cross; then it is
+			   screened onto the soot, so blasts build up on each other */
+			const T =
+					W.sootTmp ||
+					(W.sootTmp = (() => {
+						const c = document.createElement("canvas");
+						c.width = S.c.width;
+						c.height = S.c.height;
+						return { c, x: c.getContext("2d") };
+					})()),
+				x = T.x,
+				OFF = 4000;
+			x.globalCompositeOperation = "source-over";
+			x.fillStyle = "#000";
+			x.fillRect(0, 0, T.c.width, T.c.height);
 			x.save();
-			/* the soot itself, soft edged */
-			x.shadowColor = "rgba(255,255,255,.5)";
-			x.shadowBlur = 5;
-			x.fillStyle = "rgba(255,255,255,.14)";
+			x.globalCompositeOperation = "lighten";
+			/* only the blurred shadows land on the canvas (the shapes are drawn OFF px to the left of it): every part is soft */
+			x.translate(-OFF, 0);
+			x.shadowOffsetX = OFF;
+			x.shadowColor = "#fff";
+			/* a faint jagged base the shape of the blast */
+			x.shadowBlur = 8;
+			x.fillStyle = "rgba(255,255,255,.12)";
 			x.fill(path);
-			x.shadowBlur = 0;
-			x.clip(path);
-			/* the blast is strongest at its centre: each arm's soot thins out toward its tip */
-			[
-				[1, 0],
-				[0, 1],
-				[-1, 0],
-				[0, -1],
-			].forEach(([fx, fy], i) => {
+			/* each arm a smear, darkest at the centre and gone by the tip */
+			D4.forEach(([fx, fy], i) => {
 				if (!arm[i]) return;
-				const L = (arm[i] + 0.6) * P,
+				const L = (arm[i] + 0.4) * P,
 					lg = x.createLinearGradient(cx, cy, cx + fx * L, cy + fy * L);
-				lg.addColorStop(0, "rgba(255,255,255,.3)");
-				lg.addColorStop(0.55, "rgba(255,255,255,.14)");
+				lg.addColorStop(0, "rgba(255,255,255,.5)");
+				lg.addColorStop(0.5, "rgba(255,255,255,.3)");
 				lg.addColorStop(1, "rgba(255,255,255,0)");
-				x.fillStyle = lg;
-				const w = hw * P * 1.4;
-				x.fillRect(
-					Math.min(cx, cx + fx * L) - (fy ? w : 0),
-					Math.min(cy, cy + fy * L) - (fx ? w : 0),
-					fx ? L : 2 * w,
-					fy ? L : 2 * w,
-				);
+				x.shadowBlur = hw * P * 0.35;
+				x.strokeStyle = lg;
+				x.lineWidth = hw * P * 1.25;
+				x.beginPath();
+				x.moveTo(cx, cy);
+				x.lineTo(cx + fx * L, cy + fy * L);
+				x.stroke();
 			});
-			/* heavier in the middle */
-			const g = x.createRadialGradient(cx, cy, 2, cx, cy, P * 0.95);
-			g.addColorStop(0, "rgba(255,255,255,.34)");
-			g.addColorStop(1, "rgba(255,255,255,0)");
-			x.fillStyle = g;
-			x.fillRect(cx - P, cy - P, 2 * P, 2 * P);
-			/* soot streaks thrown out along each arm */
+			/* a round blot in the middle */
+			{
+				const g = x.createRadialGradient(cx, cy, 0, cx, cy, P * 0.85);
+				g.addColorStop(0, "rgba(255,255,255,.42)");
+				g.addColorStop(0.6, "rgba(255,255,255,.2)");
+				g.addColorStop(1, "rgba(255,255,255,0)");
+				x.shadowBlur = 6;
+				x.fillStyle = g;
+				x.beginPath();
+				x.arc(cx, cy, P * 0.85, 0, 6.283);
+				x.fill();
+			}
+			x.restore();
+			/* soot streaks thrown out along each arm and specks of burnt debris, inside the blast's outline */
+			x.save();
+			x.clip(path);
 			x.lineCap = "round";
-			[
-				[1, 0],
-				[0, 1],
-				[-1, 0],
-				[0, -1],
-			].forEach(([fx, fy], i) => {
+			D4.forEach(([fx, fy], i) => {
 				if (!arm[i]) return;
 				const L = (arm[i] + 0.4) * P;
 				for (let j = 0; j < 5; j++) {
-					const sd = (q() - 0.5) * hw * 1.6 * P,
-						l = L * (0.45 + q() * 0.55);
-					x.strokeStyle = `rgba(255,255,255,${0.1 + q() * 0.14})`;
+					const sd = (q() - 0.5) * hw * 1.4 * P,
+						l = L * (0.4 + q() * 0.5);
+					x.strokeStyle = `rgba(255,255,255,${0.06 + q() * 0.1})`;
 					x.lineWidth = 1.5 + q() * 3;
 					x.beginPath();
 					x.moveTo(cx + fy * sd, cy - fx * sd);
@@ -46251,21 +46273,15 @@ Object.assign(MG, {
 					x.stroke();
 				}
 			});
-			/* specks of burnt debris */
 			for (let j = 0; j < 10 + arm.reduce((a, b) => a + b, 0) * 3; j++) {
 				const i = Math.floor(q() * 4),
-					D = [
-						[1, 0],
-						[0, 1],
-						[-1, 0],
-						[0, -1],
-					][i],
-					l = q() * (arm[i] + 0.4) * P,
-					sd = (q() - 0.5) * hw * 1.7 * P,
+					D = D4[i],
+					l = Math.pow(q(), 1.6) * (arm[i] + 0.3) * P,
+					sd = (q() - 0.5) * hw * 1.5 * P,
 					px = cx + D[0] * l + D[1] * sd,
 					py = cy + D[1] * l - D[0] * sd,
 					r = 1.2 + q() * 2.4;
-				x.fillStyle = `rgba(255,255,255,${0.25 + q() * 0.3})`;
+				x.fillStyle = `rgba(255,255,255,${0.2 + q() * 0.25})`;
 				x.beginPath();
 				x.moveTo(px + r, py);
 				for (let v = 1; v < 5; v++)
@@ -46273,11 +46289,23 @@ Object.assign(MG, {
 				x.fill();
 			}
 			x.restore();
+			S.x.save();
+			S.x.globalCompositeOperation = "screen";
+			S.x.drawImage(T.c, 0, 0);
+			S.x.restore();
 			S.t.needsUpdate = true;
 			W.glowL.push({ t0: W.t, cx, cy, arm, hw, seed });
 		},
 		/* the glowing rims: an orange edge and embers fading over BY.EMBER s after each blast */
 		emberStep(W) {
+			/* old scorch fades: every 2 s the soot mask loses SOOTF of its strength (about half in 15 s) */
+			if (W.t - (W.sootF || 0) > 2 || W.t < (W.sootF || 0)) {
+				W.sootF = W.t;
+				const S = W.soot;
+				S.x.fillStyle = `rgba(0,0,0,${BY.SOOTF})`;
+				S.x.fillRect(0, 0, S.c.width, S.c.height);
+				S.t.needsUpdate = true;
+			}
 			const E = W.ember,
 				L = (W.glowL = W.glowL.filter((g) => W.t - g.t0 < BY.EMBER));
 			if (!L.length && !W.emberM.visible) return;
