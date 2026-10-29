@@ -67,6 +67,8 @@ const FD = {
 	KB0: 3.5 /* knock: (KB0 + KBV * impact) * (1 + dent / KBD) */,
 	KBV: 0.3,
 	KBD: 45,
+	KLO: 0.5 /* a fresh truck takes only this share of the knock... */,
+	KLD: 45 /* ...rising to all of it by this dent % */,
 	AIRK: 14 /* knocks harder than this lift the truck */,
 	CREDIT: 5 /* s a hit keeps the credit for a KO */,
 	KO: 3,
@@ -1990,7 +1992,11 @@ Object.assign(MG, {
 						nz = +q[3] || 0,
 						p = +q[4] || 0;
 					e.dent = Math.min(999, e.dent + Math.max(2, (p - 3) * FD.DMG * (+q[5] || 1)));
-					const K = (FD.KB0 + p * FD.KBV) * (1 + e.dent / FD.KBD) * (+q[6] || 1);
+					const K =
+						(FD.KB0 + p * FD.KBV) *
+						(1 + e.dent / FD.KBD) *
+						Math.min(1, FD.KLO + ((1 - FD.KLO) * e.dent) / FD.KLD) *
+						(+q[6] || 1);
 					e.vx += nx * K;
 					e.vz += nz * K;
 					e.slideT = 1.1;
