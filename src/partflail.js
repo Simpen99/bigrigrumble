@@ -80,6 +80,7 @@ const FD = {
 	SMV: 34 /* launch speed */,
 };
 const FD_PW = ["heavy", "spike", "chain", "wrench"];
+const FD_UP = new THREE.Vector3(0, 1, 0);
 /* breakable kinds: model, scale, radius, weight, debris colours */
 const FD_BK = [
 	{ m: () => byCrateModel(), sc: 0.66, r: 0.72, w: 0.22, cols: ["#B97A3E", "#8A5428", "#C68848"] },
@@ -202,21 +203,24 @@ function fdLooModel() {
 	g.add(B(0.14, 0.06, 0.03, "#E5484D", 0.28, 1.25, 0.545));
 	return g;
 }
-/* the wrecking ball: faceted iron, a band in the player's colour, the lug the chain hangs from, spikes (power-up) */
+/* the wrecking ball: faceted iron, a band in the player's colour, the lug the chain hangs from, spikes (power-up); all in
+   `o`, which fdVis turns so the lug points up the chain */
 function fdBallModel(col) {
 	const g = new THREE.Group(),
+		o = new THREE.Group(),
 		r = FD.BR,
 		ball = mesh(new THREE.IcosahedronGeometry(r, 1), "#454A54", { metalness: 0.35, roughness: 0.55 });
-	g.add(ball);
+	g.add(o);
+	o.add(ball);
 	const band = new THREE.Mesh(
 		new THREE.CylinderGeometry(r * 1.04, r * 1.04, r * 0.36, 16, 1, true),
 		new THREE.MeshStandardMaterial({ color: col, flatShading: true, roughness: 0.6 }),
 	);
 	band.castShadow = true;
-	g.add(band);
+	o.add(band);
 	const lug = mesh(new THREE.TorusGeometry(0.13, 0.05, 5, 10), "#5A6070", { metalness: 0.4 });
 	lug.position.y = r + 0.08;
-	g.add(lug);
+	o.add(lug);
 	const spk = new THREE.Group(),
 		ico = new THREE.IcosahedronGeometry(1, 0).attributes.position,
 		seen = new Set();
@@ -234,8 +238,8 @@ function fdBallModel(col) {
 		spk.add(c);
 	}
 	spk.visible = false;
-	g.add(spk);
-	return { g, ball, spk };
+	o.add(spk);
+	return { g, o, spk };
 }
 /* the flail's handle: a stiff boom off the tow hitch, angled up and back (built facing -x from the truck's tail at x 0):
    a swivel block, a box beam with a stripe in the player's colour on top, a brace under it, a sheave at the tip where
@@ -1943,11 +1947,16 @@ Object.assign(MG, {
 				e.bv.g.scale.setScalar(R);
 				e.bv.spk.visible = pw === "spike";
 				{
-					const hv = Math.hypot(b.vx || 0, b.vz || 0);
-					if (hv > 0.3) {
-						const ax = new THREE.Vector3(b.vz, 0, -b.vx).normalize();
-						e.bv.ball.rotateOnWorldAxis(ax, (hv * dt) / FD.BR);
+					/* the ball hangs off its chain: the lug turns toward the chain's last link (last frame's), easing over */
+					const q = e.cn[e.cn.length - 2],
+						u = W.fdU || (W.fdU = new THREE.Vector3()),
+						tq = W.fdQ || (W.fdQ = new THREE.Quaternion());
+					u.set(q.x - b.x, q.y - b.y, q.z - b.z);
+					if (u.lengthSq() > 0.04) {
+						tq.setFromUnitVectors(FD_UP, u.normalize());
+						e.bv.o.quaternion.slerp(tq, Math.min(1, dt * 14));
 					}
+					const hv = Math.hypot(b.vx || 0, b.vz || 0);
 					if (hv > 15 && Math.random() < dt * 30)
 						burst(W.sc, b.x, b.y, b.z, {
 							n: 1,
@@ -1975,7 +1984,9 @@ Object.assign(MG, {
 							Math.min(e.local ? e.L : +e.f.ln || FD.L0, Math.hypot(b.x - H[0], b.y - H[1], b.z - H[2]) + 0.6),
 						),
 						seg = L / n,
-						top = [b.x, b.y + FD.BR * R + 0.1, b.z],
+						lu = (W.fdL || (W.fdL = new THREE.Vector3())).copy(FD_UP).applyQuaternion(e.bv.o.quaternion),
+						lr = (FD.BR + 0.12) * R,
+						top = [b.x + lu.x * lr, b.y + lu.y * lr, b.z + lu.z * lr],
 						h = Math.min(dt, 0.05);
 					if (Math.hypot(N[0].x - H[0], N[0].z - H[2]) > 6)
 						N.forEach((q, i) => {
