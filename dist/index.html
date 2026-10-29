@@ -1178,7 +1178,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-29 07:09 72e9fc5";
+const BUILD = "2026-10-29 07:23 665b17e";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -47845,8 +47845,8 @@ const FD = {
 	DMG: 0.85 /* dent % per m/s of impact over 3 */,
 	KB0: 3.5 /* knock: (KB0 + KBV * impact) * (KLO + KHI * (dent / KD) ^ KP) */,
 	KBV: 0.3,
-	KLO: 0.5 /* a fresh truck takes only this share of the knock... */,
-	KHI: 2.5 /* ...plus this much more by KD % */,
+	KLO: 0.6 /* a fresh truck takes only this share of the knock... */,
+	KHI: 2.4 /* ...plus this much more by KD % */,
 	KD: 90,
 	KP: 2 /* how steeply it climbs (1 = a straight line, 2 = slow at first, then fast like a platform fighter) */,
 	AIRK: 14 /* knocks harder than this lift the truck */,
@@ -48970,9 +48970,8 @@ Object.assign(MG, {
 				e.y += e.vy * dt;
 				e.spin = (e.spin || 0) + dt * (e.spinV || 0);
 				const S = fdSide(e.x, e.z);
-				/* low enough, the rail still stops it */
-				if (S.d > FD.A - FD.RAILIN - FD.TR && S.d < FD.A && e.y < FD.RAILH - 0.25 && !this.fdGapAt(W, S))
-					this.fdBounce(e, S);
+				/* the rail stops it however high it flies (only a SMASH goes over; gaps let it out) */
+				if (S.d > FD.A - FD.RAILIN - FD.TR && S.d < FD.A + 1 && !this.fdGapAt(W, S)) this.fdBounce(e, S);
 				if (e.y <= 0 && e.vy < 0) {
 					if (S.d < FD.A) {
 						e.y = 0;
@@ -49664,6 +49663,102 @@ Object.assign(MG, {
 			}
 			if (o.isMe && !W.tv) buzz(big ? 90 : 50);
 		},
+		/* the KO blast: cones of light in the truck's colour (bright at the point, fading as they open) and spikes, shooting
+		   back toward the deck from where it went out (a fall: up out of the pit), a flash, confetti, a bang, a shake */
+		fdBlast(W, e, x, y, z, big) {
+			const col = new THREE.Color(pcol(e.p)),
+				G =
+					W.blG ||
+					(W.blG = (() => {
+						const g = new THREE.ConeGeometry(1, 1, 28, 1, true).translate(0, -0.5, 0),
+							P = g.attributes.position,
+							C = [];
+						for (let i = 0; i < P.count; i++) {
+							const k = 1 + P.getY(i);
+							C.push(k, k, k);
+						}
+						g.setAttribute("color", new THREE.Float32BufferAttribute(C, 3));
+						return g;
+					})()),
+				dir = big
+					? new THREE.Vector3(-x, Math.hypot(x, z) * 0.35, -z).normalize()
+					: new THREE.Vector3(-x * 0.3, Math.hypot(x, z), -z * 0.3).normalize(),
+				side = new THREE.Vector3(-dir.z, 0, dir.x).normalize(),
+				up = new THREE.Vector3().crossVectors(side, dir),
+				L = W.slFx || (W.slFx = []),
+				s = big ? 1 : 0.7,
+				cone = (c, d, w, len, dur, ro) => {
+					const m = new THREE.Mesh(
+						G,
+						new THREE.MeshBasicMaterial({
+							color: c,
+							vertexColors: true,
+							transparent: true,
+							blending: THREE.AdditiveBlending,
+							depthWrite: false,
+							side: THREE.DoubleSide,
+							fog: false,
+						}),
+					);
+					m.position.set(x, y, z);
+					m.quaternion.setFromUnitVectors(new THREE.Vector3(0, -1, 0), d);
+					m.renderOrder = ro;
+					m.frustumCulled = false;
+					W.sc.add(m);
+					L.push({ t: W.t, m, k: "blast", d: dur, w, len });
+				};
+			cone(col, dir, 3.4 * s, 17 * s, 0.95, 13);
+			cone(new THREE.Color("#FFFFFF"), dir, 1.3 * s, 14 * s, 0.6, 14);
+			for (let i = 0; i < 6; i++) {
+				const a = (i / 6) * 6.283 + Math.random() * 0.6,
+					d = dir
+						.clone()
+						.addScaledVector(side, Math.cos(a) * 0.45)
+						.addScaledVector(up, Math.sin(a) * 0.45)
+						.normalize();
+				cone(i % 2 ? col : new THREE.Color("#FFF4C8"), d, 0.35 * s, (11 + Math.random() * 7) * s, 0.7, 13);
+			}
+			const fl = new THREE.Sprite(
+				new THREE.SpriteMaterial({
+					map: fdFlashTex(),
+					transparent: true,
+					depthTest: false,
+					blending: THREE.AdditiveBlending,
+					fog: false,
+				}),
+			);
+			fl.position.set(x, y, z);
+			fl.renderOrder = 15;
+			W.sc.add(fl);
+			L.push({ t: W.t, m: fl, k: "flash", d: 0.45, s0: 5 * s, s1: 12 * s });
+			const c = "#" + col.getHexString();
+			burst(W.sc, x, y, z, {
+				n: 30,
+				shape: "cube",
+				cols: [c, "#FFFFFF", "#FFE27A"],
+				spd: 14 * s,
+				up: 6,
+				grav: 8,
+				life: 1,
+				size: 1.2,
+			});
+			burst(W.sc, x, y, z, {
+				n: 12,
+				shape: "ico",
+				cols: [c, "#F4F6F9"],
+				spd: 6 * s,
+				up: 3,
+				grav: 1,
+				life: 1.2,
+				size: 1.8,
+				op: 0.55,
+			});
+			if (W.tv || e.isMe || Math.hypot(x - W.me.x, z - W.me.z) < 30) {
+				sfx("cannon");
+				W.shake = Math.max(W.shake || 0, big ? 0.85 : 0.55);
+			}
+			if (e.isMe && !W.tv) buzz(big ? 200 : 120);
+		},
 		/* the slam on screen: a flash, two shockwave rings, a cracked scorch, sparks, deck bits and dust, a shake */
 		fdSlamFx(W, e, x, z) {
 			const y = (fdOnDeck(x, z) ? 0 : FD.PIT) + 0.05,
@@ -50281,6 +50376,20 @@ Object.assign(MG, {
 						if (t - sl < 1) this.fdSlamFx(W, e, +e.f.sl[1], +e.f.sl[2]);
 					}
 				}
+				/* KO blast (a platform fighter's blast line): a burst in the truck's colour fanning back in from where it went out */
+				{
+					const sm = +e.f.sm || 0;
+					if (sm && e.blSeen !== sm && t - sm > FD.FREEZE && (Math.hypot(e.x, e.z) > FD.A + 4 || t - sm > 1.4)) {
+						e.blSeen = sm;
+						if (t - sm < 2.5) this.fdBlast(W, e, e.x, Math.max(FD.PIT + 0.5, e.y), e.z, true);
+					}
+					const ks = e.f.ko || [],
+						ko = ks[ks.length - 1];
+					if (ko && ko[3] === "f" && e.fbSeen !== ko[1] && (e.y < FD.PIT + 1 || t - ko[1] > 1.3)) {
+						e.fbSeen = ko[1];
+						if (t - ko[1] < 2.5) this.fdBlast(W, e, e.x, FD.PIT + 0.3, e.z, false);
+					}
+				}
 				/* dent label */
 				{
 					const v = e.local ? Math.round(e.dent) : e.f.dn | 0,
@@ -50419,13 +50528,20 @@ Object.assign(MG, {
 						q.m.material.dispose();
 						return false;
 					}
+					if (q.k === "blast") {
+						const g = 1 - Math.pow(1 - Math.min(1, u * 5), 3),
+							w = q.w * (0.35 + 0.65 * Math.min(1, u * 2));
+						q.m.scale.set(w, q.len * g, w);
+						q.m.material.opacity = Math.pow(1 - u, 1.6);
+						return true;
+					}
 					if (q.k === "ring") {
 						const s = 0.3 + (q.r - 0.3) * (1 - (1 - u) * (1 - u) * (1 - u));
 						q.m.scale.set(s, 1, s);
 						q.m.material.opacity = (1 - u) * q.o;
 					} else if (q.k === "soot") q.m.material.opacity = 0.6 * Math.min(1, (1 - u) * 3);
 					else {
-						const s = 2.2 + u * 6;
+						const s = (q.s0 || 2.2) + u * (q.s1 || 6);
 						q.m.scale.set(s, s, 1);
 						q.m.material.opacity = 1 - u;
 					}
