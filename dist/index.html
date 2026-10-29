@@ -1178,7 +1178,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-29 05:14 2ea6259";
+const BUILD = "2026-10-29 06:39 808ff1e";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -47779,7 +47779,8 @@ Object.assign(MG, {
 });
 /* ---------- Flail Derby (free-for-all: wrecking balls on chains, on a scrapyard crusher deck) ----------
    Every truck drags an iron wrecking ball on a chain from its tow hitch. Driving swings it: circle and it whips round you.
-   Holding REEL pulls the chain short (FD.LIN); letting go whips the ball out (FD.LOUT, a kick along its swing).
+   SLAM (the main button) jumps up high (swinging balls pass under), three front flips with the ball whirling round, and
+   slams the ball down in front: a shockwave (fdSlamHit). The pose over the jump is fdJumpPose.
    A ball hit adds dent % to the truck it hits; the more dented a truck, the further hits throw it (platform-fighter style),
    up into the air once they are hard enough, so a battered truck flies over the guardrail.
    The deck is an octagon (apothem FD.A) with a low guardrail and gaps in it over the junk pit (sides in FD.GAP0; the other
@@ -47810,14 +47811,28 @@ const FD = {
 	MEM: 8 /* rad of swipe it remembers ahead of the truck (about 1.25 turns) */,
 	SWEEP: 9 /* most the boom's sweep adds to the tip's speed (m/s) */,
 	L0: 3.2 /* chain length (from the boom's tip) */,
-	LIN: 1.4 /* reeled in */,
-	LOUT: 5 /* just after a whip */,
+
 	LCH: 1.6 /* the chain power-up adds this */,
 	CONE: 1.2 /* the ball swings at most this far (rad) off the boom's line */,
 	CONEV: 4 /* rad/s (round the tip) at most that it swings back in when it is out of that */,
-	REELV: 7 /* m/s the chain reels in or pays out */,
-	WHIP: 8 /* m/s kick along the swing when REEL is let go */,
-	WCD: 0.9 /* whip cooldown */,
+	/* SLAM: a jump with three front flips, the ball whirling round with the truck, slammed down in front */
+	JCD: 5 /* s after landing before the next */,
+	JCR: 0.14 /* the crouch before the jump */,
+	JT: 1.25 /* time in the air */,
+	JH: 4.8 /* how high the truck's middle rises */,
+	JC: 0.75 /* the truck's middle over its wheels (it flips round this) */,
+	JF0: 0.06 /* the flips start at this part of the air time... */,
+	JS: 0.86 /* ...and end here, with the slam */,
+	JE: 1.25 /* the flips speed up toward the slam (an ease-in power) */,
+	JK: 0.87 /* the ball goes round this much of the truck's turning (it trails, so it lands in front) */,
+	JRB: 3.3 /* the ball's circle round the truck's middle */,
+	JRS: 4.4 /* ...reaching out to this for the slam */,
+	JV: 5 /* most speed over the ground in the air */,
+	JAIR: 4 /* m/s² the stick steers in the air */,
+	JLAG: 0.3 /* s stuck after landing */,
+	SLR: 3.8 /* the slam's shockwave reaches this far */,
+	SLP: 26 /* impact of the ball itself */,
+	SLW: 16 /* ...of the shockwave right by the ball (fading to nothing at SLR) */,
 	BG: 24 /* ball gravity */,
 	BFR: 1.4 /* ball ground friction a second */,
 	BAIR: 0.35 /* ball air drag a second */,
@@ -48191,6 +48206,50 @@ function fdCrusher(W) {
 	W.rodTop = FD.GH;
 }
 /* the SMASH flash: a hot white core and spiky rays (white on black, drawn additively so no soft alpha edges speckle) */
+/* the SLAM's pose at u (0..1 of the air time): the truck's middle over the deck, its pitch (front flips: nose down), the
+   ball round the middle [forward, up], pr = how far through the flips */
+function fdJumpPose(u) {
+	const cy = FD.JC + 4 * FD.JH * u * (1 - u),
+		s = Math.max(0, Math.min(1, (u - FD.JF0) / (FD.JS - FD.JF0))),
+		pr = Math.pow(s, FD.JE),
+		p = -6 * Math.PI * pr,
+		a = Math.PI + FD.JK * p,
+		r = FD.JRB + (FD.JRS - FD.JRB) * Math.max(0, (pr - 0.6) / 0.4);
+	return { cy, p, pr, bf: Math.cos(a) * r, bu: Math.sin(a) * r };
+}
+function fdSootTex() {
+	return (
+		BLD_TEX.fdSoot ||
+		(BLD_TEX.fdSoot = canvasTex(128, 128, (x, w) => {
+			const c = w / 2;
+			x.fillStyle = "#000";
+			x.fillRect(0, 0, w, w);
+			const q = x.createRadialGradient(c, c, 0, c, c, c);
+			q.addColorStop(0, "#FFF");
+			q.addColorStop(0.45, "#BBB");
+			q.addColorStop(1, "#000");
+			x.fillStyle = q;
+			x.fillRect(0, 0, w, w);
+			/* cracks out from the middle */
+			x.strokeStyle = "#FFF";
+			x.lineWidth = 3;
+			for (let i = 0; i < 9; i++) {
+				let a = (i / 9) * 6.283 + Math.sin(i * 7.3) * 0.3,
+					px = c,
+					py = c;
+				x.beginPath();
+				x.moveTo(px, py);
+				for (let j = 0; j < 4; j++) {
+					a += Math.sin(i * 3.1 + j * 5.7) * 0.5;
+					px += Math.cos(a) * 13;
+					py += Math.sin(a) * 13;
+					x.lineTo(px, py);
+				}
+				x.stroke();
+			}
+		}))
+	);
+}
 function fdFlashTex() {
 	return (
 		BLD_TEX.fdFlash ||
@@ -48326,10 +48385,10 @@ Object.assign(MG, {
 		sun: [-15, 24, 9],
 		lt: { amb: 0.42, sun: 0.86, warm: 0.78, haze: 70 },
 		fx: { aa: 1 },
-		ramLabel: "REEL",
+		ramLabel: "SLAM",
 		controls: [
 			["stick", "Drive", "Spin round to swing your ball"],
-			["REEL", "Hold: reel the chain in", "Let go to whip the ball out"],
+			["SLAM", "Jump, flip and slam the ball down in front", "Up high, swinging balls pass under you"],
 		],
 		how: "Swing your wrecking ball into rivals: the more dented they are, the further they fly. Knock them into the pit or under the crusher!",
 		initEnt(W, e) {
@@ -48342,8 +48401,8 @@ Object.assign(MG, {
 			e.hcd = {};
 			e.hSeen = {};
 			e.L = FD.L0;
-			e.reelT = -1;
-			e.whipT = -9;
+			e.jcd = 0;
+			e.pitch = 0;
 			/* the tow hitch: just behind the truck's tail (the truck faces +x before the engine turns it) */
 			e.g.updateMatrixWorld(true);
 			const bb = new THREE.Box3().setFromObject(e.tr);
@@ -48380,6 +48439,31 @@ Object.assign(MG, {
 			e.chain.frustumCulled = false;
 			W.sc.add(e.chain);
 			e.cn = [...Array(NL + 1)].map(() => ({ x: e.ball.x, y: 0.6, z: e.ball.z, px: e.ball.x, py: 0.6, pz: e.ball.z }));
+			/* the SLAM's trail: a ribbon behind the whirling ball */
+			{
+				const n = 18,
+					g = new THREE.BufferGeometry(),
+					ix = [];
+				g.setAttribute("position", new THREE.BufferAttribute(new Float32Array(n * 6), 3));
+				g.setAttribute("color", new THREE.BufferAttribute(new Float32Array(n * 6), 3));
+				for (let i = 0; i < n - 1; i++) ix.push(i * 2, i * 2 + 1, i * 2 + 2, i * 2 + 1, i * 2 + 3, i * 2 + 2);
+				g.setIndex(ix);
+				const m = new THREE.Mesh(
+					g,
+					new THREE.MeshBasicMaterial({
+						vertexColors: true,
+						transparent: true,
+						blending: THREE.AdditiveBlending,
+						depthWrite: false,
+						side: THREE.DoubleSide,
+					}),
+				);
+				m.frustumCulled = false;
+				m.visible = false;
+				m.renderOrder = 5;
+				W.sc.add(m);
+				e.trl = { m, n, pts: [], col: new THREE.Color(pcol(e.p)) };
+			}
 			/* dent % over the truck */
 			const cv = document.createElement("canvas");
 			cv.width = 256;
@@ -48792,15 +48876,90 @@ Object.assign(MG, {
 				e.stR = Math.max(Math.abs(step) / Math.max(dt, 0.001), (e.stR || 0) * Math.exp(-5 * dt));
 			}
 			e.spd = pw === "heavy" ? 0.9 : 1;
+			/* SLAM: a press of the button (a tap or the start of a hold) on the deck, off cooldown */
+			{
+				const pressed = !!(inp && (inp.boost || (inp.hold && !e.hWas)));
+				e.hWas = !!(inp && inp.hold);
+				if (pressed && e.st === 0 && !e.d && t >= (e.jcd || 0) && t >= (e.lagT || 0)) {
+					e.st = 6;
+					e.jt = t;
+					e.jUp = false;
+					e.jSl = false;
+					e.jcd = t + 99;
+					e.f.jp = Math.round(t * 100) / 100;
+					mgLog(W, mgName(e) + " SLAM jump");
+				}
+			}
 			if (e.st === 0) {
 				/* the truck drives the way it faces (e.hd, from the swipe memory) as hard as the stick is pushed, and faces
 				   only that way, never the way the chain or a hit shoves it, so a yank slides it instead of swinging it round */
-				const m = inp && !e.d ? Math.min(1, Math.hypot(inp.x || 0, inp.y || 0)) * (e.bot ? e.botK || 1 : 1) : 0,
+				const m =
+						inp && !e.d && !(t < (e.lagT || 0))
+							? Math.min(1, Math.hypot(inp.x || 0, inp.y || 0)) * (e.bot ? e.botK || 1 : 1)
+							: 0,
 					ip = inp && !e.d ? { x: Math.cos(e.hd) * m, y: Math.sin(e.hd) * m, boost: false } : null;
 				if (inp) inp.boost = false;
 				arenaPhys(W, e, ip, dt);
 				e.yaw = -e.hd;
 				this.fdTruckWorld(W, e, dt);
+			} else if (e.st === 6) {
+				/* SLAM: a crouch, then up with three front flips (fdJumpPose), steering a little; fdBall whirls the ball */
+				const tj = t - e.jt;
+				if (tj < FD.JCR) {
+					const k = Math.exp(-6 * dt);
+					e.vx *= k;
+					e.vz *= k;
+					e.x += e.vx * dt;
+					e.z += e.vz * dt;
+					this.fdTruckWorld(W, e, dt);
+					e.jx = e.x;
+					e.jz = e.z;
+				} else {
+					if (!e.jUp) {
+						e.jUp = true;
+						const l = Math.hypot(e.vx, e.vz),
+							k = l > FD.JV ? FD.JV / l : 1;
+						e.jvx = e.vx * k;
+						e.jvz = e.vz * k;
+						e.jb0 = [e.ball.x, e.ball.y, e.ball.z];
+					}
+					if (inp && !e.d) {
+						e.jvx += (inp.x || 0) * FD.JAIR * dt;
+						e.jvz += (inp.y || 0) * FD.JAIR * dt;
+						const l = Math.hypot(e.jvx, e.jvz);
+						if (l > FD.JV) {
+							e.jvx *= FD.JV / l;
+							e.jvz *= FD.JV / l;
+						}
+					}
+					e.jx += e.jvx * dt;
+					e.jz += e.jvz * dt;
+					/* the rails stop it (only a gap lets it fly out) */
+					const S = fdSide(e.jx, e.jz),
+						lim = FD.A - FD.RAILIN - FD.TR;
+					if (S.d > lim && !this.fdGapAt(W, S)) {
+						const [nx, nz] = FD_N[S.k],
+							vn = e.jvx * nx + e.jvz * nz;
+						e.jx -= nx * (S.d - lim);
+						e.jz -= nz * (S.d - lim);
+						if (vn > 0) {
+							e.jvx -= vn * nx;
+							e.jvz -= vn * nz;
+						}
+					}
+					const u = Math.min(1, (tj - FD.JCR) / FD.JT),
+						q = fdJumpPose(u),
+						c = Math.cos(e.yaw),
+						s = Math.sin(e.yaw),
+						fo = FD.JC * Math.sin(q.p);
+					e.pitch = q.p;
+					e.x = e.jx + c * fo;
+					e.z = e.jz - s * fo;
+					e.y = q.cy - FD.JC * Math.cos(q.p);
+					e.vx = e.jvx;
+					e.vz = e.jvz;
+					if (u >= 1) this.fdLand(W, e);
+				}
 			} else if (e.st === 1) {
 				e.vy -= 28 * dt;
 				e.x += e.vx * dt;
@@ -48902,7 +49061,7 @@ Object.assign(MG, {
 			}
 			e.fly = e.st !== 0;
 			e.falling = false;
-			this.fdReel(W, e, inp, dt);
+			if (e.st !== 6 || e.jSl) e.L = FD.L0 + (pw === "chain" ? FD.LCH : 0);
 			this.fdBall(W, e, dt);
 			this.fdPickups(W, e);
 			const r2 = (v) => Math.round(v * 100) / 100,
@@ -48997,6 +49156,8 @@ Object.assign(MG, {
 			this.fdKO(W, e, "f");
 		},
 		fdKO(W, e, cause) {
+			e.pitch = 0;
+			if (e.jcd > W.t + FD.JCD) e.jcd = W.t + FD.JCD;
 			const h = e.lastHit,
 				by = h && W.t - h.t < FD.CREDIT && h.by && h.by !== e.k ? h.by : "";
 			e.f.ko = (e.f.ko || []).concat([[by, Math.round(W.t * 100) / 100, W.t >= FD.DBL ? 1 : 0, cause]]);
@@ -49046,42 +49207,114 @@ Object.assign(MG, {
 			e.ball = { x, y: 11.3 - FD.L0 * 0.7, z, vx: 0, vy: 0, vz: 0 };
 			if (W.tv || e.isMe) sfx("magnet");
 		},
-		/* REEL: held pulls the chain in; let go after a moment, a whip */
-		fdReel(W, e, inp, dt) {
-			const t = W.t,
-				held = !!(inp && inp.hold) && e.st <= 1 && !e.d,
-				pw = e.pw && e.pw[0],
-				base = FD.L0 + (pw === "chain" ? FD.LCH : 0);
-			if (held && e.reelT < 0) e.reelT = t;
-			if (!held && e.reelT >= 0) {
-				if (t - e.reelT > 0.18 && t - e.whipT > FD.WCD) this.fdWhip(W, e);
-				e.reelT = -1;
+		/* the SLAM lands: stuck a moment (or over a gap: down it goes) */
+		fdLand(W, e) {
+			e.pitch = 0;
+			e.y = 0;
+			e.x = e.jx;
+			e.z = e.jz;
+			e.jcd = W.t + FD.JCD;
+			if (!e.jSl) this.fdSlamHit(W, e, e.ball.x, e.ball.z);
+			if (!fdOnDeck(e.x, e.z)) {
+				this.fdFall(W, e);
+				return;
 			}
-			const goal = held ? FD.LIN : t - e.whipT < 0.6 ? FD.LOUT + (pw === "chain" ? FD.LCH : 0) : base;
-			e.L += Math.max(-FD.REELV * dt, Math.min(FD.REELV * 1.6 * dt, goal - e.L));
+			e.st = 0;
+			e.vx *= 0.5;
+			e.vz *= 0.5;
+			e.lagT = W.t + FD.JLAG;
+			burst(W.sc, e.x, 0.2, e.z, {
+				n: 8,
+				shape: "ico",
+				cols: ["#9AA1AB", "#C9CED8"],
+				spd: 3,
+				up: 1.5,
+				grav: 8,
+				life: 0.5,
+				size: 1.1,
+				op: 0.6,
+			});
+			if (W.tv || e.isMe) sfx("land");
 		},
-		fdWhip(W, e) {
+		/* the ball over the SLAM: round the truck's middle (from where it was, easing over), down on the deck = the slam */
+		fdJumpBall(W, e, dt) {
 			const b = e.ball,
-				h = this.fdHitch(e),
-				dx = b.x - h[0],
-				dz = b.z - h[2],
-				d = Math.hypot(dx, dz) || 1,
-				nx = dx / d,
-				nz = dz / d;
-			/* along the way it is already swinging round (or straight out if it isn't) */
-			let tx = -nz,
-				tz = nx;
-			const vt = b.vx * tx + b.vz * tz;
-			if (vt < 0) {
-				tx = -tx;
-				tz = -tz;
+				u = Math.min(1, (W.t - e.jt - FD.JCR) / FD.JT),
+				J = this.fdJumpAt(e, u),
+				w0 = Math.min(1, u / 0.22),
+				w = w0 * w0 * (3 - 2 * w0),
+				R = FD.BR * (e.pw && e.pw[0] === "heavy" ? 1.35 : 1),
+				x = e.jb0[0] + (J[0] - e.jb0[0]) * w,
+				z = e.jb0[2] + (J[2] - e.jb0[2]) * w,
+				fl = (fdOnDeck(x, z) ? 0 : FD.PIT) + R,
+				y = Math.max(fl, e.jb0[1] + (J[1] - e.jb0[1]) * w),
+				k = 1 / Math.max(dt, 0.001);
+			b.vx = (x - b.x) * k;
+			b.vy = (y - b.y) * k;
+			b.vz = (z - b.z) * k;
+			/* hits on the way round count as a hard swing (the slam itself is fdSlamHit) */
+			const sp = Math.hypot(b.vx, b.vy, b.vz);
+			if (sp > 18) {
+				b.vx *= 18 / sp;
+				b.vy *= 18 / sp;
+				b.vz *= 18 / sp;
 			}
-			const k = Math.min(1, Math.abs(vt) / 6);
-			b.vx += (tx * k + nx * (1 - k) * 0.7) * FD.WHIP + nx * 2.5;
-			b.vz += (tz * k + nz * (1 - k) * 0.7) * FD.WHIP + nz * 2.5;
-			b.vy += 2;
-			e.whipT = W.t;
-			if (W.tv || e.isMe) sfx("whoosh");
+			b.x = x;
+			b.y = y;
+			b.z = z;
+			const H = this.fdHitch(e);
+			e.hp = H;
+			e.L = Math.hypot(x - H[0], y - H[1], z - H[2]) - 0.1;
+			if ((J[3] > 0.75 && y <= fl + 0.01) || J[3] >= 1) this.fdSlamHit(W, e, x, z);
+			else this.fdHits(W, e, R);
+		},
+		/* where the SLAM's ball is at u, from the truck's pose (its origin and pitch): [x, y, z, how far through the flips] */
+		fdJumpAt(e, u) {
+			const q = fdJumpPose(u),
+				c = Math.cos(e.yaw),
+				s = Math.sin(e.yaw),
+				cf = -FD.JC * Math.sin(q.p),
+				cx = e.x + c * cf,
+				cz = e.z - s * cf,
+				cy = e.y + FD.JC * Math.cos(q.p);
+			return [cx + c * q.bf, cy + q.bu, cz - s * q.bf, q.pr];
+		},
+		/* the slam: the ball itself hits hard, a shockwave along the deck knocks everyone near, props break */
+		fdSlamHit(W, e, x, z) {
+			const t = W.t,
+				b = e.ball,
+				pw = e.pw && e.pw[0],
+				r2 = (v) => Math.round(v * 100) / 100,
+				r3 = (v) => Math.round(v * 1000) / 1000,
+				fx = Math.cos(e.yaw),
+				fz = -Math.sin(e.yaw);
+			e.jSl = true;
+			e.f.sl = [r2(t), r2(x), r2(z)];
+			b.vx = fx * 2;
+			b.vz = fz * 2;
+			b.vy = 3;
+			W.list.forEach((o) => {
+				if (o === e || o.gone || !o.al) return;
+				const st = o.local ? o.st : o.f.sx | 0;
+				if ((st > 1 && st !== 6) || (o.f.sh || 0) > t || (o.y || 0) > 2) return;
+				const dx = o.x - x,
+					dz = o.z - z,
+					d = Math.hypot(dx, dz);
+				if (d > FD.SLR) return;
+				const p = d < FD.BR + FD.TR ? FD.SLP : FD.SLW * (1 - d / FD.SLR);
+				if (p < FD.HITV) return;
+				e.hcd[o.k] = t;
+				const nx = d > 0.3 ? dx / d : fx,
+					nz = d > 0.3 ? dz / d : fz;
+				e.f.hx = (e.f.hx || [])
+					.concat([[o.k, r3(t), r3(nx), r3(nz), r3(p), pw === "spike" ? 1.6 : 1, pw === "heavy" ? 1.4 : 1]])
+					.slice(-8);
+				mgLog(W, mgName(e) + " SLAMS " + mgName(o) + " at " + Math.round(p) + " m/s");
+			});
+			W.br.forEach((q) => {
+				if (q.gone || t < q.at || W.claimed.has(q.i + 1) || Math.hypot(q.x - x, q.z - z) > FD.SLR * 0.75) return;
+				if (W.claim(q.i + 1)) e.c.push(q.i + 1);
+			});
 		},
 		/* the tip's speed: the truck's own plus its sweep round the truck, the sweep capped at FD.SWEEP so a snap turn
 		   flings the ball instead of launching it into orbit */
@@ -49103,12 +49336,20 @@ Object.assign(MG, {
 		fdHitch(e) {
 			const c = Math.cos(e.yaw),
 				s = Math.sin(e.yaw),
-				r = e.rearX + FD.ARM;
-			return [e.x - c * r, e.y + FD.ARMY - 0.12, e.z + s * r];
+				r = e.rearX + FD.ARM,
+				p = e.pitch || 0,
+				ly = FD.ARMY - 0.12,
+				f = -r * Math.cos(p) - ly * Math.sin(p),
+				u = -r * Math.sin(p) + ly * Math.cos(p);
+			return [e.x + c * f, e.y + u, e.z - s * f];
 		},
 		/* one local truck's ball: gravity, the deck or the pit floor, the chain, rails, columns, props, the other balls, and
 		   hits on other trucks (shared in e.f.hx) */
 		fdBall(W, e, dt) {
+			if (e.st === 6 && e.jUp && !e.jSl) {
+				this.fdJumpBall(W, e, dt);
+				return;
+			}
 			const b = e.ball,
 				pw = e.pw && e.pw[0],
 				R = FD.BR * (pw === "heavy" ? 1.35 : 1),
@@ -49356,7 +49597,7 @@ Object.assign(MG, {
 			W.list.forEach((o) => {
 				if (o === e || o.gone || !o.al) return;
 				const st = o.local ? o.st : o.f.sx | 0;
-				if (st > 1 || (o.f.sh || 0) > W.t) return;
+				if ((st > 1 && st !== 6) || (o.f.sh || 0) > W.t) return;
 				const dx = o.x - b.x,
 					dz = o.z - b.z,
 					d = Math.hypot(dx, dz);
@@ -49418,6 +49659,98 @@ Object.assign(MG, {
 			}
 			if (o.isMe && !W.tv) buzz(big ? 90 : 50);
 		},
+		/* the slam on screen: a flash, two shockwave rings, a cracked scorch, sparks, deck bits and dust, a shake */
+		fdSlamFx(W, e, x, z) {
+			const y = (fdOnDeck(x, z) ? 0 : FD.PIT) + 0.05,
+				G =
+					W.slG ||
+					(W.slG = {
+						ring: new THREE.RingGeometry(0.8, 1, 48).rotateX(-Math.PI / 2),
+						disc: new THREE.CircleGeometry(1, 32).rotateX(-Math.PI / 2),
+					}),
+				L = W.slFx || (W.slFx = []),
+				add = (m, ro, k, d, r, o) => {
+					m.position.set(x, y, z);
+					m.renderOrder = ro;
+					m.frustumCulled = false;
+					W.sc.add(m);
+					L.push({ t: W.t, m, k, d, r, o });
+				},
+				ring = (col, add2) =>
+					new THREE.Mesh(
+						G.ring,
+						new THREE.MeshBasicMaterial({
+							color: col,
+							transparent: true,
+							depthWrite: false,
+							blending: add2 ? THREE.AdditiveBlending : THREE.NormalBlending,
+						}),
+					);
+			add(ring("#FFE9B0", true), 7, "ring", 0.4, FD.SLR * 1.3, 1);
+			add(ring(pcol(e.p), false), 6, "ring", 0.62, FD.SLR, 0.8);
+			const soot = new THREE.Mesh(
+				G.disc,
+				new THREE.MeshBasicMaterial({
+					color: "#1E1A16",
+					alphaMap: fdSootTex(),
+					transparent: true,
+					depthWrite: false,
+					polygonOffset: true,
+					polygonOffsetFactor: -2,
+					polygonOffsetUnits: -2,
+				}),
+			);
+			soot.scale.set(1.9, 1, 1.9);
+			soot.rotation.y = Math.random() * 6.283;
+			add(soot, 1, "soot", 3.5, 0, 1);
+			const fl = new THREE.Sprite(
+				new THREE.SpriteMaterial({
+					map: fdFlashTex(),
+					transparent: true,
+					depthTest: false,
+					blending: THREE.AdditiveBlending,
+				}),
+			);
+			add(fl, 12, "flash", 0.28, 0, 1);
+			fl.position.y = y + 0.9;
+			burst(W.sc, x, y + 0.3, z, {
+				n: 24,
+				shape: "ico",
+				cols: ["#A89480", "#C9BBA8", "#9AA1AB"],
+				spd: 7,
+				up: 1.2,
+				grav: 3,
+				life: 0.9,
+				size: 1.5,
+				op: 0.6,
+			});
+			burst(W.sc, x, y + 0.4, z, {
+				n: 18,
+				shape: "cube",
+				cols: ["#FFFFFF", "#FFE27A", "#FFC83D", "#FF8A1F"],
+				spd: 9,
+				up: 7,
+				grav: 16,
+				life: 0.6,
+				size: 0.8,
+			});
+			burst(W.sc, x, y + 0.3, z, {
+				n: 10,
+				shape: "cube",
+				cols: ["#4A505A", "#6B717C", "#3A3F48"],
+				spd: 5,
+				up: 8,
+				grav: 22,
+				life: 0.9,
+				size: 1.1,
+			});
+			if (W.tv || e.isMe || Math.hypot(x - W.me.x, z - W.me.z) < 14) {
+				sfx("crush");
+				sfx("land");
+				W.shake = Math.max(W.shake || 0, 0.6);
+			}
+			if (e.isMe && !W.tv) buzz(120);
+		},
 		/* hits on this device's truck from any ball: dent goes up, the knock grows with it */
 		fdHitsOn(W, e) {
 			W.list.forEach((a) => {
@@ -49428,7 +49761,8 @@ Object.assign(MG, {
 					const id = a.k + ":" + q[1];
 					if (e.hSeen[id]) return;
 					e.hSeen[id] = 1;
-					if (W.t - q[1] > 1.5 || e.st > 1 || (e.f.sh || 0) > W.t) return;
+					if (W.t - q[1] > 1.5 || (e.st > 1 && e.st !== 6) || (e.f.sh || 0) > W.t) return;
+					const wasJ = e.st === 6;
 					const nx = +q[2] || 0,
 						nz = +q[3] || 0,
 						p = +q[4] || 0;
@@ -49446,6 +49780,16 @@ Object.assign(MG, {
 						e.y = Math.max(e.y || 0, 0.05);
 						e.vy = Math.min(13, 2.5 + (K - FD.AIRK) * 0.42);
 						e.spinV = K > 22 ? (Math.random() < 0.5 ? -1 : 1) * (4 + K * 0.15) : 0;
+					}
+					/* hit up in the air: spiked down */
+					if (wasJ && e.st !== 5) {
+						e.st = 1;
+						e.vy = -Math.min(16, 5 + K * 0.4);
+						e.spinV = (Math.random() < 0.5 ? -1 : 1) * 8;
+						e.pitch = 0;
+						e.jSl = true;
+						e.jcd = W.t + FD.JCD;
+						fb(W, e, "SPIKED!", { stamp: true });
 					}
 					if (!a.local) this.fdHitFx(W, e, e.x - nx * 0.8, e.z - nz * 0.8, p, a);
 				});
@@ -49564,7 +49908,7 @@ Object.assign(MG, {
 					W.shake = Math.max(W.shake || 0, 0.35);
 				}
 				W.list.forEach((e) => {
-					if (!e.local || e.gone || e.st > 1 || (e.f.sh || 0) > t) return;
+					if (!e.local || e.gone || (e.st > 1 && e.st !== 6) || (e.f.sh || 0) > t) return;
 					if (Math.abs(e.x) < FD.CRH + 0.4 && Math.abs(e.z) < FD.CRH + 0.4 && (e.y || 0) < 1.5) {
 						if (e.dent >= FD.SMC) {
 							const a = Math.random() * 6.283;
@@ -49664,7 +50008,7 @@ Object.assign(MG, {
 		},
 		final: (W, e) => e.sc,
 		ramReady: () => true,
-		ramCd: (W) => Math.max(0, Math.min(1, 1 - (W.t - W.me.whipT) / FD.WCD)),
+		ramCd: (W) => (W.me.st === 6 ? 1 : Math.max(0, Math.min(1, ((W.me.jcd || 0) - W.t) / FD.JCD))),
 		cam(W, tgt, pos, far) {
 			const asp = GFX.w / GFX.h,
 				up = Math.sin(1.02),
@@ -49681,8 +50025,8 @@ Object.assign(MG, {
 				st = me.st,
 				D = asp < 1 ? 30 : 25,
 				lim = asp < 1 ? 7 : 9,
-				x = st >= 2 && st !== 4 ? me.x * 0.5 : me.x,
-				z = st >= 2 && st !== 4 ? me.z * 0.5 : me.z,
+				x = st >= 2 && st !== 4 && st !== 6 ? me.x * 0.5 : me.x,
+				z = st >= 2 && st !== 4 && st !== 6 ? me.z * 0.5 : me.z,
 				g = new THREE.Vector3(
 					Math.max(-lim, Math.min(lim, x * 0.85)),
 					0,
@@ -49723,6 +50067,29 @@ Object.assign(MG, {
 					}
 					b = e.rb || b;
 				}
+				/* SLAM: the flips' pitch and (for others' trucks) the whirling ball, from the shared jump start */
+				const sx = e.local ? e.st : e.f.sx | 0,
+					jp = +e.f.jp || 0,
+					ju = (t - jp - FD.JCR) / FD.JT,
+					sl = Array.isArray(e.f.sl) && +e.f.sl[0] >= jp ? +e.f.sl[0] : 0,
+					jmp = sx === 6 && jp > 0 && ju > 0 && ju < 1;
+				if (!e.local) {
+					e.pitch = jmp ? fdJumpPose(ju).p : 0;
+					if (jmp && !sl) {
+						const J = this.fdJumpAt(e, ju),
+							w0 = Math.min(1, ju / 0.22),
+							w = w0 * w0 * (3 - 2 * w0);
+						b = {
+							x: b.x + (J[0] - b.x) * w,
+							y: Math.max(FD.BR, b.y + (J[1] - b.y) * w),
+							z: b.z + (J[2] - b.z) * w,
+							vx: b.vx,
+							vy: b.vy,
+							vz: b.vz,
+						};
+					}
+				}
+				if (!e.spin) e.tr.rotation.z = e.pitch || 0;
 				const R = pw === "heavy" ? 1.35 : 1;
 				e.bv.g.visible = true;
 				e.bv.g.position.set(b.x, b.y, b.z);
@@ -49855,6 +50222,60 @@ Object.assign(MG, {
 					e.chain.instanceMatrix.needsUpdate = true;
 					e.chain.visible = true;
 				}
+				/* SLAM: takeoff dust, a whoosh each flip, the ribbon behind the ball, the slam's shockwave */
+				{
+					if (jmp && e.jpUp !== jp) {
+						e.jpUp = jp;
+						burst(W.sc, e.x, 0.15, e.z, {
+							n: 12,
+							shape: "ico",
+							cols: ["#9AA1AB", "#C9CED8"],
+							spd: 4.5,
+							up: 1,
+							grav: 6,
+							life: 0.5,
+							size: 1.2,
+							op: 0.6,
+						});
+						if (W.tv || e.isMe) sfx("hop");
+					}
+					const fl = jmp ? Math.floor((-(e.pitch || 0) + 1) / 6.283) : -1;
+					if (fl > 0 && fl !== e.flN && (W.tv || e.isMe)) sfx("whoosh");
+					e.flN = fl;
+					const T = e.trl,
+						on = jmp && (!sl || t - sl < 0.1);
+					if (on) {
+						T.pts.push([b.x, b.y, b.z]);
+						if (T.pts.length > T.n) T.pts.shift();
+					} else if (T.pts.length) T.pts.splice(0, 3);
+					T.m.visible = T.pts.length > 1;
+					if (T.m.visible) {
+						const P = T.m.geometry.attributes.position.array,
+							C = T.m.geometry.attributes.color.array,
+							n = T.pts.length,
+							lx = Math.sin(e.yaw),
+							lz = Math.cos(e.yaw),
+							c = T.col;
+						for (let i = 0; i < T.n; i++) {
+							const j = Math.min(i, n - 1),
+								q = T.pts[j],
+								k = j / (n - 1),
+								w = 0.08 + 0.55 * k,
+								a = k * k * 0.9;
+							P.set([q[0] - lx * w, q[1], q[2] - lz * w, q[0] + lx * w, q[1], q[2] + lz * w], i * 6);
+							const r = (c.r * 0.55 + 0.45) * a,
+								g = (c.g * 0.55 + 0.45) * a,
+								bl = (c.b * 0.55 + 0.45) * a;
+							C.set([r, g, bl, r, g, bl], i * 6);
+						}
+						T.m.geometry.attributes.position.needsUpdate = true;
+						T.m.geometry.attributes.color.needsUpdate = true;
+					}
+					if (sl && e.slSeen !== sl) {
+						e.slSeen = sl;
+						if (t - sl < 1) this.fdSlamFx(W, e, +e.f.sl[1], +e.f.sl[2]);
+					}
+				}
 				/* dent label */
 				{
 					const v = e.local ? Math.round(e.dent) : e.f.dn | 0,
@@ -49882,7 +50303,7 @@ Object.assign(MG, {
 					dl.pop = Math.max(0, dl.pop - dt * 3.5);
 					const pk = 1 + Math.sin(dl.pop * Math.PI) * 0.45;
 					dl.sp.scale.set(1.9 * pk, 0.83 * pk, 1);
-					dl.sp.visible = st <= 1;
+					dl.sp.visible = st <= 1 || st === 6;
 					/* smoke from a battered truck */
 					if (st <= 1 && v > 60 && Math.random() < dt * (v > 120 ? 9 : 4))
 						burst(W.sc, e.x, e.y + 1.4, e.z, {
@@ -49912,7 +50333,19 @@ Object.assign(MG, {
 				{
 					const cr = +e.f.cr || 0,
 						sq = cr && t - cr < 2.5;
-					e.tr.scale.set(0.8 * (sq ? 1.18 : 1), 0.8 * (sq ? 0.24 : 1), 0.8 * (sq ? 1.18 : 1));
+					const jt = t - jp,
+						jl = jt - FD.JCR - FD.JT,
+						js = !jp
+							? 1
+							: sx === 6 && jt < FD.JCR
+								? 1 - 0.28 * (jt / FD.JCR)
+								: sx === 6 && jt < FD.JCR + 0.2
+									? 1 + 0.2 * Math.sin((Math.PI * (jt - FD.JCR)) / 0.2)
+									: sx === 0 && jl >= 0 && jl < 0.22
+										? 1 - 0.22 * Math.sin((Math.PI * jl) / 0.22)
+										: 1,
+						jw = 1 / Math.sqrt(js);
+					e.tr.scale.set(0.8 * (sq ? 1.18 : jw), 0.8 * (sq ? 0.24 : js), 0.8 * (sq ? 1.18 : jw));
 					if (sq) e.g.position.y = 0.42;
 					/* SMASH: a white-hot flash and a starburst at the impact frame, then a smoke trail behind the launch */
 					const sm = +e.f.sm || 0;
@@ -49973,6 +50406,26 @@ Object.assign(MG, {
 					}
 				}
 			});
+			if (W.slFx && W.slFx.length)
+				W.slFx = W.slFx.filter((q) => {
+					const u = (t - q.t) / q.d;
+					if (u >= 1 || u < 0) {
+						W.sc.remove(q.m);
+						q.m.material.dispose();
+						return false;
+					}
+					if (q.k === "ring") {
+						const s = 0.3 + (q.r - 0.3) * (1 - (1 - u) * (1 - u) * (1 - u));
+						q.m.scale.set(s, 1, s);
+						q.m.material.opacity = (1 - u) * q.o;
+					} else if (q.k === "soot") q.m.material.opacity = 0.6 * Math.min(1, (1 - u) * 3);
+					else {
+						const s = 2.2 + u * 6;
+						q.m.scale.set(s, s, 1);
+						q.m.material.opacity = 1 - u;
+					}
+					return true;
+				});
 			if (W.flash) {
 				const u = (t - W.flashT) / 0.35;
 				W.flash.visible = u >= 0 && u < 1;
@@ -50098,7 +50551,6 @@ Object.assign(MG, {
 				if (d > 8.5) {
 					dx = ox - e.x + (-rz / d) * 3 * e.orb;
 					dz = oz - e.z + (rx / d) * 3 * e.orb;
-					out.hold = d > 11;
 				} else {
 					/* orbit: along the circle, pulled toward a radius of about the chain */
 					const want = skv(e, 5.5, 4.6, 4),
@@ -50107,16 +50559,20 @@ Object.assign(MG, {
 						cr = (want - d) * 0.35;
 					dx = tx + (rx / d) * cr;
 					dz = tz + (rz / d) * cr;
-					/* reel in for most of a lap, then let go with the target in reach: a whip */
-					if (t - e.whipT > FD.WCD) {
-						if (!e.hl) e.hl = t + 0.2 + Math.random() * skv(e, 1.2, 0.6, 0.3);
-						if (t >= e.hl) {
-							out.hold = true;
-							if (t - e.hl > skv(e, 0.5, 0.9, 1.2) && d < 6.8) {
-								out.hold = false;
-								e.hl = 0;
-							}
-						}
+					/* SLAM when the ball would come down on it (where the jump carries the truck), and not near a gap */
+					if (t >= (e.jcd || 0) && t >= (e.lagT || 0) && !(this.fdGapAt(W, S) && S.d > FD.A - 5)) {
+						const fx = Math.cos(e.yaw),
+							fz = -Math.sin(e.yaw),
+							l = Math.hypot(e.vx, e.vz),
+							k = l > FD.JV ? FD.JV / l : 1,
+							T = FD.JCR + FD.JS * FD.JT,
+							ix = e.x + e.vx * k * T + fx * 3.4,
+							iz = e.z + e.vz * k * T + fz * 3.4;
+						if (
+							Math.hypot(ox + o.vx * T - ix, oz + o.vz * T - iz) < skv(e, 1.6, 2.2, 2.8) &&
+							Math.random() < dt * skv(e, 2, 4, 8)
+						)
+							out.boost = true;
 					}
 				}
 			} else {
