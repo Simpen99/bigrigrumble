@@ -1912,14 +1912,14 @@ Object.assign(MG, {
 						W.sc.add(m);
 						L.push({ t: W.t, m, k: "blast", d: dur, w, len, px: scr[0], py: scr[1], ang });
 					};
-				cone(col, a0, 0.17, 0.85, 1, 13);
-				cone(new THREE.Color("#FFFFFF"), a0, 0.06, 0.65, 0.65, 14);
+				cone(col, a0, 0.136, 0.68, 1, 13);
+				cone(new THREE.Color("#FFFFFF"), a0, 0.048, 0.52, 0.65, 14);
 				for (let i = 0; i < 6; i++)
 					cone(
 						i % 2 ? col : new THREE.Color("#FFF4C8"),
 						a0 + (i - 2.5) * 0.17 + (Math.random() - 0.5) * 0.08,
-						0.016,
-						0.45 + Math.random() * 0.3,
+						0.013,
+						0.36 + Math.random() * 0.24,
 						0.75,
 						13,
 					);
@@ -1934,7 +1934,7 @@ Object.assign(MG, {
 				);
 				fl.renderOrder = 15;
 				W.sc.add(fl);
-				L.push({ t: W.t, m: fl, k: "flash", d: 0.45, s0: 0.3, s1: 0.6, px: scr[0], py: scr[1] });
+				L.push({ t: W.t, m: fl, k: "flash", d: 0.45, s0: 0.24, s1: 0.48, px: scr[0], py: scr[1] });
 				sfx("cannon");
 				W.shake = Math.max(W.shake || 0, 0.85);
 				if (e.isMe && !W.tv) buzz(200);
