@@ -41,6 +41,7 @@ const FD = {
 	BFR: 1.4 /* ball ground friction a second */,
 	BAIR: 0.35 /* ball air drag a second */,
 	BMASS: 0.34 /* ball share of a pull on the chain (the truck feels the rest) */,
+	TUGA: 40 /* the chain pulls the truck at most this hard (m/s²) */,
 	BVMAX: 32,
 	HITV: 5 /* slowest ball (relative to the truck) that counts as a hit */,
 	HCD: 0.45 /* s between two hits of one ball on one truck */,
@@ -1427,9 +1428,11 @@ Object.assign(MG, {
 						b.vz -= nz * vr * (1 - share);
 						if (e.st === 0) {
 							/* the pull drags the truck, but never past its own top speed */
-							const s0 = Math.max(11.5, Math.hypot(e.vx, e.vz));
-							e.vx += nx * vr * share * 0.8;
-							e.vz += nz * vr * share * 0.8;
+							/* ...and no harder than FD.TUGA m/s², so a chain snapping taut pulls instead of jerking */
+							const s0 = Math.max(11.5, Math.hypot(e.vx, e.vz)),
+								pl = Math.min(vr * share * 0.8, FD.TUGA * h);
+							e.vx += nx * pl;
+							e.vz += nz * pl;
 							const s1 = Math.hypot(e.vx, e.vz);
 							if (s1 > s0) {
 								e.vx *= s0 / s1;
