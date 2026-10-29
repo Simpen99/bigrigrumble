@@ -1178,7 +1178,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-29 05:01 6572f89";
+const BUILD = "2026-10-29 05:14 2ea6259";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -47806,6 +47806,8 @@ const FD = {
 	BR: 0.6 /* ball radius */,
 	ARM: 1.9 /* the stiff boom (the flail's handle): reaches this far back from the tail */,
 	ARMY: 1.3 /* its tip's height */,
+	TURNV: 10 /* rad/s at most the truck turns, following the stick's swipe */,
+	MEM: 8 /* rad of swipe it remembers ahead of the truck (about 1.25 turns) */,
 	SWEEP: 9 /* most the boom's sweep adds to the tip's speed (m/s) */,
 	L0: 3.2 /* chain length (from the boom's tip) */,
 	LIN: 1.4 /* reeled in */,
@@ -48770,46 +48772,34 @@ Object.assign(MG, {
 				e.f.pw = 0;
 			}
 			const pw = e.pw && e.pw[0];
-			/* how fast the driver turns the stick (rad/s, easing off over a moment): only that may add the boom's sweep to
-			   the ball (fdTipV), so a truck the ball drags round can't feed the ball (it spun forever) */
+			/* swipe memory: the stick's turning adds up (e.sw, unwrapped, stick-angle space) and the truck's heading (e.hd)
+			   turns after it at up to FD.TURNV, so a fast stir of the stick is carried out in full, even after the stick
+			   stops. e.stR = how fast the driver is turning the truck (fdTipV caps the boom's sweep by it) */
 			{
-				const on = !!(inp && !e.d && Math.hypot(inp.x || 0, inp.y || 0) > 0.3),
-					a = on ? Math.atan2(inp.y, inp.x) : null;
-				let r = 0;
-				if (on && e.stA !== null && e.stA !== undefined)
-					r = Math.abs(Math.atan2(Math.sin(a - e.stA), Math.cos(a - e.stA))) / Math.max(dt, 0.001);
-				e.stA = a;
-				e.stR = Math.max(Math.min(r, 20), (e.stR || 0) * Math.exp(-5 * dt));
+				const on = !!(inp && !e.d && Math.hypot(inp.x || 0, inp.y || 0) > 0.3);
+				if (e.hd === undefined || e.st) e.hd = e.sw = -e.yaw;
+				if (on) {
+					const a = Math.atan2(inp.y, inp.x);
+					e.sw += Math.atan2(Math.sin(a - e.sw), Math.cos(a - e.sw));
+					e.sw = e.hd + Math.max(-FD.MEM, Math.min(FD.MEM, e.sw - e.hd));
+				}
+				const debt = e.sw - e.hd,
+					step = Math.sign(debt) * Math.min(Math.abs(debt) * 14, FD.TURNV) * dt;
+				e.hd += Math.abs(step) > Math.abs(debt) ? debt : step;
+				const wr = Math.round(e.hd / (2 * Math.PI)) * 2 * Math.PI;
+				e.hd -= wr;
+				e.sw -= wr;
+				e.stR = Math.max(Math.abs(step) / Math.max(dt, 0.001), (e.stR || 0) * Math.exp(-5 * dt));
 			}
 			e.spd = pw === "heavy" ? 0.9 : 1;
-			if (e.st) e.dv = null;
 			if (e.st === 0) {
-				const ip =
-					inp && !e.d
-						? { x: inp.x * (e.bot ? e.botK || 1 : 1), y: inp.y * (e.bot ? e.botK || 1 : 1), boost: false }
-						: null;
+				/* the truck drives the way it faces (e.hd, from the swipe memory) as hard as the stick is pushed, and faces
+				   only that way, never the way the chain or a hit shoves it, so a yank slides it instead of swinging it round */
+				const m = inp && !e.d ? Math.min(1, Math.hypot(inp.x || 0, inp.y || 0)) * (e.bot ? e.botK || 1 : 1) : 0,
+					ip = inp && !e.d ? { x: Math.cos(e.hd) * m, y: Math.sin(e.hd) * m, boost: false } : null;
 				if (inp) inp.boost = false;
-				/* the truck faces the way the driver drives (e.dv: the stick's own push, eased like arenaPhys does the
-				   speed), never the way the chain or a hit shoves it, so a yank slides it instead of swinging it round */
-				const yaw0 = e.yaw;
 				arenaPhys(W, e, ip, dt);
-				{
-					const dv = e.dv || (e.dv = [0, 0]),
-						k = Math.exp(-2.6 * dt);
-					if (ip) {
-						dv[0] += ip.x * 32 * e.spd * dt;
-						dv[1] += ip.y * 32 * e.spd * dt;
-					}
-					dv[0] *= k;
-					dv[1] *= k;
-					const l = Math.hypot(dv[0], dv[1]),
-						mx = 11.5 * e.spd;
-					if (l > mx) {
-						dv[0] *= mx / l;
-						dv[1] *= mx / l;
-					}
-					e.yaw = l > 0.6 ? lerpA(yaw0, Math.atan2(-dv[1], dv[0]), Math.min(1, dt * 10)) : yaw0;
-				}
+				e.yaw = -e.hd;
 				this.fdTruckWorld(W, e, dt);
 			} else if (e.st === 1) {
 				e.vy -= 28 * dt;
