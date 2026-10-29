@@ -1178,7 +1178,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-29 03:44 9bf9481";
+const BUILD = "2026-10-29 05:01 6572f89";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -49739,11 +49739,16 @@ Object.assign(MG, {
 				e.bv.g.scale.setScalar(R);
 				e.bv.spk.visible = pw === "spike";
 				{
-					/* the ball hangs off its chain: the lug turns toward the chain's last link (last frame's), easing over */
-					const q = e.cn[e.cn.length - 2],
+					/* the ball hangs off its chain: the lug turns toward the chain's last links (last frame's), easing over, leaning
+					   toward the hitch so links flung past the ball can't drag the lug round after them */
+					const q = e.cn[e.cn.length - 3],
+						Hq = this.fdHitch(e),
 						u = W.fdU || (W.fdU = new THREE.Vector3()),
+						uh = W.fdUH || (W.fdUH = new THREE.Vector3()),
 						tq = W.fdQ || (W.fdQ = new THREE.Quaternion());
 					u.set(q.x - b.x, q.y - b.y, q.z - b.z);
+					uh.set(Hq[0] - b.x, Hq[1] - b.y, Hq[2] - b.z);
+					if (uh.lengthSq() > 0.04) u.lengthSq() > 0.04 ? u.normalize().add(uh.normalize()) : u.copy(uh);
 					if (u.lengthSq() > 0.04) {
 						tq.setFromUnitVectors(FD_UP, u.normalize());
 						e.bv.o.quaternion.slerp(tq, Math.min(1, dt * 14));
@@ -49771,14 +49776,19 @@ Object.assign(MG, {
 					const H = this.fdHitch(e),
 						N = e.cn,
 						n = N.length - 1,
-						L = Math.max(
-							0.5,
-							Math.min(e.local ? e.L : +e.f.ln || FD.L0, Math.hypot(b.x - H[0], b.y - H[1], b.z - H[2]) + 0.6),
-						),
-						seg = L / n,
 						lu = (W.fdL || (W.fdL = new THREE.Vector3())).copy(FD_UP).applyQuaternion(e.bv.o.quaternion),
 						lr = (FD.BR + 0.12) * R,
 						top = [b.x + lu.x * lr, b.y + lu.y * lr, b.z + lu.z * lr],
+						/* the drawn chain runs hitch → lug, so it is the physics length less the lug's reach: straight when the
+						   ball pulls it tight, sagging only when the ball is in closer */
+						L = Math.max(
+							0.5,
+							Math.min(
+								(e.local ? e.L : +e.f.ln || FD.L0) - lr * 0.8,
+								Math.hypot(top[0] - H[0], top[1] - H[1], top[2] - H[2]) + 0.5,
+							),
+						),
+						seg = L / n,
 						h = Math.min(dt, 0.05);
 					if (Math.hypot(N[0].x - H[0], N[0].z - H[2]) > 6)
 						N.forEach((q, i) => {
@@ -49803,6 +49813,20 @@ Object.assign(MG, {
 					for (let it = 0; it < 5; it++) {
 						Object.assign(N[0], { x: H[0], y: H[1], z: H[2] });
 						Object.assign(N[n], { x: top[0], y: top[1], z: top[2] });
+						/* links can't pass through the ball */
+						for (let i = 1; i < n; i++) {
+							const q = N[i],
+								ox = q.x - b.x,
+								oy = q.y - b.y,
+								oz = q.z - b.z,
+								od = Math.hypot(ox, oy, oz),
+								rr = (FD.BR + 0.08) * R;
+							if (od < rr && od > 0.001) {
+								q.x = b.x + (ox / od) * rr;
+								q.y = b.y + (oy / od) * rr;
+								q.z = b.z + (oz / od) * rr;
+							}
+						}
 						for (let i = 0; i < n; i++) {
 							const a = N[i],
 								c = N[i + 1],
