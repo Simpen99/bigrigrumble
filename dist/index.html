@@ -1178,7 +1178,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-29 06:39 808ff1e";
+const BUILD = "2026-10-29 06:54 4dc3d81";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -49598,6 +49598,8 @@ Object.assign(MG, {
 				if (o === e || o.gone || !o.al) return;
 				const st = o.local ? o.st : o.f.sx | 0;
 				if ((st > 1 && st !== 6) || (o.f.sh || 0) > W.t) return;
+				/* a SLAM off the deck dodges every swing: only another SLAM's whirling ball can spike it */
+				if (st === 6 && e.st !== 6 && W.t - (+o.f.jp || 0) > FD.JCR) return;
 				const dx = o.x - b.x,
 					dz = o.z - b.z,
 					d = Math.hypot(dx, dz);

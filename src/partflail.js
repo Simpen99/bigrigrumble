@@ -1819,6 +1819,8 @@ Object.assign(MG, {
 				if (o === e || o.gone || !o.al) return;
 				const st = o.local ? o.st : o.f.sx | 0;
 				if ((st > 1 && st !== 6) || (o.f.sh || 0) > W.t) return;
+				/* a SLAM off the deck dodges every swing: only another SLAM's whirling ball can spike it */
+				if (st === 6 && e.st !== 6 && W.t - (+o.f.jp || 0) > FD.JCR) return;
 				const dx = o.x - b.x,
 					dz = o.z - b.z,
 					d = Math.hypot(dx, dz);
