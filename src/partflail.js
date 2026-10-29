@@ -41,6 +41,7 @@ const FD = {
 	BFR: 1.4 /* ball ground friction a second */,
 	BAIR: 0.35 /* ball air drag a second */,
 	BMASS: 0.34 /* ball share of a pull on the chain (the truck feels the rest) */,
+	LIFTV: 9 /* whirling at this speed on a tight chain, the ball's gravity halves (it rises toward level) */,
 	TUGA: 40 /* the chain pulls the truck at most this hard (m/s²) */,
 	BVMAX: 32,
 	HITV: 5 /* slowest ball (relative to the truck) that counts as a hit */,
@@ -1356,7 +1357,7 @@ Object.assign(MG, {
 			e.hp = H1;
 			for (let s = 0; s < n; s++) {
 				const wasIn = fdOnDeck(b.x, b.z);
-				b.vy -= FD.BG * h;
+				b.vy -= FD.BG * (e.gK ?? 1) * h;
 				b.x += b.vx * h;
 				b.y += b.vy * h;
 				b.z += b.vz * h;
@@ -1414,6 +1415,7 @@ Object.assign(MG, {
 					dy = b.y - H[1],
 					dz = b.z - H[2],
 					d = Math.hypot(dx, dy, dz);
+				e.gK = 1;
 				if (d > e.L && d > 0.001) {
 					const nx = dx / d,
 						ny = dy / d,
@@ -1422,6 +1424,14 @@ Object.assign(MG, {
 					b.y = H[1] + ny * e.L;
 					b.z = H[2] + nz * e.L;
 					const vr = (b.vx - hvx) * nx + (b.vy - hvy) * ny + (b.vz - hvz) * nz;
+					/* whirling round on a tight chain it rises toward level: the heavy gravity (FD.BG, for weight) eases
+					   off with its speed round the tip, as a real-weight ball's would at that speed */
+					{
+						const rx = b.vx - hvx - nx * vr,
+							rz = b.vz - hvz - nz * vr,
+							vt = Math.hypot(rx, rz) / FD.LIFTV;
+						e.gK = Math.max(0.25, 1 / (1 + vt * vt));
+					}
 					if (vr > 0) {
 						b.vx -= nx * vr * (1 - share);
 						b.vy -= ny * vr * (1 - share);
