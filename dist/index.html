@@ -1178,7 +1178,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-29 07:23 665b17e";
+const BUILD = "2026-10-29 07:34 01ebd0f";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -49664,22 +49664,83 @@ Object.assign(MG, {
 			if (o.isMe && !W.tv) buzz(big ? 90 : 50);
 		},
 		/* the KO blast: cones of light in the truck's colour (bright at the point, fading as they open) and spikes, shooting
-		   back toward the deck from where it went out (a fall: up out of the pit), a flash, confetti, a bang, a shake */
-		fdBlast(W, e, x, y, z, big) {
+		   back in from where it went out, a flash, a bang, a shake. scr = [x, y] on the screen's edge (a SMASH, a platform
+		   fighter's blast line: pinned to this device's screen, fanning in toward its middle); else in the world (a fall: up out
+		   of the pit, with confetti) */
+		fdBlast(W, e, x, y, z, big, scr) {
+			if (scr) {
+				const col = new THREE.Color(pcol(e.p)),
+					L = W.slFx || (W.slFx = []),
+					a0 = Math.atan2(-scr[1], -scr[0] * (W.cam.aspect || 1)),
+					cone = (c, ang, w, len, dur, ro) => {
+						const m = new THREE.Mesh(
+							this.fdBlastGeo(W),
+							new THREE.MeshBasicMaterial({
+								color: c,
+								vertexColors: true,
+								transparent: true,
+								blending: THREE.AdditiveBlending,
+								depthWrite: false,
+								depthTest: false,
+								side: THREE.DoubleSide,
+								fog: false,
+							}),
+						);
+						m.renderOrder = ro;
+						m.frustumCulled = false;
+						W.sc.add(m);
+						L.push({ t: W.t, m, k: "blast", d: dur, w, len, px: scr[0], py: scr[1], ang });
+					};
+				cone(col, a0, 0.17, 0.85, 1, 13);
+				cone(new THREE.Color("#FFFFFF"), a0, 0.06, 0.65, 0.65, 14);
+				for (let i = 0; i < 6; i++)
+					cone(
+						i % 2 ? col : new THREE.Color("#FFF4C8"),
+						a0 + (i - 2.5) * 0.17 + (Math.random() - 0.5) * 0.08,
+						0.016,
+						0.45 + Math.random() * 0.3,
+						0.75,
+						13,
+					);
+				const fl = new THREE.Sprite(
+					new THREE.SpriteMaterial({
+						map: fdFlashTex(),
+						transparent: true,
+						depthTest: false,
+						blending: THREE.AdditiveBlending,
+						fog: false,
+					}),
+				);
+				fl.renderOrder = 15;
+				W.sc.add(fl);
+				L.push({ t: W.t, m: fl, k: "flash", d: 0.45, s0: 0.3, s1: 0.6, px: scr[0], py: scr[1] });
+				sfx("cannon");
+				W.shake = Math.max(W.shake || 0, 0.85);
+				if (e.isMe && !W.tv) buzz(200);
+				return;
+			}
+			this.fdBlast3D(W, e, x, y, z, big);
+		},
+		/* the blast's cone: point at the origin, opening down -y to radius 1 at y = -1, bright at the point (vertex colours) */
+		fdBlastGeo(W) {
+			return (
+				W.blG ||
+				(W.blG = (() => {
+					const g = new THREE.ConeGeometry(1, 1, 28, 1, true).translate(0, -0.5, 0),
+						P = g.attributes.position,
+						C = [];
+					for (let i = 0; i < P.count; i++) {
+						const k = 1 + P.getY(i);
+						C.push(k, k, k);
+					}
+					g.setAttribute("color", new THREE.Float32BufferAttribute(C, 3));
+					return g;
+				})())
+			);
+		},
+		fdBlast3D(W, e, x, y, z, big) {
 			const col = new THREE.Color(pcol(e.p)),
-				G =
-					W.blG ||
-					(W.blG = (() => {
-						const g = new THREE.ConeGeometry(1, 1, 28, 1, true).translate(0, -0.5, 0),
-							P = g.attributes.position,
-							C = [];
-						for (let i = 0; i < P.count; i++) {
-							const k = 1 + P.getY(i);
-							C.push(k, k, k);
-						}
-						g.setAttribute("color", new THREE.Float32BufferAttribute(C, 3));
-						return g;
-					})()),
+				G = this.fdBlastGeo(W),
 				dir = big
 					? new THREE.Vector3(-x, Math.hypot(x, z) * 0.35, -z).normalize()
 					: new THREE.Vector3(-x * 0.3, Math.hypot(x, z), -z * 0.3).normalize(),
@@ -50379,9 +50440,14 @@ Object.assign(MG, {
 				/* KO blast (a platform fighter's blast line): a burst in the truck's colour fanning back in from where it went out */
 				{
 					const sm = +e.f.sm || 0;
-					if (sm && e.blSeen !== sm && t - sm > FD.FREEZE && (Math.hypot(e.x, e.z) > FD.A + 4 || t - sm > 1.4)) {
-						e.blSeen = sm;
-						if (t - sm < 2.5) this.fdBlast(W, e, e.x, Math.max(FD.PIT + 0.5, e.y), e.z, true);
+					/* a SMASH: the moment it leaves this screen, at that spot on the edge (or pushed out to the edge if it hasn't) */
+					if (sm && e.blSeen !== sm && t - sm > FD.FREEZE) {
+						const v = (W.bv0 || (W.bv0 = new THREE.Vector3())).set(e.x, e.y + 0.6, e.z).project(W.cam),
+							m = Math.max(Math.abs(v.x), Math.abs(v.y));
+						if (m > 1 || t - sm > 1.6) {
+							e.blSeen = sm;
+							if (t - sm < 2.5 && m > 0.05) this.fdBlast(W, e, e.x, e.y, e.z, true, [v.x / m, v.y / m]);
+						}
 					}
 					const ks = e.f.ko || [],
 						ko = ks[ks.length - 1];
@@ -50520,7 +50586,18 @@ Object.assign(MG, {
 					}
 				}
 			});
-			if (W.slFx && W.slFx.length)
+			if (W.slFx && W.slFx.length) {
+				/* screen-pinned effects (px / py on the screen): set D m in front of the camera each frame, sized in screen
+				   heights (hS = the screen's height there), pointing along their angle on the screen */
+				const cam = W.cam,
+					D = 6,
+					hS = 2 * D * Math.tan((cam.fov * Math.PI) / 360),
+					asp = cam.aspect || 1,
+					cp = (W.bv3 || (W.bv3 = new THREE.Vector3())).setFromMatrixPosition(cam.matrixWorld),
+					v1 = W.bv1 || (W.bv1 = new THREE.Vector3()),
+					v2 = W.bv2 || (W.bv2 = new THREE.Vector3()),
+					dn = W.bDn || (W.bDn = new THREE.Vector3(0, -1, 0)),
+					at = (v, x, y) => v.set(x, y, 0.5).unproject(cam).sub(cp).normalize().multiplyScalar(D).add(cp);
 				W.slFx = W.slFx.filter((q) => {
 					const u = (t - q.t) / q.d;
 					if (u >= 1 || u < 0) {
@@ -50528,10 +50605,19 @@ Object.assign(MG, {
 						q.m.material.dispose();
 						return false;
 					}
+					const k = q.px === undefined ? 1 : hS;
+					if (k !== 1) {
+						at(v1, q.px, q.py);
+						q.m.position.copy(v1);
+						if (q.k === "blast") {
+							at(v2, q.px + (Math.cos(q.ang) * 0.2) / asp, q.py + Math.sin(q.ang) * 0.2);
+							q.m.quaternion.setFromUnitVectors(dn, v2.sub(v1).normalize());
+						}
+					}
 					if (q.k === "blast") {
 						const g = 1 - Math.pow(1 - Math.min(1, u * 5), 3),
-							w = q.w * (0.35 + 0.65 * Math.min(1, u * 2));
-						q.m.scale.set(w, q.len * g, w);
+							w = q.w * (0.35 + 0.65 * Math.min(1, u * 2)) * k;
+						q.m.scale.set(w, q.len * g * k, w);
 						q.m.material.opacity = Math.pow(1 - u, 1.6);
 						return true;
 					}
@@ -50541,12 +50627,13 @@ Object.assign(MG, {
 						q.m.material.opacity = (1 - u) * q.o;
 					} else if (q.k === "soot") q.m.material.opacity = 0.6 * Math.min(1, (1 - u) * 3);
 					else {
-						const s = (q.s0 || 2.2) + u * (q.s1 || 6);
+						const s = ((q.s0 || 2.2) + u * (q.s1 || 6)) * k;
 						q.m.scale.set(s, s, 1);
 						q.m.material.opacity = 1 - u;
 					}
 					return true;
 				});
+			}
 			if (W.flash) {
 				const u = (t - W.flashT) / 0.35;
 				W.flash.visible = u >= 0 && u < 1;
