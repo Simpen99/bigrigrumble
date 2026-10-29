@@ -1178,7 +1178,7 @@ body.ctl .pan{max-height:none!important;overflow:visible!important}
 <script>
 "use strict";
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-10-29 07:00 0d308a2";
+const BUILD = "2026-10-29 07:09 72e9fc5";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -47843,11 +47843,12 @@ const FD = {
 	HITV: 5 /* slowest ball (relative to the truck) that counts as a hit */,
 	HCD: 0.45 /* s between two hits of one ball on one truck */,
 	DMG: 0.85 /* dent % per m/s of impact over 3 */,
-	KB0: 3.5 /* knock: (KB0 + KBV * impact) * (1 + dent / KBD) */,
+	KB0: 3.5 /* knock: (KB0 + KBV * impact) * (KLO + KHI * (dent / KD) ^ KP) */,
 	KBV: 0.3,
-	KBD: 45,
 	KLO: 0.5 /* a fresh truck takes only this share of the knock... */,
-	KLD: 45 /* ...rising to all of it by this dent % */,
+	KHI: 2.5 /* ...plus this much more by KD % */,
+	KD: 90,
+	KP: 2 /* how steeply it climbs (1 = a straight line, 2 = slow at first, then fast like a platform fighter) */,
 	AIRK: 14 /* knocks harder than this lift the truck */,
 	CREDIT: 5 /* s a hit keeps the credit for a KO */,
 	KO: 3,
@@ -49771,11 +49772,7 @@ Object.assign(MG, {
 						nz = +q[3] || 0,
 						p = +q[4] || 0;
 					e.dent = Math.min(999, e.dent + Math.max(2, (p - 3) * FD.DMG * (+q[5] || 1)));
-					const K =
-						(FD.KB0 + p * FD.KBV) *
-						(1 + e.dent / FD.KBD) *
-						Math.min(1, FD.KLO + ((1 - FD.KLO) * e.dent) / FD.KLD) *
-						(+q[6] || 1);
+					const K = (FD.KB0 + p * FD.KBV) * (FD.KLO + FD.KHI * Math.pow(e.dent / FD.KD, FD.KP)) * (+q[6] || 1);
 					e.vx += nx * K;
 					e.vz += nz * K;
 					e.slideT = 1.1;
