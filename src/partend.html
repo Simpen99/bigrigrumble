@@ -1,3 +1,15 @@
 </script>
+<script type="module">
+/* three.js is an ES module: load it (and ConvexGeometry) and hand it to the game as the global THREE, then run the game's script
+   as a classic script, so its functions stay globals. Padded with blank lines so error line numbers match this file. */
+try {
+	window.THREE = Object.assign({}, await import("three"), await import("three/addons/geometries/ConvexGeometry.js"));
+} catch (e) {
+	console.error(e);
+}
+const s = document.createElement("script");
+s.text = "\n".repeat(__MAINLINE__ - 1) + document.getElementById("main").textContent + "\n//# sourceURL=index.html";
+document.body.appendChild(s);
+</script>
 </body>
 </html>

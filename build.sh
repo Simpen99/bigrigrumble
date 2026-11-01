@@ -5,4 +5,6 @@ cd "$(dirname "$0")/src"
 cat part1.html part2.js partart.js partui.js parttruck.js partmap.js partfx.js partnet.js part3.js partgame.js part4a.js part4b.js partmg2.js partmg3.js partsoccer.js partblast.js partflail.js partscene.js partmodels.js partedit.js partmodeled.js part4c.js partend.html > ../dist/index.html
 # build stamp for bug reports: date and the commit it was built on
 sed -i "s/__BUILD__/$(date '+%Y-%m-%d %H:%M') $(git rev-parse --short HEAD 2>/dev/null)/" ../dist/index.html
+# the game script runs from its text (see partend.html): its line in the file, so error line numbers match
+sed -i "s/__MAINLINE__/$(grep -n 'id="main"' ../dist/index.html | head -1 | cut -d: -f1)/" ../dist/index.html
 echo "Built dist/index.html"

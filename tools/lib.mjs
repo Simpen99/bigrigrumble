@@ -6,7 +6,9 @@ import { fileURLToPath } from "url";
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 export const OUT = path.join(ROOT, "tools/out");
-const THREE_DIR = path.join(ROOT, "tools/node_modules/three/");
+const THREE_DIR = path.join(ROOT, "tools/node_modules/three/"),
+	/* r128 (npm alias three128), for builds from before the three.js upgrade (lookdiff baselines) */
+	THREE_OLD = path.join(ROOT, "tools/node_modules/three128/");
 
 export function args(argv = process.argv.slice(2)) {
 	const pos = [],
@@ -29,25 +31,27 @@ export async function launch() {
 	});
 }
 
-/* open dist/index.html with three.js r128 + ConvexHull/ConvexGeometry from node_modules; resolves once GFX is ready */
+/* open dist/index.html (or file) with three.js (ES modules) from node_modules; resolves once GFX is ready */
 /* peerjs: script served in place of PeerJS (nettest's fake relay); before(p): runs before the page loads */
-export async function openGame(browser, { width = 390, height = 844, mobile = false, peerjs = "", before } = {}) {
+export async function openGame(browser, { width = 390, height = 844, mobile = false, peerjs = "", before, file } = {}) {
 	const ctx = await browser.newContext({ viewport: { width, height }, hasTouch: mobile, isMobile: mobile }),
 		p = await ctx.newPage(),
 		errs = [];
 	p.on("pageerror", (e) => errs.push(e.message));
-	const serve = (re, file) =>
-		p.route(re, (r) => r.fulfill({ body: fs.readFileSync(THREE_DIR + file), contentType: "text/javascript" }));
-	await serve(/three\.min\.js/, "build/three.min.js");
-	await serve(/ConvexHull\.js/, "examples/js/math/ConvexHull.js");
-	await serve(/ConvexGeometry\.js/, "examples/js/geometries/ConvexGeometry.js");
-	/* post-processing and RoomEnvironment scripts, loaded on demand */
-	await p.route(/three@0\.128\.0\/examples\/js\//, (r) =>
+	/* three.js modules and add-ons (CORS header: module scripts need it on a file:// page) */
+	await p.route(/three@0\.186\.1\//, (r) =>
 		r.fulfill({
-			body: fs.readFileSync(THREE_DIR + "examples/js/" + r.request().url().split("/examples/js/")[1]),
+			body: fs.readFileSync(THREE_DIR + r.request().url().split("three@0.186.1/")[1]),
 			contentType: "text/javascript",
+			headers: { "access-control-allow-origin": "*" },
 		}),
 	);
+	const old = (re, f) =>
+		p.route(re, (r) =>
+			r.fulfill({ body: fs.readFileSync(THREE_OLD + f(r.request().url())), contentType: "text/javascript" }),
+		);
+	await old(/three\.js\/r128\/three\.min\.js/, () => "build/three.min.js");
+	await old(/three@0\.128\.0\/examples\/js\//, (u) => "examples/js/" + u.split("/examples/js/")[1]);
 	await p.route(/planck@/, (r) =>
 		r.fulfill({
 			body: fs.readFileSync(path.join(ROOT, "tools/node_modules/planck/dist/planck.min.js")),
@@ -72,7 +76,7 @@ export async function openGame(browser, { width = 390, height = 844, mobile = fa
 			await r.abort();
 		}
 	});
-	await p.goto("file://" + path.join(ROOT, "dist/index.html"), { timeout: 90000 });
+	await p.goto("file://" + (file || path.join(ROOT, "dist/index.html")), { timeout: 90000 });
 	await p.waitForFunction(() => typeof GFX !== "undefined" && GFX.ok, null, { timeout: 90000 });
 	await p.evaluate(() => {
 		window.turn = (m, a = Math.PI) => {

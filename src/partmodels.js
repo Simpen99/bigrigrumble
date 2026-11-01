@@ -501,7 +501,7 @@ function aoPlace(w, h) {
 	for (let pi = 0; ; pi++) {
 		if (!AO_PG[pi]) {
 			const data = new Uint8Array(AO_S * AO_S).fill(255),
-				tex = new THREE.DataTexture(data, AO_S, AO_S, THREE.LuminanceFormat, THREE.UnsignedByteType);
+				tex = new THREE.DataTexture(data, AO_S, AO_S, THREE.RedFormat, THREE.UnsignedByteType);
 			tex.magFilter = tex.minFilter = THREE.LinearFilter;
 			tex.generateMipmaps = false;
 			tex.needsUpdate = true;

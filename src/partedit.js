@@ -4,26 +4,10 @@ let ED = null,
 	ED_LOAD = null;
 function edLoad() {
 	if (ED_LOAD) return ED_LOAD;
-	const base = "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/";
-	ED_LOAD = ["OrbitControls.js", "TransformControls.js"]
-		.reduce(
-			(p, f) =>
-				p.then(
-					() =>
-						new Promise((res, rej) => {
-							const s = document.createElement("script");
-							s.src = base + f;
-							s.onload = res;
-							s.onerror = () => rej(new Error("load " + f));
-							document.head.appendChild(s);
-						}),
-				),
-			Promise.resolve(),
-		)
-		.catch((e) => {
-			ED_LOAD = null;
-			throw e;
-		});
+	ED_LOAD = threeAdd(["controls/OrbitControls.js", "controls/TransformControls.js"]).catch((e) => {
+		ED_LOAD = null;
+		throw e;
+	});
 	return ED_LOAD;
 }
 const edLS = () => LS.get("trp_mapedit", {}) || {};
@@ -181,12 +165,12 @@ function edDispose(s) {
 function edBuild(first) {
 	const old = ED.bd;
 	if (old) {
-		old.scene.remove(ED.cam, ED.tc, ED.proxy);
+		old.scene.remove(ED.cam, ED.tc.getHelper(), ED.proxy);
 		edDispose(old.scene);
 	}
 	ED.map = MAPS[ED.id];
 	const bd = (ED.bd = buildBoardFor(ED.map));
-	bd.scene.add(ED.cam, ED.tc, ED.proxy);
+	bd.scene.add(ED.cam, ED.tc.getHelper(), ED.proxy);
 	if (bd.rival) bd.rival.visible = false;
 	if (bd.vx) bd.vx.lava.position.y = LAVA_Y[ED.lv];
 	if (first) {
@@ -278,7 +262,7 @@ function edPick(e) {
 	rc.setFromCamera(v, ED.cam);
 	rc.camera = ED.cam;
 	const hits = rc.intersectObjects(
-		ED.bd.scene.children.filter((o) => o !== ED.tc && o !== ED.proxy && o !== ED.cam),
+		ED.bd.scene.children.filter((o) => o !== ED.tc.getHelper() && o !== ED.proxy && o !== ED.cam),
 		true,
 	);
 	for (const h of hits) {

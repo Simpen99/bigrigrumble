@@ -1,3 +1,116 @@
+/* three.js r186, set up to render like r128 did (the game was built on r128). The page loads three as an ES module and
+   hands it over as the global THREE (partend.html). Colour management is off (colours and textures are used as given),
+   the renderer outputs linear colour unless a scene asks for the new look (gfxLook), lights are back in r128's units
+   (every light times PI) with r128's falloff (point / spot lights fade linearly to their distance, decay 1 by default),
+   round shapes keep r128's default segment counts, and instanced meshes recompute their culling sphere whenever their
+   instances move (r186 culls them by their instances, computed once). Scenes take each material's own envMapIntensity again. */
+function threeRep(s, a, b, what) {
+	if (!s.includes(a)) console.warn("three patch missed: " + what);
+	return s.replace(a, b);
+}
+if (typeof THREE !== "undefined") {
+	const T = THREE,
+		C = T.ShaderChunk,
+		dflt = (Base, d) =>
+			class extends Base {
+				constructor(...a) {
+					d.forEach((v, i) => {
+						if (a[i] === undefined) a[i] = v;
+					});
+					super(...a);
+				}
+			};
+	T.ColorManagement.enabled = false;
+	T.SphereGeometry = dflt(T.SphereGeometry, [1, 8, 6]);
+	T.CircleGeometry = dflt(T.CircleGeometry, [1, 8]);
+	T.CylinderGeometry = dflt(T.CylinderGeometry, [1, 1, 1, 8]);
+	T.ConeGeometry = dflt(T.ConeGeometry, [1, 1, 8]);
+	T.RingGeometry = dflt(T.RingGeometry, [0.5, 1, 8]);
+	T.TorusGeometry = dflt(T.TorusGeometry, [1, 0.4, 8, 6]);
+	T.PointLight = dflt(T.PointLight, [undefined, undefined, 0, 1]);
+	T.SpotLight = dflt(T.SpotLight, [undefined, undefined, 0, Math.PI / 3, 0, 1]);
+	/* r186 lights every material from scene.environment at the scene's environmentIntensity, ignoring the material's own
+	   envMapIntensity (r128 used the material's, which lookEnv sets per material: 0 on matte parts). The renderer notes the
+	   material it is drawing and the scene's environmentIntensity hands back that material's value. */
+	let envMat = null;
+	T.WebGLRenderer = class extends T.WebGLRenderer {
+		constructor(o) {
+			super(o);
+			this.outputColorSpace = T.LinearSRGBColorSpace;
+			const rbd = this.renderBufferDirect;
+			this.renderBufferDirect = function (cam, s, geo, mat, ...a) {
+				envMat = mat;
+				return rbd.call(this, cam, s, geo, mat, ...a);
+			};
+		}
+	};
+	T.Scene = class extends T.Scene {
+		get environmentIntensity() {
+			return envMat && envMat.envMapIntensity !== undefined ? envMat.envMapIntensity * this.envI : this.envI;
+		}
+		set environmentIntensity(v) {
+			this.envI = v;
+		}
+	};
+	T.InstancedMesh = class extends T.InstancedMesh {
+		get boundingSphere() {
+			const m = this.instanceMatrix;
+			return m && (this.bsV !== m.version || this.bsN !== this.count) ? null : this.bs;
+		}
+		set boundingSphere(v) {
+			const m = this.instanceMatrix;
+			this.bs = v;
+			this.bsV = m && m.version;
+			this.bsN = this.count;
+		}
+	};
+	let lp = C.lights_pars_begin;
+	lp = threeRep(lp, "vec3 irradiance = ambientLightColor;", "vec3 irradiance = ambientLightColor * PI;", "ambient");
+	lp = threeRep(
+		lp,
+		"vec3 irradiance = mix( hemiLight.groundColor, hemiLight.skyColor, hemiDiffuseWeight );",
+		"vec3 irradiance = mix( hemiLight.groundColor, hemiLight.skyColor, hemiDiffuseWeight ) * PI;",
+		"hemisphere",
+	);
+	lp = threeRep(lp, "light.color = directionalLight.color;", "light.color = directionalLight.color * PI;", "sun");
+	lp = threeRep(lp, "light.color = pointLight.color;", "light.color = pointLight.color * PI;", "point");
+	lp = threeRep(
+		lp,
+		"light.color = spotLight.color * spotAttenuation;",
+		"light.color = spotLight.color * spotAttenuation * PI;",
+		"spot",
+	);
+	const fall = lp.match(/float getDistanceAttenuation\([^)]*\) \{[\s\S]*?return distanceFalloff;\s*\}/);
+	if (!fall) console.warn("three patch missed: falloff");
+	else
+		lp = lp.replace(
+			fall[0],
+			"float getDistanceAttenuation( const in float lightDistance, const in float cutoffDistance, const in float decayExponent ) {\n\tif ( cutoffDistance > 0.0 && decayExponent > 0.0 ) return pow( saturate( - lightDistance / cutoffDistance + 1.0 ), decayExponent );\n\treturn 1.0;\n}",
+		);
+	C.lights_pars_begin = lp;
+	/* r186's standard material takes the light its specular reflects out of the diffuse (sun: 1 - fresnel, ambient: the
+	   scattering terms) and boosts the specular for multiple scattering; r128 did neither (scenes came out ~4% darker) */
+	let ph = C.lights_physical_pars_fragment;
+	ph = threeRep(
+		ph,
+		"reflectedLight.directSpecular += irradiance * specularBRDF * material.multiScatteringCompensation;",
+		"reflectedLight.directSpecular += irradiance * specularBRDF;",
+		"specular compensation",
+	);
+	ph = threeRep(
+		ph,
+		"reflectedLight.directDiffuse += irradiance * BRDF_Lambert( material.diffuseContribution ) * ( 1.0 - F );",
+		"reflectedLight.directDiffuse += irradiance * BRDF_Lambert( material.diffuseContribution );",
+		"direct diffuse",
+	);
+	ph = threeRep(
+		ph,
+		"vec3 diffuse = irradiance * BRDF_Lambert( material.diffuseContribution ) * ( 1.0 - singleScattering - multiScattering );",
+		"vec3 diffuse = irradiance * BRDF_Lambert( material.diffuseContribution );",
+		"indirect diffuse",
+	);
+	C.lights_physical_pars_fragment = ph;
+}
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
 const BUILD = "__BUILD__";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
@@ -258,24 +371,35 @@ function lookShaders() {
 		L = THREE.ShaderLib,
 		lin = (v) => `\n#ifdef TONE_MAPPING\n\t${v} = pow( max( ${v}, vec3( 0.0 ) ), vec3( 2.2 ) );\n#endif\n`;
 	C.color_fragment =
-		"#if defined( USE_COLOR_ALPHA )\n\tvec4 lkCol = vColor;\n#elif defined( USE_COLOR )\n\tvec4 lkCol = vec4( vColor, 1.0 );\n#endif\n#if defined( USE_COLOR_ALPHA ) || defined( USE_COLOR )\n" +
+		"#if defined( USE_COLOR_ALPHA ) || defined( USE_COLOR )\n\tvec4 lkCol = vColor;\n" +
 		lin("lkCol.rgb") +
 		"\tdiffuseColor *= lkCol;\n#endif";
-	C.map_fragment = C.map_fragment.replace(
-		"texelColor = mapTexelToLinear( texelColor );",
-		"texelColor = mapTexelToLinear( texelColor );" + lin("texelColor.rgb"),
+	C.map_fragment = threeRep(
+		C.map_fragment,
+		"diffuseColor *= sampledDiffuseColor;",
+		lin("sampledDiffuseColor.rgb") + "diffuseColor *= sampledDiffuseColor;",
+		"look map",
 	);
-	C.map_particle_fragment = C.map_particle_fragment.replace(
-		"diffuseColor *= mapTexelToLinear( mapTexel );",
-		"mapTexel = mapTexelToLinear( mapTexel );" + lin("mapTexel.rgb") + "diffuseColor *= mapTexel;",
+	C.map_particle_fragment = threeRep(
+		C.map_particle_fragment,
+		"diffuseColor *= texture2D( map, uv );",
+		"vec4 lkMap = texture2D( map, uv );" + lin("lkMap.rgb") + "diffuseColor *= lkMap;",
+		"look particle map",
 	);
-	C.emissivemap_fragment = C.emissivemap_fragment.replace(
-		"emissiveColor.rgb = emissiveMapTexelToLinear( emissiveColor ).rgb;",
-		"emissiveColor.rgb = emissiveMapTexelToLinear( emissiveColor ).rgb;" + lin("emissiveColor.rgb"),
+	C.emissivemap_fragment = threeRep(
+		C.emissivemap_fragment,
+		"totalEmissiveRadiance *= emissiveColor.rgb;",
+		lin("emissiveColor.rgb") + "totalEmissiveRadiance *= emissiveColor.rgb;",
+		"look emissive map",
 	);
-	/* glow = emissive relative to the part's own colour (so every colour at the same emissiveIntensity blooms the same): none below 0.3, full from 0.9 */
-	const glow =
-		"gl_FragColor = vec4( outgoingLight, diffuseColor.a );\n#ifdef TONE_MAPPING\n\tfloat lkE = max( max( totalEmissiveRadiance.r, totalEmissiveRadiance.g ), totalEmissiveRadiance.b );\n\tfloat lkD = max( max( diffuseColor.r, diffuseColor.g ), diffuseColor.b );\n\tif ( opacity > 0.999 && diffuseColor.a > 0.999 ) gl_FragColor.a = 1.0 - smoothstep( 0.3, 0.9, lkE / max( lkD, 0.05 ) ) * smoothstep( 0.02, 0.1, lkE );\n#endif";
+	/* glow = emissive relative to the part's own colour (so every colour at the same emissiveIntensity blooms the same): none below 0.3, full from 0.9.
+	   LK_EMIS marks the shaders that have an emissive colour (opaque_fragment is shared by all of them) */
+	C.opaque_fragment = threeRep(
+		C.opaque_fragment,
+		"gl_FragColor = vec4( outgoingLight, diffuseColor.a );",
+		"gl_FragColor = vec4( outgoingLight, diffuseColor.a );\n#if defined( TONE_MAPPING ) && defined( LK_EMIS )\n\tfloat lkE = max( max( totalEmissiveRadiance.r, totalEmissiveRadiance.g ), totalEmissiveRadiance.b );\n\tfloat lkD = max( max( diffuseColor.r, diffuseColor.g ), diffuseColor.b );\n\tif ( opacity > 0.999 && diffuseColor.a > 0.999 ) gl_FragColor.a = 1.0 - smoothstep( 0.3, 0.9, lkE / max( lkD, 0.05 ) ) * smoothstep( 0.02, 0.1, lkE );\n#endif",
+		"look glow",
+	);
 	Object.values(L).forEach((sh) => {
 		let f = sh.fragmentShader;
 		if (!f) return;
@@ -283,47 +407,58 @@ function lookShaders() {
 			"vec4 diffuseColor = vec4( diffuse, opacity );",
 			"vec4 diffuseColor = vec4( diffuse, opacity );" + lin("diffuseColor.rgb"),
 		);
-		if (f.includes("vec3 totalEmissiveRadiance = emissive;"))
-			f = f
-				.replace(
-					"vec3 totalEmissiveRadiance = emissive;",
-					"vec3 totalEmissiveRadiance = emissive;" + lin("totalEmissiveRadiance"),
-				)
-				.replace("gl_FragColor = vec4( outgoingLight, diffuseColor.a );", glow);
+		f = f.replace(
+			"vec3 totalEmissiveRadiance = emissive;",
+			"vec3 totalEmissiveRadiance = emissive;\n#define LK_EMIS" + lin("totalEmissiveRadiance"),
+		);
 		sh.fragmentShader = f;
 	});
 	/* the room environment only adds reflections (no flat grey fill), so the hemisphere keeps the shade's colour */
-	C.lights_fragment_maps = C.lights_fragment_maps.replace(
-		"iblIrradiance += getLightProbeIndirectIrradiance( geometry, maxMipLevel );",
-		"#ifndef TONE_MAPPING\n\t\tiblIrradiance += getLightProbeIndirectIrradiance( geometry, maxMipLevel );\n\t#endif",
+	C.lights_fragment_maps = threeRep(
+		C.lights_fragment_maps,
+		"iblIrradiance += getIBLIrradiance( geometryNormal );",
+		"#ifndef TONE_MAPPING\n\t\tiblIrradiance += getIBLIrradiance( geometryNormal );\n\t#endif",
+		"look ibl",
 	);
 	/* sprites are labels (name tags, text): keep their exact colours, no tone mapping */
-	L.sprite.fragmentShader = L.sprite.fragmentShader.replace("#include <tonemapping_fragment>", "");
-	L.background.fragmentShader = L.background.fragmentShader.replace(
-		"#include <tonemapping_fragment>\n\t#include <encodings_fragment>",
-		"#ifndef TONE_MAPPING\n\t#include <encodings_fragment>\n\t#endif",
+	L.sprite.fragmentShader = threeRep(L.sprite.fragmentShader, "#include <tonemapping_fragment>", "", "look sprite");
+	L.background.fragmentShader = threeRep(
+		L.background.fragmentShader,
+		"#include <tonemapping_fragment>\n\t#include <colorspace_fragment>",
+		"#ifndef TONE_MAPPING\n\t#include <colorspace_fragment>\n\t#endif",
+		"look background",
 	);
 }
 function gfxLook(s) {
 	const r = GFX.r,
 		L = s && s.userData.lk;
-	r.outputEncoding = L ? THREE.sRGBEncoding : THREE.LinearEncoding;
+	r.outputColorSpace = L ? THREE.SRGBColorSpace : THREE.LinearSRGBColorSpace;
 	r.toneMapping = L ? THREE.ACESFilmicToneMapping : THREE.NoToneMapping;
 	if (L) r.toneMappingExposure = L.exp;
+}
+/* a render target that a new-look scene renders into gets the screen's treatment (tone mapping, sRGB encoding into a
+   plain 8-bit buffer), as r128 did; r186 only does that for XR targets, so the flag borrows it */
+function rtLook(rt, on) {
+	rt.isXRRenderTarget = !!on;
+	rt.texture.colorSpace = on ? THREE.SRGBColorSpace : THREE.NoColorSpace;
+}
+/* three.js add-ons (ES modules, through the page's import map) merged into THREE */
+const THREE_ADD = "three/addons/";
+function threeAdd(files) {
+	return Promise.all(files.map((f) => import(THREE_ADD + f))).then((ms) => ms.forEach((m) => Object.assign(THREE, m)));
 }
 /* RoomEnvironment reflections for new-look scenes (PMREM, loaded on first use); intensity per material from the look's env */
 function lookEnvTex() {
 	if (GFX.envLoad) return GFX.envLoad;
-	GFX.envLoad = new Promise((res, rej) => {
-		const s = document.createElement("script");
-		s.src = "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/environments/RoomEnvironment.js";
-		s.onload = res;
-		s.onerror = () => rej(new Error("load RoomEnvironment"));
-		document.head.appendChild(s);
-	}).then(
+	GFX.envLoad = threeAdd(["environments/RoomEnvironment.js"]).then(
 		() => {
-			const pm = new THREE.PMREMGenerator(GFX.r),
-				t = pm.fromScene(new THREE.RoomEnvironment(), 0.04).texture;
+			/* r186's room light is in physical units (900); back to r128's 5, as lights render in r128's units here */
+			const room = new THREE.RoomEnvironment(),
+				pm = new THREE.PMREMGenerator(GFX.r);
+			room.traverse((o) => {
+				if (o.isPointLight) o.intensity = 5;
+			});
+			const t = pm.fromScene(room, 0.04).texture;
 			pm.dispose();
 			return (GFX.envTex = t);
 		},
@@ -1435,7 +1570,7 @@ function gfxInit() {
 		});
 		r.setPixelRatio(Math.min(devicePixelRatio || 1, 2.5));
 		r.shadowMap.enabled = true;
-		r.shadowMap.type = THREE.PCFSoftShadowMap;
+		r.shadowMap.type = THREE.PCFShadowMap;
 		GFX.r = r;
 		lookShaders();
 		{
