@@ -731,6 +731,9 @@ function buildShowroom() {
 		d.shadow.mapSize.setScalar(GFX.touch ? 2048 : 4096);
 		d.shadow.bias = -0.0003;
 		d.shadow.normalBias = 0.02;
+		/* a slightly softer edge: the ladder's comb of rung shadows on the roof stair-stepped at 1 px (anti-aliasing only
+		   smooths outlines of shapes, not shadow edges); much softer and r186's rotated sampling turns grainy */
+		d.shadow.radius = 2;
 	}
 	const lamps = garageRoom(s);
 	/* daylight from the open door: a soft cool-white light from outside, catching the backs and tops of things */

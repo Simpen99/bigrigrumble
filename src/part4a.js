@@ -188,11 +188,18 @@ function applyLook(W, extra) {
 		() => {},
 	);
 }
+/* heavy effects (ambient occlusion: a second scene render plus two full-screen passes) only where there's power to spare:
+   a PC or the big screen, not a phone playing on its own screen. The light panel can still switch them on anywhere. */
+const FX_HEAVY = ["ao"];
+function heavyFx() {
+	return !GFX.touch || tvView();
+}
 /* minigame effects from {ao, bloom, tilt, vig, col, aa} (0 / missing = off, except smooth edges: on unless aa is 0), as
    baked in def.fx or saved from the light panel */
 function setFx(fx) {
 	["ao", "bloom", "tilt", "vig", "col", "aa"].forEach((k) => {
-		const v = k === "aa" ? !fx || fx.aa === undefined || fx.aa : fx && fx[k];
+		let v = k === "aa" ? !fx || fx.aa === undefined || fx.aa : fx && fx[k];
+		if (FX_HEAVY.includes(k) && !heavyFx()) v = 0;
 		GFX.fx[k].on = !!v;
 		if (v) {
 			if (k === "col") {
@@ -1763,7 +1770,7 @@ const POSTJS = [
 	"postprocessing/RenderPass.js",
 	"postprocessing/ShaderPass.js",
 	"postprocessing/UnrealBloomPass.js",
-	"postprocessing/SSAOPass.js",
+	"postprocessing/GTAOPass.js",
 	"shaders/HorizontalTiltShiftShader.js",
 	"shaders/VerticalTiltShiftShader.js",
 ];
@@ -1833,26 +1840,11 @@ function buildPost(scene, cam) {
 			}),
 		); /* stencil needed by the tyre marks; multisampled = the same smooth edges as the canvas (sharper than FXAA) */
 	comp.addPass(new THREE.RenderPass(scene, cam));
-	const ao = new THREE.SSAOPass(scene, cam, w, h);
-	ao.kernelRadius = 6;
-	ao.minDistance = 0.001;
-	ao.maxDistance = 0.025;
+	/* ground-truth ambient occlusion (GTAOPass, denoised): soft contact shading where trucks meet the ground and in
+	   corners. Radius in metres; strength and radius both follow the panel's slider (renderMG) */
+	const ao = new THREE.GTAOPass(scene, cam, w * pr, h * pr);
+	ao.updateGtaoMaterial({ radius: 0.8, distanceExponent: 1, thickness: 1, scale: 1, samples: 16 });
 	comp.addPass(ao);
-	{
-		const bm = ao.blurMaterial,
-			from = "gl_FragColor = vec4( vec3( result / ( 5.0 * 5.0 ) ), 1.0 );";
-		if (bm && bm.fragmentShader.includes(from)) {
-			bm.uniforms.aoAmt = { value: 0.5 };
-			bm.fragmentShader =
-				"uniform float aoAmt;\n" +
-				bm.fragmentShader.replace(
-					from,
-					"gl_FragColor = vec4( vec3( mix( 1.0, result / ( 5.0 * 5.0 ), aoAmt ) ), 1.0 );",
-				);
-			bm.needsUpdate = true;
-			ao.aoAmt = bm.uniforms.aoAmt;
-		}
-	}
 	{
 		const orig = ao._renderOverride.bind(ao);
 		ao._renderOverride = (...a) => {
@@ -1959,8 +1951,12 @@ function renderMG(scene, cam) {
 		}
 	}
 	P.ao.enabled = F.ao.on;
-	if (P.ao.aoAmt) P.ao.aoAmt.value = F.ao.v * 0.85;
-	else P.ao.maxDistance = 0.005 + F.ao.v * 0.04;
+	if (P.ao.enabled && P.aoV !== F.ao.v) {
+		P.aoV = F.ao.v;
+		/* the slider (0..1) widens and deepens it: radius 0.3 to 1.8 m, darkening curve 1 to 3 */
+		P.ao.blendIntensity = Math.min(1, F.ao.v * 2);
+		P.ao.updateGtaoMaterial({ radius: 0.3 + F.ao.v * 1.5, scale: 1 + F.ao.v * 2 });
+	}
 	P.bloom.enabled = F.bloom.on;
 	P.bloom.strength = F.bloom.v * 0.7;
 	P.bloom.threshold = F.bloom.th;
@@ -2030,7 +2026,7 @@ function wireLightPanel() {
 					: [],
 			);
 		const FX = [
-			["ao", "Shading AO"],
+			["ao", "Shading AO (GTAO)"],
 			["bloom", "Bloom"],
 			["tilt", "Tilt-shift"],
 			["vig", "Vignette"],
