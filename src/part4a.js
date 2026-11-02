@@ -1850,6 +1850,11 @@ function buildPost(scene, cam) {
 	   it upscales fine). 32 samples (5 directions instead of 3) and a wider denoise (6 px here = 12 on screen, 3 rings,
 	   24 taps): the defaults left grain on walls and fences once the camera pulls back */
 	const ao = new THREE.GTAOPass(scene, cam, Math.ceil((w * pr) / 2), Math.ceil((h * pr) / 2));
+	{
+		/* the composer sizes every pass to the full screen as it's added (addPass → setSize): keep this one at half */
+		const ss = ao.setSize.bind(ao);
+		ao.setSize = (sw, sh) => ss(Math.ceil(sw / 2), Math.ceil(sh / 2));
+	}
 	ao.updateGtaoMaterial({ radius: 0.8, distanceExponent: 1, thickness: 1, scale: 1, samples: 32 });
 	ao.updatePdMaterial({ radius: 6, rings: 3, samples: 24 });
 	comp.addPass(ao);
@@ -1869,7 +1874,13 @@ function buildPost(scene, cam) {
 					hid.push(q);
 				}
 			});
+			/* its normal / depth render is a scene render too: without this three.js redraws every shadow map for it
+			   (thrown away: the normals don't use shadows), doubling the shadow cost of a frame */
+			const sm = GFX.r.shadowMap,
+				au = sm.autoUpdate;
+			sm.autoUpdate = false;
 			orig(...a);
+			sm.autoUpdate = au;
 			hid.forEach((q) => {
 				q.visible = true;
 			});
