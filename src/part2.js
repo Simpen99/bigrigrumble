@@ -436,11 +436,26 @@ function gfxLook(s) {
 	r.toneMapping = L ? THREE.ACESFilmicToneMapping : THREE.NoToneMapping;
 	if (L) r.toneMappingExposure = L.exp;
 }
+/* compile a scene's shaders in the background (KHR_parallel_shader_compile) under the colour pipeline it renders with:
+   resolves once they're ready, or after ms at most */
+function gfxPrecompile(s, cam, ms) {
+	const r = GFX.r;
+	if (!r || !r.compileAsync) return Promise.resolve();
+	gfxLook(s);
+	return Promise.race([r.compileAsync(s, cam).catch(() => {}), new Promise((res) => setTimeout(res, ms))]);
+}
 /* a render target that a new-look scene renders into gets the screen's treatment (tone mapping, sRGB encoding into a
    plain 8-bit buffer), as r128 did; r186 only does that for XR targets, so the flag borrows it */
 function rtLook(rt, on) {
 	rt.isXRRenderTarget = !!on;
 	rt.texture.colorSpace = on ? THREE.SRGBColorSpace : THREE.NoColorSpace;
+	/* stored as plain RGBA8 (holding the encoded colour), like the multisample buffer three makes for an XR target: an sRGB
+	   texture next to it fails the resolve (format mismatch, black frames) */
+	const fm = on ? "RGBA8" : null;
+	if (rt.texture.internalFormat !== fm) {
+		rt.texture.internalFormat = fm;
+		rt.dispose();
+	}
 }
 /* three.js add-ons (ES modules, through the page's import map) merged into THREE */
 const THREE_ADD = "three/addons/";
