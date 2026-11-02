@@ -802,18 +802,32 @@ function start3D(mg, p, localOnly, startAt, split) {
 	setMode("mg");
 	GFX.mgCam = null;
 	/* shaders compile in the background while renderMG skips the scene (the last frame stays up), so the first frames
-	   don't stall on them; the camera drop from the clouds starts once they're ready */
+	   don't stall on them; the camera drop from the clouds starts once they're ready. A new-look scene first waits for
+	   its reflection map (it changes every shader). W.warm = a few frames after that: the first real frame still does
+	   one-off work (texture uploads, shadow and effect shaders), so the clouds wait for it (enterMg) */
 	{
 		const drop = GFX.trDrop,
-			W0 = W;
+			W0 = W,
+			wait = (ms) => new Promise((res) => setTimeout(res, ms));
 		s.userData.cmp = true;
-		W.shaders = gfxPrecompile(s, W.cam, 2500).then(() => {
-			s.userData.cmp = false;
-			if (drop && W === W0) {
-				GFX.mgCam = null;
-				GFX.trDrop = true;
-			}
-		});
+		const env = s.userData.lk
+			? Promise.race([lookEnvTex().then((t) => (s.environment = t)), wait(1500)]).catch(() => {})
+			: Promise.resolve();
+		W.shaders = env
+			.then(() => gfxPrecompile(s, W0.cam, 2500))
+			.then(() => {
+				s.userData.cmp = false;
+				if (drop && W === W0) {
+					GFX.mgCam = null;
+					GFX.trDrop = true;
+				}
+			});
+		W.warm = W.shaders.then(() =>
+			Promise.race([
+				new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(res)))),
+				wait(1500),
+			]),
+		);
 	}
 }
 /* fewer draw calls: static scenery merges per material into one mesh per 32 m cell (so off-screen chunks are still
@@ -1223,8 +1237,8 @@ function enterMg(mg, p) {
 		GFX.rise = 0;
 		GFX.trDrop = true;
 		openMg(mg, p);
-		/* the clouds part once the game's shaders are ready */
-		((W && W.shaders) || Promise.resolve()).then(() => {
+		/* the clouds part once the game's shaders are ready and its first frames are drawn */
+		((W && W.warm) || Promise.resolve()).then(() => {
 			document.body.classList.remove("trout");
 			document.body.classList.add("trin");
 			setTimeout(() => {
