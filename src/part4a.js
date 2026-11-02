@@ -1837,13 +1837,20 @@ function buildPost(scene, cam) {
 				format: THREE.RGBAFormat,
 				stencilBuffer: true,
 				samples: aa ? 4 : 0,
+				resolveDepthBuffer: false,
+				resolveStencilBuffer: false,
 			}),
-		); /* stencil needed by the tyre marks; multisampled = the same smooth edges as the canvas (sharper than FXAA) */
+		); /* stencil needed by the tyre marks; multisampled = the same smooth edges as the canvas (sharper than FXAA).
+		   Only the colour gets resolved: nothing reads these depth / stencil buffers, and on Windows (ANGLE on Direct3D) a
+		   multisampled depth-stencil resolve is a slow shader pass (a PC dropped from 170 to 51 fps) */
 	comp.addPass(new THREE.RenderPass(scene, cam));
 	/* ground-truth ambient occlusion (GTAOPass, denoised): soft contact shading where trucks meet the ground and in
 	   corners. Radius in metres; strength and radius both follow the panel's slider (renderMG) */
 	const ao = new THREE.GTAOPass(scene, cam, w * pr, h * pr);
-	ao.updateGtaoMaterial({ radius: 0.8, distanceExponent: 1, thickness: 1, scale: 1, samples: 16 });
+	/* 32 samples (5 directions instead of 3) and a wider denoise (10 px, 3 rings, 24 taps): the defaults left grain on
+	   walls and fences once the camera pulls back */
+	ao.updateGtaoMaterial({ radius: 0.8, distanceExponent: 1, thickness: 1, scale: 1, samples: 32 });
+	ao.updatePdMaterial({ radius: 10, rings: 3, samples: 24 });
 	comp.addPass(ao);
 	{
 		const orig = ao._renderOverride.bind(ao);
@@ -4438,7 +4445,12 @@ function tvsDyn(fw, fh, dt) {
 		rh = Math.round(fh * pr);
 	if (!T.rt || T.rt.width !== rw || T.rt.height !== rh) {
 		if (T.rt) T.rt.dispose();
-		T.rt = new THREE.WebGLRenderTarget(rw, rh, { stencilBuffer: true, samples: 4 });
+		T.rt = new THREE.WebGLRenderTarget(rw, rh, {
+			stencilBuffer: true,
+			samples: 4,
+			resolveDepthBuffer: false,
+			resolveStencilBuffer: false,
+		});
 	}
 	if (!T.qs) {
 		T.qm = new THREE.ShaderMaterial({
