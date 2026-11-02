@@ -802,9 +802,9 @@ function start3D(mg, p, localOnly, startAt, split) {
 	setMode("mg");
 	GFX.mgCam = null;
 	/* shaders compile in the background while renderMG skips the scene (the last frame stays up), so the first frames
-	   don't stall on them; the camera drop from the clouds starts once they're ready. A new-look scene first waits for
+	   don't stall on them; the camera drop starts once they're ready. A new-look scene first waits for
 	   its reflection map (it changes every shader). W.warm = a few frames after that: the first real frame still does
-	   one-off work (texture uploads, shadow and effect shaders), so the clouds wait for it (enterMg) */
+	   one-off work (texture uploads, shadow and effect shaders), so the door stays down for it (enterMg) */
 	{
 		const drop = GFX.trDrop,
 			W0 = W,
@@ -1216,7 +1216,10 @@ function stepMG(dt) {
 	if (!W.tv) ctlUpdate();
 }
 
-/* ---------- board → minigame transition: the board HUD slides away, the camera climbs into the clouds, then the minigame starts with its camera dropping down through them and its HUD sliding in ---------- */
+/* ---------- board → minigame transition: the board HUD slides away and a garage roller door slams down over the screen;
+   while the game loads behind it the door jerks up an inch now and then and drops back in a puff of dust (CSS animations,
+   so they carry on while the page is busy compiling); once the game is ready it rolls up and the minigame starts with its
+   camera dropping in and its HUD sliding in ---------- */
 let trNonce = null;
 function enterMg(mg, p) {
 	if (!GFX.ok || mg.tv || GFX.mode !== "board" || trNonce === mg.nonce || document.body.classList.contains("tvphone")) {
@@ -1227,49 +1230,76 @@ function enterMg(mg, p) {
 	mgBusy = true;
 	musStop(0.4);
 	musJingle("mgstart");
-	const c = trClouds();
+	const c = trDoor(),
+		snd = trDoorSnd();
 	prebakeKits(mg);
 	document.body.classList.add("trout");
 	GFX.rise = performance.now();
+	c.classList.remove("up");
 	c.classList.add("on");
 	setTimeout(() => {
 		mgBusy = false;
 		GFX.rise = 0;
 		GFX.trDrop = true;
 		openMg(mg, p);
-		/* the clouds part once the game's shaders are ready and its first frames are drawn */
+		/* the door rolls up once the game's shaders are ready and its first frames are drawn */
 		((W && W.warm) || Promise.resolve()).then(() => {
 			document.body.classList.remove("trout");
 			document.body.classList.add("trin");
 			setTimeout(() => {
-				c.classList.remove("on");
+				c.classList.add("up");
+				if (snd) snd.stop();
+				sfx("doorroll");
 			}, 150);
+			setTimeout(() => c.classList.remove("on", "up"), 1100);
 			setTimeout(() => document.body.classList.remove("trin"), 1300);
 		});
 	}, 1300);
 }
-/* bake the coming game's props now: the AO worker runs during the clouds and start3D finds the results cached */
+/* bake the coming game's props now: the AO worker runs while the door is down and start3D finds the results cached */
 function prebakeKits(mg) {
 	const def = MG[mg.g];
 	if (!def || !def.kits) return;
-	/* a frame later, so the clouds and the camera rise get going first */
+	/* a frame later, so the door and the camera rise get going first */
 	setTimeout(() => {
 		try {
 			def.kits((mg.part || G.players).length);
 		} catch (e) {}
 	}, 30);
 }
-function trClouds() {
+function trDoor() {
 	let c = document.getElementById("trc");
 	if (!c) {
 		c = document.createElement("div");
 		c.id = "trc";
-		/* the dots fade in after 2.4 s of clouds (a phone compiling the game's shaders can take seconds), by CSS so they
-		   still show while the page is busy compiling */
-		c.innerHTML = "<i></i><i></i><i></i><i></i><i></i><b><s></s><s></s><s></s></b>";
+		/* u = daylight under the door, .dr = the door (drops / rolls up), .sl = its slats (the jerks), b = the hazard
+		   striped bottom bar with its handle, em = dust puffs along the floor */
+		c.innerHTML = `<u></u><div class="dr"><div class="sl"><b></b></div></div><i>${"<em></em>".repeat(6)}</i>`;
 		document.body.appendChild(c);
 	}
 	return c;
+}
+/* the door's sounds, put on the audio clock up front so they play even while the page is busy building the game: the
+   slam as it lands, then a rattle each time it drops back (trjig in part1: drops 0.5 s and 1.78 s into every 2.4 s,
+   from 0.95 s); stop() silences the ones still to come */
+function trDoorSnd() {
+	if (!SFX.on || !SFX.ctx || SFX.ctx.state !== "running") return null;
+	const g = SFX.ctx.createGain(),
+		to = SFX.to;
+	g.connect(to || SFX.out);
+	SFX.to = g;
+	sfx("doorslam", 0.4);
+	for (let t = 1.45; t < 15; t += 2.4) {
+		sfx("doorrattle", t);
+		sfx("doorrattle", t + 1.27);
+	}
+	SFX.to = to;
+	return {
+		stop() {
+			g.gain.setTargetAtTime(0, SFX.ctx.currentTime, 0.02);
+			setTimeout(() => g.disconnect(), 400);
+		},
+	};
 }
 /* ---------- minigame HUD ---------- */
 function openMg(mg, p) {

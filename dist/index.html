@@ -312,17 +312,36 @@ body.mgres .hudtop,body.mgres .hudbot{display:none}
 .optb{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:var(--hud2);border:1px solid var(--hudline);border-radius:14px;padding:9px 12px;color:#fff}
 .optb:active{background:rgba(255,200,61,.2)}
 .testbox{margin-top:10px;padding:8px;border:1.5px dashed #B78CFF;border-radius:12px}.testbox h4{margin:0 0 6px;font-size:13px;color:#B78CFF}#fps{position:fixed;left:6px;bottom:4px;z-index:50;font:600 11px/1 Rubik,Arial,sans-serif;color:#fff;background:rgba(21,27,36,.55);padding:3px 6px;border-radius:6px;pointer-events:none}.optb:disabled{opacity:.45}
-#trc{position:fixed;inset:0;z-index:40;pointer-events:none;opacity:0;transition:opacity .9s ease;background:radial-gradient(ellipse at 50% 40%,#FFFFFF,#ECF2FA 55%,#D6E2F0)}#trc.on{opacity:1;transition:opacity 1.1s ease-in}
-#trc i{position:absolute;border-radius:50%;background:radial-gradient(circle,rgba(255,255,255,.95),rgba(255,255,255,0) 70%);width:70vmax;height:40vmax;animation:trdrift 3s ease-in-out infinite alternate}#trc i:nth-child(1){left:-20vmax;top:-10vmax}#trc i:nth-child(2){right:-25vmax;top:10vmax;animation-delay:-1s}#trc i:nth-child(3){left:10vmax;bottom:-15vmax;animation-delay:-2s}#trc i:nth-child(4){right:0;bottom:5vmax}#trc i:nth-child(5){left:30vmax;top:30vmax;animation-delay:-1.5s}
-@keyframes trdrift{to{transform:translate(4vmax,-2vmax) scale(1.08)}}
-#trc b{position:absolute;left:50%;top:60%;display:flex;gap:max(8px,1.4vmin);transform:translateX(-50%);opacity:0}#trc.on b{animation:trload .4s 2.4s both}
-@keyframes trload{to{opacity:1}}
-#trc b s{width:max(10px,2vmin);height:max(10px,2vmin);border-radius:50%;background:#2B3E57;animation:trdot 1s ease-in-out infinite}#trc b s:nth-child(2){animation-delay:.15s}#trc b s:nth-child(3){animation-delay:.3s}
-@keyframes trdot{0%,100%{transform:translateY(0);opacity:.35}50%{transform:translateY(-1.2vmin);opacity:1}}
+#trc{position:fixed;inset:0;z-index:40;pointer-events:none;visibility:hidden;overflow:hidden;--s:max(24px,6.4vmin);--bar:max(30px,7.4vmin)}
+#trc.on{visibility:visible}
+#trc u{position:absolute;left:0;right:0;bottom:0;height:10vh;background:linear-gradient(0deg,#FFF6D6,#FFE7A3 45%,#B98A45);opacity:0}
+#trc.on u{opacity:1;transition:opacity 0s .45s}
+#trc.up u{opacity:0;transition:none}
+#trc .dr{position:absolute;inset:0;transform:translateY(-106%);will-change:transform}
+#trc.on .dr{animation:trdrop .6s both}
+#trc.up .dr{animation:trup .9s both}
+#trc .sl{position:absolute;inset:0;will-change:transform;background:linear-gradient(90deg,rgba(20,24,32,.42),rgba(20,24,32,0) 7%,rgba(20,24,32,0) 93%,rgba(20,24,32,.42)),linear-gradient(180deg,rgba(20,24,32,.3),rgba(20,24,32,0) 22%),repeating-linear-gradient(180deg,#D3D8E0 0,#BCC3CD calc(var(--s)*.4),#A3AAB6 calc(var(--s)*.78),#6C7480 calc(var(--s)*.9),#E2E6EC calc(var(--s)*.93),#D3D8E0 var(--s))}
+#trc.on .sl{animation:trjig 2.4s .95s infinite}
+#trc .sl::before,#trc .sl::after{content:"";position:absolute;z-index:1;top:0;bottom:0;width:max(10px,2.4vmin);background:linear-gradient(90deg,#3D424C,#6B7280 40%,#4A505B)}
+#trc .sl::before{left:0}
+#trc .sl::after{right:0}
+#trc .sl b{position:absolute;left:0;right:0;bottom:0;height:var(--bar);box-sizing:border-box;border-top:max(3px,.7vmin) solid #E2E6EC;border-bottom:max(5px,1.2vmin) solid #23262D;background:repeating-linear-gradient(-45deg,#FFC83D 0 max(14px,3.2vmin),#2E323A max(14px,3.2vmin) max(28px,6.4vmin));box-shadow:0 max(4px,1vmin) max(8px,2vmin) rgba(0,0,0,.55),inset 0 -.8vmin 1vmin rgba(0,0,0,.3)}
+#trc .sl b::before{content:"";position:absolute;left:50%;bottom:100%;width:max(54px,13vmin);height:max(12px,2.8vmin);margin-bottom:max(3px,.7vmin);transform:translateX(-50%);box-sizing:border-box;border:max(4px,1vmin) solid #3D424C;border-bottom:0;border-radius:max(5px,1.2vmin) max(5px,1.2vmin) 0 0}
+#trc i{position:absolute;inset:0;transition:opacity .35s}
+#trc.up i{opacity:0}
+#trc em{position:absolute;bottom:-5vmin;width:36vmin;height:20vmin;margin-left:-18vmin;border-radius:50%;background:radial-gradient(closest-side,rgba(192,174,144,.95),rgba(198,182,154,.6) 45%,rgba(204,190,164,0));opacity:0;--dx:-6vmin}
+#trc em:nth-child(even){--dx:6vmin}
+#trc em:nth-child(1){left:6%}#trc em:nth-child(2){left:23%}#trc em:nth-child(3){left:41%}#trc em:nth-child(4){left:59%}#trc em:nth-child(5){left:77%}#trc em:nth-child(6){left:94%}
+#trc.on em{animation:trpuff .55s .4s ease-out both,trpuffj 2.4s .95s ease-out infinite}
+@keyframes trdrop{0%{transform:translateY(-106%);animation-timing-function:cubic-bezier(.55,0,1,1)}66%{transform:translateY(0);animation-timing-function:ease-out}78%{transform:translateY(-3%);animation-timing-function:ease-in}88%{transform:translateY(0);animation-timing-function:ease-out}94%{transform:translateY(-.8%);animation-timing-function:ease-in}100%{transform:translateY(0)}}
+@keyframes trup{0%{transform:translateY(0);animation-timing-function:ease-out}10%{transform:translateY(-4%);animation-timing-function:ease-in-out}17%{transform:translateY(-3%);animation-timing-function:cubic-bezier(.45,0,.6,1)}100%{transform:translateY(-106%)}}
+@keyframes trjig{0%{transform:translateY(0);animation-timing-function:ease-out}10%{transform:translateY(-2.6%)}16%{transform:translateY(-2.2%);animation-timing-function:ease-in}21%{transform:translateY(0);animation-timing-function:ease-out}25%{transform:translateY(-.5%);animation-timing-function:ease-in}28%,50%{transform:translateY(0);animation-timing-function:ease-out}60%{transform:translateY(-5%)}64%{transform:translateY(-4.2%)}68%{transform:translateY(-5.2%);animation-timing-function:ease-in}74%{transform:translateY(0);animation-timing-function:ease-out}78%{transform:translateY(-.8%);animation-timing-function:ease-in}82%,100%{transform:translateY(0)}}
+@keyframes trpuff{0%{opacity:0;transform:translate(0,0) scale(.4)}20%{opacity:1}100%{opacity:0;transform:translate(var(--dx),-7vmin) scale(1.8)}}
+@keyframes trpuffj{0%,20.9%{opacity:0;transform:translate(0,0) scale(.4)}24%{opacity:.75}42%{opacity:0;transform:translate(var(--dx),-5vmin) scale(1.5)}42.1%,73.9%{opacity:0;transform:translate(0,0) scale(.4)}77%{opacity:.9}96%,100%{opacity:0;transform:translate(var(--dx),-6vmin) scale(1.65)}}
 .hudtop,.hudbot{transition:transform .5s ease-out}body.trout .hudtop{transform:translateY(-140%);transition:transform .45s ease-in}body.trout .hudbot{transform:translateY(140%);transition:transform .45s ease-in}body.trout #fps,body.trout #fxs{opacity:0}
 body.trin #mg .m3top{animation:trtop .6s .35s ease-out both}body.trin #mg .m3lb,body.trin #mg .m3pad,body.trin #mg .ram,body.trin #mg .tapall{animation:trbot .6s .45s ease-out both}
 @keyframes trtop{from{transform:translateY(-150%);opacity:0}}@keyframes trbot{from{transform:translateY(60%);opacity:0}}
-@media (prefers-reduced-motion:reduce){#trc i,#trc b s{animation-iteration-count:1}}
+@media (prefers-reduced-motion:reduce){#trc .sl,#trc em{animation-iteration-count:1}}
 .optb .optn .ico{width:22px;height:22px}.optb img{width:52px;height:36px;object-fit:contain}.optb span{font-weight:800;flex:1}.optb small{display:block;font-weight:500;font-size:12px;color:#b9c4d2}
 .optn{flex:none;width:34px;height:34px;border-radius:50%;background:var(--yellow);color:#151B24;display:grid;place-items:center;font-family:var(--display);font-size:17px}
 .numgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
@@ -1294,7 +1313,7 @@ if (typeof THREE !== "undefined") {
 	C.lights_physical_pars_fragment = ph;
 }
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-11-02 15:59 cb4f3a8";
+const BUILD = "2026-11-02 21:04 515f585";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -10376,7 +10395,8 @@ function windSnd() {
 		},
 	};
 }
-function sfx(n) {
+/* at = seconds from now on the audio clock (only the garage door sounds use it) */
+function sfx(n, at = 0) {
 	if (!SFX.on || !SFX.ctx || SFX.ctx.state !== "running") return;
 	SFX_SEEN.add("s:" + n);
 	/* a tuned sound (sfxVol) plays through its own gain */
@@ -10465,6 +10485,26 @@ function sfx(n) {
 			case "gull":
 				tone(1450, 0.14, "sawtooth", 0.06, 900);
 				tone(1550, 0.18, "sawtooth", 0.06, 820, 0.17);
+				break;
+			case "doorslam":
+				/* the roller door hits the floor (enterMg): a thud, the bottom bar ringing, the slats clattering after it */
+				tone(95, 0.32, "sine", 0.32, 48, at);
+				noiseHit(0.32, 0.38, 1000, 160, at, 0.9);
+				tone(311, 0.3, "square", 0.025, 0, at);
+				tone(466, 0.24, "square", 0.02, 0, at + 0.01);
+				for (let i = 0; i < 5; i++) noiseHit(0.05, 0.11 - i * 0.015, 2600, 1400, at + 0.04 + i * 0.05, 4);
+				break;
+			case "doorrattle":
+				/* it jerks up an inch and drops back */
+				tone(120, 0.14, "sine", 0.14, 70, at);
+				noiseHit(0.12, 0.16, 760, 190, at, 1);
+				for (let i = 0; i < 3; i++) noiseHit(0.04, 0.07, 2700, 1500, at + 0.03 + i * 0.045, 4);
+				break;
+			case "doorroll":
+				/* it rolls all the way up: the slats clacking over the drum, faster as it goes, over a motor hum */
+				tone(130, 0.85, "sawtooth", 0.025, 200, at);
+				for (let i = 0, t = 0; i < 16; i++, t += 0.075 - i * 0.0025)
+					noiseHit(0.035, 0.075, 1700 + i * 70, 1100, at + t, 4);
 				break;
 			case "honk":
 				tone(196, 0.5, "square", 0.12);
@@ -15538,9 +15578,9 @@ function start3D(mg, p, localOnly, startAt, split) {
 	setMode("mg");
 	GFX.mgCam = null;
 	/* shaders compile in the background while renderMG skips the scene (the last frame stays up), so the first frames
-	   don't stall on them; the camera drop from the clouds starts once they're ready. A new-look scene first waits for
+	   don't stall on them; the camera drop starts once they're ready. A new-look scene first waits for
 	   its reflection map (it changes every shader). W.warm = a few frames after that: the first real frame still does
-	   one-off work (texture uploads, shadow and effect shaders), so the clouds wait for it (enterMg) */
+	   one-off work (texture uploads, shadow and effect shaders), so the door stays down for it (enterMg) */
 	{
 		const drop = GFX.trDrop,
 			W0 = W,
@@ -15952,7 +15992,10 @@ function stepMG(dt) {
 	if (!W.tv) ctlUpdate();
 }
 
-/* ---------- board → minigame transition: the board HUD slides away, the camera climbs into the clouds, then the minigame starts with its camera dropping down through them and its HUD sliding in ---------- */
+/* ---------- board → minigame transition: the board HUD slides away and a garage roller door slams down over the screen;
+   while the game loads behind it the door jerks up an inch now and then and drops back in a puff of dust (CSS animations,
+   so they carry on while the page is busy compiling); once the game is ready it rolls up and the minigame starts with its
+   camera dropping in and its HUD sliding in ---------- */
 let trNonce = null;
 function enterMg(mg, p) {
 	if (!GFX.ok || mg.tv || GFX.mode !== "board" || trNonce === mg.nonce || document.body.classList.contains("tvphone")) {
@@ -15963,49 +16006,76 @@ function enterMg(mg, p) {
 	mgBusy = true;
 	musStop(0.4);
 	musJingle("mgstart");
-	const c = trClouds();
+	const c = trDoor(),
+		snd = trDoorSnd();
 	prebakeKits(mg);
 	document.body.classList.add("trout");
 	GFX.rise = performance.now();
+	c.classList.remove("up");
 	c.classList.add("on");
 	setTimeout(() => {
 		mgBusy = false;
 		GFX.rise = 0;
 		GFX.trDrop = true;
 		openMg(mg, p);
-		/* the clouds part once the game's shaders are ready and its first frames are drawn */
+		/* the door rolls up once the game's shaders are ready and its first frames are drawn */
 		((W && W.warm) || Promise.resolve()).then(() => {
 			document.body.classList.remove("trout");
 			document.body.classList.add("trin");
 			setTimeout(() => {
-				c.classList.remove("on");
+				c.classList.add("up");
+				if (snd) snd.stop();
+				sfx("doorroll");
 			}, 150);
+			setTimeout(() => c.classList.remove("on", "up"), 1100);
 			setTimeout(() => document.body.classList.remove("trin"), 1300);
 		});
 	}, 1300);
 }
-/* bake the coming game's props now: the AO worker runs during the clouds and start3D finds the results cached */
+/* bake the coming game's props now: the AO worker runs while the door is down and start3D finds the results cached */
 function prebakeKits(mg) {
 	const def = MG[mg.g];
 	if (!def || !def.kits) return;
-	/* a frame later, so the clouds and the camera rise get going first */
+	/* a frame later, so the door and the camera rise get going first */
 	setTimeout(() => {
 		try {
 			def.kits((mg.part || G.players).length);
 		} catch (e) {}
 	}, 30);
 }
-function trClouds() {
+function trDoor() {
 	let c = document.getElementById("trc");
 	if (!c) {
 		c = document.createElement("div");
 		c.id = "trc";
-		/* the dots fade in after 2.4 s of clouds (a phone compiling the game's shaders can take seconds), by CSS so they
-		   still show while the page is busy compiling */
-		c.innerHTML = "<i></i><i></i><i></i><i></i><i></i><b><s></s><s></s><s></s></b>";
+		/* u = daylight under the door, .dr = the door (drops / rolls up), .sl = its slats (the jerks), b = the hazard
+		   striped bottom bar with its handle, em = dust puffs along the floor */
+		c.innerHTML = `<u></u><div class="dr"><div class="sl"><b></b></div></div><i>${"<em></em>".repeat(6)}</i>`;
 		document.body.appendChild(c);
 	}
 	return c;
+}
+/* the door's sounds, put on the audio clock up front so they play even while the page is busy building the game: the
+   slam as it lands, then a rattle each time it drops back (trjig in part1: drops 0.5 s and 1.78 s into every 2.4 s,
+   from 0.95 s); stop() silences the ones still to come */
+function trDoorSnd() {
+	if (!SFX.on || !SFX.ctx || SFX.ctx.state !== "running") return null;
+	const g = SFX.ctx.createGain(),
+		to = SFX.to;
+	g.connect(to || SFX.out);
+	SFX.to = g;
+	sfx("doorslam", 0.4);
+	for (let t = 1.45; t < 15; t += 2.4) {
+		sfx("doorrattle", t);
+		sfx("doorrattle", t + 1.27);
+	}
+	SFX.to = to;
+	return {
+		stop() {
+			g.gain.setTargetAtTime(0, SFX.ctx.currentTime, 0.02);
+			setTimeout(() => g.disconnect(), 400);
+		},
+	};
 }
 /* ---------- minigame HUD ---------- */
 function openMg(mg, p) {
@@ -59405,7 +59475,7 @@ try {
 	console.error(e);
 }
 const s = document.createElement("script");
-s.text = "\n".repeat(1181 - 1) + document.getElementById("main").textContent + "\n//# sourceURL=index.html";
+s.text = "\n".repeat(1200 - 1) + document.getElementById("main").textContent + "\n//# sourceURL=index.html";
 document.body.appendChild(s);
 </script>
 </body>
