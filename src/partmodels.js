@@ -982,7 +982,7 @@ function placeKits(s, kits, list, shadow = 0.3, cell = 0) {
 		});
 		Object.values(cells).forEach((L) =>
 			parts.forEach(({ geo, mat, sh }) => {
-				const im = new THREE.InstancedMesh(cell ? instCullGeo(geo, L) : geo, mat, L.length),
+				const im = new THREE.InstancedMesh(geo, mat, L.length),
 					o = new THREE.Object3D();
 				L.forEach((q, i) => {
 					o.position.set(q.x, q.y || 0, q.z);
@@ -993,36 +993,13 @@ function placeKits(s, kits, list, shadow = 0.3, cell = 0) {
 				});
 				im.castShadow = im.receiveShadow = !sh;
 				if (sh) im.renderOrder = 1;
-				/* r128 would cull an InstancedMesh by the base geometry at the origin, not by where the copies are, so it
-				   starts with culling off; a cell's geometry carries a sphere round its own copies, so cells cull */
+				/* three.js culls an InstancedMesh by a sphere round all its copies, so a cell of copies culls on its own;
+				   one mesh holding every copy across a scene is nearly always on screen anyway, so it skips the check */
 				im.frustumCulled = !!cell;
 				s.add(im);
 			}),
 		);
 	});
-}
-/* a geometry sharing geo's buffers whose bounding sphere wraps every copy in list ([{x, y, z, sc}]): r128 culls an
-   InstancedMesh by its geometry's sphere, so this makes copies off screen (and out of the shadow camera) skip drawing */
-function instCullGeo(geo, list) {
-	if (!geo.boundingSphere) geo.computeBoundingSphere();
-	const bs = geo.boundingSphere,
-		box = new THREE.Box3(),
-		v = new THREE.Vector3(),
-		g2 = new THREE.BufferGeometry();
-	let sc = 1;
-	list.forEach((q) => {
-		box.expandByPoint(v.set(q.x, q.y || 0, q.z));
-		sc = Math.max(sc, q.sc || 1);
-	});
-	g2.index = geo.index;
-	g2.attributes = geo.attributes;
-	g2.groups = geo.groups;
-	g2.userData = geo.userData;
-	g2.boundingSphere = new THREE.Sphere(
-		box.getCenter(new THREE.Vector3()),
-		box.getSize(v).length() / 2 + (bs.radius + bs.center.length()) * sc,
-	);
-	return g2;
 }
 /* a gable roof's end wall (triangle prism) and the roof itself, ridge along x */
 function gableRoof(g, W, D, y0, RH, wall, roof, trim) {

@@ -1290,7 +1290,7 @@ if (typeof THREE !== "undefined") {
 	C.lights_physical_pars_fragment = ph;
 }
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-11-02 13:02 df406a4";
+const BUILD = "2026-11-02 13:25 8d937d3";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -14781,6 +14781,73 @@ function rtLeave() {
 	RT = null;
 	RTnamed = false;
 }
+/* the sun and its shadow box follow the camera's target t. The box (the scene's own: lights() makes a 52 m square)
+   grows to take in all the ground the camera sees, up to the fog or SUNMAX metres out, for views that reach further
+   (Getaway's road ahead): it then centres on that patch, backs the sun off to keep it all in depth, and scales the
+   biases with the texel size. A view that fits keeps the scene's box exactly. */
+const SUNMAX = 150,
+	_sv = new THREE.Vector3(),
+	_sd = new THREE.Vector3();
+function sunAt(W, t, cam) {
+	const sun = W.sun,
+		so = W.def.sun || [14, 26, 12],
+		sc = sun.shadow && sun.shadow.camera;
+	if (sc && !W.sunB) W.sunB = { r: sc.right, far: sc.far, b: sun.shadow.bias, nb: sun.shadow.normalBias };
+	const B = W.sunB;
+	let cx = t.x,
+		cz = t.z,
+		R = B ? B.r : 0;
+	if (B && cam) {
+		const far = Math.min(SUNMAX, W.sc.fog ? W.sc.fog.far : SUNMAX),
+			cp = cam.position;
+		let x0 = t.x,
+			x1 = t.x,
+			z0 = t.z,
+			z1 = t.z;
+		for (const [nx, ny] of [
+			[-1, -1],
+			[1, -1],
+			[-1, 1],
+			[1, 1],
+		]) {
+			_sd.set(nx, ny, 0.5).unproject(cam).sub(cp).normalize();
+			const d = _sd.y < -0.001 ? Math.min(far, -cp.y / _sd.y) : far,
+				x = cp.x + _sd.x * d,
+				z = cp.z + _sd.z * d;
+			x0 = Math.min(x0, x);
+			x1 = Math.max(x1, x);
+			z0 = Math.min(z0, z);
+			z1 = Math.max(z1, z);
+		}
+		const r = Math.hypot(x1 - x0, z1 - z0) / 2 + 3;
+		if (r > B.r) {
+			R = Math.max(B.r, Math.min(SUNMAX / 2, Math.ceil(r / 8) * 8));
+			cx = (x0 + x1) / 2;
+			cz = (z0 + z1) / 2;
+		}
+	}
+	const big = B && R > B.r;
+	if (B && sc.right !== R) {
+		sc.left = sc.bottom = -R;
+		sc.right = sc.top = R;
+		sc.far = big ? 2 * R + 60 : B.far;
+		sc.updateProjectionMatrix();
+		/* the same bias in metres (it's a share of the depth range), and normal bias growing with the texel size */
+		sun.shadow.bias = big ? (B.b * (B.far - sc.near)) / (sc.far - sc.near) : B.b;
+		sun.shadow.normalBias = big ? (B.nb * R) / B.r : B.nb;
+	}
+	if (big) {
+		_sv
+			.set(so[0], so[1], so[2])
+			.normalize()
+			.multiplyScalar(R + 30);
+		sun.position.set(cx + _sv.x, _sv.y, cz + _sv.z);
+		sun.target.position.set(cx, 0, cz);
+	} else {
+		sun.position.set(cx + so[0], so[1], cz + so[2]);
+		sun.target.position.copy(t);
+	}
+}
 function mgEnv(s, water, lane, bare, night, storm, dusk) {
 	s.background = new THREE.Color("#9FD4F5");
 	s.fog = new THREE.Fog("#9FD4F5", 50, 150);
@@ -15843,9 +15910,7 @@ function stepMG(dt) {
 		cam.setViewOffset(GFX.w, GFX.h, c1[0] * GFX.w, c1[1] * GFX.h, GFX.w, GFX.h);
 		cam.updateProjectionMatrix();
 	}
-	const so = W.def.sun || [14, 26, 12];
-	W.sun.position.set(GFX.mgCam.t.x + so[0], so[1], GFX.mgCam.t.z + so[2]);
-	W.sun.target.position.copy(GFX.mgCam.t);
+	sunAt(W, GFX.mgCam.t, cam);
 	fbStep(W);
 	swayStep(W.sc);
 	stepParts(W.sc, dt);
@@ -16576,11 +16641,10 @@ function buildPost(scene, cam) {
 		   Only the colour gets resolved: nothing reads these depth / stencil buffers, and on Windows (ANGLE on Direct3D) a
 		   multisampled depth-stencil resolve is a slow shader pass (a PC dropped from 170 to 51 fps) */
 	comp.addPass(new THREE.RenderPass(scene, cam));
-	/* ground-truth ambient occlusion (GTAOPass, denoised): soft contact shading where trucks meet the ground and in
-	   corners. Radius in metres; strength and radius both follow the panel's slider (renderMG) */
-	/* at half resolution (a quarter of the pixels for its normal / depth render, the AO and the denoise; AO is soft, so
-	   it upscales fine). 32 samples (5 directions instead of 3) and a wider denoise (6 px here = 12 on screen, 3 rings,
-	   24 taps): the defaults left grain on walls and fences once the camera pulls back */
+	/* ground-truth ambient occlusion (GTAOPass): soft contact shading where trucks meet the ground and in corners. Radius
+	   in metres; strength and radius both follow the panel's slider (renderMG). At half resolution (a quarter of the
+	   pixels for its normal / depth render, the AO and the blur; AO is soft, so it upscales fine), 32 samples (5
+	   directions instead of 3) */
 	const ao = new THREE.GTAOPass(scene, cam, Math.ceil((w * pr) / 2), Math.ceil((h * pr) / 2));
 	{
 		/* the composer sizes every pass to the full screen as it's added (addPass → setSize): keep this one at half */
@@ -16588,7 +16652,38 @@ function buildPost(scene, cam) {
 		ao.setSize = (sw, sh) => ss(Math.ceil(sw / 2), Math.ceil(sh / 2));
 	}
 	ao.updateGtaoMaterial({ radius: 0.8, distanceExponent: 1, thickness: 1, scale: 1, samples: 32 });
-	ao.updatePdMaterial({ radius: 6, rings: 3, samples: 24 });
+	/* its per-pixel sample rotation repeats every 5 x 5 pixels (a magic square), which the stock Poisson denoise leaves as
+	   a grainy dither; a 5 x 5 average cancels it exactly (the classic SSAO blur), weighted by depth so shading doesn't
+	   bleed across the edges of things */
+	{
+		const pm = ao.pdMaterial;
+		pm.fragmentShader = `uniform sampler2D tDiffuse;
+uniform sampler2D tDepth;
+uniform vec2 resolution;
+uniform mat4 cameraProjectionMatrixInverse;
+varying vec2 vUv;
+float viewZ( vec2 uv ) {
+	vec4 p = cameraProjectionMatrixInverse * vec4( vec3( uv, textureLod( tDepth, uv, 0.0 ).x ) * 2.0 - 1.0, 1.0 );
+	return p.z / p.w;
+}
+void main() {
+	if ( textureLod( tDepth, vUv, 0.0 ).x >= 1.0 ) {
+		gl_FragColor = vec4( 1.0 );
+		return;
+	}
+	float z0 = viewZ( vUv ), tol = 0.08 * abs( z0 ) + 0.05, sum = 0.0, wt = 0.0;
+	for ( int x = -2; x <= 2; x++ ) {
+		for ( int y = -2; y <= 2; y++ ) {
+			vec2 uv = vUv + vec2( float( x ), float( y ) ) / resolution;
+			float w = max( 0.0, 1.0 - abs( viewZ( uv ) - z0 ) / tol );
+			sum += textureLod( tDiffuse, uv, 0.0 ).r * w;
+			wt += w;
+		}
+	}
+	gl_FragColor = vec4( vec3( sum / max( wt, 0.0001 ) ), 1.0 );
+}`;
+		pm.needsUpdate = true;
+	}
 	comp.addPass(ao);
 	{
 		const orig = ao._renderOverride.bind(ao);
@@ -19032,9 +19127,7 @@ function tvsShared(fw, fh, dt) {
 	cam.position.copy(T.sp);
 	cam.lookAt(T.st);
 	cam.updateMatrixWorld();
-	const so = W0.def.sun || [14, 26, 12];
-	W0.sun.position.set(T.st.x + so[0], so[1], T.st.z + so[2]);
-	W0.sun.target.position.copy(T.st);
+	sunAt(W0, T.st, cam);
 	GFX.r.render(W0.sc, cam);
 }
 /* a column per lane, each with its own camera from def.tvsCols(W, lane, aspect, bottom) → [target, position] (bottom =
@@ -19176,10 +19269,7 @@ function tvsDyn(fw, fh, dt) {
 		c.lookAt(s.mgCam.t.clone().lerp(Tg, m));
 		c.setViewOffset(fw, fh, sg * T.nx * R, -sg * T.ny * R, fw, fh);
 		c.updateMatrixWorld();
-		const so = s.W.def.sun || [14, 26, 12],
-			t = s.mgCam.t;
-		s.W.sun.position.set(t.x + so[0], so[1], t.z + so[2]);
-		s.W.sun.target.position.copy(t);
+		sunAt(s.W, s.mgCam.t, c);
 	});
 	r.render(A.W.sc, A.cam);
 	$("#mg").classList.toggle("tvmerged", m > 0.985);
@@ -51560,13 +51650,12 @@ function vergeScatter(s, xs, z0, z1, n = 400, spots = [], gy = 0) {
 		const one = !long,
 			c = new THREE.Color();
 		Object.values(cells).forEach((Q) => {
-			const im = new THREE.InstancedMesh(one ? P.geo : instCullGeo(P.geo, Q), mat, Q.length);
+			const im = new THREE.InstancedMesh(P.geo, mat, Q.length);
 			Q.forEach((q, i) => {
 				im.setMatrixAt(i, q.m);
 				im.setColorAt(i, c.set(q.col));
 			});
-			/* r128 would cull an InstancedMesh by the base geometry at the origin, not by where the copies are, so it
-			   starts with culling off; a cell's geometry carries a sphere round its own copies, so cells cull */
+			/* three.js culls an InstancedMesh by a sphere round all its copies, so each cell culls on its own */
 			im.frustumCulled = !one;
 			s.add(im);
 		});
@@ -52669,7 +52758,7 @@ function placeKits(s, kits, list, shadow = 0.3, cell = 0) {
 		});
 		Object.values(cells).forEach((L) =>
 			parts.forEach(({ geo, mat, sh }) => {
-				const im = new THREE.InstancedMesh(cell ? instCullGeo(geo, L) : geo, mat, L.length),
+				const im = new THREE.InstancedMesh(geo, mat, L.length),
 					o = new THREE.Object3D();
 				L.forEach((q, i) => {
 					o.position.set(q.x, q.y || 0, q.z);
@@ -52680,36 +52769,13 @@ function placeKits(s, kits, list, shadow = 0.3, cell = 0) {
 				});
 				im.castShadow = im.receiveShadow = !sh;
 				if (sh) im.renderOrder = 1;
-				/* r128 would cull an InstancedMesh by the base geometry at the origin, not by where the copies are, so it
-				   starts with culling off; a cell's geometry carries a sphere round its own copies, so cells cull */
+				/* three.js culls an InstancedMesh by a sphere round all its copies, so a cell of copies culls on its own;
+				   one mesh holding every copy across a scene is nearly always on screen anyway, so it skips the check */
 				im.frustumCulled = !!cell;
 				s.add(im);
 			}),
 		);
 	});
-}
-/* a geometry sharing geo's buffers whose bounding sphere wraps every copy in list ([{x, y, z, sc}]): r128 culls an
-   InstancedMesh by its geometry's sphere, so this makes copies off screen (and out of the shadow camera) skip drawing */
-function instCullGeo(geo, list) {
-	if (!geo.boundingSphere) geo.computeBoundingSphere();
-	const bs = geo.boundingSphere,
-		box = new THREE.Box3(),
-		v = new THREE.Vector3(),
-		g2 = new THREE.BufferGeometry();
-	let sc = 1;
-	list.forEach((q) => {
-		box.expandByPoint(v.set(q.x, q.y || 0, q.z));
-		sc = Math.max(sc, q.sc || 1);
-	});
-	g2.index = geo.index;
-	g2.attributes = geo.attributes;
-	g2.groups = geo.groups;
-	g2.userData = geo.userData;
-	g2.boundingSphere = new THREE.Sphere(
-		box.getCenter(new THREE.Vector3()),
-		box.getSize(v).length() / 2 + (bs.radius + bs.center.length()) * sc,
-	);
-	return g2;
 }
 /* a gable roof's end wall (triangle prism) and the roof itself, ridge along x */
 function gableRoof(g, W, D, y0, RH, wall, roof, trim) {
