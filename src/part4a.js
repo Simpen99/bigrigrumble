@@ -1264,7 +1264,9 @@ function trClouds() {
 	if (!c) {
 		c = document.createElement("div");
 		c.id = "trc";
-		c.innerHTML = "<i></i><i></i><i></i><i></i><i></i>";
+		/* the dots fade in after 2.4 s of clouds (a phone compiling the game's shaders can take seconds), by CSS so they
+		   still show while the page is busy compiling */
+		c.innerHTML = "<i></i><i></i><i></i><i></i><i></i><b><s></s><s></s><s></s></b>";
 		document.body.appendChild(c);
 	}
 	return c;
