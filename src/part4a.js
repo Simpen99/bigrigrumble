@@ -1846,11 +1846,12 @@ function buildPost(scene, cam) {
 	comp.addPass(new THREE.RenderPass(scene, cam));
 	/* ground-truth ambient occlusion (GTAOPass, denoised): soft contact shading where trucks meet the ground and in
 	   corners. Radius in metres; strength and radius both follow the panel's slider (renderMG) */
-	const ao = new THREE.GTAOPass(scene, cam, w * pr, h * pr);
-	/* 32 samples (5 directions instead of 3) and a wider denoise (10 px, 3 rings, 24 taps): the defaults left grain on
-	   walls and fences once the camera pulls back */
+	/* at half resolution (a quarter of the pixels for its normal / depth render, the AO and the denoise; AO is soft, so
+	   it upscales fine). 32 samples (5 directions instead of 3) and a wider denoise (6 px here = 12 on screen, 3 rings,
+	   24 taps): the defaults left grain on walls and fences once the camera pulls back */
+	const ao = new THREE.GTAOPass(scene, cam, Math.ceil((w * pr) / 2), Math.ceil((h * pr) / 2));
 	ao.updateGtaoMaterial({ radius: 0.8, distanceExponent: 1, thickness: 1, scale: 1, samples: 32 });
-	ao.updatePdMaterial({ radius: 10, rings: 3, samples: 24 });
+	ao.updatePdMaterial({ radius: 6, rings: 3, samples: 24 });
 	comp.addPass(ao);
 	{
 		const orig = ao._renderOverride.bind(ao);
