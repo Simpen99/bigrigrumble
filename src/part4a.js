@@ -1287,9 +1287,11 @@ function trDoor(name) {
 	return c;
 }
 /* the door's jerks (trjig in part1, every TR_JIG s from 0.95 s): [when it drops back in the cycle, chance each puff pops
-   then, puff size] for the small and the big one */
+   then, puff size] for the small and the big one; puffs pop TR_LATE s after the door lands (on a phone the last frames of a
+   fast drop can still show it a few centimetres up when a puff right on time already shows) */
 const TR_PUFFS = 9,
 	TR_JIG = 2.4,
+	TR_LATE = 0.05,
 	TR_DROPS = [
 		[0.504, 0.4, 0.75],
 		[1.776, 0.6, 1],
@@ -1314,7 +1316,7 @@ function trPuffs(c) {
 				const i = Math.floor(Math.random() * n);
 				if (!who.includes(i)) who.push(i);
 			}
-			who.forEach((i) => pops[i].push([cy * TR_JIG + t, sz * rnd(0.8, 1.15), side() * rnd(4, 8)]));
+			who.forEach((i) => pops[i].push([cy * TR_JIG + t + TR_LATE, sz * rnd(0.8, 1.15), side() * rnd(4, 8)]));
 		});
 	let css = "";
 	ems.forEach((e, i) => {
@@ -1329,7 +1331,7 @@ function trPuffs(c) {
 					`${pc(t + 0.08)}{transform:translate(${(dx * 0.4).toFixed(1)}vmin,-1.5vmin) scale(${(s * 0.9).toFixed(2)})}` +
 					`${pc(t + 0.49)}{opacity:1;transform:translate(${dx.toFixed(1)}vmin,-5.5vmin) scale(0)}${pc(t + 0.5)}{opacity:0}`;
 			});
-		css += `@keyframes trpj${i}{${k}}#trc.on em:nth-child(${i + 1}){animation:trpuff .55s .4s ease-out both,trpj${i} ${per}s .95s ease-out ${loop}}`;
+		css += `@keyframes trpj${i}{${k}}#trc.on em:nth-child(${i + 1}){animation:trpuff .55s ${0.4 + TR_LATE}s ease-out both,trpj${i} ${per}s .95s ease-out ${loop}}`;
 	});
 	c.querySelector("style").textContent = css;
 }
