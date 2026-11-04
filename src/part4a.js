@@ -1290,11 +1290,11 @@ function trDoor(name) {
    then, puff size] for the small and the big one; puffs pop TR_LATE s after the door lands (on a phone the last frames of a
    fast drop can still show it a few centimetres up when a puff right on time already shows) */
 const TR_PUFFS = 9,
-	TR_JIG = 2.4,
+	TR_JIG = 3.6,
 	TR_LATE = 0.05,
 	TR_DROPS = [
 		[0.504, 0.4, 0.75],
-		[1.776, 0.6, 1],
+		[2.376, 0.6, 1],
 	];
 /* every door drop deals the puffs new spots, shapes (--pf0..9 in part1), sizes and drift, and each its own pops over 4
    jerk cycles (at least 2 puffs a drop), written as keyframes so they carry on while the page is busy building the game */
@@ -1359,8 +1359,8 @@ function trSync(c, go) {
 	setTimeout(() => fin((performance.now() - t0) / 1000), 400);
 }
 /* the door's sounds, put on the audio clock up front so they play even while the page is busy building the game: the
-   slam as it lands, then a rattle each time it drops back (trjig in part1: drops 0.5 s and 1.78 s into every 2.4 s,
-   from 0.95 s); stop() silences the ones still to come */
+   slam as it lands, then a rattle each time it drops back (TR_DROPS into every TR_JIG s from 0.95 s); stop() silences
+   the ones still to come */
 function trDoorSnd(lag = 0) {
 	if (!SFX.on || !SFX.ctx || SFX.ctx.state !== "running") return null;
 	const g = SFX.ctx.createGain(),
@@ -1369,10 +1369,7 @@ function trDoorSnd(lag = 0) {
 	g.connect(to || SFX.out);
 	SFX.to = g;
 	at("doorslam", 0.4);
-	for (let t = 1.45; t < 15; t += 2.4) {
-		at("doorrattle", t);
-		at("doorrattle", t + 1.27);
-	}
+	for (let t = 0.95; t < 15; t += TR_JIG) TR_DROPS.forEach(([d]) => at("doorrattle", t + d));
 	SFX.to = to;
 	return {
 		stop() {
