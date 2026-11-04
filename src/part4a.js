@@ -1230,7 +1230,7 @@ function enterMg(mg, p) {
 	mgBusy = true;
 	musStop(0.4);
 	musJingle("mgstart");
-	const c = trDoor(),
+	const c = trDoor(MG[mg.g] && MG[mg.g].name),
 		snd = trDoorSnd();
 	prebakeKits(mg);
 	document.body.classList.add("trout");
@@ -1267,17 +1267,67 @@ function prebakeKits(mg) {
 		} catch (e) {}
 	}, 30);
 }
-function trDoor() {
+/* name = the minigame's name on the plate bolted to the door */
+function trDoor(name) {
 	let c = document.getElementById("trc");
 	if (!c) {
 		c = document.createElement("div");
 		c.id = "trc";
-		/* u = daylight under the door, .dr = the door (drops / rolls up), .sl = its slats (the jerks), b = the hazard
-		   striped bottom bar with its handle, em = dust puffs along the floor */
-		c.innerHTML = `<u></u><div class="dr"><div class="sl"><b></b></div></div><i>${"<em></em>".repeat(6)}</i>`;
+		/* u = daylight under the door, .dr = the door (drops / rolls up), .sl = its slats (the jerks), p = the name plate,
+		   b = the hazard striped bottom bar with its handle, em = dust puffs along the floor */
+		c.innerHTML = `<style></style><u></u><div class="dr"><div class="sl"><p></p><b></b></div></div><i>${"<em></em>".repeat(TR_PUFFS)}</i>`;
 		document.body.appendChild(c);
 	}
+	c.querySelector("p").textContent = name || "";
+	trPuffs(c);
 	return c;
+}
+/* the door's jerks (trjig in part1, every TR_JIG s from 0.95 s): [when it drops back in the cycle, chance each puff pops
+   then, puff size] for the small and the big one */
+const TR_PUFFS = 9,
+	TR_JIG = 2.4,
+	TR_DROPS = [
+		[0.504, 0.4, 0.75],
+		[1.776, 0.6, 1],
+	];
+/* every door drop deals the puffs new spots, shapes (--pf0..9 in part1), sizes and drift, and each its own pops over 4
+   jerk cycles (at least 2 puffs a drop), written as keyframes so they carry on while the page is busy building the game */
+function trPuffs(c) {
+	const ems = c.querySelectorAll("em"),
+		n = ems.length,
+		per = TR_JIG * 4,
+		pops = Array.from({ length: n }, () => []),
+		rnd = (a, b) => a + Math.random() * (b - a),
+		side = () => (Math.random() < 0.5 ? -1 : 1),
+		pc = (t) => ((t / per) * 100).toFixed(2) + "%",
+		shapes = [...Array(10).keys()].sort(() => Math.random() - 0.5),
+		loop = matchMedia("(prefers-reduced-motion: reduce)").matches ? 1 : "infinite";
+	for (let cy = 0; cy < 4; cy++)
+		TR_DROPS.forEach(([t, ch, sz]) => {
+			const who = [];
+			for (let i = 0; i < n; i++) if (Math.random() < ch) who.push(i);
+			while (who.length < 2) {
+				const i = Math.floor(Math.random() * n);
+				if (!who.includes(i)) who.push(i);
+			}
+			who.forEach((i) => pops[i].push([cy * TR_JIG + t, sz * rnd(0.8, 1.15), side() * rnd(4, 8)]));
+		});
+	let css = "";
+	ems.forEach((e, i) => {
+		e.style.cssText = `left:${(((i + 0.5) / n) * 100 + rnd(-4, 4)).toFixed(1)}%;--w:${rnd(0.75, 1.3).toFixed(2)};--dx:${(side() * rnd(5, 8)).toFixed(1)}vmin;background-image:var(--pf${shapes[i % 10]})`;
+		let k = "0%,100%{opacity:0}";
+		pops[i]
+			.sort((a, b) => a[0] - b[0])
+			.forEach(([t, s, dx]) => {
+				const from = "transform:translate(0,2vmin) scale(.2)";
+				k +=
+					`${pc(t - 0.01)}{opacity:0;${from}}${pc(t)}{opacity:1;${from}}` +
+					`${pc(t + 0.08)}{transform:translate(${(dx * 0.4).toFixed(1)}vmin,-1.5vmin) scale(${(s * 0.9).toFixed(2)})}` +
+					`${pc(t + 0.49)}{opacity:1;transform:translate(${dx.toFixed(1)}vmin,-5.5vmin) scale(0)}${pc(t + 0.5)}{opacity:0}`;
+			});
+		css += `@keyframes trpj${i}{${k}}#trc.on em:nth-child(${i + 1}){animation:trpuff .55s .4s ease-out both,trpj${i} ${per}s .95s ease-out ${loop}}`;
+	});
+	c.querySelector("style").textContent = css;
 }
 /* the door's sounds, put on the audio clock up front so they play even while the page is busy building the game: the
    slam as it lands, then a rattle each time it drops back (trjig in part1: drops 0.5 s and 1.78 s into every 2.4 s,
