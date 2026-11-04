@@ -1313,7 +1313,7 @@ if (typeof THREE !== "undefined") {
 	C.lights_physical_pars_fragment = ph;
 }
 /* bug reports (dbgOpen in part4c): page errors are collected from the very start, last 15 kept */
-const BUILD = "2026-11-04 17:24 60d8b11";
+const BUILD = "2026-11-04 17:46 cf9f878";
 const DBG = { errs: [], log: [], t0: Date.now(), want: false, shot: null };
 (() => {
 	const add = (msg, src, line, col, stack) => {
@@ -16006,13 +16006,17 @@ function enterMg(mg, p) {
 	mgBusy = true;
 	musStop(0.4);
 	musJingle("mgstart");
-	const c = trDoor(MG[mg.g] && MG[mg.g].name),
-		snd = trDoorSnd();
-	prebakeKits(mg);
+	const c = trDoor(MG[mg.g] && MG[mg.g].name);
+	let snd = null;
 	document.body.classList.add("trout");
 	GFX.rise = performance.now();
 	c.classList.remove("up");
 	c.classList.add("on");
+	/* the sounds and the prop baking wait for the drop to get going */
+	trSync(c, (lag) => {
+		snd = trDoorSnd(lag);
+		prebakeKits(mg);
+	});
 	setTimeout(() => {
 		mgBusy = false;
 		GFX.rise = 0;
@@ -16105,19 +16109,43 @@ function trPuffs(c) {
 	});
 	c.querySelector("style").textContent = css;
 }
+/* everything on the door runs off the drop's clock: a phone can start the drop late (it paints the whole door first)
+   while the small puffs start on time and pop before it lands, so once the drop is going every other animation on the
+   door is set to its start time; go(lag) = how many seconds in the drop is by then (0 if it can't tell) */
+function trSync(c, go) {
+	const all = c.getAnimations ? c.getAnimations({ subtree: true }) : [],
+		dr = all.find((a) => a.animationName === "trdrop"),
+		t0 = performance.now();
+	let done = false;
+	const fin = (lag) => {
+		if (done) return;
+		done = true;
+		go(Math.max(0, lag));
+	};
+	if (!dr) return fin(0);
+	dr.ready.then(() => {
+		if (done || dr.startTime == null) return fin(0);
+		all.forEach((a) => {
+			if (a !== dr) a.startTime = dr.startTime;
+		});
+		fin((document.timeline.currentTime - dr.startTime) / 1000);
+	});
+	setTimeout(() => fin((performance.now() - t0) / 1000), 400);
+}
 /* the door's sounds, put on the audio clock up front so they play even while the page is busy building the game: the
    slam as it lands, then a rattle each time it drops back (trjig in part1: drops 0.5 s and 1.78 s into every 2.4 s,
    from 0.95 s); stop() silences the ones still to come */
-function trDoorSnd() {
+function trDoorSnd(lag = 0) {
 	if (!SFX.on || !SFX.ctx || SFX.ctx.state !== "running") return null;
 	const g = SFX.ctx.createGain(),
-		to = SFX.to;
+		to = SFX.to,
+		at = (name, t) => t >= lag && sfx(name, t - lag);
 	g.connect(to || SFX.out);
 	SFX.to = g;
-	sfx("doorslam", 0.4);
+	at("doorslam", 0.4);
 	for (let t = 1.45; t < 15; t += 2.4) {
-		sfx("doorrattle", t);
-		sfx("doorrattle", t + 1.27);
+		at("doorrattle", t);
+		at("doorrattle", t + 1.27);
 	}
 	SFX.to = to;
 	return {
