@@ -802,9 +802,9 @@ function start3D(mg, p, localOnly, startAt, split) {
 	setMode("mg");
 	GFX.mgCam = null;
 	/* shaders compile in the background while renderMG skips the scene (the last frame stays up), so the first frames
-	   don't stall on them; the camera drop from the clouds starts once they're ready. A new-look scene first waits for
+	   don't stall on them; the camera drop starts once they're ready. A new-look scene first waits for
 	   its reflection map (it changes every shader). W.warm = a few frames after that: the first real frame still does
-	   one-off work (texture uploads, shadow and effect shaders), so the clouds wait for it (enterMg) */
+	   one-off work (texture uploads, shadow and effect shaders), so the door stays down for it (enterMg) */
 	{
 		const drop = GFX.trDrop,
 			W0 = W,
@@ -1216,7 +1216,10 @@ function stepMG(dt) {
 	if (!W.tv) ctlUpdate();
 }
 
-/* ---------- board → minigame transition: the board HUD slides away, the camera climbs into the clouds, then the minigame starts with its camera dropping down through them and its HUD sliding in ---------- */
+/* ---------- board → minigame transition: the board HUD slides away and a garage roller door slams down over the screen;
+   while the game loads behind it the door jerks up an inch now and then and drops back in a puff of dust (CSS animations,
+   so they carry on while the page is busy compiling); once the game is ready it rolls up and the minigame starts with its
+   camera dropping in and its HUD sliding in ---------- */
 let trNonce = null;
 function enterMg(mg, p) {
 	if (!GFX.ok || mg.tv || GFX.mode !== "board" || trNonce === mg.nonce || document.body.classList.contains("tvphone")) {
@@ -1227,49 +1230,153 @@ function enterMg(mg, p) {
 	mgBusy = true;
 	musStop(0.4);
 	musJingle("mgstart");
-	const c = trClouds();
-	prebakeKits(mg);
+	const c = trDoor(MG[mg.g] && MG[mg.g].name);
+	let snd = null;
 	document.body.classList.add("trout");
 	GFX.rise = performance.now();
+	c.classList.remove("up");
 	c.classList.add("on");
+	/* the sounds and the prop baking wait for the drop to get going */
+	trSync(c, (lag) => {
+		snd = trDoorSnd(lag);
+		prebakeKits(mg);
+	});
 	setTimeout(() => {
 		mgBusy = false;
 		GFX.rise = 0;
 		GFX.trDrop = true;
 		openMg(mg, p);
-		/* the clouds part once the game's shaders are ready and its first frames are drawn */
+		/* the door rolls up once the game's shaders are ready and its first frames are drawn */
 		((W && W.warm) || Promise.resolve()).then(() => {
 			document.body.classList.remove("trout");
 			document.body.classList.add("trin");
 			setTimeout(() => {
-				c.classList.remove("on");
+				c.classList.add("up");
+				if (snd) snd.stop();
+				sfx("doorroll");
 			}, 150);
+			setTimeout(() => c.classList.remove("on", "up"), 1100);
 			setTimeout(() => document.body.classList.remove("trin"), 1300);
 		});
 	}, 1300);
 }
-/* bake the coming game's props now: the AO worker runs during the clouds and start3D finds the results cached */
+/* bake the coming game's props now: the AO worker runs while the door is down and start3D finds the results cached */
 function prebakeKits(mg) {
 	const def = MG[mg.g];
 	if (!def || !def.kits) return;
-	/* a frame later, so the clouds and the camera rise get going first */
+	/* a frame later, so the door and the camera rise get going first */
 	setTimeout(() => {
 		try {
 			def.kits((mg.part || G.players).length);
 		} catch (e) {}
 	}, 30);
 }
-function trClouds() {
+/* name = the minigame's name on the plate bolted to the door */
+function trDoor(name) {
 	let c = document.getElementById("trc");
 	if (!c) {
 		c = document.createElement("div");
 		c.id = "trc";
-		/* the dots fade in after 2.4 s of clouds (a phone compiling the game's shaders can take seconds), by CSS so they
-		   still show while the page is busy compiling */
-		c.innerHTML = "<i></i><i></i><i></i><i></i><i></i><b><s></s><s></s><s></s></b>";
+		/* u = daylight under the door, .dr = the door (drops / rolls up), .sl = its slats (the jerks), p = the name plate,
+		   b = the hazard striped bottom bar with its handle, em = dust puffs along the floor */
+		c.innerHTML = `<style></style><u></u><div class="dr"><div class="sl"><p></p><b></b></div></div><i>${"<em></em>".repeat(TR_PUFFS)}</i>`;
 		document.body.appendChild(c);
 	}
+	c.querySelector("p").textContent = name || "";
+	trPuffs(c);
 	return c;
+}
+/* the door's jerks (trjig in part1, every TR_JIG s from 0.95 s): [when it drops back in the cycle, chance each puff pops
+   then, puff size] for the small and the big one; puffs pop TR_LATE s after the door lands (on a phone the last frames of a
+   fast drop can still show it a few centimetres up when a puff right on time already shows) */
+const TR_PUFFS = 9,
+	TR_JIG = 3.6,
+	TR_LATE = 0.05,
+	TR_DROPS = [
+		[0.504, 0.4, 0.75],
+		[2.376, 0.6, 1],
+	];
+/* every door drop deals the puffs new spots, shapes (--pf0..9 in part1), sizes and drift, and each its own pops over 4
+   jerk cycles (at least 2 puffs a drop), written as keyframes so they carry on while the page is busy building the game */
+function trPuffs(c) {
+	const ems = c.querySelectorAll("em"),
+		n = ems.length,
+		per = TR_JIG * 4,
+		pops = Array.from({ length: n }, () => []),
+		rnd = (a, b) => a + Math.random() * (b - a),
+		side = () => (Math.random() < 0.5 ? -1 : 1),
+		pc = (t) => ((t / per) * 100).toFixed(2) + "%",
+		shapes = [...Array(10).keys()].sort(() => Math.random() - 0.5),
+		loop = matchMedia("(prefers-reduced-motion: reduce)").matches ? 1 : "infinite";
+	for (let cy = 0; cy < 4; cy++)
+		TR_DROPS.forEach(([t, ch, sz]) => {
+			const who = [];
+			for (let i = 0; i < n; i++) if (Math.random() < ch) who.push(i);
+			while (who.length < 2) {
+				const i = Math.floor(Math.random() * n);
+				if (!who.includes(i)) who.push(i);
+			}
+			who.forEach((i) => pops[i].push([cy * TR_JIG + t + TR_LATE, sz * rnd(0.8, 1.15), side() * rnd(4, 8)]));
+		});
+	let css = "";
+	ems.forEach((e, i) => {
+		e.style.cssText = `left:${(((i + 0.5) / n) * 100 + rnd(-4, 4)).toFixed(1)}%;--w:${rnd(0.75, 1.3).toFixed(2)};--dx:${(side() * rnd(5, 8)).toFixed(1)}vmin;background-image:var(--pf${shapes[i % 10]})`;
+		let k = "0%,100%{opacity:0}";
+		pops[i]
+			.sort((a, b) => a[0] - b[0])
+			.forEach(([t, s, dx]) => {
+				const from = "transform:translate(0,2vmin) scale(.2)";
+				k +=
+					`${pc(t - 0.01)}{opacity:0;${from}}${pc(t)}{opacity:1;${from}}` +
+					`${pc(t + 0.08)}{transform:translate(${(dx * 0.4).toFixed(1)}vmin,-1.5vmin) scale(${(s * 0.9).toFixed(2)})}` +
+					`${pc(t + 0.49)}{opacity:1;transform:translate(${dx.toFixed(1)}vmin,-5.5vmin) scale(0)}${pc(t + 0.5)}{opacity:0}`;
+			});
+		css += `@keyframes trpj${i}{${k}}#trc.on em:nth-child(${i + 1}){animation:trpuff .55s ${0.4 + TR_LATE}s ease-out both,trpj${i} ${per}s .95s ease-out ${loop}}`;
+	});
+	c.querySelector("style").textContent = css;
+}
+/* everything on the door runs off the drop's clock: a phone can start the drop late (it paints the whole door first)
+   while the small puffs start on time and pop before it lands, so once the drop is going every other animation on the
+   door is set to its start time; go(lag) = how many seconds in the drop is by then (0 if it can't tell) */
+function trSync(c, go) {
+	const all = c.getAnimations ? c.getAnimations({ subtree: true }) : [],
+		dr = all.find((a) => a.animationName === "trdrop"),
+		t0 = performance.now();
+	let done = false;
+	const fin = (lag) => {
+		if (done) return;
+		done = true;
+		go(Math.max(0, lag));
+	};
+	if (!dr) return fin(0);
+	dr.ready.then(() => {
+		if (done || dr.startTime == null) return fin(0);
+		all.forEach((a) => {
+			if (a !== dr) a.startTime = dr.startTime;
+		});
+		fin((document.timeline.currentTime - dr.startTime) / 1000);
+	});
+	setTimeout(() => fin((performance.now() - t0) / 1000), 400);
+}
+/* the door's sounds, put on the audio clock up front so they play even while the page is busy building the game: the
+   slam as it lands, then a rattle each time it drops back (TR_DROPS into every TR_JIG s from 0.95 s); stop() silences
+   the ones still to come */
+function trDoorSnd(lag = 0) {
+	if (!SFX.on || !SFX.ctx || SFX.ctx.state !== "running") return null;
+	const g = SFX.ctx.createGain(),
+		to = SFX.to,
+		at = (name, t) => t >= lag && sfx(name, t - lag);
+	g.connect(to || SFX.out);
+	SFX.to = g;
+	at("doorslam", 0.4);
+	for (let t = 0.95; t < 15; t += TR_JIG) TR_DROPS.forEach(([d]) => at("doorrattle", t + d));
+	SFX.to = to;
+	return {
+		stop() {
+			g.gain.setTargetAtTime(0, SFX.ctx.currentTime, 0.02);
+			setTimeout(() => g.disconnect(), 400);
+		},
+	};
 }
 /* ---------- minigame HUD ---------- */
 function openMg(mg, p) {

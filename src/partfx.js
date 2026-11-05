@@ -1422,7 +1422,8 @@ function windSnd() {
 		},
 	};
 }
-function sfx(n) {
+/* at = seconds from now on the audio clock (only the garage door sounds use it) */
+function sfx(n, at = 0) {
 	if (!SFX.on || !SFX.ctx || SFX.ctx.state !== "running") return;
 	SFX_SEEN.add("s:" + n);
 	/* a tuned sound (sfxVol) plays through its own gain */
@@ -1511,6 +1512,26 @@ function sfx(n) {
 			case "gull":
 				tone(1450, 0.14, "sawtooth", 0.06, 900);
 				tone(1550, 0.18, "sawtooth", 0.06, 820, 0.17);
+				break;
+			case "doorslam":
+				/* the roller door hits the floor (enterMg): a thud, the bottom bar ringing, the slats clattering after it */
+				tone(95, 0.32, "sine", 0.32, 48, at);
+				noiseHit(0.32, 0.38, 1000, 160, at, 0.9);
+				tone(311, 0.3, "square", 0.025, 0, at);
+				tone(466, 0.24, "square", 0.02, 0, at + 0.01);
+				for (let i = 0; i < 5; i++) noiseHit(0.05, 0.11 - i * 0.015, 2600, 1400, at + 0.04 + i * 0.05, 4);
+				break;
+			case "doorrattle":
+				/* it jerks up an inch and drops back */
+				tone(120, 0.14, "sine", 0.14, 70, at);
+				noiseHit(0.12, 0.16, 760, 190, at, 1);
+				for (let i = 0; i < 3; i++) noiseHit(0.04, 0.07, 2700, 1500, at + 0.03 + i * 0.045, 4);
+				break;
+			case "doorroll":
+				/* it rolls all the way up: the slats clacking over the drum, faster as it goes, over a motor hum */
+				tone(130, 0.85, "sawtooth", 0.025, 200, at);
+				for (let i = 0, t = 0; i < 16; i++, t += 0.075 - i * 0.0025)
+					noiseHit(0.035, 0.075, 1700 + i * 70, 1100, at + t, 4);
 				break;
 			case "honk":
 				tone(196, 0.5, "square", 0.12);
