@@ -1737,15 +1737,10 @@ function closeLP() {
 }
 /* optional post-processing for minigames (practice lighting panel): ambient occlusion, bloom, tilt-shift, vignette, colour, FXAA. Scripts load from the CDN the first time an effect is switched on. */
 const POSTJS = [
-	"shaders/CopyShader.js",
 	"postprocessing/EffectComposer.js",
 	"postprocessing/RenderPass.js",
 	"postprocessing/ShaderPass.js",
-	"postprocessing/MaskPass.js",
-	"shaders/LuminosityHighPassShader.js",
 	"postprocessing/UnrealBloomPass.js",
-	"math/SimplexNoise.js",
-	"shaders/SSAOShader.js",
 	"postprocessing/SSAOPass.js",
 	"shaders/HorizontalTiltShiftShader.js",
 	"shaders/VerticalTiltShiftShader.js",
@@ -1788,21 +1783,7 @@ function loadPlanck() {
 }
 function loadPost() {
 	if (GFX.postLoad) return GFX.postLoad;
-	const base = "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/";
-	GFX.postLoad = POSTJS.reduce(
-		(p, f) =>
-			p.then(
-				() =>
-					new Promise((res, rej) => {
-						const s = document.createElement("script");
-						s.src = base + f;
-						s.onload = res;
-						s.onerror = () => rej(new Error("load " + f));
-						document.head.appendChild(s);
-					}),
-			),
-		Promise.resolve(),
-	).then(
+	GFX.postLoad = threeAdd(POSTJS).then(
 		() => {
 			GFX.postReady = true;
 		},
@@ -1850,8 +1831,8 @@ function buildPost(scene, cam) {
 		}
 	}
 	{
-		const orig = ao.renderOverride.bind(ao);
-		ao.renderOverride = (...a) => {
+		const orig = ao._renderOverride.bind(ao);
+		ao._renderOverride = (...a) => {
 			const hid = [];
 			scene.traverse((q) => {
 				if (
@@ -1875,9 +1856,7 @@ function buildPost(scene, cam) {
 	comp.addPass(bloom);
 	if (scene.userData.lk) {
 		/* new look: buffers hold sRGB colour (tone mapped), and the bloom also picks up the emissive glow the shaders write into alpha */
-		[comp.renderTarget1, comp.renderTarget2, ao.beautyRenderTarget].forEach((t) => {
-			if (t) t.texture.encoding = THREE.sRGBEncoding;
-		});
+		[comp.renderTarget1, comp.renderTarget2].forEach((t) => rtLook(t, true));
 		const hp = bloom.materialHighPassFilter,
 			a = "float alpha = smoothstep( luminosityThreshold, luminosityThreshold + smoothWidth, v );",
 			b = "gl_FragColor = mix( outputColor, texel, alpha );";
@@ -1919,7 +1898,7 @@ function finalShader() {
 			`uniform float uAA, uCol, saturation, contrast, uVig, darkness;
 void main() {
 	vec4 c = texture2D( tDiffuse, vUv );
-	if ( uAA > 0.5 ) c.rgb = FxaaPixelShader( vUv, vec4( 0.0 ), tDiffuse, tDiffuse, tDiffuse, resolution, vec4( 0.0 ), vec4( 0.0 ), vec4( 0.0 ), 0.75, 0.166, 0.0833, 0.0, 0.0, 0.0, vec4( 0.0 ) ).rgb;
+	if ( uAA > 0.5 ) c.rgb = ApplyFXAA( tDiffuse, resolution, vUv ).rgb;
 	if ( uCol > 0.5 ) {
 		float average = ( c.r + c.g + c.b ) / 3.0;
 		if ( saturation > 0.0 ) c.rgb += ( average - c.rgb ) * ( 1.0 - 1.0 / ( 1.001 - saturation ) );
@@ -4463,7 +4442,7 @@ function tvsDyn(fw, fh, dt) {
 		T.qs.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), T.qm));
 		T.qc = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 	}
-	T.rt.texture.encoding = B.W.sc.userData.lk ? THREE.sRGBEncoding : THREE.LinearEncoding;
+	rtLook(T.rt, B.W.sc.userData.lk);
 	r.setRenderTarget(T.rt);
 	r.render(B.W.sc, B.cam);
 	r.setRenderTarget(null);

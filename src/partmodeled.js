@@ -148,7 +148,7 @@ function meInit() {
 		else meDragEnd();
 	});
 	tc.addEventListener("objectChange", meDragLive);
-	s.add(tc);
+	s.add(tc.getHelper());
 	ME.proxy = new THREE.Object3D();
 	ME.selBox = new THREE.Box3Helper(new THREE.Box3(), new THREE.Color("#FFB000"));
 	ME.selBox.visible = false;
