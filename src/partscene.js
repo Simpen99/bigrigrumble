@@ -568,13 +568,12 @@ function vergeScatter(s, xs, z0, z1, n = 400, spots = [], gy = 0) {
 		const one = !long,
 			c = new THREE.Color();
 		Object.values(cells).forEach((Q) => {
-			const im = new THREE.InstancedMesh(one ? P.geo : instCullGeo(P.geo, Q), mat, Q.length);
+			const im = new THREE.InstancedMesh(P.geo, mat, Q.length);
 			Q.forEach((q, i) => {
 				im.setMatrixAt(i, q.m);
 				im.setColorAt(i, c.set(q.col));
 			});
-			/* r128 would cull an InstancedMesh by the base geometry at the origin, not by where the copies are, so it
-			   starts with culling off; a cell's geometry carries a sphere round its own copies, so cells cull */
+			/* three.js culls an InstancedMesh by a sphere round all its copies, so each cell culls on its own */
 			im.frustumCulled = !one;
 			s.add(im);
 		});

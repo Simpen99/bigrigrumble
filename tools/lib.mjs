@@ -33,8 +33,8 @@ export async function launch() {
 
 /* open dist/index.html (or file) with three.js (ES modules) from node_modules; resolves once GFX is ready */
 /* peerjs: script served in place of PeerJS (nettest's fake relay); before(p): runs before the page loads */
-export async function openGame(browser, { width = 390, height = 844, mobile = false, peerjs = "", before, file } = {}) {
-	const ctx = await browser.newContext({ viewport: { width, height }, hasTouch: mobile, isMobile: mobile }),
+export async function openGame(browser, { width = 390, height = 844, mobile = false, peerjs = "", before, file, scale } = {}) {
+	const ctx = await browser.newContext({ viewport: { width, height }, hasTouch: mobile, isMobile: mobile, deviceScaleFactor: scale }),
 		p = await ctx.newPage(),
 		errs = [];
 	p.on("pageerror", (e) => errs.push(e.message));

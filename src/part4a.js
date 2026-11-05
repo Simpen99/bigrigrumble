@@ -49,6 +49,89 @@ function rtLeave() {
 	RT = null;
 	RTnamed = false;
 }
+/* the sun and its shadow box follow the camera's target t. The box (the scene's own: lights() makes a 52 m square)
+   grows to take in all the ground the camera sees, up to the fog or SUNMAX metres out, for views that reach further
+   (Getaway's road ahead): it then centres on that patch, backs the sun off to keep it all in depth, and scales the
+   biases with the texel size. A view that fits keeps the scene's box exactly. */
+const SUNMAX = 150,
+	_sv = new THREE.Vector3(),
+	_sd = new THREE.Vector3(),
+	_sx = new THREE.Vector3(),
+	_sy = new THREE.Vector3(),
+	_up = new THREE.Vector3(0, 1, 0);
+function sunAt(W, t, cam) {
+	const sun = W.sun,
+		so = W.def.sun || [14, 26, 12],
+		sc = sun.shadow && sun.shadow.camera;
+	if (sc && !W.sunB) W.sunB = { r: sc.right, far: sc.far, b: sun.shadow.bias, nb: sun.shadow.normalBias };
+	const B = W.sunB;
+	let cx = t.x,
+		cz = t.z,
+		R = B ? B.r : 0;
+	if (B && cam) {
+		const far = Math.min(SUNMAX, W.sc.fog ? W.sc.fog.far : SUNMAX),
+			cp = cam.position;
+		let x0 = t.x,
+			x1 = t.x,
+			z0 = t.z,
+			z1 = t.z;
+		for (const [nx, ny] of [
+			[-1, -1],
+			[1, -1],
+			[-1, 1],
+			[1, 1],
+		]) {
+			_sd.set(nx, ny, 0.5).unproject(cam).sub(cp).normalize();
+			const d = _sd.y < -0.001 ? Math.min(far, -cp.y / _sd.y) : far,
+				x = cp.x + _sd.x * d,
+				z = cp.z + _sd.z * d;
+			x0 = Math.min(x0, x);
+			x1 = Math.max(x1, x);
+			z0 = Math.min(z0, z);
+			z1 = Math.max(z1, z);
+		}
+		/* the size steps up at once but only steps back down once the view is clearly smaller, so camera shake and
+		   swerves don't keep resizing it (every resize shifts every shadow edge) */
+		const r = Math.hypot(x1 - x0, z1 - z0) / 2 + 3,
+			want = r > B.r ? Math.min(SUNMAX / 2, Math.ceil(r / 8) * 8) : B.r;
+		if (!W.sunR || want > W.sunR || want < W.sunR - 16) W.sunR = want;
+		if (W.sunR > B.r) {
+			R = W.sunR;
+			cx = (x0 + x1) / 2;
+			cz = (z0 + z1) / 2;
+		}
+	}
+	const big = B && R > B.r;
+	if (B && sc.right !== R) {
+		sc.left = sc.bottom = -R;
+		sc.right = sc.top = R;
+		sc.far = big ? 2 * R + 60 : B.far;
+		sc.updateProjectionMatrix();
+		/* the same bias in metres (it's a share of the depth range), and normal bias growing with the texel size */
+		sun.shadow.bias = big ? (B.b * (B.far - sc.near)) / (sc.far - sc.near) : B.b;
+		sun.shadow.normalBias = big ? (B.nb * R) / B.r : B.nb;
+	}
+	if (big) {
+		/* the box moves in whole shadow-map texels (across the light's view), so as the camera drives along every shadow
+		   edge stays on the same texels instead of crawling and flickering */
+		_sv.set(so[0], so[1], so[2]).normalize();
+		const tx = (2 * R) / sun.shadow.mapSize.x,
+			ax = _sx.crossVectors(_up, _sv).normalize(),
+			ay = _sy.crossVectors(_sv, ax),
+			a = cx * ax.x + cz * ax.z,
+			b = cx * ay.x + cz * ay.z,
+			da = Math.round(a / tx) * tx - a,
+			db = Math.round(b / tx) * tx - b,
+			px = cx + ax.x * da + ay.x * db,
+			py = ax.y * da + ay.y * db,
+			pz = cz + ax.z * da + ay.z * db;
+		sun.target.position.set(px, py, pz);
+		sun.position.set(px + _sv.x * (R + 30), py + _sv.y * (R + 30), pz + _sv.z * (R + 30));
+	} else {
+		sun.position.set(cx + so[0], so[1], cz + so[2]);
+		sun.target.position.copy(t);
+	}
+}
 function mgEnv(s, water, lane, bare, night, storm, dusk) {
 	s.background = new THREE.Color("#9FD4F5");
 	s.fog = new THREE.Fog("#9FD4F5", 50, 150);
@@ -188,11 +271,18 @@ function applyLook(W, extra) {
 		() => {},
 	);
 }
+/* heavy effects (ambient occlusion: a second scene render plus two full-screen passes) only where there's power to spare:
+   a PC or the big screen, not a phone playing on its own screen. The light panel can still switch them on anywhere. */
+const FX_HEAVY = ["ao"];
+function heavyFx() {
+	return !GFX.touch || tvView();
+}
 /* minigame effects from {ao, bloom, tilt, vig, col, aa} (0 / missing = off, except smooth edges: on unless aa is 0), as
    baked in def.fx or saved from the light panel */
 function setFx(fx) {
 	["ao", "bloom", "tilt", "vig", "col", "aa"].forEach((k) => {
-		const v = k === "aa" ? !fx || fx.aa === undefined || fx.aa : fx && fx[k];
+		let v = k === "aa" ? !fx || fx.aa === undefined || fx.aa : fx && fx[k];
+		if (FX_HEAVY.includes(k) && !heavyFx()) v = 0;
 		GFX.fx[k].on = !!v;
 		if (v) {
 			if (k === "col") {
@@ -671,6 +761,11 @@ function start3D(mg, p, localOnly, startAt, split) {
 		}
 	}
 	if (def.look) applyLook(W, svLt);
+	/* shadow strength (the light panel's Shadows, lt.shade; 1 = full): lighter shadows without brightening anything else */
+	{
+		const sh = (svLt && svLt.shade) ?? (def.lt && def.lt.shade) ?? (def.look && def.look.shade);
+		if (sh !== undefined && W.sun.shadow) W.sun.shadow.intensity = sh;
+	}
 	if (sv && sv.fx) setFx(sv.fx);
 	if (sv && sv.lt && sv.lt.glow) GFX.fx.bloom.th = sv.lt.glow;
 	const n = plist.length;
@@ -706,6 +801,34 @@ function start3D(mg, p, localOnly, startAt, split) {
 	mergeScene(W);
 	setMode("mg");
 	GFX.mgCam = null;
+	/* shaders compile in the background while renderMG skips the scene (the last frame stays up), so the first frames
+	   don't stall on them; the camera drop from the clouds starts once they're ready. A new-look scene first waits for
+	   its reflection map (it changes every shader). W.warm = a few frames after that: the first real frame still does
+	   one-off work (texture uploads, shadow and effect shaders), so the clouds wait for it (enterMg) */
+	{
+		const drop = GFX.trDrop,
+			W0 = W,
+			wait = (ms) => new Promise((res) => setTimeout(res, ms));
+		s.userData.cmp = true;
+		const env = s.userData.lk
+			? Promise.race([lookEnvTex().then((t) => (s.environment = t)), wait(1500)]).catch(() => {})
+			: Promise.resolve();
+		W.shaders = env
+			.then(() => gfxPrecompile(s, W0.cam, 2500))
+			.then(() => {
+				s.userData.cmp = false;
+				if (drop && W === W0) {
+					GFX.mgCam = null;
+					GFX.trDrop = true;
+				}
+			});
+		W.warm = W.shaders.then(() =>
+			Promise.race([
+				new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(res)))),
+				wait(1500),
+			]),
+		);
+	}
 }
 /* fewer draw calls: static scenery merges per material into one mesh per 32 m cell (so off-screen chunks are still
    culled). Static = nothing in W or the game's def points at the mesh or any parent, no userData on it or a parent, opaque,
@@ -1085,9 +1208,7 @@ function stepMG(dt) {
 		cam.setViewOffset(GFX.w, GFX.h, c1[0] * GFX.w, c1[1] * GFX.h, GFX.w, GFX.h);
 		cam.updateProjectionMatrix();
 	}
-	const so = W.def.sun || [14, 26, 12];
-	W.sun.position.set(GFX.mgCam.t.x + so[0], so[1], GFX.mgCam.t.z + so[2]);
-	W.sun.target.position.copy(GFX.mgCam.t);
+	sunAt(W, GFX.mgCam.t, cam);
 	fbStep(W);
 	swayStep(W.sc);
 	stepParts(W.sc, dt);
@@ -1116,12 +1237,15 @@ function enterMg(mg, p) {
 		GFX.rise = 0;
 		GFX.trDrop = true;
 		openMg(mg, p);
-		document.body.classList.remove("trout");
-		document.body.classList.add("trin");
-		setTimeout(() => {
-			c.classList.remove("on");
-		}, 150);
-		setTimeout(() => document.body.classList.remove("trin"), 1300);
+		/* the clouds part once the game's shaders are ready and its first frames are drawn */
+		((W && W.warm) || Promise.resolve()).then(() => {
+			document.body.classList.remove("trout");
+			document.body.classList.add("trin");
+			setTimeout(() => {
+				c.classList.remove("on");
+			}, 150);
+			setTimeout(() => document.body.classList.remove("trin"), 1300);
+		});
 	}, 1300);
 }
 /* bake the coming game's props now: the AO worker runs during the clouds and start3D finds the results cached */
@@ -1140,7 +1264,9 @@ function trClouds() {
 	if (!c) {
 		c = document.createElement("div");
 		c.id = "trc";
-		c.innerHTML = "<i></i><i></i><i></i><i></i><i></i>";
+		/* the dots fade in after 2.4 s of clouds (a phone compiling the game's shaders can take seconds), by CSS so they
+		   still show while the page is busy compiling */
+		c.innerHTML = "<i></i><i></i><i></i><i></i><i></i><b><s></s><s></s><s></s></b>";
 		document.body.appendChild(c);
 	}
 	return c;
@@ -1735,16 +1861,15 @@ function closeLP() {
 		W.paused = 0;
 	}
 }
-/* optional post-processing for minigames (practice lighting panel): ambient occlusion, bloom, tilt-shift, vignette, colour, FXAA. Scripts load from the CDN the first time an effect is switched on. */
+/* optional post-processing for minigames (practice lighting panel): ambient occlusion, bloom, tilt-shift, vignette, colour. Scripts load from the CDN the first time an effect is switched on. */
 const POSTJS = [
 	"postprocessing/EffectComposer.js",
 	"postprocessing/RenderPass.js",
 	"postprocessing/ShaderPass.js",
 	"postprocessing/UnrealBloomPass.js",
-	"postprocessing/SSAOPass.js",
+	"postprocessing/GTAOPass.js",
 	"shaders/HorizontalTiltShiftShader.js",
 	"shaders/VerticalTiltShiftShader.js",
-	"shaders/FXAAShader.js",
 ];
 GFX.fx = {
 	ao: { on: false, v: 0.5 },
@@ -1757,8 +1882,8 @@ GFX.fx = {
 setTimeout(() => {
 	if (GFX.ok) loadPost().catch(() => {});
 }, 1200);
-/* whether a frame needs the post chain. Anti-aliasing alone doesn't: the canvas has the GPU's own multisampling
-   (sharper than FXAA, and no extra full-screen pass); with other effects on the chain ends in FXAA (F.aa) */
+/* whether a frame needs the post chain. Anti-aliasing alone doesn't: the canvas has the GPU's own multisampling; with other
+   effects on, the chain's buffers are multisampled instead (F.aa) */
 function fxAny() {
 	const F = GFX.fx;
 	return F.ao.on || F.bloom.on || F.tilt.on || F.vig.on || F.col.on;
@@ -1800,6 +1925,7 @@ function buildPost(scene, cam) {
 		w = Math.max(1, sz.x),
 		h = Math.max(1, sz.y),
 		pr = r.getPixelRatio(),
+		aa = GFX.fx.aa.on,
 		comp = new THREE.EffectComposer(
 			r,
 			new THREE.WebGLRenderTarget(w * pr, h * pr, {
@@ -1807,29 +1933,58 @@ function buildPost(scene, cam) {
 				magFilter: THREE.LinearFilter,
 				format: THREE.RGBAFormat,
 				stencilBuffer: true,
+				samples: aa ? 4 : 0,
+				resolveDepthBuffer: false,
+				resolveStencilBuffer: false,
 			}),
-		); /* stencil needed by the tyre marks */
+		); /* stencil needed by the tyre marks; multisampled = the same smooth edges as the canvas (sharper than FXAA).
+		   Only the colour gets resolved: nothing reads these depth / stencil buffers, and on Windows (ANGLE on Direct3D) a
+		   multisampled depth-stencil resolve is a slow shader pass (a PC dropped from 170 to 51 fps) */
 	comp.addPass(new THREE.RenderPass(scene, cam));
-	const ao = new THREE.SSAOPass(scene, cam, w, h);
-	ao.kernelRadius = 6;
-	ao.minDistance = 0.001;
-	ao.maxDistance = 0.025;
-	comp.addPass(ao);
+	/* ground-truth ambient occlusion (GTAOPass): soft contact shading where trucks meet the ground and in corners. Radius
+	   in metres; strength and radius both follow the panel's slider (renderMG). At half resolution (a quarter of the
+	   pixels for its normal / depth render, the AO and the blur; AO is soft, so it upscales fine), 32 samples (5
+	   directions instead of 3) */
+	const ao = new THREE.GTAOPass(scene, cam, Math.ceil((w * pr) / 2), Math.ceil((h * pr) / 2));
 	{
-		const bm = ao.blurMaterial,
-			from = "gl_FragColor = vec4( vec3( result / ( 5.0 * 5.0 ) ), 1.0 );";
-		if (bm && bm.fragmentShader.includes(from)) {
-			bm.uniforms.aoAmt = { value: 0.5 };
-			bm.fragmentShader =
-				"uniform float aoAmt;\n" +
-				bm.fragmentShader.replace(
-					from,
-					"gl_FragColor = vec4( vec3( mix( 1.0, result / ( 5.0 * 5.0 ), aoAmt ) ), 1.0 );",
-				);
-			bm.needsUpdate = true;
-			ao.aoAmt = bm.uniforms.aoAmt;
+		/* the composer sizes every pass to the full screen as it's added (addPass → setSize): keep this one at half */
+		const ss = ao.setSize.bind(ao);
+		ao.setSize = (sw, sh) => ss(Math.ceil(sw / 2), Math.ceil(sh / 2));
+	}
+	ao.updateGtaoMaterial({ radius: 0.8, distanceExponent: 1, thickness: 1, scale: 1, samples: 32 });
+	/* its per-pixel sample rotation repeats every 5 x 5 pixels (a magic square), which the stock Poisson denoise leaves as
+	   a grainy dither; a 5 x 5 average cancels it exactly (the classic SSAO blur), weighted by depth so shading doesn't
+	   bleed across the edges of things */
+	{
+		const pm = ao.pdMaterial;
+		pm.fragmentShader = `uniform sampler2D tDiffuse;
+uniform sampler2D tDepth;
+uniform vec2 resolution;
+uniform mat4 cameraProjectionMatrixInverse;
+varying vec2 vUv;
+float viewZ( vec2 uv ) {
+	vec4 p = cameraProjectionMatrixInverse * vec4( vec3( uv, textureLod( tDepth, uv, 0.0 ).x ) * 2.0 - 1.0, 1.0 );
+	return p.z / p.w;
+}
+void main() {
+	if ( textureLod( tDepth, vUv, 0.0 ).x >= 1.0 ) {
+		gl_FragColor = vec4( 1.0 );
+		return;
+	}
+	float z0 = viewZ( vUv ), tol = 0.08 * abs( z0 ) + 0.05, sum = 0.0, wt = 0.0;
+	for ( int x = -2; x <= 2; x++ ) {
+		for ( int y = -2; y <= 2; y++ ) {
+			vec2 uv = vUv + vec2( float( x ), float( y ) ) / resolution;
+			float w = max( 0.0, 1.0 - abs( viewZ( uv ) - z0 ) / tol );
+			sum += textureLod( tDiffuse, uv, 0.0 ).r * w;
+			wt += w;
 		}
 	}
+	gl_FragColor = vec4( vec3( sum / max( wt, 0.0001 ) ), 1.0 );
+}`;
+		pm.needsUpdate = true;
+	}
+	comp.addPass(ao);
 	{
 		const orig = ao._renderOverride.bind(ao);
 		ao._renderOverride = (...a) => {
@@ -1846,7 +2001,13 @@ function buildPost(scene, cam) {
 					hid.push(q);
 				}
 			});
+			/* its normal / depth render is a scene render too: without this three.js redraws every shadow map for it
+			   (thrown away: the normals don't use shadows), doubling the shadow cost of a frame */
+			const sm = GFX.r.shadowMap,
+				au = sm.autoUpdate;
+			sm.autoUpdate = false;
 			orig(...a);
+			sm.autoUpdate = au;
 			hid.forEach((q) => {
 				q.visible = true;
 			});
@@ -1872,33 +2033,27 @@ function buildPost(scene, cam) {
 	comp.addPass(th);
 	comp.addPass(tv);
 	const fin = new THREE.ShaderPass(finalShader());
-	fin.uniforms.resolution.value.set(1 / (w * pr), 1 / (h * pr));
 	comp.addPass(fin);
-	return { comp, scene, cam, w, h, ao, bloom, th, tv, fin };
+	return { comp, scene, cam, w, h, aa, ao, bloom, th, tv, fin };
 }
-/* the last pass does FXAA, saturation / contrast and the vignette in one go (four full-screen passes were a lot of
-   pixels on a phone). Grading and vignette are per pixel, so doing them after FXAA and the tilt blur looks the same. */
+/* the last pass does saturation / contrast and the vignette in one go (separate passes were a lot of pixels on a phone) */
 function finalShader() {
-	const F = THREE.FXAAShader,
-		main = F.fragmentShader.lastIndexOf("void main()");
 	return {
 		uniforms: {
 			tDiffuse: { value: null },
-			resolution: { value: new THREE.Vector2() },
-			uAA: { value: 1 },
 			uCol: { value: 0 },
 			saturation: { value: 0 },
 			contrast: { value: 0 },
 			uVig: { value: 0 },
 			darkness: { value: 0 },
 		},
-		vertexShader: F.vertexShader,
-		fragmentShader:
-			F.fragmentShader.slice(0, main) +
-			`uniform float uAA, uCol, saturation, contrast, uVig, darkness;
+		vertexShader:
+			"varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 ); }",
+		fragmentShader: `uniform sampler2D tDiffuse;
+uniform float uCol, saturation, contrast, uVig, darkness;
+varying vec2 vUv;
 void main() {
 	vec4 c = texture2D( tDiffuse, vUv );
-	if ( uAA > 0.5 ) c.rgb = ApplyFXAA( tDiffuse, resolution, vUv ).rgb;
 	if ( uCol > 0.5 ) {
 		float average = ( c.r + c.g + c.b ) / 3.0;
 		if ( saturation > 0.0 ) c.rgb += ( average - c.rgb ) * ( 1.0 - 1.0 / ( 1.001 - saturation ) );
@@ -1923,13 +2078,14 @@ function renderMG(scene, cam) {
 			lookEnv(scene);
 		}
 	}
+	if (scene.userData.cmp) return;
 	if (!GFX.postReady || !fxAny()) {
 		GFX.r.render(scene, cam);
 		return;
 	}
 	const sz = GFX.r.getSize(new THREE.Vector2());
 	let P = GFX.pp;
-	if (!P || P.scene !== scene || P.cam !== cam || P.w !== sz.x || P.h !== sz.y) {
+	if (!P || P.scene !== scene || P.cam !== cam || P.w !== sz.x || P.h !== sz.y || P.aa !== F.aa.on) {
 		if (P) P.comp.passes.forEach((p) => p.dispose && p.dispose());
 		try {
 			P = GFX.pp = buildPost(scene, cam);
@@ -1941,8 +2097,12 @@ function renderMG(scene, cam) {
 		}
 	}
 	P.ao.enabled = F.ao.on;
-	if (P.ao.aoAmt) P.ao.aoAmt.value = F.ao.v * 0.85;
-	else P.ao.maxDistance = 0.005 + F.ao.v * 0.04;
+	if (P.ao.enabled && P.aoV !== F.ao.v) {
+		P.aoV = F.ao.v;
+		/* the slider (0..1) widens and deepens it: radius 0.3 to 1.8 m, darkening curve 1 to 3 */
+		P.ao.blendIntensity = Math.min(1, F.ao.v * 2);
+		P.ao.updateGtaoMaterial({ radius: 0.3 + F.ao.v * 1.5, scale: 1 + F.ao.v * 2 });
+	}
 	P.bloom.enabled = F.bloom.on;
 	P.bloom.strength = F.bloom.v * 0.7;
 	P.bloom.threshold = F.bloom.th;
@@ -1952,8 +2112,7 @@ function renderMG(scene, cam) {
 	P.th.uniforms.r.value = P.tv.uniforms.r.value = 0.5;
 	{
 		const u = P.fin.uniforms;
-		P.fin.enabled = F.aa.on || F.col.on || F.vig.on;
-		u.uAA.value = F.aa.on ? 1 : 0;
+		P.fin.enabled = F.col.on || F.vig.on;
 		u.uCol.value = F.col.on ? 1 : 0;
 		u.saturation.value = F.col.sat;
 		u.contrast.value = F.col.con;
@@ -1989,6 +2148,7 @@ function wireLightPanel() {
 			dist: Math.hypot(so[0], so[2]) || 18,
 			warm: W.lpWarm ?? 0.5,
 			haze: fog ? fog.near : 60,
+			shade: sun.shadow ? sun.shadow.intensity : 1,
 		};
 		if (LK) Object.assign(st, { exp: LK.exp, env: LK.env, paint: LK.paint, glow: LK.glow, lamp: LK.lamp });
 		const LIGHT = [
@@ -1997,6 +2157,7 @@ function wireLightPanel() {
 			["h", "Height", 2, 45, 1],
 			["ang", "Angle", 0, 359, 1],
 			["warm", "Warmth", 0, 1, 0.02],
+			["shade", "Shadows", 0, 1, 0.02],
 		]
 			.concat(fog ? [["haze", "Haze", 5, 200, 1]] : [])
 			.concat(
@@ -2011,7 +2172,7 @@ function wireLightPanel() {
 					: [],
 			);
 		const FX = [
-			["ao", "Shading AO"],
+			["ao", "Shading AO (GTAO)"],
 			["bloom", "Bloom"],
 			["tilt", "Tilt-shift"],
 			["vig", "Vignette"],
@@ -2077,6 +2238,7 @@ function wireLightPanel() {
 			if (hemi) hemi.intensity = st.amb;
 			sun.intensity = st.sun;
 			sun.color.copy(cool).lerp(hot, st.warm);
+			if (sun.shadow) sun.shadow.intensity = st.shade;
 			if (LK) {
 				sun.color.convertSRGBToLinear();
 				const envCh = LK.env !== st.env || LK.paint !== st.paint;
@@ -2117,7 +2279,7 @@ function wireLightPanel() {
 				.map(([k, l]) => `${l.toLowerCase()} ${k === "aa" ? "on" : fxv(k).toFixed(2)}`)
 				.join(", ");
 			document.getElementById("lpout").textContent =
-				`${W.mg.g}: ambient ${fmt("amb", st.amb)} · sun ${fmt("sun", st.sun)} · height ${fmt("h", st.h)} · angle ${fmt("ang", st.ang)} · warmth ${fmt("warm", st.warm)}` +
+				`${W.mg.g}: ambient ${fmt("amb", st.amb)} · sun ${fmt("sun", st.sun)} · height ${fmt("h", st.h)} · angle ${fmt("ang", st.ang)} · warmth ${fmt("warm", st.warm)} · shadows ${fmt("shade", st.shade)}` +
 				(fog ? ` · haze ${fmt("haze", st.haze)}` : "") +
 				(LK
 					? ` · exposure ${fmt("exp", st.exp)} · reflect ${fmt("env", st.env)} · paint rough ${fmt("paint", st.paint)}${W.lamps && W.lamps.length ? ` · lamps ${fmt("lamp", st.lamp)}` : ""} · glow cut ${fmt("glow", st.glow)}`
@@ -2257,6 +2419,7 @@ function wireLightPanel() {
 					lt = { amb: st.amb, sun: st.sun, warm: st.warm },
 					fx = {};
 				if (fog) lt.haze = st.haze;
+				if (st.shade !== 1) lt.shade = st.shade;
 				if (LK) Object.assign(lt, { exp: st.exp, env: st.env, paint: st.paint, glow: st.glow, lamp: st.lamp });
 				FX.forEach(([k]) => (fx[k] = F[k].on ? (k === "aa" ? 1 : +fxv(k).toFixed(2)) : 0));
 				A[g] = { lt, sun: (W.def.sun || [14, 26, 12]).slice(), fx };
@@ -4264,9 +4427,7 @@ function tvsShared(fw, fh, dt) {
 	cam.position.copy(T.sp);
 	cam.lookAt(T.st);
 	cam.updateMatrixWorld();
-	const so = W0.def.sun || [14, 26, 12];
-	W0.sun.position.set(T.st.x + so[0], so[1], T.st.z + so[2]);
-	W0.sun.target.position.copy(T.st);
+	sunAt(W0, T.st, cam);
 	GFX.r.render(W0.sc, cam);
 }
 /* a column per lane, each with its own camera from def.tvsCols(W, lane, aspect, bottom) → [target, position] (bottom =
@@ -4408,10 +4569,7 @@ function tvsDyn(fw, fh, dt) {
 		c.lookAt(s.mgCam.t.clone().lerp(Tg, m));
 		c.setViewOffset(fw, fh, sg * T.nx * R, -sg * T.ny * R, fw, fh);
 		c.updateMatrixWorld();
-		const so = s.W.def.sun || [14, 26, 12],
-			t = s.mgCam.t;
-		s.W.sun.position.set(t.x + so[0], so[1], t.z + so[2]);
-		s.W.sun.target.position.copy(t);
+		sunAt(s.W, s.mgCam.t, c);
 	});
 	r.render(A.W.sc, A.cam);
 	$("#mg").classList.toggle("tvmerged", m > 0.985);
@@ -4421,7 +4579,12 @@ function tvsDyn(fw, fh, dt) {
 		rh = Math.round(fh * pr);
 	if (!T.rt || T.rt.width !== rw || T.rt.height !== rh) {
 		if (T.rt) T.rt.dispose();
-		T.rt = new THREE.WebGLRenderTarget(rw, rh, { stencilBuffer: true });
+		T.rt = new THREE.WebGLRenderTarget(rw, rh, {
+			stencilBuffer: true,
+			samples: 4,
+			resolveDepthBuffer: false,
+			resolveStencilBuffer: false,
+		});
 	}
 	if (!T.qs) {
 		T.qm = new THREE.ShaderMaterial({
